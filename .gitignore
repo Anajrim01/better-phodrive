@@ -5,8 +5,8 @@ node_modules
 .vercel
 .netlify
 .wrangler
-/.svelte-kit
-/build
+.svelte-kit
+build
 .vitest/
 
 # OS
@@ -22,3 +22,8 @@ Thumbs.db
 # Vite
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Library output
+/core/dist
+/core/LICENSE
+/core/LICENSES

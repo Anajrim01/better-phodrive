@@ -1,0 +1,341 @@
+import type { ApplicationError } from '@phodrive/core/errors';
+import { PersistedState } from 'runed';
+import { Err, Ok, type Result } from 'results-ts';
+import {
+    AccountSchema,
+    ConcurrentWorkersSchema,
+    DEFAULT_PREFERENCES_DEFAULTS,
+    FileSortSchema,
+    FileLayoutSchema,
+    FileLayout,
+    DEFAULT_FILE_LAYOUT,
+    MAX_CONCURRENT_WORKERS,
+    MAX_REFRESH_INTERVAL_SECONDS,
+    RefreshIntervalSchema,
+    SelectedAccountSchema,
+    StoredAccountsSchema,
+    ThemeSchema,
+    FileSort,
+    type PreferencesDefaults,
+    ThemeMode
+} from '@phodrive/core/models';
+
+export const ACCOUNTS_KEY = 'accounts';
+export const SELECTED_KEY = 'selectedAccount';
+export const THEME_KEY = 'phodrive-theme';
+export const FILE_SORT_KEY = 'phodrive-sort';
+export const FILE_LAYOUT_KEY = 'phodrive-layout';
+export const REFRESH_INTERVAL_KEY = 'phodrive-refresh-interval';
+export const CONCURRENT_WORKERS_KEY = 'phodrive-concurrent-workers';
+export const NEXT_THEME: Record<ThemeMode, ThemeMode> = {
+    [ThemeMode.Auto]: ThemeMode.Light,
+    [ThemeMode.Light]: ThemeMode.Dark,
+    [ThemeMode.Dark]: ThemeMode.Auto
+};
+
+type Accounts = Record<string, string>;
+const STORAGE_ERROR = 'Browser storage is unavailable. Enable it to save your preferences.';
+
+/** Runed's default parser logs raw values on malformed JSON, which could expose credentials. */
+function parseStoredJson(raw: string): Result<unknown, ApplicationError> {
+    try {
+        const value: unknown = JSON.parse(raw);
+
+        return Ok(value);
+    } catch {
+        return Err({
+            code: 'INVALID_STORED_JSON',
+            message: 'Browser storage contains invalid JSON.'
+        } as const);
+    }
+}
+
+export const ACCOUNTS_SERIALIZER = {
+    serialize: (accounts: Accounts) => JSON.stringify(accounts),
+    deserialize: (raw: string): Accounts => {
+        const value = parseStoredJson(raw).match({ Ok: (stored) => stored, Err: () => undefined });
+        const parsed = StoredAccountsSchema.safeParse(value);
+        if (!parsed.success) return {};
+
+        const valid: Accounts = {};
+        for (const [email, token] of Object.entries(parsed.data)) {
+            const account = AccountSchema.safeParse({ email, token });
+            if (!account.success) continue;
+
+            valid[account.data.email] = account.data.token;
+        }
+
+        return valid;
+    }
+};
+
+export const THEME_SERIALIZER = {
+    serialize: (mode: ThemeMode | undefined) => mode ?? '',
+    deserialize: (raw: string): ThemeMode | undefined => {
+        const parsed = ThemeSchema.safeParse(raw);
+
+        return parsed.success ? parsed.data : undefined;
+    }
+};
+
+export const FILE_SORT_SERIALIZER = {
+    serialize: (order: FileSort | undefined) => order ?? '',
+    deserialize: (raw: string): FileSort | undefined => {
+        const parsed = FileSortSchema.safeParse(raw);
+
+        return parsed.success ? parsed.data : undefined;
+    }
+};
+
+export const FILE_LAYOUT_SERIALIZER = {
+    serialize: (layout: FileLayout | undefined) => layout ?? '',
+    deserialize: (raw: string): FileLayout | undefined => {
+        const parsed = FileLayoutSchema.safeParse(raw);
+
+        return parsed.success ? parsed.data : undefined;
+    }
+};
+
+export const REFRESH_INTERVAL_SERIALIZER = {
+    serialize: (seconds: number | null | undefined) =>
+        seconds === undefined ? '' : JSON.stringify(seconds),
+    deserialize: (raw: string): number | null | undefined => {
+        const value = parseStoredJson(raw).match({ Ok: (stored) => stored, Err: () => undefined });
+        const parsed = RefreshIntervalSchema.nullable().safeParse(value);
+
+        return parsed.success ? parsed.data : undefined;
+    }
+};
+
+export const CONCURRENT_WORKERS_SERIALIZER = {
+    serialize: (workers: number | null | undefined) =>
+        workers === undefined ? '' : JSON.stringify(workers),
+    deserialize: (raw: string): number | null | undefined => {
+        const value = parseStoredJson(raw).match({ Ok: (stored) => stored, Err: () => undefined });
+        const parsed = ConcurrentWorkersSchema.nullable().safeParse(value);
+
+        return parsed.success ? parsed.data : undefined;
+    }
+};
+
+/** JSON encodes an empty selection as a nonempty string so Runed reads it from storage. */
+export const SELECTED_ACCOUNT_SERIALIZER = {
+    serialize: (email: string) => JSON.stringify(email),
+    deserialize: (raw: string): string => {
+        const value = parseStoredJson(raw).match({ Ok: (stored) => stored, Err: () => undefined });
+        const parsed = SelectedAccountSchema.safeParse(value);
+
+        return parsed.success ? parsed.data : '';
+    }
+};
+
+function readState<T>(state: PersistedState<T>): Result<T, ApplicationError> {
+    try {
+        return Ok(state.current);
+    } catch {
+        return Err({ code: 'STORAGE_UNAVAILABLE', message: STORAGE_ERROR } as const);
+    }
+}
+
+/** Runed catches write failures internally, so verify persistence before reporting success. */
+function writeState<T>(state: PersistedState<T>, value: T): Result<void, ApplicationError> {
+    try {
+        state.current = value;
+    } catch {
+        return Err({ code: 'STORAGE_UNAVAILABLE', message: STORAGE_ERROR } as const);
+    }
+
+    return readState(state).andThen((saved) =>
+        JSON.stringify(saved) === JSON.stringify(value)
+            ? Ok(undefined)
+            : Err({ code: 'STORAGE_UNAVAILABLE', message: STORAGE_ERROR } as const)
+    );
+}
+
+function resetState<T>(
+    state: PersistedState<T | null | undefined>
+): Result<void, ApplicationError> {
+    return readState(state).andThen((previous) => {
+        // Runed ignores removal events. Publish an unset marker so other tabs update too.
+        const unset = writeState(state, null);
+        if (unset.isErr()) return unset;
+
+        try {
+            try {
+                state.disconnect();
+                state.current = undefined;
+            } finally {
+                state.connect();
+            }
+        } catch {
+            return writeState(state, previous).andThen(() =>
+                Err({ code: 'STORAGE_UNAVAILABLE', message: STORAGE_ERROR } as const)
+            );
+        }
+
+        return readState(state).andThen((saved) =>
+            saved === undefined
+                ? Ok(undefined)
+                : Err({ code: 'STORAGE_UNAVAILABLE', message: STORAGE_ERROR } as const)
+        );
+    });
+}
+
+/** Per-page reactive preferences, with validated data and synchronization across tabs. */
+export class BrowserPreferences {
+    constructor(private readonly defaults: PreferencesDefaults = DEFAULT_PREFERENCES_DEFAULTS) {}
+
+    private readonly accountsState = new PersistedState<Accounts>(
+        ACCOUNTS_KEY,
+        {},
+        {
+            serializer: ACCOUNTS_SERIALIZER
+        }
+    );
+    private readonly selectedState = new PersistedState(SELECTED_KEY, '', {
+        serializer: SELECTED_ACCOUNT_SERIALIZER
+    });
+    // Runed skips undefined writes, so deployment defaults apply until the user saves a choice.
+    private readonly themeState = new PersistedState<ThemeMode | undefined>(THEME_KEY, undefined, {
+        serializer: THEME_SERIALIZER
+    });
+    private readonly fileSortState = new PersistedState<FileSort | undefined>(
+        FILE_SORT_KEY,
+        undefined,
+        {
+            serializer: FILE_SORT_SERIALIZER
+        }
+    );
+    private readonly refreshIntervalState = new PersistedState<number | null | undefined>(
+        REFRESH_INTERVAL_KEY,
+        undefined,
+        { serializer: REFRESH_INTERVAL_SERIALIZER }
+    );
+    private readonly fileLayoutState = new PersistedState<FileLayout | undefined>(
+        FILE_LAYOUT_KEY,
+        undefined,
+        { serializer: FILE_LAYOUT_SERIALIZER }
+    );
+    private readonly concurrentWorkersState = new PersistedState<number | null | undefined>(
+        CONCURRENT_WORKERS_KEY,
+        undefined,
+        { serializer: CONCURRENT_WORKERS_SERIALIZER }
+    );
+
+    get accounts(): Accounts {
+        return readState(this.accountsState).match({ Ok: (value) => value, Err: () => ({}) });
+    }
+
+    get selectedEmail(): string {
+        const preferred = readState(this.selectedState).match({
+            Ok: (value) => value,
+            Err: () => ''
+        });
+        const accounts = this.accounts;
+
+        return Object.hasOwn(accounts, preferred) ? preferred : (Object.keys(accounts)[0] ?? '');
+    }
+
+    get theme(): ThemeMode {
+        return readState(this.themeState).match({
+            Ok: (value) => value ?? this.defaults.theme,
+            Err: () => this.defaults.theme
+        });
+    }
+
+    get fileSort(): FileSort {
+        return readState(this.fileSortState).match({
+            Ok: (value) => value ?? this.defaults.fileSort,
+            Err: () => this.defaults.fileSort
+        });
+    }
+
+    get fileLayout(): FileLayout {
+        return readState(this.fileLayoutState).match({
+            Ok: (value) => value ?? DEFAULT_FILE_LAYOUT,
+            Err: () => DEFAULT_FILE_LAYOUT
+        });
+    }
+
+    get refreshIntervalSeconds(): number {
+        return readState(this.refreshIntervalState).match({
+            Ok: (value) => value ?? this.defaults.refreshIntervalSeconds,
+            Err: () => this.defaults.refreshIntervalSeconds
+        });
+    }
+
+    get concurrentWorkers(): number {
+        return readState(this.concurrentWorkersState).match({
+            Ok: (value) => value ?? this.defaults.concurrentWorkers,
+            Err: () => this.defaults.concurrentWorkers
+        });
+    }
+
+    saveAccounts(accounts: Accounts, selected: string): Result<void, ApplicationError> {
+        return writeState(this.accountsState, accounts).andThen(() =>
+            writeState(this.selectedState, selected)
+        );
+    }
+
+    selectAccount(email: string): Result<void, ApplicationError> {
+        return writeState(this.selectedState, email);
+    }
+
+    saveTheme(mode: ThemeMode): Result<void, ApplicationError> {
+        return writeState(this.themeState, mode);
+    }
+
+    saveFileSort(order: FileSort): Result<void, ApplicationError> {
+        return writeState(this.fileSortState, order);
+    }
+
+    saveFileLayout(layout: FileLayout): Result<void, ApplicationError> {
+        return writeState(this.fileLayoutState, layout);
+    }
+
+    saveRefreshInterval(seconds: number): Result<void, ApplicationError> {
+        const parsed = RefreshIntervalSchema.safeParse(seconds);
+        if (!parsed.success) {
+            return Err({
+                code: 'INVALID_REFRESH_INTERVAL',
+                message: `Refresh interval must be a whole number from 0 to ${MAX_REFRESH_INTERVAL_SECONDS} seconds.`
+            } as const);
+        }
+
+        return writeState(this.refreshIntervalState, parsed.data);
+    }
+
+    saveConcurrentWorkers(workers: number): Result<void, ApplicationError> {
+        const parsed = ConcurrentWorkersSchema.safeParse(workers);
+        if (!parsed.success) {
+            return Err({
+                code: 'INVALID_CONCURRENT_WORKERS',
+                message: `Concurrent workers must be a whole number from 1 to ${MAX_CONCURRENT_WORKERS}.`
+            } as const);
+        }
+
+        return writeState(this.concurrentWorkersState, parsed.data);
+    }
+
+    resetRefreshInterval(): Result<void, ApplicationError> {
+        return resetState(this.refreshIntervalState);
+    }
+
+    resetConcurrentWorkers(): Result<void, ApplicationError> {
+        return resetState(this.concurrentWorkersState);
+    }
+}
+
+export function createBrowserPreferences(
+    defaults: PreferencesDefaults = DEFAULT_PREFERENCES_DEFAULTS
+): Result<BrowserPreferences, ApplicationError> {
+    let preferences: BrowserPreferences;
+
+    try {
+        preferences = new BrowserPreferences(defaults);
+    } catch {
+        return Err({ code: 'STORAGE_UNAVAILABLE', message: STORAGE_ERROR } as const);
+    }
+
+    return Ok(preferences);
+}

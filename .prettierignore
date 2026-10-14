@@ -6,4 +6,7 @@ bun.lock
 bun.lockb
 
 # Miscellaneous
-/static/
+/app/static/
+
+/core/dist/
+/core/LICENSES/

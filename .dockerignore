@@ -1,14 +1,23 @@
-# Send only files required to build the application.
+# Send only files required to build the workspaces.
 **
 !package.json
 !bun.lock
-!vite.config.ts
-!tsconfig.json
-!tsconfig.server.json
-!src
-!src/**
-!static
-!static/**
+!scripts
+!scripts/workspaces.mjs
+!core
+!core/package.json
+!core/tsconfig.json
+!core/src
+!core/src/**
+!app
+!app/package.json
+!app/vite.config.ts
+!app/tsconfig.json
+!app/tsconfig.server.json
+!app/src
+!app/src/**
+!app/static
+!app/static/**
 !LICENSE*
 
 # Keep credentials excluded even inside an allowed source directory.
