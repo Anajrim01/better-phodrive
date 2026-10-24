@@ -135,7 +135,7 @@ Run `phodrive help` for every command, and `phodrive help <command>`, `phodrive 
 
 Without a terminal, pass values as arguments and flags instead of prompts: pipe the token into `account add`, and pass `--yes` to `delete` and `account remove`. `--json` prints machine-readable lists. Downloads never replace existing files unless you pass `--force`.
 
-Accounts and settings are saved in `config.json` in your user configuration folder, readable only by your user on macOS and Linux. Set `PHODRIVE_CONFIG` to use another file. `PHODRIVE_DEFAULT_SORT` and `PHODRIVE_DEFAULT_CONCURRENT_WORKERS` apply when no setting is saved.
+Accounts and settings are saved in `config.json` in your user configuration folder, readable only by your user on macOS and Linux. Set `PHODRIVE_CONFIG` to use another file. `PHODRIVE_DEFAULT_SORT` and `PHODRIVE_DEFAULT_CONCURRENT_WORKERS` apply when no setting is saved. The command line allows up to one worker per processor, detected each time it runs, instead of the web limit of 32.
 
 ## Attribution
 

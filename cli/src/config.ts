@@ -6,10 +6,10 @@ import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import { z } from 'zod';
 import {
     AccountSchema,
-    ConcurrentWorkersSchema,
     FileSortSchema,
     SelectedAccountSchema,
-    StoredAccountsSchema
+    StoredAccountsSchema,
+    WorkerCountSchema
 } from '@madkarmaa/phodrive-core/models';
 import type { CliError } from './context';
 import { isMissingPath } from './filesystem';
@@ -22,7 +22,8 @@ const CONFIG_FOLDER_MODE = 0o700;
 
 const StoredSettingsSchema = z.object({
     sort: FileSortSchema.optional().catch(undefined),
-    workers: ConcurrentWorkersSchema.optional().catch(undefined)
+    // Counts above this machine's processors are kept and limited when used.
+    workers: WorkerCountSchema.optional().catch(undefined)
 });
 
 const StoredConfigSchema = z.object({

@@ -1,12 +1,12 @@
 import { Err, Ok, type Result } from 'results-ts';
 import { z } from 'zod';
 import {
-    ConcurrentWorkersSchema,
+    DEFAULT_CONCURRENT_WORKERS,
     FileSort,
     FileSortSchema,
-    MAX_CONCURRENT_WORKERS,
-    type PreferencesDefaults
+    WorkerCountSchema
 } from '@madkarmaa/phodrive-core/models';
+import { maxWorkers } from '@madkarmaa/phodrive-core/node';
 import { parsePreferencesDefaults } from '@madkarmaa/phodrive-core/preferences';
 import type { CliConfig, StoredSettings } from './config';
 import type { CliError } from './context';
@@ -28,18 +28,23 @@ const WorkersInputSchema = z
     .trim()
     .regex(/^\d+$/)
     .transform(Number)
-    .pipe(ConcurrentWorkersSchema);
+    .pipe(WorkerCountSchema);
 
+type Environment = Record<string, string | undefined>;
 type SettingDefinition = {
     description: string;
-    allowed: string;
+    allowed: () => string;
     parse: (raw: string) => Result<StoredSettings, CliError>;
     saved: (settings: StoredSettings) => string | number | undefined;
-    fallback: (defaults: PreferencesDefaults) => string | number;
+    fallback: (environment: Environment) => string | number;
 };
 
 const SORT_VALUES = Object.values(FileSort).join(', ');
-const WORKER_VALUES = `whole numbers from 1 to ${MAX_CONCURRENT_WORKERS}`;
+
+/** The command line may use one worker per processor, detected each time it runs. */
+function workerValues(): string {
+    return `whole numbers from 1 to ${maxWorkers()}`;
+}
 
 function invalidValue(name: string, allowed: string): Result<never, CliError> {
     return Err({
@@ -56,24 +61,46 @@ function parseSort(raw: string): Result<FileSort, CliError> {
 
 function parseWorkers(raw: string): Result<number, CliError> {
     const parsed = WorkersInputSchema.safeParse(raw);
+    if (!parsed.success || parsed.data > maxWorkers())
+        return invalidValue(SettingKey.Workers, workerValues());
 
-    return parsed.success ? Ok(parsed.data) : invalidValue(SettingKey.Workers, WORKER_VALUES);
+    return Ok(parsed.data);
+}
+
+function defaultSort(environment: Environment): FileSort {
+    return parsePreferencesDefaults({ PHODRIVE_DEFAULT_SORT: environment.PHODRIVE_DEFAULT_SORT })
+        .fileSort;
+}
+
+/** The deployment default applies when it fits this machine, as invalid web defaults do. */
+function defaultWorkers(environment: Environment): number {
+    const configured = environment.PHODRIVE_DEFAULT_CONCURRENT_WORKERS ?? '';
+    const fallback = Math.min(DEFAULT_CONCURRENT_WORKERS, maxWorkers());
+
+    return parseWorkers(configured).match({ Ok: (workers) => workers, Err: () => fallback });
+}
+
+/** A saved count from a machine with more processors still runs within this one. */
+function savedWorkers(settings: StoredSettings): number | undefined {
+    if (settings.workers === undefined) return undefined;
+
+    return Math.min(settings.workers, maxWorkers());
 }
 
 const SETTINGS: Record<SettingKey, SettingDefinition> = {
     [SettingKey.Sort]: {
         description: 'File list order',
-        allowed: SORT_VALUES,
+        allowed: () => SORT_VALUES,
         parse: (raw) => parseSort(raw).map((sort) => ({ sort })),
         saved: (settings) => settings.sort,
-        fallback: (defaults) => defaults.fileSort
+        fallback: defaultSort
     },
     [SettingKey.Workers]: {
         description: 'Concurrent transfers',
-        allowed: WORKER_VALUES,
+        allowed: workerValues,
         parse: (raw) => parseWorkers(raw).map((workers) => ({ workers })),
-        saved: (settings) => settings.workers,
-        fallback: (defaults) => defaults.concurrentWorkers
+        saved: savedWorkers,
+        fallback: defaultWorkers
     }
 };
 
@@ -85,16 +112,6 @@ export type SettingValue = {
     allowed: string;
 };
 
-type Environment = Record<string, string | undefined>;
-
-/** Deployment defaults from the environment apply wherever no value has been saved. */
-function readDefaults(environment: Environment): PreferencesDefaults {
-    return parsePreferencesDefaults({
-        PHODRIVE_DEFAULT_SORT: environment.PHODRIVE_DEFAULT_SORT,
-        PHODRIVE_DEFAULT_CONCURRENT_WORKERS: environment.PHODRIVE_DEFAULT_CONCURRENT_WORKERS
-    });
-}
-
 export function settingValue(
     config: CliConfig,
     environment: Environment,
@@ -105,10 +122,10 @@ export function settingValue(
 
     return {
         key,
-        value: saved ?? definition.fallback(readDefaults(environment)),
+        value: saved ?? definition.fallback(environment),
         source: saved === undefined ? SettingSource.Default : SettingSource.Saved,
         description: definition.description,
-        allowed: definition.allowed
+        allowed: definition.allowed()
     };
 }
 
@@ -122,7 +139,7 @@ export function chooseSort(
     environment: Environment,
     option?: string
 ): Result<FileSort, CliError> {
-    if (option === undefined) return Ok(config.settings.sort ?? readDefaults(environment).fileSort);
+    if (option === undefined) return Ok(config.settings.sort ?? defaultSort(environment));
 
     return parseSort(option);
 }
@@ -133,7 +150,7 @@ export function chooseWorkers(
     option?: string
 ): Result<number, CliError> {
     if (option === undefined)
-        return Ok(config.settings.workers ?? readDefaults(environment).concurrentWorkers);
+        return Ok(savedWorkers(config.settings) ?? defaultWorkers(environment));
 
     return parseWorkers(option);
 }
