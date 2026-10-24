@@ -9,6 +9,7 @@ import {
 } from '../../models.js';
 import type { UploadedChunk } from '../../files.js';
 import { Err, Ok, type Result } from 'results-ts';
+import { INVALID_UPLOAD_PROGRESS } from './request.js';
 
 export interface UploadJob {
     id: number;
@@ -36,10 +37,7 @@ export function createUploadJobs(files: readonly File[]): UploadJob[] {
 }
 
 function invalidProgress(): Result<never, ApplicationError> {
-    return Err({
-        code: 'INVALID_UPLOAD_PROGRESS',
-        message: 'Invalid upload progress response.'
-    } as const);
+    return Err(INVALID_UPLOAD_PROGRESS);
 }
 
 function updateProgress(

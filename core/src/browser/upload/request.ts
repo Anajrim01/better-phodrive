@@ -6,7 +6,15 @@ import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import { schemaResult } from '../../validation.js';
 import { request } from '../api.js';
 
-const UPLOAD_STREAM_ERROR = 'Upload connection ended before Google confirmed every file.';
+export const INVALID_UPLOAD_PROGRESS = {
+    code: 'INVALID_UPLOAD_PROGRESS',
+    message: 'Invalid upload progress response.'
+} as const satisfies ApplicationError;
+
+const UPLOAD_STREAM_INTERRUPTED = {
+    code: 'UPLOAD_STREAM_INTERRUPTED',
+    message: 'Upload connection ended before Google confirmed every file.'
+} as const satisfies ApplicationError;
 const MAX_EVENT_CHARACTERS = 16 * 1024;
 
 function parseEvent(data: string): Result<UploadEvent, ApplicationError> {
@@ -15,13 +23,12 @@ function parseEvent(data: string): Result<UploadEvent, ApplicationError> {
     try {
         value = JSON.parse(data);
     } catch {
-        return Err({
-            code: 'INVALID_UPLOAD_PROGRESS',
-            message: 'Invalid upload progress response.'
-        } as const);
+        return Err(INVALID_UPLOAD_PROGRESS);
     }
 
-    return schemaResult(UploadEventSchema, value, 'Invalid upload progress response.');
+    return schemaResult(UploadEventSchema, value, INVALID_UPLOAD_PROGRESS.message).mapErr(
+        () => INVALID_UPLOAD_PROGRESS
+    );
 }
 
 function readEvent(
@@ -33,16 +40,9 @@ function readEvent(
         try {
             next = await reader.read();
         } catch {
-            return Err({
-                code: 'UPLOAD_STREAM_INTERRUPTED',
-                message: UPLOAD_STREAM_ERROR
-            } as const);
+            return Err(UPLOAD_STREAM_INTERRUPTED);
         }
-        if (next.done)
-            return Err({
-                code: 'UPLOAD_STREAM_INTERRUPTED',
-                message: UPLOAD_STREAM_ERROR
-            } as const);
+        if (next.done) return Err(UPLOAD_STREAM_INTERRUPTED);
 
         return parseEvent(next.value.data);
     });
@@ -57,10 +57,7 @@ function readUploadResponse(
             !response.body ||
             !response.headers.get('content-type')?.startsWith('text/event-stream')
         )
-            return Err({
-                code: 'INVALID_UPLOAD_PROGRESS',
-                message: 'Invalid upload progress response.'
-            } as const);
+            return Err(INVALID_UPLOAD_PROGRESS);
 
         const reader = response.body
             .pipeThrough(new TextDecoderStream())

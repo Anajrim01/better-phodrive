@@ -17,17 +17,14 @@ import type { UploadedChunk } from '../../files.js';
 import { schemaResult } from '../../validation.js';
 import { MAX_CHUNK_PAYLOAD_BYTES } from '../../bmp/format.js';
 import { planChunks, type UploadPlan } from '../../upload.js';
-import { uploadRequest } from './request.js';
+import { INVALID_UPLOAD_PROGRESS, uploadRequest } from './request.js';
 import { hashFile, hashUploadChunk, uploadIdentity } from './hash.js';
 import { createUploadJobs, createUploadEventHandler, type UploadJob } from './jobs.js';
 
 const PROGRESS_INTERVAL_MS = 100;
 
 function invalidResponse(): Result<never, ApplicationError> {
-    return Err({
-        code: 'INVALID_UPLOAD_PROGRESS',
-        message: 'Invalid upload progress response.'
-    } as const);
+    return Err(INVALID_UPLOAD_PROGRESS);
 }
 
 function uploadChunk(

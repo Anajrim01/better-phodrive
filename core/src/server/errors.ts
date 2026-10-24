@@ -1,5 +1,8 @@
+import { BMP_ERRORS } from '../bmp/errors.js';
+
 /** Recoverable server failures contain only application-owned messages. */
 export const SERVER_ERRORS = {
+    ...BMP_ERRORS,
     FILE_RECEIVE_FAILED: {
         code: 'FILE_RECEIVE_FAILED',
         message: 'Could not receive the selected file.'
@@ -14,27 +17,14 @@ export const SERVER_ERRORS = {
         message: 'Upload failed SHA-1 verification.'
     },
     INVALID_UPLOAD_REQUEST: { code: 'INVALID_UPLOAD_REQUEST', message: 'Invalid upload request.' },
-    INVALID_UPLOAD_FILE_NAME: { code: 'INVALID_UPLOAD_FILE_NAME', message: 'Invalid file name.' },
     INVALID_FILE_NAME: { code: 'INVALID_FILE_NAME', message: 'Invalid file name' },
-    FILE_RECEIVE_FAILEDS: {
-        code: 'FILE_RECEIVE_FAILEDS',
-        message: 'Could not receive the selected files.'
-    },
     FILES_REQUIRED: {
         code: 'FILES_REQUIRED',
         message: 'Choose at least one file.'
     },
-    INVALID_UPLOAD_CREDENTIALS: {
-        code: 'INVALID_UPLOAD_CREDENTIALS',
-        message: 'Enter a valid account and worker count.'
-    },
     INVALID_FILE_NAME_OR_SIZE: {
         code: 'INVALID_FILE_NAME_OR_SIZE',
         message: 'Invalid file name or size.'
-    },
-    NO_UPLOADED_CHUNKS: {
-        code: 'NO_UPLOADED_CHUNKS',
-        message: 'No chunks were uploaded.'
     },
     INCOMPLETE_FILE: {
         code: 'INCOMPLETE_FILE',
@@ -91,13 +81,7 @@ export const SERVER_ERRORS = {
         code: 'DOWNLOAD_FINGERPRINT_MISMATCH',
         message: 'Download fingerprint mismatch'
     },
-    INVALID_CHUNK_SIZE: { code: 'INVALID_CHUNK_SIZE', message: 'Invalid chunk size' },
-    CHUNK_TOO_LARGE: {
-        code: 'CHUNK_TOO_LARGE',
-        message: 'Chunk would exceed the 200 MB photo limit'
-    },
     INVALID_CHUNK_VARINT: { code: 'INVALID_CHUNK_VARINT', message: 'Invalid chunk varint' },
-    INVALID_CHUNK_METADATA: { code: 'INVALID_CHUNK_METADATA', message: 'Invalid chunk metadata' },
     BMP_ALLOCATION_FAILED: {
         code: 'BMP_ALLOCATION_FAILED',
         message: 'Not enough memory to create BMP'
@@ -144,17 +128,9 @@ export const SERVER_ERRORS = {
         code: 'DOWNLOAD_CHUNK_MISMATCH',
         message: 'Downloaded chunks do not match this file.'
     },
-    COULD_NOT_SAVE_THE_DOWNLOADED_FILE: {
-        code: 'COULD_NOT_SAVE_THE_DOWNLOADED_FILE',
-        message: 'Could not save the downloaded file.'
-    },
     FILE_INTEGRITY_FAILED: {
         code: 'FILE_INTEGRITY_FAILED',
         message: 'Reconstructed file failed SHA-256 verification.'
-    },
-    COULD_NOT_CREATE_THE_DOWNLOADED_FILE: {
-        code: 'COULD_NOT_CREATE_THE_DOWNLOADED_FILE',
-        message: 'Could not create the downloaded file.'
     },
     COULD_NOT_CLOSE_THE_DOWNLOADED_FILE: {
         code: 'COULD_NOT_CLOSE_THE_DOWNLOADED_FILE',
@@ -163,10 +139,6 @@ export const SERVER_ERRORS = {
     COULD_NOT_READ_THE_DOWNLOADED_FILE: {
         code: 'COULD_NOT_READ_THE_DOWNLOADED_FILE',
         message: 'Could not read the downloaded file.'
-    },
-    INVALID_DOWNLOADED_FILE_DATA: {
-        code: 'INVALID_DOWNLOADED_FILE_DATA',
-        message: 'Invalid downloaded file data.'
     }
 } as const;
 
