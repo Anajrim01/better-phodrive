@@ -17,7 +17,7 @@ import type { UploadedChunk } from '../../files.js';
 import { schemaResult } from '../../validation.js';
 import { MAX_CHUNK_PAYLOAD_BYTES } from '../../bmp/format.js';
 import { planChunks, type UploadPlan } from '../../upload.js';
-import { INVALID_UPLOAD_PROGRESS, uploadRequest } from './request.js';
+import { INVALID_UPLOAD_PROGRESS, httpChunkTransport, type ChunkTransport } from './request.js';
 import { hashFile, hashUploadChunk, uploadIdentity } from './hash.js';
 import { createUploadJobs, createUploadEventHandler, type UploadJob } from './jobs.js';
 
@@ -30,8 +30,8 @@ function invalidResponse(): Result<never, ApplicationError> {
 function uploadChunk(
     file: File,
     header: SplitHeader,
-    email: string,
-    token: string,
+    { email, token }: { email: string; token: string },
+    transport: ChunkTransport,
     onProgress: (sent: number, reused: number) => void,
     onChunk: (
         chunk: UploadEvent & { type: UploadEventType.Chunk }
@@ -41,24 +41,19 @@ function uploadChunk(
     const payload = file.slice(start, start + header.payloadSize);
 
     return hashUploadChunk(payload, header).andThenAsync(async ({ sha1, size }) => {
-        const form = new FormData();
-        form.set(
-            'metadata',
-            JSON.stringify({
-                email,
-                token,
-                file: { name: file.name, size: file.size, fileHash: header.fileHash },
-                chunkIndex: header.chunkIndex,
-                sha1
-            })
-        );
-        form.set('chunk', payload, 'chunk.bin');
+        const metadata = {
+            email,
+            token,
+            file: { name: file.name, size: file.size, fileHash: header.fileHash },
+            chunkIndex: header.chunkIndex,
+            sha1
+        };
 
         let sent = 0;
         let reused = 0;
         let saved: UploadedChunk | null = null;
         let result: UploadResponse | null = null;
-        const uploaded = await uploadRequest(form, (event) => {
+        const uploaded = await transport(metadata, payload, (event) => {
             if (event.type === UploadEventType.Error)
                 return Err({ code: 'UPLOAD_FAILED', message: event.error } as const);
             if (event.type === UploadEventType.Complete)
@@ -122,7 +117,8 @@ function uploadChunk(
 function uploadPlannedFile(
     { file, id }: { file: File; id: number },
     { headers, sizes }: UploadPlan,
-    { email, token }: { email: string; token: string },
+    account: { email: string; token: string },
+    transport: ChunkTransport,
     chunkLimit: ReturnType<typeof pLimit>,
     handle: (event: UploadEvent) => Result<void, ApplicationError>
 ): AsyncResult<void, ApplicationError> {
@@ -144,8 +140,8 @@ function uploadPlannedFile(
             const result = await uploadChunk(
                 file,
                 header,
-                email,
-                token,
+                account,
+                transport,
                 (completed, existing) => {
                     sent[header.chunkIndex] = completed;
                     reused[header.chunkIndex] = existing;
@@ -217,7 +213,8 @@ export function uploadFiles(
     token: string,
     workers: number,
     onJob: (job: UploadJob) => void,
-    onChunk: (chunk: UploadedChunk) => void
+    onChunk: (chunk: UploadedChunk) => void,
+    transport: ChunkTransport = httpChunkTransport
 ): AsyncResult<void, ApplicationError> {
     return schemaResult(
         ConcurrentWorkersSchema,
@@ -285,7 +282,14 @@ export function uploadFiles(
             }
 
             await planned.andThenAsync((plan) =>
-                uploadPlannedFile({ file, id }, plan, { email, token }, chunkLimit, handle)
+                uploadPlannedFile(
+                    { file, id },
+                    plan,
+                    { email, token },
+                    transport,
+                    chunkLimit,
+                    handle
+                )
             );
         });
 
