@@ -1,4 +1,4 @@
-import type { ApplicationError } from './errors.js';
+import type { ApplicationError } from './errors';
 import { Err, Ok, type Result } from 'results-ts';
 import type { z } from 'zod';
 

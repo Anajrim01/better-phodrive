@@ -1,6 +1,6 @@
-import { UploadEventType, type UploadEvent } from '../../models.js';
-import type { ReceivedUpload } from './input.js';
-import { uploadFiles } from './index.js';
+import { UploadEventType, type UploadEvent } from '../../models';
+import type { ReceivedUpload } from './input';
+import { uploadFiles } from './index';
 
 /** Coalesce progress so a paused browser cannot grow the server's event queue. */
 export function uploadStream(input: ReceivedUpload): Response {

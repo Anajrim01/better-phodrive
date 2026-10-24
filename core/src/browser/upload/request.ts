@@ -1,15 +1,15 @@
-import type { ApplicationError } from '../../errors.js';
+import type { ApplicationError } from '../../errors';
 import {
     UploadEventType,
     UploadEventSchema,
     type ChunkUploadRequest,
     type UploadEvent
-} from '../../models.js';
+} from '../../models';
 import { EventSourceParserStream } from 'eventsource-parser/stream';
 import type { EventSourceMessage } from 'eventsource-parser';
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
-import { schemaResult } from '../../validation.js';
-import { request } from '../api.js';
+import { schemaResult } from '../../validation';
+import { request } from '../api';
 
 export const INVALID_UPLOAD_PROGRESS = {
     code: 'INVALID_UPLOAD_PROGRESS',

@@ -1,9 +1,9 @@
-import { SERVER_ERRORS, type ServerError } from './errors.js';
-import { FileActionKind, FileNameSchema, type FileRequest, type RemoteBmp } from '../models.js';
+import { SERVER_ERRORS, type ServerError } from './errors';
+import { FileActionKind, FileNameSchema, type FileRequest, type RemoteBmp } from '../models';
 import pLimit from 'p-limit';
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
-import { moveToTrash } from './photos/index.js';
-import { streamDownload } from './download.js';
+import { moveToTrash } from './photos/index';
+import { streamDownload } from './download';
 
 function validateChunks(input: FileRequest): Result<RemoteBmp[], ServerError> {
     const chunks = input.chunks.toSorted((a, b) => a.chunkIndex - b.chunkIndex);

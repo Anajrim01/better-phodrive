@@ -11,15 +11,15 @@ import {
     type UploadEvent,
     type SplitHeader,
     type UploadResponse
-} from '../../models.js';
-import type { ApplicationError } from '../../errors.js';
-import type { UploadedChunk } from '../../files.js';
-import { schemaResult } from '../../validation.js';
-import { MAX_CHUNK_PAYLOAD_BYTES } from '../../bmp/format.js';
-import { planChunks, type UploadPlan } from '../../upload.js';
-import { INVALID_UPLOAD_PROGRESS, httpChunkTransport, type ChunkTransport } from './request.js';
-import { hashFile, hashUploadChunk, uploadIdentity } from './hash.js';
-import { createUploadJobs, createUploadEventHandler, type UploadJob } from './jobs.js';
+} from '../../models';
+import type { ApplicationError } from '../../errors';
+import type { UploadedChunk } from '../../files';
+import { schemaResult } from '../../validation';
+import { MAX_CHUNK_PAYLOAD_BYTES } from '../../bmp/format';
+import { planChunks, type UploadPlan } from '../../upload';
+import { INVALID_UPLOAD_PROGRESS, httpChunkTransport, type ChunkTransport } from './request';
+import { hashFile, hashUploadChunk, uploadIdentity } from './hash';
+import { createUploadJobs, createUploadEventHandler, type UploadJob } from './jobs';
 
 const PROGRESS_INTERVAL_MS = 100;
 

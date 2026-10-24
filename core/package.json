@@ -19,230 +19,187 @@
         "LICENSES"
     ],
     "sideEffects": false,
-    "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
     "exports": {
+        ".": {
+            "development": "./src/index.ts",
+            "default": "./dist/index.js"
+        },
         "./bmp/errors": {
-            "types": "./dist/bmp/errors.d.ts",
             "development": "./src/bmp/errors.ts",
             "default": "./dist/bmp/errors.js"
         },
         "./bmp/format": {
-            "types": "./dist/bmp/format.d.ts",
             "development": "./src/bmp/format.ts",
             "default": "./dist/bmp/format.js"
         },
+        "./browser": {
+            "development": "./src/browser/index.ts",
+            "default": "./dist/browser/index.js"
+        },
         "./browser/accounts": {
-            "types": "./dist/browser/accounts.d.ts",
             "development": "./src/browser/accounts.ts",
             "default": "./dist/browser/accounts.js"
         },
         "./browser/api": {
-            "types": "./dist/browser/api.d.ts",
             "development": "./src/browser/api.ts",
             "default": "./dist/browser/api.js"
         },
         "./browser/files": {
-            "types": "./dist/browser/files.d.ts",
             "development": "./src/browser/files.ts",
             "default": "./dist/browser/files.js"
         },
-        "./browser": {
-            "types": "./dist/browser/index.d.ts",
-            "development": "./src/browser/index.ts",
-            "default": "./dist/browser/index.js"
-        },
         "./browser/library": {
-            "types": "./dist/browser/library.d.ts",
             "development": "./src/browser/library.ts",
             "default": "./dist/browser/library.js"
         },
-        "./browser/upload/hash": {
-            "types": "./dist/browser/upload/hash.d.ts",
-            "development": "./src/browser/upload/hash.ts",
-            "default": "./dist/browser/upload/hash.js"
-        },
         "./browser/upload": {
-            "types": "./dist/browser/upload/index.d.ts",
             "development": "./src/browser/upload/index.ts",
             "default": "./dist/browser/upload/index.js"
         },
+        "./browser/upload/hash": {
+            "development": "./src/browser/upload/hash.ts",
+            "default": "./dist/browser/upload/hash.js"
+        },
         "./browser/upload/jobs": {
-            "types": "./dist/browser/upload/jobs.d.ts",
             "development": "./src/browser/upload/jobs.ts",
             "default": "./dist/browser/upload/jobs.js"
         },
         "./browser/upload/request": {
-            "types": "./dist/browser/upload/request.d.ts",
             "development": "./src/browser/upload/request.ts",
             "default": "./dist/browser/upload/request.js"
         },
         "./errors": {
-            "types": "./dist/errors.d.ts",
             "development": "./src/errors.ts",
             "default": "./dist/errors.js"
         },
         "./files": {
-            "types": "./dist/files.d.ts",
             "development": "./src/files.ts",
             "default": "./dist/files.js"
         },
-        ".": {
-            "types": "./dist/index.d.ts",
-            "development": "./src/index.ts",
-            "default": "./dist/index.js"
-        },
         "./models": {
-            "types": "./dist/models.d.ts",
             "development": "./src/models.ts",
             "default": "./dist/models.js"
         },
         "./preferences": {
-            "types": "./dist/preferences.d.ts",
             "development": "./src/preferences.ts",
             "default": "./dist/preferences.js"
         },
+        "./server": {
+            "development": "./src/server/index.ts",
+            "default": "./dist/server/index.js"
+        },
         "./server/aas": {
-            "types": "./dist/server/aas.d.ts",
             "development": "./src/server/aas.ts",
             "default": "./dist/server/aas.js"
         },
         "./server/accounts": {
-            "types": "./dist/server/accounts.d.ts",
             "development": "./src/server/accounts.ts",
             "default": "./dist/server/accounts.js"
         },
         "./server/bmp": {
-            "types": "./dist/server/bmp/index.d.ts",
             "development": "./src/server/bmp/index.ts",
             "default": "./dist/server/bmp/index.js"
         },
         "./server/bmp/stream": {
-            "types": "./dist/server/bmp/stream.d.ts",
             "development": "./src/server/bmp/stream.ts",
             "default": "./dist/server/bmp/stream.js"
         },
         "./server/chunks": {
-            "types": "./dist/server/chunks.d.ts",
             "development": "./src/server/chunks.ts",
             "default": "./dist/server/chunks.js"
         },
         "./server/download": {
-            "types": "./dist/server/download.d.ts",
             "development": "./src/server/download.ts",
             "default": "./dist/server/download.js"
         },
         "./server/errors": {
-            "types": "./dist/server/errors.d.ts",
             "development": "./src/server/errors.ts",
             "default": "./dist/server/errors.js"
         },
         "./server/fetcher": {
-            "types": "./dist/server/fetcher.d.ts",
             "development": "./src/server/fetcher.ts",
             "default": "./dist/server/fetcher.js"
         },
         "./server/files": {
-            "types": "./dist/server/files.d.ts",
             "development": "./src/server/files.ts",
             "default": "./dist/server/files.js"
         },
-        "./server": {
-            "types": "./dist/server/index.d.ts",
-            "development": "./src/server/index.ts",
-            "default": "./dist/server/index.js"
+        "./server/photos": {
+            "development": "./src/server/photos/index.ts",
+            "default": "./dist/server/photos/index.js"
         },
         "./server/photos/auth": {
-            "types": "./dist/server/photos/auth.d.ts",
             "development": "./src/server/photos/auth.ts",
             "default": "./dist/server/photos/auth.js"
         },
         "./server/photos/download": {
-            "types": "./dist/server/photos/download.d.ts",
             "development": "./src/server/photos/download.ts",
             "default": "./dist/server/photos/download.js"
         },
-        "./server/photos": {
-            "types": "./dist/server/photos/index.d.ts",
-            "development": "./src/server/photos/index.ts",
-            "default": "./dist/server/photos/index.js"
-        },
         "./server/photos/library": {
-            "types": "./dist/server/photos/library/index.d.ts",
             "development": "./src/server/photos/library/index.ts",
             "default": "./dist/server/photos/library/index.js"
         },
         "./server/photos/library/metadata": {
-            "types": "./dist/server/photos/library/metadata.d.ts",
             "development": "./src/server/photos/library/metadata.ts",
             "default": "./dist/server/photos/library/metadata.js"
         },
         "./server/photos/library/requests": {
-            "types": "./dist/server/photos/library/requests.d.ts",
             "development": "./src/server/photos/library/requests.ts",
             "default": "./dist/server/photos/library/requests.js"
         },
         "./server/photos/transport": {
-            "types": "./dist/server/photos/transport.d.ts",
             "development": "./src/server/photos/transport.ts",
             "default": "./dist/server/photos/transport.js"
         },
         "./server/photos/trash": {
-            "types": "./dist/server/photos/trash.d.ts",
             "development": "./src/server/photos/trash.ts",
             "default": "./dist/server/photos/trash.js"
         },
         "./server/photos/upload": {
-            "types": "./dist/server/photos/upload.d.ts",
             "development": "./src/server/photos/upload.ts",
             "default": "./dist/server/photos/upload.js"
         },
         "./server/protobuf": {
-            "types": "./dist/server/protobuf.d.ts",
             "development": "./src/server/protobuf.ts",
             "default": "./dist/server/protobuf.js"
         },
         "./server/request": {
-            "types": "./dist/server/request.d.ts",
             "development": "./src/server/request.ts",
             "default": "./dist/server/request.js"
         },
-        "./server/upload/bmp": {
-            "types": "./dist/server/upload/bmp.d.ts",
-            "development": "./src/server/upload/bmp.ts",
-            "default": "./dist/server/upload/bmp.js"
-        },
         "./server/upload": {
-            "types": "./dist/server/upload/index.d.ts",
             "development": "./src/server/upload/index.ts",
             "default": "./dist/server/upload/index.js"
         },
+        "./server/upload/bmp": {
+            "development": "./src/server/upload/bmp.ts",
+            "default": "./dist/server/upload/bmp.js"
+        },
         "./server/upload/input": {
-            "types": "./dist/server/upload/input.d.ts",
             "development": "./src/server/upload/input.ts",
             "default": "./dist/server/upload/input.js"
         },
         "./server/upload/stream": {
-            "types": "./dist/server/upload/stream.d.ts",
             "development": "./src/server/upload/stream.ts",
             "default": "./dist/server/upload/stream.js"
         },
         "./upload": {
-            "types": "./dist/upload.d.ts",
             "development": "./src/upload.ts",
             "default": "./dist/upload.js"
         },
         "./validation": {
-            "types": "./dist/validation.d.ts",
             "development": "./src/validation.ts",
             "default": "./dist/validation.js"
-        }
+        },
+        "./package.json": "./package.json"
     },
     "scripts": {
-        "build": "tsc --project tsconfig.json",
+        "build": "tsdown",
         "check": "tsc --project tsconfig.test.json",
         "test": "vitest run",
-        "prepack": "node scripts/licenses.mjs && tsc --project tsconfig.json"
+        "prepack": "node scripts/licenses.mjs && tsdown"
     },
     "dependencies": {
         "@fastify/busboy": "^3.2.2",
@@ -257,7 +214,56 @@
     "devDependencies": {
         "@types/node": "^24.19.2",
         "@types/varint": "^6.0.3",
+        "tsdown": "^0.23.2",
         "typescript": "^6.0.3",
         "vitest": "^5.0.3"
+    },
+    "publishConfig": {
+        "exports": {
+            ".": "./dist/index.js",
+            "./bmp/errors": "./dist/bmp/errors.js",
+            "./bmp/format": "./dist/bmp/format.js",
+            "./browser": "./dist/browser/index.js",
+            "./browser/accounts": "./dist/browser/accounts.js",
+            "./browser/api": "./dist/browser/api.js",
+            "./browser/files": "./dist/browser/files.js",
+            "./browser/library": "./dist/browser/library.js",
+            "./browser/upload": "./dist/browser/upload/index.js",
+            "./browser/upload/hash": "./dist/browser/upload/hash.js",
+            "./browser/upload/jobs": "./dist/browser/upload/jobs.js",
+            "./browser/upload/request": "./dist/browser/upload/request.js",
+            "./errors": "./dist/errors.js",
+            "./files": "./dist/files.js",
+            "./models": "./dist/models.js",
+            "./preferences": "./dist/preferences.js",
+            "./server": "./dist/server/index.js",
+            "./server/aas": "./dist/server/aas.js",
+            "./server/accounts": "./dist/server/accounts.js",
+            "./server/bmp": "./dist/server/bmp/index.js",
+            "./server/bmp/stream": "./dist/server/bmp/stream.js",
+            "./server/chunks": "./dist/server/chunks.js",
+            "./server/download": "./dist/server/download.js",
+            "./server/errors": "./dist/server/errors.js",
+            "./server/fetcher": "./dist/server/fetcher.js",
+            "./server/files": "./dist/server/files.js",
+            "./server/photos": "./dist/server/photos/index.js",
+            "./server/photos/auth": "./dist/server/photos/auth.js",
+            "./server/photos/download": "./dist/server/photos/download.js",
+            "./server/photos/library": "./dist/server/photos/library/index.js",
+            "./server/photos/library/metadata": "./dist/server/photos/library/metadata.js",
+            "./server/photos/library/requests": "./dist/server/photos/library/requests.js",
+            "./server/photos/transport": "./dist/server/photos/transport.js",
+            "./server/photos/trash": "./dist/server/photos/trash.js",
+            "./server/photos/upload": "./dist/server/photos/upload.js",
+            "./server/protobuf": "./dist/server/protobuf.js",
+            "./server/request": "./dist/server/request.js",
+            "./server/upload": "./dist/server/upload/index.js",
+            "./server/upload/bmp": "./dist/server/upload/bmp.js",
+            "./server/upload/input": "./dist/server/upload/input.js",
+            "./server/upload/stream": "./dist/server/upload/stream.js",
+            "./upload": "./dist/upload.js",
+            "./validation": "./dist/validation.js",
+            "./package.json": "./package.json"
+        }
     }
 }

@@ -1,6 +1,6 @@
-import type { ServerError } from '../errors.js';
+import type { ServerError } from '../errors';
 import { Err, Ok, type AsyncResult } from 'results-ts';
-import type { Fetcher } from '../fetcher.js';
+import type { Fetcher } from '../fetcher';
 
 export function send(
     fetcher: Fetcher,

@@ -1,9 +1,9 @@
-import { SERVER_ERRORS, type ServerError } from '../errors.js';
+import { SERVER_ERRORS, type ServerError } from '../errors';
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
-import { Sha1HexSchema } from '../../models.js';
-import { authenticatedHeaders } from './auth.js';
-import { photosFetch, type Fetcher } from '../fetcher.js';
-import { send, readBody } from './transport.js';
+import { Sha1HexSchema } from '../../models';
+import { authenticatedHeaders } from './auth';
+import { photosFetch, type Fetcher } from '../fetcher';
+import { send, readBody } from './transport';
 import {
     message,
     bytesField,
@@ -14,7 +14,7 @@ import {
     optional,
     parse,
     utf8
-} from '../protobuf.js';
+} from '../protobuf';
 
 const DOWNLOAD_URL =
     'https://photosdata-pa.googleapis.com/$rpc/social.frontend.photos.preparedownloaddata.v1.PhotosPrepareDownloadDataService/PhotosPrepareDownload';

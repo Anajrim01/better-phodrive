@@ -1,11 +1,11 @@
-import { SERVER_ERRORS, type ServerError } from '../errors.js';
+import { SERVER_ERRORS, type ServerError } from '../errors';
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import { randomBytes } from 'node:crypto';
-import { parseAuthFields } from '../aas.js';
-import { photosFetch, type Fetcher } from '../fetcher.js';
-import { send, readBody } from './transport.js';
-import { utf8 } from '../protobuf.js';
-import { AccountSchema } from '../../models.js';
+import { parseAuthFields } from '../aas';
+import { photosFetch, type Fetcher } from '../fetcher';
+import { send, readBody } from './transport';
+import { utf8 } from '../protobuf';
+import { AccountSchema } from '../../models';
 
 const AUTH_URL = 'https://android.googleapis.com/auth';
 const APP = 'com.google.android.apps.photos';

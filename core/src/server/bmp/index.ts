@@ -1,13 +1,13 @@
-import { SERVER_ERRORS, type ServerError } from '../errors.js';
+import { SERVER_ERRORS, type ServerError } from '../errors';
 import { Err, Ok, type Result } from 'results-ts';
 import Varint from 'varint';
-import { SplitHeaderSchema, type SplitHeader } from '../../models.js';
+import { SplitHeaderSchema, type SplitHeader } from '../../models';
 import {
     encodeSplitPrefix,
     BMP_HEADER_BYTES,
     SPLIT_MAGIC,
     FILE_HASH_BYTES
-} from '../../bmp/format.js';
+} from '../../bmp/format';
 export {
     BMP_HEADER_BYTES,
     MAX_PHOTOS_BMP_BYTES,
@@ -15,7 +15,7 @@ export {
     MAX_SPLIT_HEADER_BYTES,
     splitHeaderByteLength,
     splitBmpByteLength
-} from '../../bmp/format.js';
+} from '../../bmp/format';
 
 const UTF8 = new TextDecoder('utf-8', { fatal: true });
 

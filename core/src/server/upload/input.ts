@@ -2,12 +2,12 @@ import { Busboy, type BusboyFileStream } from '@fastify/busboy';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
-import { UploadRequestSchema, type ChunkUploadRequest, type SplitHeader } from '../../models.js';
-import { encodeSplitPrefix, MAX_CHUNK_PAYLOAD_BYTES } from '../../bmp/format.js';
-import { chunkCount, chunkHeader } from '../../upload.js';
-import { schemaResult } from '../../validation.js';
-import { fileIdentity } from '../chunks.js';
-import { SERVER_ERRORS, type ServerError } from '../errors.js';
+import { UploadRequestSchema, type ChunkUploadRequest, type SplitHeader } from '../../models';
+import { encodeSplitPrefix, MAX_CHUNK_PAYLOAD_BYTES } from '../../bmp/format';
+import { chunkCount, chunkHeader } from '../../upload';
+import { schemaResult } from '../../validation';
+import { fileIdentity } from '../chunks';
+import { SERVER_ERRORS, type ServerError } from '../errors';
 
 const MAX_UPLOAD_FIELD_BYTES = 64 * 1024;
 const MAX_UPLOAD_HEADER_BYTES = 16 * 1024;

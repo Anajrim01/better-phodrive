@@ -1,14 +1,14 @@
-import type { ApplicationError } from '../errors.js';
-import { FileActionKind, ConcurrentWorkersSchema, FileDeleteResponseSchema } from '../models.js';
+import type { ApplicationError } from '../errors';
+import { FileActionKind, ConcurrentWorkersSchema, FileDeleteResponseSchema } from '../models';
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
-import type { FileGroup, UploadedChunk } from '../files.js';
-import { schemaResult } from '../validation.js';
-import { apiJson, request } from './api.js';
+import type { FileGroup, UploadedChunk } from '../files';
+import { schemaResult } from '../validation';
+import { apiJson, request } from './api';
 
-export { createUploadJobs, type UploadJob } from './upload/jobs.js';
+export { createUploadJobs, type UploadJob } from './upload/jobs';
 
-export type { UploadProgress } from '../models.js';
-export { uploadFiles } from './upload/index.js';
+export type { UploadProgress } from '../models';
+export { uploadFiles } from './upload/index';
 
 const FILES_API_URL = '/api/files';
 

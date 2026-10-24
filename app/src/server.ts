@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import { parseServerEnvironment } from './lib/server/environment.js';
+import { parseServerEnvironment } from './lib/server/environment';
 
 const INTERNAL_PROTOCOL_HEADER = 'x-phodrive-protocol';
 

@@ -1,7 +1,7 @@
 import { Ok, type Result } from 'results-ts';
-import type { SplitHeader, UploadFile } from './models.js';
-import type { BmpError } from './bmp/errors.js';
-import { MAX_CHUNK_PAYLOAD_BYTES, splitBmpByteLength } from './bmp/format.js';
+import type { SplitHeader, UploadFile } from './models';
+import type { BmpError } from './bmp/errors';
+import { MAX_CHUNK_PAYLOAD_BYTES, splitBmpByteLength } from './bmp/format';
 
 export type UploadPlan = { headers: SplitHeader[]; sizes: number[] };
 

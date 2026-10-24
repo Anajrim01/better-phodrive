@@ -1,7 +1,7 @@
-import type { ApplicationError } from '../errors.js';
+import type { ApplicationError } from '../errors';
 import { Err, Ok, type AsyncResult } from 'results-ts';
-import { ErrorResponseSchema } from '../models.js';
-import { schemaResult } from '../validation.js';
+import { ErrorResponseSchema } from '../models';
+import { schemaResult } from '../validation';
 
 function readJson(response: Response, fallback: string): AsyncResult<unknown, ApplicationError> {
     return Ok(undefined).andThenAsync(async () => {

@@ -7,14 +7,14 @@ import {
     UploadStatus,
     type UploadEvent,
     type UploadFile
-} from '../../models.js';
-import { SERVER_ERRORS, type ServerError } from '../errors.js';
-import { planChunks, type UploadPlan } from '../../upload.js';
-import { chunkFileName, fileIdentity } from '../chunks.js';
-import { photosFetchWithProgress, type Fetcher } from '../fetcher.js';
-import { uploadBmpStream } from '../photos/index.js';
-import { encodeUploadBmp } from './bmp.js';
-import type { ReceivedUpload } from './input.js';
+} from '../../models';
+import { SERVER_ERRORS, type ServerError } from '../errors';
+import { planChunks, type UploadPlan } from '../../upload';
+import { chunkFileName, fileIdentity } from '../chunks';
+import { photosFetchWithProgress, type Fetcher } from '../fetcher';
+import { uploadBmpStream } from '../photos/index';
+import { encodeUploadBmp } from './bmp';
+import type { ReceivedUpload } from './input';
 
 const PROGRESS_INTERVAL_MS = 100;
 

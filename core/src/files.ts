@@ -1,4 +1,4 @@
-import { FileSort, FileActionKind, type RemoteBmp } from './models.js';
+import { FileSort, FileActionKind, type RemoteBmp } from './models';
 
 export type UploadedChunk = RemoteBmp & { email: string };
 

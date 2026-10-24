@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { MAX_CHUNK_PAYLOAD_BYTES } from './bmp/index.js';
+import { MAX_CHUNK_PAYLOAD_BYTES } from './bmp/index';
 
 /** Stable across retries; names and split layouts keep independent chunk groups. */
 export function fileIdentity(

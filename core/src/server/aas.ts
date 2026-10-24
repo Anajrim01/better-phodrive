@@ -1,7 +1,7 @@
-import type { ApplicationError } from '../errors.js';
+import type { ApplicationError } from '../errors';
 import { Err, Ok, type AsyncResult } from 'results-ts';
-import { EmailSchema } from '../models.js';
-import { photosFetch, type Fetcher } from './fetcher.js';
+import { EmailSchema } from '../models';
+import { photosFetch, type Fetcher } from './fetcher';
 
 const AUTH_URL = 'https://android.clients.google.com/auth';
 // Matches the compatibility value used by gpsoauth's token exchange.

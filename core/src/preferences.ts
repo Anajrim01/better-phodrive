@@ -5,7 +5,7 @@ import {
     RefreshIntervalSchema,
     ThemeSchema,
     type PreferencesDefaults
-} from './models.js';
+} from './models';
 
 /** Blank deployment values are absent, rather than Number('') becoming an explicit zero. */
 function environmentNumber(value: string | undefined): number | undefined {

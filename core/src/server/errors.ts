@@ -1,4 +1,4 @@
-import { BMP_ERRORS } from '../bmp/errors.js';
+import { BMP_ERRORS } from '../bmp/errors';
 
 /** Recoverable server failures contain only application-owned messages. */
 export const SERVER_ERRORS = {

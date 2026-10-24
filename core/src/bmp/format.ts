@@ -1,8 +1,8 @@
-import { BMP_ERRORS } from './errors.js';
-import type { BmpError } from './errors.js';
+import { BMP_ERRORS } from './errors';
+import type { BmpError } from './errors';
 import { Err, Ok, type Result } from 'results-ts';
 import Varint from 'varint';
-import { SplitHeaderSchema, type SplitHeader } from '../models.js';
+import { SplitHeaderSchema, type SplitHeader } from '../models';
 
 export const MAX_PHOTOS_BMP_BYTES = 200_000_000;
 export const MAX_CHUNK_PAYLOAD_BYTES = 195_000_000;

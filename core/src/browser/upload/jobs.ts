@@ -1,4 +1,4 @@
-import type { ApplicationError } from '../../errors.js';
+import type { ApplicationError } from '../../errors';
 import {
     UploadEventType,
     UploadJobStatus,
@@ -6,10 +6,10 @@ import {
     type UploadEvent,
     type UploadProgress,
     type UploadResponse
-} from '../../models.js';
-import type { UploadedChunk } from '../../files.js';
+} from '../../models';
+import type { UploadedChunk } from '../../files';
 import { Err, Ok, type Result } from 'results-ts';
-import { INVALID_UPLOAD_PROGRESS } from './request.js';
+import { INVALID_UPLOAD_PROGRESS } from './request';
 
 export interface UploadJob {
     id: number;

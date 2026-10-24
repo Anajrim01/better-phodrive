@@ -1,8 +1,8 @@
-import type { ServerError } from '../../errors.js';
+import type { ServerError } from '../../errors';
 import { Ok, type Result } from 'results-ts';
-import { Sha1HexSchema } from '../../../models.js';
-import { MAX_PHOTOS_BMP_BYTES, BMP_HEADER_BYTES } from '../../bmp/index.js';
-import { LIBRARY_PAGE_REQUEST } from './requests.js';
+import { Sha1HexSchema } from '../../../models';
+import { MAX_PHOTOS_BMP_BYTES, BMP_HEADER_BYTES } from '../../bmp/index';
+import { LIBRARY_PAGE_REQUEST } from './requests';
 import {
     bytes,
     parse,
@@ -12,7 +12,7 @@ import {
     optional,
     encodeFields,
     type Field
-} from '../../protobuf.js';
+} from '../../protobuf';
 
 export function pageRequest(resume: Buffer): Result<Buffer, ServerError> {
     const envelope = parse(Buffer.from(LIBRARY_PAGE_REQUEST, 'base64')).andThen((fields) =>

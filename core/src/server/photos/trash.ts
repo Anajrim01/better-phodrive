@@ -1,10 +1,10 @@
-import { SERVER_ERRORS, type ServerError } from '../errors.js';
+import { SERVER_ERRORS, type ServerError } from '../errors';
 import { Err, Ok, type AsyncResult } from 'results-ts';
-import { Sha1HexSchema } from '../../models.js';
-import { authenticatedHeaders } from './auth.js';
-import { photosFetch, type Fetcher } from '../fetcher.js';
-import { send, readBody } from './transport.js';
-import { message, numberField, bytesField, bodyBytes } from '../protobuf.js';
+import { Sha1HexSchema } from '../../models';
+import { authenticatedHeaders } from './auth';
+import { photosFetch, type Fetcher } from '../fetcher';
+import { send, readBody } from './transport';
+import { message, numberField, bytesField, bodyBytes } from '../protobuf';
 
 const TRASH_URL = 'https://photosdata-pa.googleapis.com/6439526531001121323/17490284929287180316';
 

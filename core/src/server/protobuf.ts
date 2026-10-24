@@ -1,4 +1,4 @@
-import { SERVER_ERRORS, type ServerError } from './errors.js';
+import { SERVER_ERRORS, type ServerError } from './errors';
 import { Err, Ok, type Result } from 'results-ts';
 import Varint from 'varint';
 

@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
-import { SERVER_ERRORS, type ServerError } from '../errors.js';
-import type { ReceivedUpload } from './input.js';
+import { SERVER_ERRORS, type ServerError } from '../errors';
+import type { ReceivedUpload } from './input';
 
 const TRANSFER_BLOCK_BYTES = 64 * 1024;
 

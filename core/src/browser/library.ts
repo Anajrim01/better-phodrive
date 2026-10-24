@@ -1,8 +1,8 @@
-import type { ApplicationError } from '../errors.js';
+import type { ApplicationError } from '../errors';
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
-import { LibraryResponseSchema, type LibraryResponse, type RemoteBmp } from '../models.js';
-import { schemaResult } from '../validation.js';
-import { apiJson } from './api.js';
+import { LibraryResponseSchema, type LibraryResponse, type RemoteBmp } from '../models';
+import { schemaResult } from '../validation';
+import { apiJson } from './api';
 
 export type LibrarySnapshot = LibraryResponse & { pages: number };
 
