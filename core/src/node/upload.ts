@@ -120,7 +120,7 @@ function expandPath(path: string): AsyncResult<string[], ApplicationError> {
     });
 }
 
-function realPath(path: string): AsyncResult<string, ApplicationError> {
+function canonicalPath(path: string): AsyncResult<string, ApplicationError> {
     return Ok(undefined).andThenAsync(async () => {
         try {
             const resolved = await realpath(path);
@@ -140,7 +140,7 @@ function openFiles(
 ): AsyncResult<LocalFile[], ApplicationError> {
     return Ok(undefined).andThenAsync(async () => {
         for (const path of paths) {
-            const added = await realPath(path).andThenAsync(async (real) => {
+            const added = await canonicalPath(path).andThenAsync(async (real) => {
                 if (opened.has(real)) return Ok(undefined);
 
                 opened.add(real);
