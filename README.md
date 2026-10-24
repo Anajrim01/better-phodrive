@@ -131,7 +131,7 @@ phodrive file delete report.pdf
 phodrive setting set workers 4
 ```
 
-Run `phodrive --help` or `phodrive <command> --help` for every command and option. Accounts are `account add`, `remove`, `list`, and `use`; files are `file list`, `upload`, `download`, and `delete`; settings are `setting show`, `set`, and `reset`.
+Run `phodrive help` for every command, and `phodrive help <command>`, `phodrive <command> --help`, or `-h` for its options, for example `phodrive help file upload`. Accounts are `account add`, `remove`, `list`, and `use`; files are `file list`, `upload`, `download`, and `delete`; settings are `setting show`, `set`, and `reset`.
 
 Without a terminal, pass values as arguments and flags instead of prompts: pipe the token into `account add`, and pass `--yes` to `delete` and `account remove`. `--json` prints machine-readable lists. Downloads never replace existing files unless you pass `--force`.
 

@@ -20,6 +20,7 @@ export type CliError =
               | 'INPUT_REQUIRED'
               | 'INVALID_OPTION'
               | 'NO_FILES_SELECTED'
+              | 'UNKNOWN_COMMAND'
               | 'UPLOAD_INCOMPLETE';
           readonly message: string;
       };
