@@ -1,6 +1,6 @@
 import { SERVER_ERRORS, type ServerError } from '../errors.js';
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
-import { UploadStatus, type UploadResponse } from '../../models.js';
+import { FileNameSchema, Sha1HexSchema, UploadStatus, type UploadResponse } from '../../models.js';
 import { createHash } from 'node:crypto';
 import { authenticatedHeaders, type PhotosHeaders } from './auth.js';
 import { photosFetch, type Fetcher } from '../fetcher.js';
@@ -30,8 +30,9 @@ export function uploadBmp(
     bmp: Buffer,
     fetcher: Fetcher = photosFetch
 ): AsyncResult<UploadResponse, ServerError> {
-    const validName =
-        name && !/[\\/\r\n]/.test(name) ? Ok(name) : Err(SERVER_ERRORS.INVALID_FILE_NAME);
+    const validName = FileNameSchema.safeParse(name).success
+        ? Ok(name)
+        : Err(SERVER_ERRORS.INVALID_FILE_NAME);
 
     return validName
         .andThenAsync(() => authenticatedHeaders(email, token, fetcher))
@@ -287,7 +288,9 @@ export function findBmpBySha1(
     sha1: string,
     fetcher: Fetcher = photosFetch
 ): AsyncResult<string | null, ServerError> {
-    const validHash = /^[a-f0-9]{40}$/.test(sha1) ? Ok(sha1) : Err(SERVER_ERRORS.INVALID_SHA_1);
+    const validHash = Sha1HexSchema.safeParse(sha1).success
+        ? Ok(sha1)
+        : Err(SERVER_ERRORS.INVALID_SHA_1);
 
     return validHash
         .andThenAsync(() => authenticatedHeaders(email, token, fetcher))

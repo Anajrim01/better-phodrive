@@ -1,5 +1,6 @@
 import { SERVER_ERRORS, type ServerError } from '../errors.js';
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
+import { Sha1HexSchema } from '../../models.js';
 import { authenticatedHeaders } from './auth.js';
 import { photosFetch, type Fetcher } from '../fetcher.js';
 import { send, readBody } from './transport.js';
@@ -28,7 +29,7 @@ export function downloadBmp(
     signal?: AbortSignal
 ): AsyncResult<Response, ServerError> {
     const validReference =
-        mediaKey && mediaKey.length <= 1024 && /^[a-f0-9]{40}$/.test(sha1)
+        mediaKey && mediaKey.length <= 1024 && Sha1HexSchema.safeParse(sha1).success
             ? Ok(undefined)
             : Err(SERVER_ERRORS.INVALID_FILE_REFERENCE);
 

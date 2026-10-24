@@ -1,5 +1,6 @@
 import { SERVER_ERRORS, type ServerError } from '../errors.js';
 import { Err, Ok, type AsyncResult } from 'results-ts';
+import { Sha1HexSchema } from '../../models.js';
 import { authenticatedHeaders } from './auth.js';
 import { photosFetch, type Fetcher } from '../fetcher.js';
 import { send, readBody } from './transport.js';
@@ -13,7 +14,7 @@ export function moveToTrash(
     sha1: string,
     fetcher: Fetcher = photosFetch
 ): AsyncResult<void, ServerError> {
-    const validHash = /^[a-f0-9]{40}$/.test(sha1)
+    const validHash = Sha1HexSchema.safeParse(sha1).success
         ? Ok(sha1)
         : Err(SERVER_ERRORS.INVALID_FILE_REFERENCE);
 

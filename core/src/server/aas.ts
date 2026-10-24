@@ -1,10 +1,27 @@
 import type { ApplicationError } from '../errors.js';
 import { Err, Ok, type AsyncResult } from 'results-ts';
+import { EmailSchema } from '../models.js';
 import { photosFetch, type Fetcher } from './fetcher.js';
 
 const AUTH_URL = 'https://android.clients.google.com/auth';
 // Matches the compatibility value used by gpsoauth's token exchange.
 const DROIDGUARD_RESULTS = 'dummy123';
+const EXCHANGE_FAILED = {
+    code: 'OAUTH_EXCHANGE_FAILED',
+    message: 'OAuth2 exchange failed'
+} as const;
+
+/** Google auth endpoints answer with one `key=value` pair per line. */
+export function parseAuthFields(text: string): [string, string][] {
+    return text
+        .split(/\r?\n/)
+        .filter((line) => line.includes('='))
+        .map((line) => {
+            const equal = line.indexOf('=');
+
+            return [line.slice(0, equal).trim(), line.slice(equal + 1).trim()];
+        });
+}
 
 /** Adapted and modified from xhyrom/sniff's oauth2aas to exchange OAuth2 tokens for AAS. */
 export function exchangeOAuth2ForAas(
@@ -13,7 +30,7 @@ export function exchangeOAuth2ForAas(
     fetcher: Fetcher = photosFetch
 ): AsyncResult<string, ApplicationError> {
     return Ok(undefined).andThenAsync<string, ApplicationError>(async () => {
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !oauth2.startsWith('oauth2_'))
+        if (!EmailSchema.safeParse(email).success || !oauth2.startsWith('oauth2_'))
             return Err({
                 code: 'INVALID_OAUTH_CREDENTIALS',
                 message: 'Enter a valid email and OAuth2 token'
@@ -49,49 +66,29 @@ export function exchangeOAuth2ForAas(
                 body: form
             });
         } catch {
-            return Err({
-                code: 'OAUTH_EXCHANGE_FAILED',
-                message: 'OAuth2 exchange failed'
-            } as const);
+            return Err(EXCHANGE_FAILED);
         }
 
-        if (response.status !== 200)
-            return Err({
-                code: 'OAUTH_EXCHANGE_FAILED',
-                message: 'OAuth2 exchange failed'
-            } as const);
+        if (response.status !== 200) {
+            try {
+                await response.body?.cancel();
+            } catch {
+                // Preserve the exchange failure when cancelling its response body also fails.
+            }
+
+            return Err(EXCHANGE_FAILED);
+        }
 
         let body: string;
 
         try {
             body = await response.text();
         } catch {
-            return Err({
-                code: 'OAUTH_EXCHANGE_FAILED',
-                message: 'OAuth2 exchange failed'
-            } as const);
+            return Err(EXCHANGE_FAILED);
         }
 
-        const fields = Object.fromEntries(
-            body
-                .split(/\r?\n/)
-                .filter((line) => line.includes('='))
-                .map((line) => {
-                    const equal = line.indexOf('=');
-
-                    return [
-                        line.slice(0, equal).trim().toLowerCase(),
-                        line.slice(equal + 1).trim()
-                    ];
-                })
-        );
-        const aas = fields.token;
-
-        if (!aas?.startsWith('aas_et/'))
-            return Err({
-                code: 'OAUTH_EXCHANGE_FAILED',
-                message: 'OAuth2 exchange failed'
-            } as const);
+        const aas = parseAuthFields(body).findLast(([key]) => key.toLowerCase() === 'token')?.[1];
+        if (!aas?.startsWith('aas_et/')) return Err(EXCHANGE_FAILED);
 
         return Ok(aas);
     });

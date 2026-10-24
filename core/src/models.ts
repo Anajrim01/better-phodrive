@@ -79,11 +79,13 @@ export const PreferencesDefaultsSchema = z.object({
     refreshIntervalSeconds: RefreshIntervalSchema,
     concurrentWorkers: ConcurrentWorkersSchema
 });
-export const SelectedAccountSchema = z.union([z.email(), z.literal('')]);
+export const EmailSchema = z.email();
+export const AasTokenSchema = z.string().startsWith('aas_et/');
+export const SelectedAccountSchema = z.union([EmailSchema, z.literal('')]);
 
 export const AccountSchema = z.object({
-    email: z.email(),
-    token: z.string().startsWith('aas_et/')
+    email: EmailSchema,
+    token: AasTokenSchema
 });
 
 export const NewAccountSchema = z.object({
@@ -96,6 +98,12 @@ export const NewAccountSchema = z.object({
 });
 
 export const StoredAccountsSchema = z.record(z.string(), z.unknown());
+/** Names become path segments and multipart filenames, so separators and controls are unsafe. */
+export const FileNameSchema = z
+    .string()
+    .min(1)
+    .refine((name) => !/[\\/\r\n\0]/.test(name));
+export const FileSizeSchema = z.int().nonnegative();
 export const Sha1HexSchema = z.string().regex(/^[a-f0-9]{40}$/);
 export const Sha256HexSchema = z.string().regex(/^[a-f0-9]{64}$/);
 
@@ -108,13 +116,7 @@ export const SplitHeaderSchema = z
         payloadSize: z.int().nonnegative(),
         fileName: z.string().min(1).optional()
     })
-    .refine((header) => {
-        if (header.chunkIndex === 0 && header.fileName === undefined) {
-            return false;
-        }
-
-        return true;
-    });
+    .refine((header) => header.chunkIndex !== 0 || header.fileName !== undefined);
 
 export const RemoteBmpSchema = z.object({
     fileHash: Sha256HexSchema,
@@ -186,10 +188,10 @@ export const UploadEventSchema = z.discriminatedUnion('type', [
     z.object({ type: z.literal(UploadEventType.Error), error: z.string() })
 ]);
 export const AccountConnectionSchema = z.union([
-    z.object({ token: z.string().startsWith('aas_et/') }),
+    z.object({ token: AasTokenSchema }),
     ErrorResponseSchema
 ]);
-export const AccountRequestSchema = z.object({ email: z.email(), token: z.string() });
+export const AccountRequestSchema = z.object({ email: EmailSchema, token: z.string() });
 export const LibraryRequestSchema = AccountRequestSchema.extend({
     pageToken: z.string().optional()
 });
@@ -206,11 +208,8 @@ export const FileDeleteResponseSchema = z.object({
     error: z.string().optional()
 });
 export const UploadFileSchema = z.object({
-    name: z
-        .string()
-        .min(1)
-        .refine((name) => !/[\\/\r\n\0]/.test(name)),
-    size: z.int().nonnegative(),
+    name: FileNameSchema,
+    size: FileSizeSchema,
     fileHash: Sha256HexSchema
 });
 export const UploadRequestSchema = AccountSchema.extend({

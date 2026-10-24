@@ -9,6 +9,7 @@ import {
     FILE_HASH_BYTES
 } from '../../bmp/format.js';
 export {
+    BMP_HEADER_BYTES,
     MAX_PHOTOS_BMP_BYTES,
     MAX_CHUNK_PAYLOAD_BYTES,
     MAX_SPLIT_HEADER_BYTES,

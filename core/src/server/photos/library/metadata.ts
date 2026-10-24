@@ -1,6 +1,7 @@
 import type { ServerError } from '../../errors.js';
 import { Ok, type Result } from 'results-ts';
-import { MAX_PHOTOS_BMP_BYTES } from '../../bmp/index.js';
+import { Sha1HexSchema } from '../../../models.js';
+import { MAX_PHOTOS_BMP_BYTES, BMP_HEADER_BYTES } from '../../bmp/index.js';
 import { LIBRARY_PAGE_REQUEST } from './requests.js';
 import {
     bytes,
@@ -51,10 +52,10 @@ function libraryItem(value: Buffer): Result<LibraryCandidate | null, ServerError
         return libraryMetadata(item, details).map(({ fingerprint, size, at, mediaKey }) => {
             const sha1 = fingerprint.toString('hex');
             if (
-                !/^[a-f0-9]{40}$/.test(sha1) ||
+                !Sha1HexSchema.safeParse(sha1).success ||
                 !mediaKey ||
                 !Number.isSafeInteger(at) ||
-                size < 54 ||
+                size < BMP_HEADER_BYTES ||
                 size > MAX_PHOTOS_BMP_BYTES
             )
                 return null;

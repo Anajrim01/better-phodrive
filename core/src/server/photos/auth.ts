@@ -1,9 +1,11 @@
 import { SERVER_ERRORS, type ServerError } from '../errors.js';
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import { randomBytes } from 'node:crypto';
+import { parseAuthFields } from '../aas.js';
 import { photosFetch, type Fetcher } from '../fetcher.js';
 import { send, readBody } from './transport.js';
 import { utf8 } from '../protobuf.js';
+import { AccountSchema } from '../../models.js';
 
 const AUTH_URL = 'https://android.googleapis.com/auth';
 const APP = 'com.google.android.apps.photos';
@@ -19,9 +21,8 @@ export function authenticatedHeaders(
     fetcher: Fetcher
 ): AsyncResult<PhotosHeaders, ServerError> {
     return Ok(undefined).andThenAsync(async () => {
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !token.startsWith('aas_et/')) {
+        if (!AccountSchema.safeParse({ email, token }).success)
             return Err(SERVER_ERRORS.INVALID_ACCOUNT);
-        }
 
         const androidId = randomBytes(8).toString('hex');
         const form = new URLSearchParams({
@@ -66,16 +67,7 @@ export function authenticatedHeaders(
 }
 
 function authHeadersFromResponse(text: string): Result<PhotosHeaders, ServerError> {
-    const authFields = Object.fromEntries(
-        text
-            .split('\n')
-            .filter((line) => line.includes('='))
-            .map((line) => {
-                const index = line.indexOf('=');
-
-                return [line.slice(0, index).trim(), line.slice(index + 1).trim()];
-            })
-    );
+    const authFields = Object.fromEntries(parseAuthFields(text));
     if (authFields.Error || !authFields.Auth || Number(authFields.Expiry) <= Date.now() / 1000)
         return Err(SERVER_ERRORS.AAS_AUTHENTICATION_FAILED);
 

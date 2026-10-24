@@ -1,5 +1,7 @@
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import {
+    FileNameSchema,
+    FileSizeSchema,
     UploadEventType,
     UploadPhase,
     UploadStatus,
@@ -17,13 +19,9 @@ import type { ReceivedUpload } from './input.js';
 const PROGRESS_INTERVAL_MS = 100;
 
 export function planUpload(file: UploadFile): Result<UploadPlan, ServerError> {
-    if (
-        !Number.isSafeInteger(file.size) ||
-        file.size < 0 ||
-        !file.name ||
-        /[\\/\r\n\0]/.test(file.name)
-    )
-        return Err(SERVER_ERRORS.INVALID_FILE_NAME_OR_SIZE);
+    const valid =
+        FileNameSchema.safeParse(file.name).success && FileSizeSchema.safeParse(file.size).success;
+    if (!valid) return Err(SERVER_ERRORS.INVALID_FILE_NAME_OR_SIZE);
 
     return planChunks(file, fileIdentity(file.name, file.fileHash));
 }

@@ -1,5 +1,5 @@
 import { SERVER_ERRORS, type ServerError } from './errors.js';
-import { FileActionKind, type FileRequest, type RemoteBmp } from '../models.js';
+import { FileActionKind, FileNameSchema, type FileRequest, type RemoteBmp } from '../models.js';
 import pLimit from 'p-limit';
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import { moveToTrash } from './photos/index.js';
@@ -8,8 +8,7 @@ import { streamDownload } from './download.js';
 function validateChunks(input: FileRequest): Result<RemoteBmp[], ServerError> {
     const chunks = input.chunks.toSorted((a, b) => a.chunkIndex - b.chunkIndex);
     if (
-        !input.name ||
-        /[\\/\r\n\0]/.test(input.name) ||
+        !FileNameSchema.safeParse(input.name).success ||
         chunks.some((chunk) => chunk.fileHash !== input.fileHash || chunk.fileId !== input.fileId)
     )
         return Err(SERVER_ERRORS.INVALID_FILE_METADATA);

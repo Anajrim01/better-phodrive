@@ -2,6 +2,8 @@ import pLimit from 'p-limit';
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import {
     ConcurrentWorkersSchema,
+    FileNameSchema,
+    FileSizeSchema,
     UploadEventType,
     UploadPhase,
     UploadStatus,
@@ -228,12 +230,10 @@ export function uploadFiles(
         const jobs = createUploadJobs(files);
         const sources: { file: File; jobId: number }[] = [];
         for (const [id, file] of files.entries()) {
-            if (
-                !file.name ||
-                /[\\/\r\n\0]/.test(file.name) ||
-                !Number.isSafeInteger(file.size) ||
-                file.size < 0
-            ) {
+            const valid =
+                FileNameSchema.safeParse(file.name).success &&
+                FileSizeSchema.safeParse(file.size).success;
+            if (!valid) {
                 jobs[id] = {
                     ...jobs[id],
                     status: UploadJobStatus.Error,
