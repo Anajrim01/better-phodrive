@@ -21,6 +21,8 @@ export type CliError =
               | 'INVALID_OPTION'
               | 'NO_FILES_SELECTED'
               | 'UNKNOWN_COMMAND'
+              | 'UPDATE_FAILED'
+              | 'UPDATE_UNSUPPORTED'
               | 'UPLOAD_INCOMPLETE';
           readonly message: string;
       };
@@ -36,4 +38,6 @@ export interface CliContext {
     /** Prompts and live progress are shown only when a person is at the terminal. */
     interactive: boolean;
     signal: AbortSignal;
+    /** The running executable and its release asset name, set only in GitHub release builds. */
+    release: { executable: string; asset: string } | null;
 }

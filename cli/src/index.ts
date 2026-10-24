@@ -5,6 +5,7 @@ import { CommanderError } from '@commander-js/extra-typings';
 import { defaultConfigPath } from './config';
 import type { CliContext, CliError } from './context';
 import { createProgram } from './program';
+import { RELEASE_ASSET } from './update';
 
 const INTERRUPTED_EXIT_CODE = 130;
 
@@ -27,7 +28,8 @@ const context: CliContext = {
     stdout: process.stdout,
     stderr: process.stderr,
     interactive: Boolean(process.stdin.isTTY && process.stderr.isTTY) && !isCI(),
-    signal: abort.signal
+    signal: abort.signal,
+    release: RELEASE_ASSET ? { executable: process.execPath, asset: RELEASE_ASSET } : null
 };
 
 const failures: CliError[] = [];

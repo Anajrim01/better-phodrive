@@ -5,6 +5,7 @@ import { registerAccountCommands } from './commands/account';
 import { registerFileCommands } from './commands/file';
 import { registerHelpCommand } from './commands/help';
 import { registerSettingCommands } from './commands/setting';
+import { registerUpdateCommand } from './commands/update';
 import type { CliContext, CliError } from './context';
 import { reportError } from './output';
 
@@ -35,6 +36,7 @@ export function createProgram(context: CliContext, onError: (error: CliError) =>
     registerAccountCommands(program, context, run);
     registerFileCommands(program, context, run);
     registerSettingCommands(program, context, run);
+    registerUpdateCommand(program, context, run);
     registerHelpCommand(program, run);
 
     return program;

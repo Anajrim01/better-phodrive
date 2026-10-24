@@ -33,6 +33,7 @@ export async function runCli(
         environment?: Record<string, string>;
         interactive?: boolean;
         signal?: AbortSignal;
+        release?: CliContext['release'];
     }
 ) {
     const stdout = capture();
@@ -49,7 +50,8 @@ export async function runCli(
         stdout: stdout.stream,
         stderr: stderr.stream,
         interactive: options.interactive ?? false,
-        signal: options.signal ?? new AbortController().signal
+        signal: options.signal ?? new AbortController().signal,
+        release: options.release ?? null
     };
     const failures: CliError[] = [];
     let exitCode = 0;
