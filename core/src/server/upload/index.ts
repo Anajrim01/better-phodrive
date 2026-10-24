@@ -66,9 +66,8 @@ export function uploadFiles(
             fetcher ?? photosFetchWithProgress((sent) => report(sent)),
             input.signal
         );
-        if (uploaded.isErr()) return uploaded.map(() => undefined);
 
-        uploaded.inspect((result) => {
+        return uploaded.map((result) => {
             const reused = result.status === UploadStatus.AlreadyExists ? input.bmp.totalSize : 0;
             report(input.bmp.totalSize - reused, reused, true);
             emit({
@@ -88,7 +87,5 @@ export function uploadFiles(
             });
             emit({ type: UploadEventType.FileComplete, id: 0, result });
         });
-
-        return Ok(undefined);
     });
 }

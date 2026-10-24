@@ -39,7 +39,7 @@ export class SplitBmpReader {
 
                 closed.inspectErr((error) => console.error(error.message));
 
-                return initialized.map(() => bmp);
+                return initialized;
             }
 
             return Ok(bmp);
@@ -69,7 +69,7 @@ export class SplitBmpReader {
             const prefix = new Uint8Array(length);
             while (this.offset < length) {
                 const next = await this.readBlock();
-                if (next.isErr()) return next.map(() => undefined);
+                if (next.isErr()) return next;
 
                 const copied = next.andThen((block) => {
                     if (block === null) return Err(SERVER_ERRORS.INVALID_DOWNLOADED_BMP);

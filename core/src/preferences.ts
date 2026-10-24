@@ -18,23 +18,17 @@ function environmentNumber(value: string | undefined): number | undefined {
 export function parsePreferencesDefaults(
     environment: Record<string, string | undefined>
 ): PreferencesDefaults {
-    const theme = ThemeSchema.safeParse(environment.PHODRIVE_DEFAULT_THEME);
-    const fileSort = FileSortSchema.safeParse(environment.PHODRIVE_DEFAULT_SORT);
-    const refreshInterval = RefreshIntervalSchema.safeParse(
-        environmentNumber(environment.PHODRIVE_DEFAULT_REFRESH_INTERVAL_SECONDS)
-    );
-    const concurrentWorkers = ConcurrentWorkersSchema.safeParse(
-        environmentNumber(environment.PHODRIVE_DEFAULT_CONCURRENT_WORKERS)
-    );
+    const defaults = DEFAULT_PREFERENCES_DEFAULTS;
 
+    // Invalid deployment values fall back to the built-in defaults, so parsing cannot throw.
     return {
-        theme: theme.success ? theme.data : DEFAULT_PREFERENCES_DEFAULTS.theme,
-        fileSort: fileSort.success ? fileSort.data : DEFAULT_PREFERENCES_DEFAULTS.fileSort,
-        refreshIntervalSeconds: refreshInterval.success
-            ? refreshInterval.data
-            : DEFAULT_PREFERENCES_DEFAULTS.refreshIntervalSeconds,
-        concurrentWorkers: concurrentWorkers.success
-            ? concurrentWorkers.data
-            : DEFAULT_PREFERENCES_DEFAULTS.concurrentWorkers
+        theme: ThemeSchema.catch(defaults.theme).parse(environment.PHODRIVE_DEFAULT_THEME),
+        fileSort: FileSortSchema.catch(defaults.fileSort).parse(environment.PHODRIVE_DEFAULT_SORT),
+        refreshIntervalSeconds: RefreshIntervalSchema.catch(defaults.refreshIntervalSeconds).parse(
+            environmentNumber(environment.PHODRIVE_DEFAULT_REFRESH_INTERVAL_SECONDS)
+        ),
+        concurrentWorkers: ConcurrentWorkersSchema.catch(defaults.concurrentWorkers).parse(
+            environmentNumber(environment.PHODRIVE_DEFAULT_CONCURRENT_WORKERS)
+        )
     };
 }

@@ -112,8 +112,7 @@ function scanLibraryPage(
         const items: RemoteBmp[] = [];
 
         for (const result of scanned) {
-            if (result.isErr())
-                return result.map(() => ({ items, nextPageToken: page.nextPageToken }));
+            if (result.isErr()) return result;
 
             result.inspect((item) => {
                 if (item !== null) items.push(item);

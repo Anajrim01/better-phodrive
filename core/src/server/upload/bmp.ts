@@ -85,12 +85,13 @@ export function encodeUploadBmp(input: ReceivedUpload): UploadBmpSource {
 
                             const finished = await input.finished();
                             if (closed) return;
-                            if (finished.isErr()) {
-                                const error = finished.match({
-                                    Ok: () => SERVER_ERRORS.FILE_RECEIVE_FAILED,
-                                    Err: (error) => error
-                                });
-                                await fail(error);
+
+                            const failure = finished.match({
+                                Ok: () => null,
+                                Err: (error) => error
+                            });
+                            if (failure) {
+                                await fail(failure);
 
                                 return;
                             }

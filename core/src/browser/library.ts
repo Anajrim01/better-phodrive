@@ -1,5 +1,5 @@
 import type { ApplicationError } from '../errors.js';
-import { Err, Ok, type AsyncResult } from 'results-ts';
+import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import { LibraryResponseSchema, type LibraryResponse, type RemoteBmp } from '../models.js';
 import { schemaResult } from '../validation.js';
 import { apiJson } from './api.js';
@@ -39,7 +39,7 @@ export function readLibrarySnapshot(
 
             const received = await readLibraryPage(email, token, nextPageToken);
 
-            const snapshot = received.andThen((page) => {
+            const merged = received.andThen((page): Result<void, ApplicationError> => {
                 if (page.nextPageToken && pageTokens.has(page.nextPageToken)) {
                     return Err({
                         code: 'REPEATED_LIBRARY_PAGE',
@@ -51,10 +51,10 @@ export function readLibrarySnapshot(
                 nextPageToken = page.nextPageToken;
                 pages++;
 
-                return Ok({ items: [...items.values()], nextPageToken, pages });
+                return Ok(undefined);
             });
 
-            if (snapshot.isErr()) return snapshot;
+            if (merged.isErr()) return merged;
             if (!nextPageToken) break;
         }
 

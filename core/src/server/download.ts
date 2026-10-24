@@ -75,7 +75,7 @@ export function streamDownload(
         if (first.isErr()) {
             await cleanup();
 
-            return first.map(() => new Response());
+            return first;
         }
 
         first.inspect((reader) => {
