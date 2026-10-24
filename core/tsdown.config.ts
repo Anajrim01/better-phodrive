@@ -9,5 +9,5 @@ export default defineConfig({
     dts: true,
     // Workspace Vite and Vitest configs opt into this condition to use source for hot reload and tests.
     // A package-specific name keeps consumers' development builds on the compiled JavaScript.
-    exports: { devExports: '@madkarmaa/phodrive-source' }
+    exports: { devExports: '@madkarmaa/phodrive-core' }
 });

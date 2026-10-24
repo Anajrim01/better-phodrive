@@ -11,7 +11,7 @@ import {
 import { defineConfig } from 'vitest/config';
 
 // Resolve core to source for hot reload, as the core package exports it under this condition.
-const SOURCE_CONDITION = '@madkarmaa/phodrive-source';
+const SOURCE_CONDITION = '@madkarmaa/phodrive-core';
 
 function disableRequestTimeouts({ httpServer }: ViteDevServer | PreviewServer) {
     if (!httpServer) return;
