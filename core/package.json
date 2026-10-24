@@ -10,7 +10,7 @@
         "directory": "core"
     },
     "engines": {
-        "node": "^22.22.2 || >=24.15.0"
+        "node": ">=24.21.0"
     },
     "files": [
         "dist",

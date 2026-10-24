@@ -1,6 +1,6 @@
 # Phodrive core
 
-`@madkarmaa/phodrive-core` contains the split BMP format, chunk planning, file grouping, Google Photos protocol, and transfer logic. It has no Svelte or SvelteKit dependency. Server modules require Node.js 22.22.2 or a supported newer version, or Bun. Browser modules use standard web APIs.
+`@madkarmaa/phodrive-core` contains the split BMP format, chunk planning, file grouping, Google Photos protocol, and transfer logic. It has no Svelte or SvelteKit dependency. Server and Node modules require Node.js 24.21 or newer, or Bun. Browser modules use standard web APIs.
 
 Build from the repository root with `bun run build`, or build only the library with `bun run --cwd core build`. With npm, use `npm run build --workspace core`.
 

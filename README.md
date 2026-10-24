@@ -22,7 +22,7 @@ Use Google Photos as a cloud storage provider by spoofing a Pixel XL device to g
 
 ## Development
 
-Use Node.js 24.15 or newer, or Bun.
+Use Node.js 24.21 or newer, or Bun.
 
 ```sh
 bun install
