@@ -7,14 +7,14 @@
     "author": "madkarmaa",
     "repository": {
         "type": "git",
-        "url": "https://github.com/madkarmaa/phodrive",
+        "url": "git+https://github.com/madkarmaa/phodrive.git",
         "directory": "cli"
     },
     "engines": {
         "node": "^22.22.2 || >=24.15.0"
     },
     "bin": {
-        "phodrive": "./dist/index.js"
+        "phodrive": "dist/index.js"
     },
     "files": [
         "dist",
