@@ -29,14 +29,14 @@ import {
     status,
     transferProgress
 } from '../output';
-import { askConfirmation } from '../prompts';
+import { askConfirmation, canConfirm } from '../prompts';
 import type { Runner } from '../program';
 import { concurrentWorkers, fileSort, parseSort, parseWorkers } from '../settings';
 
 const DAYS_PATTERN = /^[1-9]\d*$/;
 const UNSAFE_NAMES = new Set(['.', '..']);
 
-type ListOptions = { type?: string; days?: string; sort?: string; json: boolean };
+type ListOptions = { type?: string; days?: string; sort?: string; json?: boolean };
 
 function chooseWorkers(context: CliContext, session: Session, raw?: string) {
     if (raw === undefined) return Ok(concurrentWorkers(session.config, context.environment));
@@ -63,7 +63,7 @@ function showFiles(
     context: CliContext,
     files: readonly FileGroup[],
     filters: { query: string; type: string; days: string; order: FileSort },
-    json: boolean
+    json = false
 ): void {
     const shown = sortFiles(
         filterFiles(files, filters.query, filters.type, filters.days),
@@ -335,14 +335,14 @@ function saveFiles(
 function download(
     context: CliContext,
     targets: readonly string[],
-    options: { output?: string; force: boolean },
+    options: { output?: string; force?: boolean },
     account?: string
 ): AsyncResult<void, CliError> {
     return openSession(context, account).andThenAsync((session) =>
         loadFiles(context, session)
             .andThenAsync((files) => resolveTargets(context, files, targets))
             .andThenAsync((selected) => planDownloads(context, selected, options.output))
-            .andThenAsync((planned) => saveFiles(context, session, planned, options.force))
+            .andThenAsync((planned) => saveFiles(context, session, planned, options.force ?? false))
     );
 }
 
@@ -391,23 +391,28 @@ function deleteFiles(
 function remove(
     context: CliContext,
     targets: readonly string[],
-    options: { yes: boolean; workers?: string },
+    options: { yes?: boolean; workers?: string },
     account?: string
 ): AsyncResult<void, CliError> {
-    return openSession(context, account).andThenAsync((session) =>
-        chooseWorkers(context, session, options.workers).andThenAsync((workers) =>
-            loadFiles(context, session)
-                .andThenAsync((files) => resolveTargets(context, files, targets))
-                .andThenAsync((selected) =>
-                    askConfirmation(
-                        context,
-                        `Delete ${selected.map((file) => file.name).join(', ')} from ${session.email}?`,
-                        options.yes
-                    ).map(() => selected)
-                )
-                .andThenAsync((selected) => deleteFiles(context, session, selected, workers))
-        )
-    );
+    // Fail before reading the library when no confirmation is possible.
+    const confirmable = canConfirm(context, 'Deleting files needs confirmation.', options.yes);
+
+    return confirmable
+        .andThenAsync(() => openSession(context, account))
+        .andThenAsync((session) =>
+            chooseWorkers(context, session, options.workers).andThenAsync((workers) =>
+                loadFiles(context, session)
+                    .andThenAsync((files) => resolveTargets(context, files, targets))
+                    .andThenAsync((selected) =>
+                        askConfirmation(
+                            context,
+                            `Delete ${selected.map((file) => file.name).join(', ')} from ${session.email}?`,
+                            options.yes
+                        ).map(() => selected)
+                    )
+                    .andThenAsync((selected) => deleteFiles(context, session, selected, workers))
+            )
+        );
 }
 
 export function registerFileCommands(program: Command, context: CliContext, run: Runner) {
@@ -419,7 +424,7 @@ export function registerFileCommands(program: Command, context: CliContext, run:
         .option('--type <extension>', 'show one file type, for example pdf')
         .option('--days <days>', 'show files modified in the last number of days')
         .option('--sort <order>', 'modified-desc, modified-asc, name-asc, or name-desc')
-        .option('--json', 'print JSON', false)
+        .option('--json', 'print JSON')
         .option('-a, --account <email>', 'use this account instead of the active one')
         .action((search, options) =>
             run(() => listFiles(context, search, options, options.account))
@@ -438,7 +443,7 @@ export function registerFileCommands(program: Command, context: CliContext, run:
         .description('Download files by name or ID')
         .argument('<files...>', 'file names or IDs from `phodrive file list`')
         .option('-o, --output <path>', 'destination folder, or file path for one file')
-        .option('-f, --force', 'replace existing local files', false)
+        .option('-f, --force', 'replace existing local files')
         .option('-a, --account <email>', 'use this account instead of the active one')
         .action((targets, options) =>
             run(() => download(context, targets, options, options.account))
@@ -447,7 +452,7 @@ export function registerFileCommands(program: Command, context: CliContext, run:
     file.command('delete')
         .description('Move files to the Google Photos trash')
         .argument('<files...>', 'file names or IDs from `phodrive file list`')
-        .option('-y, --yes', 'skip the confirmation', false)
+        .option('-y, --yes', 'skip the confirmation')
         .option('-w, --workers <count>', 'concurrent requests')
         .option('-a, --account <email>', 'use this account instead of the active one')
         .action((targets, options) =>

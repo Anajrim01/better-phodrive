@@ -194,6 +194,7 @@ test('deletes need confirmation and report partially deleted files', async () =>
 
     const unconfirmed = await runCli(['file', 'delete', 'report.pdf'], { folder: folder.path });
     expect(unconfirmed.failures).toMatchObject([{ code: 'INPUT_REQUIRED' }]);
+    expect(readLibrary).not.toHaveBeenCalled();
     expect(deleteFile).not.toHaveBeenCalled();
 
     const deleted = await runCli(['file', 'delete', 'report.pdf', '--yes'], {
@@ -211,4 +212,16 @@ test('file commands require a connected account', async () => {
 
     expect(listed.failures).toMatchObject([{ code: 'ACCOUNT_REQUIRED' }]);
     await otherFolder.remove();
+});
+
+test('rejected tokens suggest connecting the account again', async () => {
+    vi.mocked(readLibrary).mockImplementation(() =>
+        Ok(undefined).andThenAsync(async () =>
+            Err({ code: 'REQUEST_FAILED', message: 'Authentication failed (HTTP 403)' } as const)
+        )
+    );
+
+    const listed = await runCli(['file', 'list'], { folder: folder.path });
+
+    expect(listed.stderr).toContain('run `phodrive account add` again');
 });

@@ -10,6 +10,13 @@ export type Session = { email: string; token: string; config: CliConfig };
 
 const ID_PREFIX_PATTERN = /^[a-f0-9]{4,64}$/;
 
+/** Email addresses match regardless of case, returning the address as it was saved. */
+export function findAccount(config: CliConfig, email: string): string | undefined {
+    const wanted = email.trim().toLowerCase();
+
+    return Object.keys(config.accounts).find((saved) => saved.toLowerCase() === wanted);
+}
+
 /** The chosen account, falling back to the saved selection and then the first account. */
 export function selectedEmail(config: CliConfig): string {
     if (Object.hasOwn(config.accounts, config.selected)) return config.selected;
@@ -19,18 +26,19 @@ export function selectedEmail(config: CliConfig): string {
 
 export function openSession(context: CliContext, account?: string): AsyncResult<Session, CliError> {
     return readConfig(context.configPath).andThen((config): Result<Session, CliError> => {
-        const email = account?.trim() || selectedEmail(config);
-        if (!email)
+        const requested = account?.trim() || selectedEmail(config);
+        if (!requested)
             return Err({
                 code: 'ACCOUNT_REQUIRED',
                 message: 'No account is connected. Run `phodrive account add` first.'
             } as const);
 
-        const token = config.accounts[email];
-        if (!token)
+        const email = findAccount(config, requested);
+        const token = email && config.accounts[email];
+        if (!email || !token)
             return Err({
                 code: 'ACCOUNT_NOT_FOUND',
-                message: `${email} is not connected. Run \`phodrive account list\` to see accounts.`
+                message: `${requested} is not connected. Run \`phodrive account list\` to see accounts.`
             } as const);
 
         return Ok({ email, token, config });

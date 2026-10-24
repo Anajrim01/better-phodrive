@@ -60,8 +60,16 @@ export function status(context: CliContext) {
     };
 }
 
+// Google rejects expired or revoked tokens while authenticating each request.
+const REJECTED_TOKEN_PATTERN = /^Authentication failed \(HTTP 40[13]\)/;
+
 export function reportError(context: CliContext, error: CliError): void {
-    status(context).error(error.message);
+    const rejected = error.code === 'REQUEST_FAILED' && REJECTED_TOKEN_PATTERN.test(error.message);
+    const hint = rejected
+        ? ' The saved token may be expired; run `phodrive account add` again.'
+        : '';
+
+    status(context).error(`${error.message}${hint}`);
 }
 
 /** A spinner at the terminal; scripts rely on output and exit codes instead. */

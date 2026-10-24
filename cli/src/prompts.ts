@@ -82,16 +82,26 @@ export function askSecret(
     });
 }
 
-/** Destructive commands need either a confirmation at the terminal or an explicit flag. */
+/** Destructive commands need either a terminal to confirm at or an explicit flag. */
+export function canConfirm(
+    context: CliContext,
+    message: string,
+    skip = false
+): Result<void, CliError> {
+    if (skip) return Ok(undefined);
+
+    return requireTerminal(context, `${message} Pass --yes to confirm.`);
+}
+
 export function askConfirmation(
     context: CliContext,
     message: string,
-    skip: boolean
+    skip = false
 ): AsyncResult<void, CliError> {
     return Ok(undefined).andThenAsync(async () => {
         if (skip) return Ok(undefined);
 
-        const terminal = requireTerminal(context, `${message} Pass --yes to confirm.`);
+        const terminal = canConfirm(context, message);
         if (terminal.isErr()) return terminal;
 
         const value = await prompt<boolean>(context, (options) =>

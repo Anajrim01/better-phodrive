@@ -12,7 +12,7 @@ import {
     settingValues
 } from '../settings';
 
-function showSettings(context: CliContext, json: boolean): AsyncResult<void, CliError> {
+function showSettings(context: CliContext, json = false): AsyncResult<void, CliError> {
     return readConfig(context.configPath).map((config) => {
         const values = settingValues(config, context.environment);
 
@@ -77,7 +77,7 @@ export function registerSettingCommands(program: Command, context: CliContext, r
     setting
         .command('show')
         .description('Show every setting and where its value comes from')
-        .option('--json', 'print JSON', false)
+        .option('--json', 'print JSON')
         .action((options) => run(() => showSettings(context, options.json)));
 
     setting

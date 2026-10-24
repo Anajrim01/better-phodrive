@@ -50,6 +50,28 @@ test('a piped token keeps credentials out of the command line', async () => {
     expect(connectGoogleAccount).toHaveBeenCalledWith(EMAIL, 'oauth2_4/piped');
 });
 
+test('an empty piped token is explained', async () => {
+    const added = await runCli(['account', 'add', EMAIL], { folder: folder.path, input: '\n' });
+
+    expect(added.stderr).toContain('No token was piped to stdin');
+    expect(connectGoogleAccount).not.toHaveBeenCalled();
+});
+
+test('account emails match regardless of case', async () => {
+    await runCli(['account', 'add', EMAIL, '--token', AAS_TOKEN], { folder: folder.path });
+
+    const used = await runCli(['account', 'use', EMAIL.toUpperCase()], { folder: folder.path });
+    const readded = await runCli(['account', 'add', EMAIL.toUpperCase(), '--token', AAS_TOKEN], {
+        folder: folder.path
+    });
+
+    expect(used.stderr).toContain(`Using ${EMAIL}`);
+    expect(readded.exitCode).toBe(0);
+    expect(Object.keys((await storedConfig(readded.configPath)).accounts)).toEqual([
+        EMAIL.toUpperCase()
+    ]);
+});
+
 test('missing input is explained without a terminal', async () => {
     const added = await runCli(['account', 'add'], { folder: folder.path, input: '' });
 

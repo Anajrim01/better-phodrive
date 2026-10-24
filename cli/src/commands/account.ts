@@ -5,7 +5,7 @@ import { EmailSchema, NewAccountSchema } from '@madkarmaa/phodrive-core/models';
 import { connectGoogleAccount } from '@madkarmaa/phodrive-core/server/accounts';
 import { readConfig, updateConfig, type CliConfig } from '../config';
 import type { CliContext, CliError } from '../context';
-import { selectedEmail } from '../library';
+import { findAccount, selectedEmail } from '../library';
 import { activity, printJson, printTable, status } from '../output';
 import { askConfirmation, askSecret, askText } from '../prompts';
 import type { Runner } from '../program';
@@ -42,16 +42,23 @@ function readToken(context: CliContext, token?: string): AsyncResult<string, Cli
         if (token !== undefined) return Ok(token.trim());
 
         if (!context.stdin.isTTY) {
-            try {
-                const piped = await readText(context.stdin);
+            let piped: string;
 
-                return Ok(piped.trim());
+            try {
+                piped = await readText(context.stdin);
             } catch {
                 return Err({
                     code: 'INPUT_REQUIRED',
                     message: 'Could not read the token.'
                 } as const);
             }
+            if (!piped.trim())
+                return Err({
+                    code: 'INPUT_REQUIRED',
+                    message: 'No token was piped to stdin. Pipe the token or pass it with --token.'
+                } as const);
+
+            return Ok(piped.trim());
         }
 
         return await askSecret(
@@ -99,9 +106,13 @@ function saveAccount(
     context: CliContext,
     { email, aasToken }: { email: string; aasToken: string }
 ): AsyncResult<void, CliError> {
-    return updateConfig(context.configPath, (config) =>
-        Ok({ ...config, accounts: { ...config.accounts, [email]: aasToken }, selected: email })
-    ).map(() => status(context).success(`Connected ${email}`));
+    return updateConfig(context.configPath, (config) => {
+        const accounts = { ...config.accounts };
+        const previous = findAccount(config, email);
+        if (previous) delete accounts[previous];
+
+        return Ok({ ...config, accounts: { ...accounts, [email]: aasToken }, selected: email });
+    }).map(() => status(context).success(`Connected ${email}`));
 }
 
 function addAccount(
@@ -115,8 +126,9 @@ function addAccount(
         .andThenAsync((connected) => saveAccount(context, connected));
 }
 
-function requireAccount(config: CliConfig, email: string): Result<void, CliError> {
-    if (Object.hasOwn(config.accounts, email)) return Ok(undefined);
+function requireAccount(config: CliConfig, email: string): Result<string, CliError> {
+    const saved = findAccount(config, email);
+    if (saved) return Ok(saved);
 
     return Err({
         code: 'ACCOUNT_NOT_FOUND',
@@ -127,7 +139,7 @@ function requireAccount(config: CliConfig, email: string): Result<void, CliError
 function removeAccount(
     context: CliContext,
     emailArgument: string | undefined,
-    confirmed: boolean
+    confirmed = false
 ): AsyncResult<void, CliError> {
     return readConfig(context.configPath)
         .andThen((config): Result<string, CliError> => {
@@ -138,7 +150,7 @@ function removeAccount(
                     message: 'No account is connected.'
                 } as const);
 
-            return requireAccount(config, email).map(() => email);
+            return requireAccount(config, email);
         })
         .andThenAsync((email) =>
             askConfirmation(
@@ -159,7 +171,7 @@ function removeAccount(
         );
 }
 
-function listAccounts(context: CliContext, json: boolean): AsyncResult<void, CliError> {
+function listAccounts(context: CliContext, json = false): AsyncResult<void, CliError> {
     return readConfig(context.configPath).map((config) => {
         const active = selectedEmail(config);
         const accounts = Object.keys(config.accounts).map((email) => ({
@@ -188,8 +200,8 @@ function listAccounts(context: CliContext, json: boolean): AsyncResult<void, Cli
 
 function useAccount(context: CliContext, email: string): AsyncResult<void, CliError> {
     return updateConfig(context.configPath, (config) =>
-        requireAccount(config, email.trim()).map(() => ({ ...config, selected: email.trim() }))
-    ).map(() => status(context).success(`Using ${email.trim()}`));
+        requireAccount(config, email).map((saved) => ({ ...config, selected: saved }))
+    ).map((config) => status(context).success(`Using ${config.selected}`));
 }
 
 export function registerAccountCommands(program: Command, context: CliContext, run: Runner) {
@@ -206,13 +218,13 @@ export function registerAccountCommands(program: Command, context: CliContext, r
         .command('remove')
         .description('Remove a connected account and its saved token')
         .argument('[email]', 'account to remove; defaults to the active account')
-        .option('-y, --yes', 'skip the confirmation', false)
+        .option('-y, --yes', 'skip the confirmation')
         .action((email, options) => run(() => removeAccount(context, email, options.yes)));
 
     account
         .command('list')
         .description('List connected accounts')
-        .option('--json', 'print JSON', false)
+        .option('--json', 'print JSON')
         .action((options) => run(() => listAccounts(context, options.json)));
 
     account
