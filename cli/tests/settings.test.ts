@@ -4,12 +4,6 @@ import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { runCli, temporaryFolder } from './helpers/cli';
 
-vi.mock('node:os', async (importOriginal) => {
-    const actual = await importOriginal<typeof import('node:os')>();
-
-    return { ...actual, availableParallelism: vi.fn() };
-});
-
 let folder: Awaited<ReturnType<typeof temporaryFolder>>;
 
 beforeEach(async () => {

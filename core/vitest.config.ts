@@ -6,5 +6,5 @@ const SOURCE_CONDITION = '@madkarmaa/phodrive-core';
 
 export default defineConfig({
     ssr: { resolve: { conditions: [SOURCE_CONDITION, ...defaultServerConditions] } },
-    test: { include: ['tests/**/*.test.ts'] }
+    test: { include: ['tests/**/*.test.ts'], setupFiles: ['tests/helpers/processors.ts'] }
 });
