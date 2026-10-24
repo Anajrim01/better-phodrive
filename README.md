@@ -31,7 +31,7 @@ bun --bun run dev
 
 Open `http://127.0.0.1:5173`. With Node.js, use `npm install` and `npm run dev` instead.
 
-The repository uses [Bun workspaces](https://bun.sh/docs/pm/workspaces), also supported by npm. `app/` contains the SvelteKit web app. `core/` is the standalone `@madkarmaa/phodrive-core` library for the file format, Google Photos protocol, and transfers. Root commands build core before running the app. See [core usage](./core/README.md) for using the library elsewhere.
+The repository uses [Bun workspaces](https://bun.sh/docs/pm/workspaces), also supported by npm. `app/` contains the SvelteKit web app. `core/` is the standalone `@madkarmaa/phodrive-core` library for the file format, Google Photos protocol, and transfers. `cli/` is the `phodrive` command line. Root commands build core before running the app. Run the command line from source with `bun run cli <command>`, for example `bun run cli file list`. See [core usage](./core/README.md) for using the library elsewhere.
 
 Keep environment files at the repository root, for example `.env`.
 
@@ -110,6 +110,32 @@ For Docker, pass the same variables with `-e`, for example `-e PHODRIVE_DEFAULT_
 
 > [!NOTE]
 > Your browser stores the credentials. The server uses them for each request and does not save them.
+
+## Command line
+
+The `phodrive` command does everything the web app does, directly from your machine, without running the server. It is published to GitHub Packages, which requires a GitHub [personal access token (classic)](https://github.com/settings/tokens) with the `read:packages` scope, even for public packages. Add it to `~/.npmrc`:
+
+```ini
+@madkarmaa:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=YOUR_GITHUB_TOKEN
+```
+
+Then install it with `npm install --global @madkarmaa/phodrive-cli`, or run it once with `npx @madkarmaa/phodrive-cli`.
+
+```sh
+phodrive account add you@gmail.com   # prompts for the oauth2_4/ token from the steps above
+phodrive file list                   # search, filter, and sort with: file list report --type pdf --days 30 --sort name-asc
+phodrive file upload ./photos        # files and whole folders
+phodrive file download report.pdf    # by name or by the ID shown in file list
+phodrive file delete report.pdf
+phodrive setting set workers 4
+```
+
+Run `phodrive --help` or `phodrive <command> --help` for every command and option. Accounts are `account add`, `remove`, `list`, and `use`; files are `file list`, `upload`, `download`, and `delete`; settings are `setting show`, `set`, and `reset`.
+
+Without a terminal, pass values as arguments and flags instead of prompts: pipe the token into `account add`, and pass `--yes` to `delete` and `account remove`. `--json` prints machine-readable lists. Downloads never replace existing files unless you pass `--force`.
+
+Accounts and settings are saved in `config.json` in your user configuration folder, readable only by your user on macOS and Linux. Set `PHODRIVE_CONFIG` to use another file. `PHODRIVE_DEFAULT_SORT` and `PHODRIVE_DEFAULT_CONCURRENT_WORKERS` apply when no setting is saved.
 
 ## Attribution
 
