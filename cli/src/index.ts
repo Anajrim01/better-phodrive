@@ -42,4 +42,5 @@ try {
     process.exitCode = error.exitCode;
 }
 
-if (failures.length) process.exitCode = interrupted ? INTERRUPTED_EXIT_CODE : 1;
+const cancelled = interrupted || failures.some((failure) => failure.code === 'CANCELLED');
+if (failures.length) process.exitCode = cancelled ? INTERRUPTED_EXIT_CODE : 1;
