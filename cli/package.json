@@ -29,6 +29,7 @@
         "check": "tsc --project tsconfig.json",
         "test": "vitest run",
         "start": "node dist/index.js",
+        "compile": "bun build src/index.ts --compile --minify --conditions @madkarmaa/phodrive-core --outfile build/phodrive",
         "prepack": "node ../scripts/licenses.mjs && tsdown"
     },
     "dependencies": {

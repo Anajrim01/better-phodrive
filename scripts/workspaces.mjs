@@ -31,6 +31,7 @@ const tasks = {
         ['cli', 'build'],
         ['cli', 'start']
     ],
+    compile: [['cli', 'compile']],
     dev: [
         ['core', 'build'],
         ['app', 'dev']

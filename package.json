@@ -32,6 +32,7 @@
         "start": "node scripts/workspaces.mjs start",
         "start:bun": "node scripts/workspaces.mjs start:bun",
         "cli": "node scripts/workspaces.mjs cli",
+        "compile": "node scripts/workspaces.mjs compile",
         "test": "node scripts/workspaces.mjs test",
         "check": "node scripts/workspaces.mjs check",
         "check:watch": "node scripts/workspaces.mjs check:watch",

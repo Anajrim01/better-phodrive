@@ -122,6 +122,8 @@ The `phodrive` command does everything the web app does without running the serv
 
 Then install it with `npm install --global @madkarmaa/phodrive-cli`, or run it once with `npx @madkarmaa/phodrive-cli`.
 
+To build a single executable that runs without Node.js, run `bun run compile` in a clone of this repository. It writes `cli/build/phodrive` (`phodrive.exe` on Windows).
+
 ```sh
 phodrive account add you@gmail.com   # asks for the oauth2_4/ token from the steps above
 phodrive file list                   # add a search term, --type pdf, --days 30, or --sort name-asc
