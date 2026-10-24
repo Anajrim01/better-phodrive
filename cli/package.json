@@ -1,6 +1,6 @@
 {
     "name": "@madkarmaa/phodrive-cli",
-    "version": "1.4.0",
+    "version": "1.4.1",
     "description": "Command-line interface for Phodrive.",
     "type": "module",
     "license": "MIT",
@@ -35,7 +35,7 @@
     "dependencies": {
         "@clack/prompts": "^1.8.1",
         "@commander-js/extra-typings": "~15.0.0",
-        "@madkarmaa/phodrive-core": "^1.4.0",
+        "@madkarmaa/phodrive-core": "^1.4.1",
         "cli-table3": "^0.6.5",
         "commander": "~15.0.0",
         "env-paths": "^4.0.0",

@@ -1,6 +1,6 @@
 {
     "name": "@madkarmaa/phodrive-core",
-    "version": "1.4.0",
+    "version": "1.4.1",
     "description": "Phodrive file format, Google Photos protocol, and transfer library.",
     "type": "module",
     "license": "MIT",

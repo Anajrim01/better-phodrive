@@ -7,7 +7,7 @@
       "devDependencies": {
         "@commitlint/cli": "^21.2.3",
         "@commitlint/config-conventional": "^21.2.3",
-        "@madkarmaa/phodrive-core": "^1.4.0",
+        "@madkarmaa/phodrive-core": "^1.4.1",
         "@semantic-release/commit-analyzer": "^13.0.1",
         "@semantic-release/exec": "^7.1.0",
         "@semantic-release/git": "^11.0.1",
@@ -30,10 +30,10 @@
     },
     "app": {
       "name": "@madkarmaa/phodrive-app",
-      "version": "1.4.0",
+      "version": "1.4.1",
       "dependencies": {
         "@fontsource-variable/google-sans-flex": "^5.3.1",
-        "@madkarmaa/phodrive-core": "^1.4.0",
+        "@madkarmaa/phodrive-core": "^1.4.1",
         "cross-env": "^10.1.0",
         "noph-ui": "^0.51.2",
         "pretty-bytes": "^7.2.0",
@@ -61,7 +61,7 @@
     },
     "cli": {
       "name": "@madkarmaa/phodrive-cli",
-      "version": "1.4.0",
+      "version": "1.4.1",
       "bin": {
         "phodrive": "dist/index.js",
       },
@@ -89,7 +89,7 @@
     },
     "core": {
       "name": "@madkarmaa/phodrive-core",
-      "version": "1.4.0",
+      "version": "1.4.1",
       "dependencies": {
         "@fastify/busboy": "^3.2.2",
         "eventsource-parser": "^4.1.1",

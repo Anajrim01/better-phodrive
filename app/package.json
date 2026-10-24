@@ -1,5 +1,5 @@
 {
-    "version": "1.4.0",
+    "version": "1.4.1",
     "description": "Files worth a thousand pixels.",
     "author": "madkarmaa",
     "repository": {
@@ -38,7 +38,7 @@
     },
     "dependencies": {
         "@fontsource-variable/google-sans-flex": "^5.3.1",
-        "@madkarmaa/phodrive-core": "^1.4.0",
+        "@madkarmaa/phodrive-core": "^1.4.1",
         "cross-env": "^10.1.0",
         "noph-ui": "^0.51.2",
         "pretty-bytes": "^7.2.0",

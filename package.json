@@ -1,7 +1,7 @@
 {
     "name": "phodrive",
     "private": true,
-    "version": "1.4.0",
+    "version": "1.4.1",
     "license": "MIT",
     "description": "Files worth a thousand pixels.",
     "author": "madkarmaa",
@@ -47,7 +47,7 @@
     "devDependencies": {
         "@commitlint/cli": "^21.2.3",
         "@commitlint/config-conventional": "^21.2.3",
-        "@madkarmaa/phodrive-core": "^1.4.0",
+        "@madkarmaa/phodrive-core": "^1.4.1",
         "@semantic-release/commit-analyzer": "^13.0.1",
         "@semantic-release/exec": "^7.1.0",
         "@semantic-release/git": "^11.0.1",
