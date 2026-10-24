@@ -32,10 +32,30 @@ export default {
             { preset: 'conventionalcommits', presetConfig: RELEASE_PRESET_CONFIG }
         ],
         ['@semantic-release/npm', { npmPublish: false }],
+        // Workspaces release together, so every manifest and the lockfile carry the release version.
+        [
+            '@semantic-release/exec',
+            {
+                prepareCmd: [
+                    'npm pkg set version=${nextRelease.version} --workspaces',
+                    'npm pkg set "devDependencies[@madkarmaa/phodrive-core]=^${nextRelease.version}"',
+                    'npm pkg set "dependencies[@madkarmaa/phodrive-core]=^${nextRelease.version}" --workspace app --workspace cli',
+                    'bun install --lockfile-only'
+                ].join(' && ')
+            }
+        ],
         [
             '@semantic-release/git',
             {
-                assets: ['package.json', 'package-lock.json', 'npm-shrinkwrap.json'],
+                assets: [
+                    'package.json',
+                    'package-lock.json',
+                    'npm-shrinkwrap.json',
+                    'bun.lock',
+                    'app/package.json',
+                    'cli/package.json',
+                    'core/package.json'
+                ],
                 message: 'chore(release): ${nextRelease.version} [skip ci]'
             }
         ],

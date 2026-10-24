@@ -104,14 +104,6 @@ jobs:
             - name: Install dependencies
               run: bun install --frozen-lockfile
 
-            # Workspace manifests keep their development versions; published packages use the release.
-            - name: Set the release version
-              run: |
-                  npm pkg set "version=$VERSION" --workspace core --workspace cli
-                  npm pkg set "dependencies[@madkarmaa/phodrive-core]=^$VERSION" --workspace cli
-              env:
-                  VERSION: ${{ needs.release.outputs.version }}
-
             - name: Publish core and cli
               run: npm publish --workspace core --workspace cli
               env:
@@ -151,12 +143,6 @@ jobs:
 
             - name: Install dependencies
               run: bun install --frozen-lockfile
-
-            # Executables print the version from the cli manifest.
-            - name: Set the release version
-              run: npm pkg set "version=$VERSION" --workspace cli
-              env:
-                  VERSION: ${{ needs.release.outputs.version }}
 
             # Each executable records its asset name so `phodrive update` downloads the same build.
             - name: Compile executables
