@@ -120,7 +120,7 @@ curl -fLo phodrive https://github.com/madkarmaa/phodrive/releases/latest/downloa
 chmod +x phodrive
 ```
 
-Replace `linux-x64` with `linux-arm64`, `darwin-arm64`, or `darwin-x64` for other systems, and add `-musl` on Alpine Linux. On Windows, download `phodrive-windows-x64.exe` or `phodrive-windows-arm64.exe` from the release page. On macOS, download with `curl` instead of a browser, because Gatekeeper blocks unsigned apps downloaded by a browser. Move the executable to a folder on your `PATH`. `phodrive update` replaces it with the latest release.
+Replace `linux-x64` with `linux-arm64`, `darwin-arm64`, or `darwin-x64` for other systems, and add `-musl` on Alpine Linux. On Windows, download `phodrive-windows-x64.exe` or `phodrive-windows-arm64.exe` from the release page. On macOS, download with `curl` instead of a browser, because Gatekeeper blocks apps that a browser downloads unless Apple notarized them. Move the executable to a folder on your `PATH`. `phodrive update` replaces it with the latest release.
 
 The npm package is on GitHub Packages, and installing from there needs a GitHub [personal access token (classic)](https://github.com/settings/tokens) with the `read:packages` scope, even for public packages. Add the registry and your token to `~/.npmrc`:
 
@@ -129,7 +129,7 @@ The npm package is on GitHub Packages, and installing from there needs a GitHub 
 //npm.pkg.github.com/:_authToken=YOUR_GITHUB_TOKEN
 ```
 
-Then install it with `npm install --global @madkarmaa/phodrive-cli`, or run it once with `npx @madkarmaa/phodrive-cli`. To build an executable yourself, run `bun run compile` in a clone of this repository. It writes `cli/build/phodrive`.
+Then install it with `npm install --global @madkarmaa/phodrive-cli`, or run it once with `npx @madkarmaa/phodrive-cli`. To build an executable yourself, run `bun run compile` in a clone of this repository. It writes `cli/build/phodrive`, or `cli/build/phodrive.exe` on Windows.
 
 ```sh
 phodrive account add you@gmail.com   # asks for the oauth2_4/ token from the steps above
