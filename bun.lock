@@ -92,6 +92,7 @@
       "dependencies": {
         "@fastify/busboy": "^3.2.2",
         "eventsource-parser": "^4.1.1",
+        "fdir": "^6.5.0",
         "hash-wasm": "^4.12.0",
         "p-limit": "^7.3.3",
         "results-ts": "^4.4.0",

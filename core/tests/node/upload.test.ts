@@ -117,3 +117,30 @@ test('provider failures mark the file as failed', async () => {
     expect(uploaded.isOk()).toBe(true);
     expect(jobs.at(-1)?.status).toBe(UploadJobStatus.Error);
 });
+
+test.skipIf(process.platform === 'win32')(
+    'linked folders are followed once and repeated files are opened once',
+    async () => {
+        const { symlink } = await import('node:fs/promises');
+        await mkdir(join(folder, 'photos', 'nested'), { recursive: true });
+        await mkdir(join(folder, 'outside'));
+        await writeFile(join(folder, 'photos', 'a.txt'), 'a');
+        await writeFile(join(folder, 'photos', 'nested', 'b.txt'), 'b');
+        await writeFile(join(folder, 'outside', 'o.txt'), 'o');
+        await symlink('..', join(folder, 'photos', 'nested', 'up'));
+        await symlink(join(folder, 'outside'), join(folder, 'photos', 'linked'));
+        await symlink('a.txt', join(folder, 'photos', 'alias.txt'));
+
+        const opened = await openLocalFiles([
+            join(folder, 'photos'),
+            join(folder, 'photos', 'a.txt')
+        ]);
+
+        expect(
+            opened
+                .unwrap()
+                .map(({ file }) => file.name)
+                .sort()
+        ).toEqual(['a.txt', 'b.txt', 'o.txt']);
+    }
+);

@@ -1,6 +1,7 @@
 import { openAsBlob } from 'node:fs';
-import { readdir, stat } from 'node:fs/promises';
-import { basename, join } from 'node:path';
+import { realpath, stat } from 'node:fs/promises';
+import { basename } from 'node:path';
+import { fdir } from 'fdir';
 import { Err, Ok, type AsyncResult } from 'results-ts';
 import type { ApplicationError } from '../errors';
 import type { UploadedChunk } from '../files';
@@ -65,14 +66,16 @@ export function localChunkTransport({ signal, fetcher }: TransferOptions = {}): 
         });
 }
 
+/** Symbolic links are followed the same way on every runtime; repeated targets are removed later. */
 function listFolder(path: string): AsyncResult<string[], ApplicationError> {
     return Ok(undefined).andThenAsync(async () => {
         try {
-            const entries = await readdir(path, { recursive: true, withFileTypes: true });
-
-            const files = entries
-                .filter((entry) => entry.isFile())
-                .map((entry) => join(entry.parentPath, entry.name));
+            const files = await new fdir()
+                .withFullPaths()
+                .withSymlinks({ resolvePaths: false })
+                .withErrors()
+                .crawl(path)
+                .withPromise();
 
             return Ok(files.sort());
         } catch {
@@ -117,16 +120,36 @@ function expandPath(path: string): AsyncResult<string[], ApplicationError> {
     });
 }
 
+function realPath(path: string): AsyncResult<string, ApplicationError> {
+    return Ok(undefined).andThenAsync(async () => {
+        try {
+            const resolved = await realpath(path);
+
+            return Ok(resolved);
+        } catch {
+            return Err(readFailure(path));
+        }
+    });
+}
+
+/** Open each file once, even when it is selected again directly or through a link. */
 function openFiles(
     paths: readonly string[],
-    files: LocalFile[]
+    files: LocalFile[],
+    opened: Set<string>
 ): AsyncResult<LocalFile[], ApplicationError> {
     return Ok(undefined).andThenAsync(async () => {
         for (const path of paths) {
-            const opened = await openFile(path);
-            if (opened.isErr()) return opened;
+            const added = await realPath(path).andThenAsync(async (real) => {
+                if (opened.has(real)) return Ok(undefined);
 
-            opened.inspect((file) => files.push(file));
+                opened.add(real);
+
+                return await openFile(path).map((local) => {
+                    files.push(local);
+                });
+            });
+            if (added.isErr()) return added;
         }
 
         return Ok(files);
@@ -139,10 +162,13 @@ export function openLocalFiles(
 ): AsyncResult<LocalFile[], ApplicationError> {
     return Ok(undefined).andThenAsync(async () => {
         const files: LocalFile[] = [];
+        const opened = new Set<string>();
 
         for (const path of paths) {
-            const opened = await expandPath(path).andThenAsync((found) => openFiles(found, files));
-            if (opened.isErr()) return opened;
+            const expanded = await expandPath(path).andThenAsync((found) =>
+                openFiles(found, files, opened)
+            );
+            if (expanded.isErr()) return expanded;
         }
 
         return Ok(files);
