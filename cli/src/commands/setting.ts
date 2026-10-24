@@ -5,10 +5,10 @@ import type { CliContext, CliError } from '../context';
 import { printJson, printTable, status } from '../output';
 import type { Runner } from '../program';
 import {
-    SettingSource,
     parseSettingKey,
     resetSetting,
     saveSetting,
+    settingValue,
     settingValues
 } from '../settings';
 
@@ -31,7 +31,7 @@ function showSettings(context: CliContext, json = false): AsyncResult<void, CliE
             values.map(({ key, value, source, description, allowed }) => [
                 key,
                 String(value),
-                source === SettingSource.Saved ? 'saved' : 'default',
+                source,
                 description,
                 allowed
             ])
@@ -47,11 +47,9 @@ function setSetting(
     return parseSettingKey(rawKey).andThenAsync((key) =>
         updateConfig(context.configPath, (config) => saveSetting(config, key, value)).map(
             (config) => {
-                const saved = settingValues(config, context.environment).find(
-                    (setting) => setting.key === key
-                );
+                const saved = settingValue(config, context.environment, key);
 
-                status(context).success(`Set ${key} to ${saved?.value ?? value}`);
+                status(context).success(`Set ${key} to ${saved.value}`);
             }
         )
     );
@@ -61,11 +59,9 @@ function clearSetting(context: CliContext, rawKey: string): AsyncResult<void, Cl
     return parseSettingKey(rawKey).andThenAsync((key) =>
         updateConfig(context.configPath, (config) => Ok(resetSetting(config, key))).map(
             (config) => {
-                const restored = settingValues(config, context.environment).find(
-                    (setting) => setting.key === key
-                );
+                const restored = settingValue(config, context.environment, key);
 
-                status(context).success(`Reset ${key} to the default, ${restored?.value}`);
+                status(context).success(`Reset ${key} to the default, ${restored.value}`);
             }
         )
     );

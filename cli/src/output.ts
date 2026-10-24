@@ -7,7 +7,11 @@ import type { CliContext, CliError } from './context';
 
 /** Files are identified by this many leading characters of their ID in tables and arguments. */
 export const SHORT_ID_LENGTH = 12;
+export const FILE_TABLE_HEAD = ['ID', 'Name', 'Type', 'Size', 'Modified', ''];
 const PROGRESS_STEPS = 1000;
+const DATE_FORMAT = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+// Google rejects expired or revoked tokens while authenticating each request.
+const REJECTED_TOKEN_PATTERN = /^Authentication failed \(HTTP 40[13]\)/;
 
 // Space-separated columns stay readable and easy to filter with standard text tools.
 const BORDERLESS = {
@@ -59,9 +63,6 @@ export function status(context: CliContext) {
         error: (message: string) => log.error(message, output)
     };
 }
-
-// Google rejects expired or revoked tokens while authenticating each request.
-const REJECTED_TOKEN_PATTERN = /^Authentication failed \(HTTP 40[13]\)/;
 
 export function reportError(context: CliContext, error: CliError): void {
     const rejected = error.code === 'REQUEST_FAILED' && REJECTED_TOKEN_PATTERN.test(error.message);
@@ -121,24 +122,16 @@ export function fileSize(file: FileGroup): number {
     return file.chunks.reduce((sum, chunk) => sum + chunk.size, 0);
 }
 
-export function formatBytes(bytes: number): string {
-    return prettyBytes(bytes);
-}
-
-const DATE_FORMAT = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });
-
 export function fileRow(file: FileGroup): string[] {
     return [
         shortId(file),
         file.name,
         fileType(file.name),
-        formatBytes(fileSize(file)),
+        prettyBytes(fileSize(file)),
         DATE_FORMAT.format(file.at),
         file.complete ? '' : pc.yellow('incomplete')
     ];
 }
-
-export const FILE_TABLE_HEAD = ['ID', 'Name', 'Type', 'Size', 'Modified', ''];
 
 /** Machine-readable files never include account credentials. */
 export function fileJson(file: FileGroup) {

@@ -52,19 +52,33 @@ function requireTerminal(context: CliContext, hint: string): Result<void, CliErr
     return Err({ code: 'INPUT_REQUIRED', message: hint } as const);
 }
 
+type LinePrompt = (
+    options: PromptOptions & { message: string; validate: (input?: string) => string | undefined }
+) => Promise<string | symbol>;
+
+function askLine(
+    context: CliContext,
+    show: LinePrompt,
+    message: string,
+    hint: string,
+    validate: (value: string) => string | undefined
+): AsyncResult<string, CliError> {
+    return requireTerminal(context, hint)
+        .andThenAsync(() =>
+            prompt<string>(context, (options) =>
+                show({ ...options, message, validate: (input) => validate(input?.trim() ?? '') })
+            )
+        )
+        .map((input) => input.trim());
+}
+
 export function askText(
     context: CliContext,
     message: string,
     hint: string,
     validate: (value: string) => string | undefined
 ): AsyncResult<string, CliError> {
-    return requireTerminal(context, hint).andThenAsync(async () => {
-        const value = await prompt<string>(context, (options) =>
-            text({ ...options, message, validate: (input) => validate(input?.trim() ?? '') })
-        );
-
-        return value.map((input) => input.trim());
-    });
+    return askLine(context, text, message, hint, validate);
 }
 
 export function askSecret(
@@ -73,13 +87,7 @@ export function askSecret(
     hint: string,
     validate: (value: string) => string | undefined
 ): AsyncResult<string, CliError> {
-    return requireTerminal(context, hint).andThenAsync(async () => {
-        const value = await prompt<string>(context, (options) =>
-            password({ ...options, message, validate: (input) => validate(input?.trim() ?? '') })
-        );
-
-        return value.map((input) => input.trim());
-    });
+    return askLine(context, password, message, hint, validate);
 }
 
 /** Destructive commands need either a terminal to confirm at or an explicit flag. */
@@ -118,9 +126,7 @@ export function askChoice<T extends string>(
     hint: string,
     choices: Option<T>[]
 ): AsyncResult<T, CliError> {
-    return requireTerminal(context, hint).andThenAsync(async () => {
-        return await prompt<T>(context, (options) =>
-            select<T>({ ...options, message, options: choices })
-        );
-    });
+    return requireTerminal(context, hint).andThenAsync(() =>
+        prompt<T>(context, (options) => select<T>({ ...options, message, options: choices }))
+    );
 }

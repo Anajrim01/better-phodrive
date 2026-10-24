@@ -12,6 +12,7 @@ import {
     StoredAccountsSchema
 } from '@madkarmaa/phodrive-core/models';
 import type { CliError } from './context';
+import { isMissingPath } from './filesystem';
 
 export const CONFIG_PATH_VARIABLE = 'PHODRIVE_CONFIG';
 const CONFIG_FILE_NAME = 'config.json';
@@ -19,7 +20,7 @@ const CONFIG_FILE_NAME = 'config.json';
 const CONFIG_FILE_MODE = 0o600;
 const CONFIG_FOLDER_MODE = 0o700;
 
-export const StoredSettingsSchema = z.object({
+const StoredSettingsSchema = z.object({
     sort: FileSortSchema.optional().catch(undefined),
     workers: ConcurrentWorkersSchema.optional().catch(undefined)
 });
@@ -37,7 +38,7 @@ export type CliConfig = {
     settings: StoredSettings;
 };
 
-export const EMPTY_CONFIG: CliConfig = { accounts: {}, selected: '', settings: {} };
+const EMPTY_CONFIG: CliConfig = { accounts: {}, selected: '', settings: {} };
 
 export function defaultConfigPath(environment: Record<string, string | undefined>): string {
     const override = environment[CONFIG_PATH_VARIABLE]?.trim();
@@ -48,7 +49,7 @@ export function defaultConfigPath(environment: Record<string, string | undefined
 
 /** Unknown or invalid entries are dropped, as the web app does with browser storage. */
 function parseConfig(value: unknown): CliConfig {
-    const parsed = StoredConfigSchema.catch(EMPTY_CONFIG).parse(value ?? {});
+    const parsed = StoredConfigSchema.catch(EMPTY_CONFIG).parse(value);
     const accounts: Record<string, string> = {};
 
     for (const [email, token] of Object.entries(parsed.accounts)) {
@@ -81,8 +82,7 @@ export function readConfig(path: string): AsyncResult<CliConfig, CliError> {
         try {
             text = await readFile(path, 'utf8');
         } catch (error) {
-            const missing = error instanceof Error && 'code' in error && error.code === 'ENOENT';
-            if (missing) return Ok(EMPTY_CONFIG);
+            if (isMissingPath(error)) return Ok(EMPTY_CONFIG);
 
             return Err({ code: 'CONFIG_READ_FAILED', message: `Could not read ${path}.` } as const);
         }

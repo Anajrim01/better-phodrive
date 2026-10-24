@@ -1,49 +1,13 @@
-import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
+import prettyBytes from 'pretty-bytes';
+import { Err, Ok, type AsyncResult } from 'results-ts';
 import type { FileGroup } from '@madkarmaa/phodrive-core/files';
-import { readLibrary } from '@madkarmaa/phodrive-core/node';
-import { readConfig, type CliConfig } from './config';
+import { deleteFile, readLibrary, type DeleteResult } from '@madkarmaa/phodrive-core/node';
+import type { Session } from './accounts';
 import type { CliContext, CliError } from './context';
-import { activity, formatBytes, fileSize, shortId } from './output';
+import { activity, fileSize, shortId, status } from './output';
 import { askChoice } from './prompts';
 
-export type Session = { email: string; token: string; config: CliConfig };
-
 const ID_PREFIX_PATTERN = /^[a-f0-9]{4,64}$/;
-
-/** Email addresses match regardless of case, returning the address as it was saved. */
-export function findAccount(config: CliConfig, email: string): string | undefined {
-    const wanted = email.trim().toLowerCase();
-
-    return Object.keys(config.accounts).find((saved) => saved.toLowerCase() === wanted);
-}
-
-/** The chosen account, falling back to the saved selection and then the first account. */
-export function selectedEmail(config: CliConfig): string {
-    if (Object.hasOwn(config.accounts, config.selected)) return config.selected;
-
-    return Object.keys(config.accounts)[0] ?? '';
-}
-
-export function openSession(context: CliContext, account?: string): AsyncResult<Session, CliError> {
-    return readConfig(context.configPath).andThen((config): Result<Session, CliError> => {
-        const requested = account?.trim() || selectedEmail(config);
-        if (!requested)
-            return Err({
-                code: 'ACCOUNT_REQUIRED',
-                message: 'No account is connected. Run `phodrive account add` first.'
-            } as const);
-
-        const email = findAccount(config, requested);
-        const token = email && config.accounts[email];
-        if (!email || !token)
-            return Err({
-                code: 'ACCOUNT_NOT_FOUND',
-                message: `${requested} is not connected. Run \`phodrive account list\` to see accounts.`
-            } as const);
-
-        return Ok({ email, token, config });
-    });
-}
 
 export function loadFiles(
     context: CliContext,
@@ -75,41 +39,51 @@ function matchTarget(files: readonly FileGroup[], target: string): FileGroup[] {
     return files.filter((file) => file.name === target || (byId && file.fileId.startsWith(prefix)));
 }
 
+/** At a terminal the person picks one match; scripts are told to use an ID instead. */
+function chooseMatch(
+    context: CliContext,
+    target: string,
+    matches: readonly FileGroup[]
+): AsyncResult<FileGroup, CliError> {
+    const listed = matches.map(describe).join(', ');
+    const hint = `${target} matches ${matches.length} files: ${listed}. Use a file ID instead.`;
+    const choices = matches.map((file) => ({
+        value: file.fileId,
+        label: describe(file),
+        hint: `${prettyBytes(fileSize(file))}, ${new Date(file.at).toLocaleString()}`
+    }));
+
+    return askChoice(
+        context,
+        `${target} matches ${matches.length} files. Which one?`,
+        hint,
+        choices
+    )
+        .mapErr((error): CliError =>
+            error.code === 'INPUT_REQUIRED'
+                ? { code: 'AMBIGUOUS_FILE', message: error.message }
+                : error
+        )
+        .map((fileId) => matches.find((file) => file.fileId === fileId) ?? matches[0]);
+}
+
 function resolveTarget(
     context: CliContext,
     files: readonly FileGroup[],
     target: string
 ): AsyncResult<FileGroup, CliError> {
-    return Ok(undefined)
-        .andThenAsync<FileGroup, CliError>(async () => {
-            const matches = matchTarget(files, target);
-            const [only] = matches;
-            if (!only)
-                return Err({
-                    code: 'FILE_NOT_FOUND',
-                    message: `No file matches ${target}. Run \`phodrive file list\` to see files.`
-                } as const);
-            if (matches.length === 1) return Ok(only);
+    return Ok(undefined).andThenAsync<FileGroup, CliError>(async () => {
+        const matches = matchTarget(files, target);
+        const [only] = matches;
+        if (!only)
+            return Err({
+                code: 'FILE_NOT_FOUND',
+                message: `No file matches ${target}. Run \`phodrive file list\` to see files.`
+            } as const);
+        if (matches.length === 1) return Ok(only);
 
-            const ambiguous = `${target} matches ${matches.length} files: ${matches.map(describe).join(', ')}. Use a file ID instead.`;
-            const chosen = await askChoice(
-                context,
-                `${target} matches ${matches.length} files. Which one?`,
-                ambiguous,
-                matches.map((file) => ({
-                    value: file.fileId,
-                    label: describe(file),
-                    hint: `${formatBytes(fileSize(file))}, ${new Date(file.at).toLocaleString()}`
-                }))
-            );
-
-            return chosen.map((fileId) => matches.find((file) => file.fileId === fileId) ?? only);
-        })
-        .mapErr((error): CliError =>
-            error.code === 'INPUT_REQUIRED'
-                ? { code: 'AMBIGUOUS_FILE', message: error.message }
-                : error
-        );
+        return await chooseMatch(context, target, matches);
+    });
 }
 
 /** Resolve each target once, keeping the order given and skipping repeated files. */
@@ -129,5 +103,60 @@ export function resolveTargets(
         }
 
         return Ok([...resolved.values()]);
+    });
+}
+
+/** Load the library and resolve file names or IDs given on the command line. */
+export function findFiles(
+    context: CliContext,
+    session: Session,
+    targets: readonly string[]
+): AsyncResult<FileGroup[], CliError> {
+    return loadFiles(context, session).andThenAsync((files) =>
+        resolveTargets(context, files, targets)
+    );
+}
+
+/** A file is deleted only when every known chunk is confirmed in the trash. */
+function deleteFailure(file: FileGroup, { deleted, error }: DeleteResult): string | null {
+    if (!error && deleted.length === file.chunks.length) return null;
+
+    const reason = error ? ` ${error}` : '';
+
+    return `${file.name}: deleted ${deleted.length} of ${file.chunks.length} chunks.${reason}`;
+}
+
+export function deleteFiles(
+    context: CliContext,
+    session: Session,
+    files: readonly FileGroup[],
+    workers: number
+): AsyncResult<void, CliError> {
+    return Ok(undefined).andThenAsync(async () => {
+        let failed = 0;
+
+        for (const file of files) {
+            const deleted = await deleteFile(file, session.token, workers);
+
+            const failure = deleted.match({
+                Ok: (result) => deleteFailure(file, result),
+                Err: (error) => `${file.name}: ${error.message}`
+            });
+            if (failure) {
+                failed++;
+                status(context).error(failure);
+
+                continue;
+            }
+
+            status(context).success(`Deleted ${file.name}`);
+        }
+
+        if (!failed) return Ok(undefined);
+
+        return Err({
+            code: 'DELETE_INCOMPLETE',
+            message: `${failed} of ${files.length} files were not fully deleted. Run the command again to retry.`
+        } as const);
     });
 }

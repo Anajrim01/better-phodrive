@@ -1,17 +1,19 @@
 import { text as readText } from 'node:stream/consumers';
 import type { Command } from '@commander-js/extra-typings';
-import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
+import { Err, Ok, type AsyncResult } from 'results-ts';
 import { EmailSchema, NewAccountSchema } from '@madkarmaa/phodrive-core/models';
 import { connectGoogleAccount } from '@madkarmaa/phodrive-core/server/accounts';
-import { readConfig, updateConfig, type CliConfig } from '../config';
+import { requireAccount, selectedEmail, withAccount, withoutAccount } from '../accounts';
+import { readConfig, updateConfig } from '../config';
 import type { CliContext, CliError } from '../context';
-import { findAccount, selectedEmail } from '../library';
 import { activity, printJson, printTable, status } from '../output';
 import { askConfirmation, askSecret, askText } from '../prompts';
 import type { Runner } from '../program';
 
 const TOKEN_HELP =
     'an OAuth2 token starting with oauth2_ from Google Embedded Setup, or an AAS token starting with aas_et/';
+
+type Credentials = { email: string; token: string };
 
 function validateEmail(value: string): string | undefined {
     return EmailSchema.safeParse(value).success ? undefined : 'Enter a valid Google account email.';
@@ -36,30 +38,32 @@ function readEmail(context: CliContext, email?: string): AsyncResult<string, Cli
     });
 }
 
+function readPipedToken(context: CliContext): AsyncResult<string, CliError> {
+    return Ok(undefined).andThenAsync<string, CliError>(async () => {
+        let piped: string;
+
+        try {
+            piped = await readText(context.stdin);
+        } catch {
+            return Err({ code: 'INPUT_REQUIRED', message: 'Could not read the token.' } as const);
+        }
+
+        const token = piped.trim();
+        if (!token)
+            return Err({
+                code: 'INPUT_REQUIRED',
+                message: 'No token was piped to stdin. Pipe the token or pass it with --token.'
+            } as const);
+
+        return Ok(token);
+    });
+}
+
 /** Tokens come from a flag, piped input, or a masked prompt, so they can stay out of history. */
 function readToken(context: CliContext, token?: string): AsyncResult<string, CliError> {
     return Ok(undefined).andThenAsync(async () => {
         if (token !== undefined) return Ok(token.trim());
-
-        if (!context.stdin.isTTY) {
-            let piped: string;
-
-            try {
-                piped = await readText(context.stdin);
-            } catch {
-                return Err({
-                    code: 'INPUT_REQUIRED',
-                    message: 'Could not read the token.'
-                } as const);
-            }
-            if (!piped.trim())
-                return Err({
-                    code: 'INPUT_REQUIRED',
-                    message: 'No token was piped to stdin. Pipe the token or pass it with --token.'
-                } as const);
-
-            return Ok(piped.trim());
-        }
+        if (!context.stdin.isTTY) return await readPipedToken(context);
 
         return await askSecret(
             context,
@@ -70,7 +74,8 @@ function readToken(context: CliContext, token?: string): AsyncResult<string, Cli
     });
 }
 
-function connect(email: string, token: string): AsyncResult<string, CliError> {
+/** Exchange an OAuth2 token if needed and return the AAS token Google validated. */
+function verifyAccount({ email, token }: Credentials): AsyncResult<string, CliError> {
     return Ok(undefined).andThenAsync<string, CliError>(async () => {
         const parsed = NewAccountSchema.safeParse({ email, token });
         if (!parsed.success)
@@ -85,36 +90,23 @@ function connect(email: string, token: string): AsyncResult<string, CliError> {
 
 function connectAccount(
     context: CliContext,
-    { email, token }: { email: string; token: string }
-): AsyncResult<{ email: string; aasToken: string }, CliError> {
+    credentials: Credentials
+): AsyncResult<Credentials, CliError> {
     return Ok(undefined).andThenAsync(async () => {
         const indicator = activity(context, 'Connecting to Google Photos');
 
-        const connected = await connect(email, token);
+        const verified = await verifyAccount(credentials);
 
-        connected.match({
+        verified.match({
             Ok: () => indicator.stop('Google validated the account'),
             Err: () => indicator.fail()
         });
 
-        return connected.map((aasToken) => ({ email, aasToken }));
+        return verified.map((aasToken) => ({ email: credentials.email, token: aasToken }));
     });
 }
 
 /** Only the validated AAS token is stored; the one-time OAuth2 token is discarded. */
-function saveAccount(
-    context: CliContext,
-    { email, aasToken }: { email: string; aasToken: string }
-): AsyncResult<void, CliError> {
-    return updateConfig(context.configPath, (config) => {
-        const accounts = { ...config.accounts };
-        const previous = findAccount(config, email);
-        if (previous) delete accounts[previous];
-
-        return Ok({ ...config, accounts: { ...accounts, [email]: aasToken }, selected: email });
-    }).map(() => status(context).success(`Connected ${email}`));
-}
-
 function addAccount(
     context: CliContext,
     emailArgument: string | undefined,
@@ -122,36 +114,21 @@ function addAccount(
 ): AsyncResult<void, CliError> {
     return readEmail(context, emailArgument)
         .andThenAsync((email) => readToken(context, tokenOption).map((token) => ({ email, token })))
-        .andThenAsync((account) => connectAccount(context, account))
-        .andThenAsync((connected) => saveAccount(context, connected));
-}
-
-function requireAccount(config: CliConfig, email: string): Result<string, CliError> {
-    const saved = findAccount(config, email);
-    if (saved) return Ok(saved);
-
-    return Err({
-        code: 'ACCOUNT_NOT_FOUND',
-        message: `${email} is not connected. Run \`phodrive account list\` to see accounts.`
-    } as const);
+        .andThenAsync((credentials) => connectAccount(context, credentials))
+        .andThenAsync(({ email, token }) =>
+            updateConfig(context.configPath, (config) => Ok(withAccount(config, email, token))).map(
+                () => status(context).success(`Connected ${email}`)
+            )
+        );
 }
 
 function removeAccount(
     context: CliContext,
     emailArgument: string | undefined,
-    confirmed = false
+    confirmed?: boolean
 ): AsyncResult<void, CliError> {
     return readConfig(context.configPath)
-        .andThen((config): Result<string, CliError> => {
-            const email = emailArgument?.trim() || selectedEmail(config);
-            if (!email)
-                return Err({
-                    code: 'ACCOUNT_REQUIRED',
-                    message: 'No account is connected.'
-                } as const);
-
-            return requireAccount(config, email);
-        })
+        .andThen((config) => requireAccount(config, emailArgument))
         .andThenAsync((email) =>
             askConfirmation(
                 context,
@@ -160,14 +137,9 @@ function removeAccount(
             ).map(() => email)
         )
         .andThenAsync((email) =>
-            updateConfig(context.configPath, (config) => {
-                const accounts = { ...config.accounts };
-                delete accounts[email];
-                const selected =
-                    config.selected === email ? (Object.keys(accounts)[0] ?? '') : config.selected;
-
-                return Ok({ ...config, accounts, selected });
-            }).map(() => status(context).success(`Removed ${email}`))
+            updateConfig(context.configPath, (config) => Ok(withoutAccount(config, email))).map(
+                () => status(context).success(`Removed ${email}`)
+            )
         );
 }
 

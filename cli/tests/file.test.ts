@@ -142,9 +142,8 @@ test('uploads expand folders and fail when any file fails', async () => {
     await mkdir(join(folder.path, 'photos', 'nested'), { recursive: true });
     await writeFile(join(folder.path, 'photos', 'one.txt'), 'one');
     await writeFile(join(folder.path, 'photos', 'nested', 'two.txt'), 'two');
-    vi.mocked(uploadFiles).mockImplementation((files, _email, _token, workers, onJob) =>
+    vi.mocked(uploadFiles).mockImplementation((files, _email, _token, _workers, onJob) =>
         Ok(undefined).andThenAsync(async () => {
-            expect(workers).toBe(3);
             for (const [id, file] of files.entries())
                 onJob({
                     id,
@@ -170,8 +169,9 @@ test('uploads expand folders and fail when any file fails', async () => {
         folder: folder.path
     });
 
-    const [files] = vi.mocked(uploadFiles).mock.calls[0];
+    const [files, , , workers] = vi.mocked(uploadFiles).mock.calls[0];
     expect(files.map((file) => file.name).sort()).toEqual(['one.txt', 'two.txt']);
+    expect(workers).toBe(3);
     expect(uploaded.failures).toMatchObject([{ code: 'UPLOAD_INCOMPLETE' }]);
     expect(uploaded.stderr).toContain('Commit rejected');
 });

@@ -21,7 +21,7 @@ export enum SettingSource {
     Default = 'default'
 }
 
-export const SettingKeySchema = z.enum(SettingKey);
+const SettingKeySchema = z.enum(SettingKey);
 
 const WorkersInputSchema = z
     .string()
@@ -48,19 +48,19 @@ function invalidValue(name: string, allowed: string): Result<never, CliError> {
     } as const);
 }
 
-export function parseSort(raw: string): Result<FileSort, CliError> {
+function parseSort(raw: string): Result<FileSort, CliError> {
     const parsed = FileSortSchema.safeParse(raw.trim());
 
     return parsed.success ? Ok(parsed.data) : invalidValue(SettingKey.Sort, SORT_VALUES);
 }
 
-export function parseWorkers(raw: string): Result<number, CliError> {
+function parseWorkers(raw: string): Result<number, CliError> {
     const parsed = WorkersInputSchema.safeParse(raw);
 
     return parsed.success ? Ok(parsed.data) : invalidValue(SettingKey.Workers, WORKER_VALUES);
 }
 
-export const SETTINGS: Record<SettingKey, SettingDefinition> = {
+const SETTINGS: Record<SettingKey, SettingDefinition> = {
     [SettingKey.Sort]: {
         description: 'File list order',
         allowed: SORT_VALUES,
@@ -85,43 +85,57 @@ export type SettingValue = {
     allowed: string;
 };
 
+type Environment = Record<string, string | undefined>;
+
 /** Deployment defaults from the environment apply wherever no value has been saved. */
-export function readDefaults(environment: Record<string, string | undefined>): PreferencesDefaults {
+function readDefaults(environment: Environment): PreferencesDefaults {
     return parsePreferencesDefaults({
         PHODRIVE_DEFAULT_SORT: environment.PHODRIVE_DEFAULT_SORT,
         PHODRIVE_DEFAULT_CONCURRENT_WORKERS: environment.PHODRIVE_DEFAULT_CONCURRENT_WORKERS
     });
 }
 
-export function settingValues(
+export function settingValue(
     config: CliConfig,
-    environment: Record<string, string | undefined>
-): SettingValue[] {
-    const defaults = readDefaults(environment);
+    environment: Environment,
+    key: SettingKey
+): SettingValue {
+    const definition = SETTINGS[key];
+    const saved = definition.saved(config.settings);
 
-    return Object.values(SettingKey).map((key) => {
-        const definition = SETTINGS[key];
-        const saved = definition.saved(config.settings);
-
-        return {
-            key,
-            value: saved ?? definition.fallback(defaults),
-            source: saved === undefined ? SettingSource.Default : SettingSource.Saved,
-            description: definition.description,
-            allowed: definition.allowed
-        };
-    });
+    return {
+        key,
+        value: saved ?? definition.fallback(readDefaults(environment)),
+        source: saved === undefined ? SettingSource.Default : SettingSource.Saved,
+        description: definition.description,
+        allowed: definition.allowed
+    };
 }
 
-export function fileSort(config: CliConfig, environment: Record<string, string | undefined>) {
-    return config.settings.sort ?? readDefaults(environment).fileSort;
+export function settingValues(config: CliConfig, environment: Environment): SettingValue[] {
+    return Object.values(SettingKey).map((key) => settingValue(config, environment, key));
 }
 
-export function concurrentWorkers(
+/** A command option overrides the saved setting for one run. */
+export function chooseSort(
     config: CliConfig,
-    environment: Record<string, string | undefined>
-) {
-    return config.settings.workers ?? readDefaults(environment).concurrentWorkers;
+    environment: Environment,
+    option?: string
+): Result<FileSort, CliError> {
+    if (option === undefined) return Ok(config.settings.sort ?? readDefaults(environment).fileSort);
+
+    return parseSort(option);
+}
+
+export function chooseWorkers(
+    config: CliConfig,
+    environment: Environment,
+    option?: string
+): Result<number, CliError> {
+    if (option === undefined)
+        return Ok(config.settings.workers ?? readDefaults(environment).concurrentWorkers);
+
+    return parseWorkers(option);
 }
 
 export function parseSettingKey(raw: string): Result<SettingKey, CliError> {
