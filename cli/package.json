@@ -1,0 +1,54 @@
+{
+    "name": "@madkarmaa/phodrive-cli",
+    "version": "1.0.0",
+    "description": "Command-line interface for Phodrive.",
+    "type": "module",
+    "license": "MIT",
+    "author": "madkarmaa",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/madkarmaa/phodrive",
+        "directory": "cli"
+    },
+    "engines": {
+        "node": "^22.22.2 || >=24.15.0"
+    },
+    "bin": {
+        "phodrive": "./dist/index.js"
+    },
+    "files": [
+        "dist",
+        "LICENSE",
+        "LICENSES"
+    ],
+    "publishConfig": {
+        "registry": "https://npm.pkg.github.com"
+    },
+    "scripts": {
+        "build": "tsdown",
+        "check": "tsc --project tsconfig.json",
+        "test": "vitest run",
+        "start": "node dist/index.js",
+        "prepack": "node ../scripts/licenses.mjs && tsdown"
+    },
+    "dependencies": {
+        "@clack/prompts": "^1.8.1",
+        "@commander-js/extra-typings": "~15.0.0",
+        "@madkarmaa/phodrive-core": "^1.0.0",
+        "cli-table3": "^0.6.5",
+        "commander": "~15.0.0",
+        "env-paths": "^4.0.0",
+        "picocolors": "^1.1.1",
+        "pretty-bytes": "^7.2.0",
+        "results-ts": "^4.4.0",
+        "write-file-atomic": "^8.0.0",
+        "zod": "^4.6.5"
+    },
+    "devDependencies": {
+        "@types/node": "^24.19.2",
+        "@types/write-file-atomic": "^4.0.3",
+        "tsdown": "^0.23.2",
+        "typescript": "^6.0.3",
+        "vitest": "^5.0.3"
+    }
+}

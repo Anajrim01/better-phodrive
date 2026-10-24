@@ -215,7 +215,7 @@
         "build": "tsdown",
         "check": "tsc --project tsconfig.test.json",
         "test": "vitest run",
-        "prepack": "node scripts/licenses.mjs && tsdown"
+        "prepack": "node ../scripts/licenses.mjs && tsdown"
     },
     "dependencies": {
         "@fastify/busboy": "^3.2.2",

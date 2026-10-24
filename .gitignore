@@ -27,3 +27,6 @@ vite.config.ts.timestamp-*
 /core/dist
 /core/LICENSE
 /core/LICENSES
+/cli/dist
+/cli/LICENSE
+/cli/LICENSES

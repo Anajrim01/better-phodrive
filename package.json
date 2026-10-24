@@ -22,7 +22,8 @@
     },
     "workspaces": [
         "core",
-        "app"
+        "app",
+        "cli"
     ],
     "scripts": {
         "dev": "node scripts/workspaces.mjs dev",
@@ -30,6 +31,7 @@
         "preview": "node scripts/workspaces.mjs preview",
         "start": "node scripts/workspaces.mjs start",
         "start:bun": "node scripts/workspaces.mjs start:bun",
+        "cli": "node scripts/workspaces.mjs cli",
         "test": "node scripts/workspaces.mjs test",
         "check": "node scripts/workspaces.mjs check",
         "check:watch": "node scripts/workspaces.mjs check:watch",

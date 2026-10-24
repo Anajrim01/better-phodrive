@@ -11,17 +11,25 @@ const tasks = {
     ],
     build: [
         ['core', 'build'],
-        ['app', 'build']
+        ['app', 'build'],
+        ['cli', 'build']
     ],
     check: [
         ['core', 'build'],
         ['core', 'check'],
-        ['app', 'check']
+        ['app', 'check'],
+        ['cli', 'check']
     ],
     test: [
         ['core', 'build'],
         ['core', 'test'],
-        ['app', 'test']
+        ['app', 'test'],
+        ['cli', 'test']
+    ],
+    cli: [
+        ['core', 'build'],
+        ['cli', 'build'],
+        ['cli', 'start']
     ],
     dev: [
         ['core', 'build'],

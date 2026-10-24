@@ -10,6 +10,7 @@ WORKDIR /app
 COPY package.json bun.lock ./
 COPY core/package.json ./core/package.json
 COPY app/package.json ./app/package.json
+COPY cli/package.json ./cli/package.json
 RUN bun install --frozen-lockfile --ignore-scripts
 
 FROM dependencies AS build
@@ -24,6 +25,7 @@ WORKDIR /app
 COPY package.json bun.lock ./
 COPY core/package.json ./core/package.json
 COPY app/package.json ./app/package.json
+COPY cli/package.json ./cli/package.json
 RUN bun install --frozen-lockfile --production --ignore-scripts
 
 FROM node:24.21.0-bookworm-slim AS runtime

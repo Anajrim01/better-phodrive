@@ -10,3 +10,5 @@ bun.lockb
 
 /core/dist/
 /core/LICENSES/
+/cli/dist/
+/cli/LICENSES/
