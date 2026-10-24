@@ -81,6 +81,22 @@
             "development": "./src/models.ts",
             "default": "./dist/models.js"
         },
+        "./node": {
+            "development": "./src/node/index.ts",
+            "default": "./dist/node/index.js"
+        },
+        "./node/files": {
+            "development": "./src/node/files.ts",
+            "default": "./dist/node/files.js"
+        },
+        "./node/library": {
+            "development": "./src/node/library.ts",
+            "default": "./dist/node/library.js"
+        },
+        "./node/upload": {
+            "development": "./src/node/upload.ts",
+            "default": "./dist/node/upload.js"
+        },
         "./preferences": {
             "development": "./src/preferences.ts",
             "default": "./dist/preferences.js"
@@ -235,6 +251,10 @@
             "./errors": "./dist/errors.js",
             "./files": "./dist/files.js",
             "./models": "./dist/models.js",
+            "./node": "./dist/node/index.js",
+            "./node/files": "./dist/node/files.js",
+            "./node/library": "./dist/node/library.js",
+            "./node/upload": "./dist/node/upload.js",
             "./preferences": "./dist/preferences.js",
             "./server": "./dist/server/index.js",
             "./server/aas": "./dist/server/aas.js",

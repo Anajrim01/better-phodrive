@@ -4,7 +4,7 @@
 
 Build from the repository root with `bun run build`, or build only the library with `bun run --cwd core build`. With npm, use `npm run build --workspace core`.
 
-The main export contains shared schemas, types, chunk planning, file grouping, and BMP format helpers. Google Photos authentication, listing, upload, download, and deletion are available from `@madkarmaa/phodrive-core/server`. Browser clients for the Phodrive HTTP API are available from `@madkarmaa/phodrive-core/browser`. The browser clients use relative `/api/*` URLs and require that API on the same origin.
+The main export contains shared schemas, types, chunk planning, file grouping, and BMP format helpers. Google Photos authentication, listing, upload, download, and deletion are available from `@madkarmaa/phodrive-core/server`. Browser clients for the Phodrive HTTP API are available from `@madkarmaa/phodrive-core/browser`. The browser clients use relative `/api/*` URLs and require that API on the same origin. `@madkarmaa/phodrive-core/node` runs the same library listing, upload, download, and deletion flows in process on local files, with no Phodrive server.
 
 ```ts
 import { connectGoogleAccount, listBmps } from '@madkarmaa/phodrive-core/server';

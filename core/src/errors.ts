@@ -24,6 +24,7 @@ export type ApplicationError = {
         | 'FILE_READ_FAILED'
         | 'INVALID_CHUNK_SIZE'
         | 'INVALID_CHUNK_METADATA'
-        | 'CHUNK_TOO_LARGE';
+        | 'CHUNK_TOO_LARGE'
+        | 'FILE_EXISTS';
     readonly message: string;
 };

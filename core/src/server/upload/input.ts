@@ -101,6 +101,31 @@ async function* requestBytes(body: ReadableStream<Uint8Array>) {
     }
 }
 
+/** Accept a chunk from the same process, such as a local file slice, without multipart parsing. */
+export function receiveChunk(
+    metadata: ChunkUploadRequest,
+    payload: ReadableStream<Uint8Array>,
+    signal: AbortSignal
+): Result<ReceivedUpload, ServerError> {
+    return schemaResult(UploadRequestSchema, metadata, 'Invalid upload request.')
+        .mapErr(() => SERVER_ERRORS.INVALID_UPLOAD_REQUEST)
+        .andThen((input) =>
+            chunkMetadata(input).map((chunk) => ({
+                ...input,
+                ...chunk,
+                payload,
+                signal,
+                finished: () => Ok(undefined).andThenAsync(async () => Ok(undefined)),
+                cancel: () =>
+                    Ok(undefined).andThenAsync(async () => {
+                        if (!payload.locked) await payload.cancel().catch(() => {});
+
+                        return Ok(undefined);
+                    })
+            }))
+        );
+}
+
 /** Read just the manifest, then expose the live multipart file with backpressure. */
 export function receiveUpload(request: Request): AsyncResult<ReceivedUpload, ServerError> {
     return Ok(undefined).andThenAsync(async () => {
