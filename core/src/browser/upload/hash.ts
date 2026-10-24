@@ -13,6 +13,10 @@ const HASH_ERROR: ApplicationError = {
     code: 'HASH_INITIALIZATION_FAILED',
     message: 'Could not prepare file hashing.'
 };
+const FILE_READ_ERROR: ApplicationError = {
+    code: 'FILE_READ_FAILED',
+    message: 'Could not read the selected file.'
+};
 
 // Only idle states are pooled; an operation owns its hasher through reads and digesting.
 const AVAILABLE_SHA256_HASHERS: IHasher[] = [];
@@ -36,6 +40,20 @@ function acquireHasher(
     });
 }
 
+/** A failed WASM operation may leave its state unusable; a failed file read does not. */
+function releaseHasher(
+    hasher: IHasher,
+    available: IHasher[],
+    result: Result<unknown, ApplicationError>
+): void {
+    const reusable = result.match({
+        Ok: () => true,
+        Err: (error) => error.code === FILE_READ_ERROR.code
+    });
+
+    if (reusable && available.length < MAX_CONCURRENT_WORKERS) available.push(hasher);
+}
+
 function hashBlob(
     blob: Blob,
     hasher: IHasher,
@@ -48,10 +66,7 @@ function hashBlob(
             try {
                 bytes = await blob.slice(offset, offset + HASH_BLOCK_BYTES).arrayBuffer();
             } catch {
-                return Err({
-                    code: 'FILE_READ_FAILED',
-                    message: 'Could not read the selected file.'
-                } as const);
+                return Err(FILE_READ_ERROR);
             }
 
             const updated = updateHasher(hasher, new Uint8Array(bytes));
@@ -90,10 +105,7 @@ function hashFileNatively(file: File, subtle: SubtleCrypto): AsyncResult<string,
         try {
             bytes = await file.slice(0, file.size).arrayBuffer();
         } catch {
-            return Err({
-                code: 'FILE_READ_FAILED',
-                message: 'Could not read the selected file.'
-            } as const);
+            return Err(FILE_READ_ERROR);
         }
 
         try {
@@ -152,14 +164,7 @@ function hashFileIncrementally(
             .inspect((digest) => {
                 FILE_HASHES.set(file, digest);
             });
-        const reusable = result.match({
-            Ok: () => true,
-            Err: (error) => error.code === 'FILE_READ_FAILED'
-        });
-
-        // A failed WASM operation may leave its state unusable.
-        if (reusable && AVAILABLE_SHA256_HASHERS.length < MAX_CONCURRENT_WORKERS)
-            AVAILABLE_SHA256_HASHERS.push(hasher);
+        releaseHasher(hasher, AVAILABLE_SHA256_HASHERS, result);
 
         return result;
     });
@@ -202,13 +207,7 @@ export function hashUploadChunk(
 
                 return digestHasher(hasher).map((sha1) => ({ sha1, size: totalSize }));
             });
-            const reusable = result.match({
-                Ok: () => true,
-                Err: (error) => error.code === 'FILE_READ_FAILED'
-            });
-
-            if (reusable && AVAILABLE_SHA1_HASHERS.length < MAX_CONCURRENT_WORKERS)
-                AVAILABLE_SHA1_HASHERS.push(hasher);
+            releaseHasher(hasher, AVAILABLE_SHA1_HASHERS, result);
 
             return result;
         })
