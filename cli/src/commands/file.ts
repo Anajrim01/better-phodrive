@@ -6,7 +6,15 @@ import { openSession, type Session } from '../accounts';
 import type { CliContext, CliError } from '../context';
 import { planDownloads, saveFiles } from '../downloads';
 import { deleteFiles, findFiles, loadFiles } from '../library';
-import { FILE_TABLE_HEAD, fileJson, fileRow, printJson, printTable, status } from '../output';
+import {
+    FILE_TABLE_HEAD,
+    fileJson,
+    fileRow,
+    jsonContext,
+    printJson,
+    printTable,
+    status
+} from '../output';
 import { askConfirmation, canConfirm } from '../prompts';
 import type { Runner } from '../program';
 import { chooseSort, chooseWorkers } from '../settings';
@@ -73,10 +81,12 @@ function listFiles(
     query: string | undefined,
     options: ListOptions & { account?: string }
 ): AsyncResult<void, CliError> {
-    return openSession(context, options.account).andThenAsync((session) =>
-        parseFilters(context, session, query, options).andThenAsync((filters) =>
-            loadFiles(context, session).map((files) =>
-                showFiles(context, files, filters, options.json)
+    const output = jsonContext(context, options.json);
+
+    return openSession(output, options.account).andThenAsync((session) =>
+        parseFilters(output, session, query, options).andThenAsync((filters) =>
+            loadFiles(output, session).map((files) =>
+                showFiles(output, files, filters, options.json)
             )
         )
     );

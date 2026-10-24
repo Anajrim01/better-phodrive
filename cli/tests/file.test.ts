@@ -62,6 +62,18 @@ test('files are filtered, sorted, and printed as JSON without credentials', asyn
     expect(listed.stdout).not.toContain('aas_et');
 });
 
+test('JSON output at a terminal prints only the JSON', async () => {
+    library([remoteFile('report.pdf')]);
+
+    const listed = await runCli(['file', 'list', '--json'], {
+        folder: folder.path,
+        interactive: true
+    });
+
+    expect(JSON.parse(listed.stdout)).toHaveLength(1);
+    expect(listed.stderr).toBe('');
+});
+
 test('the saved sort order and search text apply to the table', async () => {
     library([remoteFile('b-report.pdf', 1), remoteFile('a-report.pdf', 2), remoteFile('other', 3)]);
     await runCli(['setting', 'set', 'sort', 'name-desc'], { folder: folder.path });

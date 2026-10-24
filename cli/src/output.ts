@@ -32,6 +32,11 @@ const BORDERLESS = {
     middle: '  '
 };
 
+/** JSON output is meant for files and pipes, so it runs without spinners or prompts. */
+export function jsonContext(context: CliContext, json = false): CliContext {
+    return json ? { ...context, interactive: false } : context;
+}
+
 export function printJson(context: CliContext, value: unknown): void {
     context.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
 }

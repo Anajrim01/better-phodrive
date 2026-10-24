@@ -31,6 +31,7 @@ export async function runCli(
         folder: string;
         input?: string;
         environment?: Record<string, string>;
+        interactive?: boolean;
         signal?: AbortSignal;
     }
 ) {
@@ -47,7 +48,7 @@ export async function runCli(
         stdin,
         stdout: stdout.stream,
         stderr: stderr.stream,
-        interactive: false,
+        interactive: options.interactive ?? false,
         signal: options.signal ?? new AbortController().signal
     };
     const failures: CliError[] = [];
