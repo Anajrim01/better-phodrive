@@ -197,11 +197,8 @@ export class DriveController {
         const saved = this.preferences?.selectAccount(email);
         if (!saved) return;
 
-        saved.match({
-            Ok: () => {},
-            Err: (error) => {
-                this.feedbackMessage = error.message;
-            }
+        saved.inspectErr((error) => {
+            this.feedbackMessage = error.message;
         });
     }
 
@@ -215,11 +212,8 @@ export class DriveController {
         const removed = this.preferences?.saveAccounts(updated, Object.keys(updated)[0] ?? '');
         if (!removed) return;
 
-        removed.match({
-            Ok: () => {},
-            Err: (error) => {
-                this.feedbackMessage = error.message;
-            }
+        removed.inspectErr((error) => {
+            this.feedbackMessage = error.message;
         });
     }
 
@@ -287,11 +281,8 @@ export class DriveController {
                 this.settings.concurrentWorkers
             );
 
-            deleted.match({
-                Ok: () => {},
-                Err: (error) => {
-                    this.feedbackMessage = error.message;
-                }
+            deleted.inspectErr((error) => {
+                this.feedbackMessage = error.message;
             });
 
             this.uploadPanelOpen = false;
@@ -305,11 +296,8 @@ export class DriveController {
 
         downloaded
             .andThen((file) => saveDownloadedFile(file, item.name))
-            .match({
-                Ok: () => {},
-                Err: (error) => {
-                    this.feedbackMessage = error.message;
-                }
+            .inspectErr((error) => {
+                this.feedbackMessage = error.message;
             });
 
         this.fileAction = null;
@@ -383,18 +371,15 @@ export class DriveController {
             }
         );
 
-        uploaded.match({
-            Ok: () => {},
-            Err: (error) => {
-                this.feedbackMessage = error.message;
-                this.uploadJobs = this.uploadJobs.map((job) =>
-                    (retryId !== undefined && job.id !== retryId) ||
-                    job.status === UploadJobStatus.Complete ||
-                    job.status === UploadJobStatus.Error
-                        ? job
-                        : { ...job, status: UploadJobStatus.Error, message: error.message }
-                );
-            }
+        uploaded.inspectErr((error) => {
+            this.feedbackMessage = error.message;
+            this.uploadJobs = this.uploadJobs.map((job) =>
+                (retryId !== undefined && job.id !== retryId) ||
+                job.status === UploadJobStatus.Complete ||
+                job.status === UploadJobStatus.Error
+                    ? job
+                    : { ...job, status: UploadJobStatus.Error, message: error.message }
+            );
         });
 
         this.busy = false;

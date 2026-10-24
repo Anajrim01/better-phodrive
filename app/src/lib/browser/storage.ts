@@ -1,6 +1,7 @@
 import type { ApplicationError } from '@phodrive/core/errors';
 import { PersistedState } from 'runed';
 import { Err, Ok, type Result } from 'results-ts';
+import type { z } from 'zod';
 import {
     AccountSchema,
     ConcurrentWorkersSchema,
@@ -34,7 +35,10 @@ export const NEXT_THEME: Record<ThemeMode, ThemeMode> = {
 };
 
 type Accounts = Record<string, string>;
-const STORAGE_ERROR = 'Browser storage is unavailable. Enable it to save your preferences.';
+const STORAGE_UNAVAILABLE = {
+    code: 'STORAGE_UNAVAILABLE',
+    message: 'Browser storage is unavailable. Enable it to save your preferences.'
+} as const satisfies ApplicationError;
 
 /** Runed's default parser logs raw values on malformed JSON, which could expose credentials. */
 function parseStoredJson(raw: string): Result<unknown, ApplicationError> {
@@ -50,11 +54,39 @@ function parseStoredJson(raw: string): Result<unknown, ApplicationError> {
     }
 }
 
+function readStoredJson(raw: string): unknown {
+    return parseStoredJson(raw).unwrapOr(undefined);
+}
+
+/** Enum choices are stored as their raw values; an invalid value falls back to the default. */
+function enumSerializer<T extends string>(schema: z.ZodType<T>) {
+    return {
+        serialize: (value: T | undefined) => value ?? '',
+        deserialize: (raw: string): T | undefined => {
+            const parsed = schema.safeParse(raw);
+
+            return parsed.success ? parsed.data : undefined;
+        }
+    };
+}
+
+/** Null is a saved reset marker, while undefined means no saved choice. */
+function nullableNumberSerializer(schema: z.ZodType<number>) {
+    return {
+        serialize: (value: number | null | undefined) =>
+            value === undefined ? '' : JSON.stringify(value),
+        deserialize: (raw: string): number | null | undefined => {
+            const parsed = schema.nullable().safeParse(readStoredJson(raw));
+
+            return parsed.success ? parsed.data : undefined;
+        }
+    };
+}
+
 export const ACCOUNTS_SERIALIZER = {
     serialize: (accounts: Accounts) => JSON.stringify(accounts),
     deserialize: (raw: string): Accounts => {
-        const value = parseStoredJson(raw).match({ Ok: (stored) => stored, Err: () => undefined });
-        const parsed = StoredAccountsSchema.safeParse(value);
+        const parsed = StoredAccountsSchema.safeParse(readStoredJson(raw));
         if (!parsed.success) return {};
 
         const valid: Accounts = {};
@@ -69,61 +101,17 @@ export const ACCOUNTS_SERIALIZER = {
     }
 };
 
-export const THEME_SERIALIZER = {
-    serialize: (mode: ThemeMode | undefined) => mode ?? '',
-    deserialize: (raw: string): ThemeMode | undefined => {
-        const parsed = ThemeSchema.safeParse(raw);
-
-        return parsed.success ? parsed.data : undefined;
-    }
-};
-
-export const FILE_SORT_SERIALIZER = {
-    serialize: (order: FileSort | undefined) => order ?? '',
-    deserialize: (raw: string): FileSort | undefined => {
-        const parsed = FileSortSchema.safeParse(raw);
-
-        return parsed.success ? parsed.data : undefined;
-    }
-};
-
-export const FILE_LAYOUT_SERIALIZER = {
-    serialize: (layout: FileLayout | undefined) => layout ?? '',
-    deserialize: (raw: string): FileLayout | undefined => {
-        const parsed = FileLayoutSchema.safeParse(raw);
-
-        return parsed.success ? parsed.data : undefined;
-    }
-};
-
-export const REFRESH_INTERVAL_SERIALIZER = {
-    serialize: (seconds: number | null | undefined) =>
-        seconds === undefined ? '' : JSON.stringify(seconds),
-    deserialize: (raw: string): number | null | undefined => {
-        const value = parseStoredJson(raw).match({ Ok: (stored) => stored, Err: () => undefined });
-        const parsed = RefreshIntervalSchema.nullable().safeParse(value);
-
-        return parsed.success ? parsed.data : undefined;
-    }
-};
-
-export const CONCURRENT_WORKERS_SERIALIZER = {
-    serialize: (workers: number | null | undefined) =>
-        workers === undefined ? '' : JSON.stringify(workers),
-    deserialize: (raw: string): number | null | undefined => {
-        const value = parseStoredJson(raw).match({ Ok: (stored) => stored, Err: () => undefined });
-        const parsed = ConcurrentWorkersSchema.nullable().safeParse(value);
-
-        return parsed.success ? parsed.data : undefined;
-    }
-};
+export const THEME_SERIALIZER = enumSerializer(ThemeSchema);
+export const FILE_SORT_SERIALIZER = enumSerializer(FileSortSchema);
+export const FILE_LAYOUT_SERIALIZER = enumSerializer(FileLayoutSchema);
+export const REFRESH_INTERVAL_SERIALIZER = nullableNumberSerializer(RefreshIntervalSchema);
+export const CONCURRENT_WORKERS_SERIALIZER = nullableNumberSerializer(ConcurrentWorkersSchema);
 
 /** JSON encodes an empty selection as a nonempty string so Runed reads it from storage. */
 export const SELECTED_ACCOUNT_SERIALIZER = {
     serialize: (email: string) => JSON.stringify(email),
     deserialize: (raw: string): string => {
-        const value = parseStoredJson(raw).match({ Ok: (stored) => stored, Err: () => undefined });
-        const parsed = SelectedAccountSchema.safeParse(value);
+        const parsed = SelectedAccountSchema.safeParse(readStoredJson(raw));
 
         return parsed.success ? parsed.data : '';
     }
@@ -133,7 +121,7 @@ function readState<T>(state: PersistedState<T>): Result<T, ApplicationError> {
     try {
         return Ok(state.current);
     } catch {
-        return Err({ code: 'STORAGE_UNAVAILABLE', message: STORAGE_ERROR } as const);
+        return Err(STORAGE_UNAVAILABLE);
     }
 }
 
@@ -142,13 +130,11 @@ function writeState<T>(state: PersistedState<T>, value: T): Result<void, Applica
     try {
         state.current = value;
     } catch {
-        return Err({ code: 'STORAGE_UNAVAILABLE', message: STORAGE_ERROR } as const);
+        return Err(STORAGE_UNAVAILABLE);
     }
 
     return readState(state).andThen((saved) =>
-        JSON.stringify(saved) === JSON.stringify(value)
-            ? Ok(undefined)
-            : Err({ code: 'STORAGE_UNAVAILABLE', message: STORAGE_ERROR } as const)
+        JSON.stringify(saved) === JSON.stringify(value) ? Ok(undefined) : Err(STORAGE_UNAVAILABLE)
     );
 }
 
@@ -168,15 +154,11 @@ function resetState<T>(
                 state.connect();
             }
         } catch {
-            return writeState(state, previous).andThen(() =>
-                Err({ code: 'STORAGE_UNAVAILABLE', message: STORAGE_ERROR } as const)
-            );
+            return writeState(state, previous).andThen(() => Err(STORAGE_UNAVAILABLE));
         }
 
         return readState(state).andThen((saved) =>
-            saved === undefined
-                ? Ok(undefined)
-                : Err({ code: 'STORAGE_UNAVAILABLE', message: STORAGE_ERROR } as const)
+            saved === undefined ? Ok(undefined) : Err(STORAGE_UNAVAILABLE)
         );
     });
 }
@@ -223,52 +205,40 @@ export class BrowserPreferences {
     );
 
     get accounts(): Accounts {
-        return readState(this.accountsState).match({ Ok: (value) => value, Err: () => ({}) });
+        return readState(this.accountsState).unwrapOr({});
     }
 
     get selectedEmail(): string {
-        const preferred = readState(this.selectedState).match({
-            Ok: (value) => value,
-            Err: () => ''
-        });
+        const preferred = readState(this.selectedState).unwrapOr('');
         const accounts = this.accounts;
 
         return Object.hasOwn(accounts, preferred) ? preferred : (Object.keys(accounts)[0] ?? '');
     }
 
     get theme(): ThemeMode {
-        return readState(this.themeState).match({
-            Ok: (value) => value ?? this.defaults.theme,
-            Err: () => this.defaults.theme
-        });
+        return readState(this.themeState).unwrapOr(undefined) ?? this.defaults.theme;
     }
 
     get fileSort(): FileSort {
-        return readState(this.fileSortState).match({
-            Ok: (value) => value ?? this.defaults.fileSort,
-            Err: () => this.defaults.fileSort
-        });
+        return readState(this.fileSortState).unwrapOr(undefined) ?? this.defaults.fileSort;
     }
 
     get fileLayout(): FileLayout {
-        return readState(this.fileLayoutState).match({
-            Ok: (value) => value ?? DEFAULT_FILE_LAYOUT,
-            Err: () => DEFAULT_FILE_LAYOUT
-        });
+        return readState(this.fileLayoutState).unwrapOr(undefined) ?? DEFAULT_FILE_LAYOUT;
     }
 
     get refreshIntervalSeconds(): number {
-        return readState(this.refreshIntervalState).match({
-            Ok: (value) => value ?? this.defaults.refreshIntervalSeconds,
-            Err: () => this.defaults.refreshIntervalSeconds
-        });
+        return (
+            readState(this.refreshIntervalState).unwrapOr(undefined) ??
+            this.defaults.refreshIntervalSeconds
+        );
     }
 
     get concurrentWorkers(): number {
-        return readState(this.concurrentWorkersState).match({
-            Ok: (value) => value ?? this.defaults.concurrentWorkers,
-            Err: () => this.defaults.concurrentWorkers
-        });
+        return (
+            readState(this.concurrentWorkersState).unwrapOr(undefined) ??
+            this.defaults.concurrentWorkers
+        );
     }
 
     saveAccounts(accounts: Accounts, selected: string): Result<void, ApplicationError> {
@@ -334,7 +304,7 @@ export function createBrowserPreferences(
     try {
         preferences = new BrowserPreferences(defaults);
     } catch {
-        return Err({ code: 'STORAGE_UNAVAILABLE', message: STORAGE_ERROR } as const);
+        return Err(STORAGE_UNAVAILABLE);
     }
 
     return Ok(preferences);

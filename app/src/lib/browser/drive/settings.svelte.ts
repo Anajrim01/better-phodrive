@@ -6,6 +6,8 @@ import {
     ThemeMode,
     type PreferencesDefaults
 } from '@phodrive/core/models';
+import type { ApplicationError } from '@phodrive/core/errors';
+import type { Result } from 'results-ts';
 import type { BrowserPreferences } from '#browser/storage';
 
 /** User-facing preference changes and their immediate theme preview. */
@@ -34,24 +36,24 @@ export class DriveSettings {
         return this.preferences()?.fileSort ?? this.defaults.fileSort;
     }
 
+    set fileSort(order: FileSort) {
+        this.persist(
+            'Could not save the sort preference in this browser.',
+            (preferences) => preferences.saveFileSort(order),
+            false
+        );
+    }
+
     get fileLayout(): FileLayout {
         return this.preferences()?.fileLayout ?? DEFAULT_FILE_LAYOUT;
     }
 
     set fileLayout(layout: FileLayout) {
-        const preferences = this.preferences();
-        if (!preferences) {
-            this.feedback('Could not save the layout preference in this browser.');
-
-            return;
-        }
-
-        preferences.saveFileLayout(layout).match({
-            Ok: () => {},
-            Err: (error) => {
-                this.feedback(error.message);
-            }
-        });
+        this.persist(
+            'Could not save the layout preference in this browser.',
+            (preferences) => preferences.saveFileLayout(layout),
+            false
+        );
     }
 
     get concurrentWorkers(): number {
@@ -63,107 +65,54 @@ export class DriveSettings {
     }
 
     chooseRefreshInterval(seconds: number) {
-        const preferences = this.preferences();
-        if (!preferences) {
-            this.feedback('Could not save preferences in this browser.');
-
-            return;
-        }
-
-        preferences.saveRefreshInterval(seconds).match({
-            Ok: () => {
-                this.feedback('');
-            },
-            Err: (error) => {
-                this.feedback(error.message);
-            }
-        });
+        this.persist('Could not save preferences in this browser.', (preferences) =>
+            preferences.saveRefreshInterval(seconds)
+        );
     }
 
     chooseConcurrentWorkers(workers: number) {
-        const preferences = this.preferences();
-        if (!preferences) {
-            this.feedback('Could not save preferences in this browser.');
-
-            return;
-        }
-
-        preferences.saveConcurrentWorkers(workers).match({
-            Ok: () => {
-                this.feedback('');
-            },
-            Err: (error) => {
-                this.feedback(error.message);
-            }
-        });
+        this.persist('Could not save preferences in this browser.', (preferences) =>
+            preferences.saveConcurrentWorkers(workers)
+        );
     }
 
     resetRefreshInterval() {
-        const preferences = this.preferences();
-        if (!preferences) {
-            this.feedback('Could not reset preferences in this browser.');
-
-            return;
-        }
-
-        preferences.resetRefreshInterval().match({
-            Ok: () => {
-                this.feedback('');
-            },
-            Err: (error) => {
-                this.feedback(error.message);
-            }
-        });
+        this.persist('Could not reset preferences in this browser.', (preferences) =>
+            preferences.resetRefreshInterval()
+        );
     }
 
     resetConcurrentWorkers() {
-        const preferences = this.preferences();
-        if (!preferences) {
-            this.feedback('Could not reset preferences in this browser.');
-
-            return;
-        }
-
-        preferences.resetConcurrentWorkers().match({
-            Ok: () => {
-                this.feedback('');
-            },
-            Err: (error) => {
-                this.feedback(error.message);
-            }
-        });
-    }
-
-    set fileSort(order: FileSort) {
-        const preferences = this.preferences();
-        if (!preferences) {
-            this.feedback('Could not save the sort preference in this browser.');
-
-            return;
-        }
-
-        preferences.saveFileSort(order).match({
-            Ok: () => {},
-            Err: (error) => {
-                this.feedback(error.message);
-            }
-        });
+        this.persist('Could not reset preferences in this browser.', (preferences) =>
+            preferences.resetConcurrentWorkers()
+        );
     }
 
     chooseTheme(mode: ThemeMode) {
         document.documentElement.setAttribute('theme', mode);
         this.themeMode = mode;
 
+        this.persist('Could not save the theme preference in this browser.', (preferences) =>
+            preferences.saveTheme(mode)
+        );
+    }
+
+    /** Report an unavailable store or failed save; successful saves may dismiss old feedback. */
+    private persist(
+        unavailableMessage: string,
+        save: (preferences: BrowserPreferences) => Result<void, ApplicationError>,
+        clearFeedback = true
+    ) {
         const preferences = this.preferences();
         if (!preferences) {
-            this.feedback('Could not save the theme preference in this browser.');
+            this.feedback(unavailableMessage);
 
             return;
         }
 
-        preferences.saveTheme(mode).match({
+        save(preferences).match({
             Ok: () => {
-                this.feedback('');
+                if (clearFeedback) this.feedback('');
             },
             Err: (error) => {
                 this.feedback(error.message);
