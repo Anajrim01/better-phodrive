@@ -1,6 +1,6 @@
 <script lang="ts">
     import { SegmentedButton } from 'noph-ui';
-    import { FileLayout } from '@phodrive/core/models';
+    import { FileLayout } from '@madkarmaa/phodrive-core/models';
     import IconList from '~icons/material-symbols/view-list-outline';
     import IconGrid from '~icons/material-symbols/grid-view-outline';
 

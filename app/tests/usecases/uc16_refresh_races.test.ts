@@ -1,8 +1,8 @@
 import { afterAll, beforeEach, expect, test, vi } from 'vitest';
 import { Ok } from 'results-ts';
-import { ThemeMode } from '@phodrive/core/models';
+import { ThemeMode } from '@madkarmaa/phodrive-core/models';
 import { DriveController } from '#browser/drive/index.svelte';
-import { readLibraryPage, readLibrarySnapshot } from '@phodrive/core/browser/library';
+import { readLibraryPage, readLibrarySnapshot } from '@madkarmaa/phodrive-core/browser/library';
 import * as filesApi from '#browser/files';
 
 const { storage } = vi.hoisted(() => {
@@ -28,8 +28,8 @@ const { storage } = vi.hoisted(() => {
 });
 
 vi.mock('esm-env', () => ({ BROWSER: true, DEV: true }));
-vi.mock('@phodrive/core/browser/accounts', () => ({ validateAccount: vi.fn() }));
-vi.mock('@phodrive/core/browser/library', () => ({
+vi.mock('@madkarmaa/phodrive-core/browser/accounts', () => ({ validateAccount: vi.fn() }));
+vi.mock('@madkarmaa/phodrive-core/browser/library', () => ({
     readLibraryPage: vi.fn(),
     readLibrarySnapshot: vi.fn()
 }));

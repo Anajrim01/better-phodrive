@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { FileSort } from '@phodrive/core/models';
+import { FileSort } from '@madkarmaa/phodrive-core/models';
 import {
     filterFiles,
     fileType,
@@ -7,7 +7,7 @@ import {
     sortFiles,
     type FileGroup,
     type UploadedChunk
-} from '@phodrive/core/files';
+} from '@madkarmaa/phodrive-core/files';
 
 function file(name: string, at: number): FileGroup {
     return {

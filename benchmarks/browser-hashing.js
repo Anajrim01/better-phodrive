@@ -6,7 +6,7 @@
 (async () => {
     window.__phodriveVerification = {
         original: await import('/.svelte-kit/performance/browser-original-hash.ts'),
-        final: await import('/@id/@phodrive/core/browser/upload/hash')
+        final: await import('/@id/@madkarmaa/phodrive-core/browser/upload/hash')
     };
 
     const state = window.__phodriveVerification;

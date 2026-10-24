@@ -11,7 +11,7 @@
     "engines": {
         "node": "^22.22.2 || >=24.15.0"
     },
-    "name": "@phodrive/app",
+    "name": "@madkarmaa/phodrive-app",
     "private": true,
     "imports": {
         "#build-handler": {
@@ -44,7 +44,7 @@
         "runed": "^0.37.1",
         "results-ts": "^4.4.0",
         "zod": "^4.6.5",
-        "@phodrive/core": "^1.0.0"
+        "@madkarmaa/phodrive-core": "^1.0.0"
     },
     "devDependencies": {
         "@iconify-json/material-symbols": "^1.2.95",

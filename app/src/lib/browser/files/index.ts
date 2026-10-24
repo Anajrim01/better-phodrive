@@ -1,7 +1,7 @@
-import type { ApplicationError } from '@phodrive/core/errors';
+import type { ApplicationError } from '@madkarmaa/phodrive-core/errors';
 import { Err, Ok, type Result } from 'results-ts';
 
-export * from '@phodrive/core/browser/files';
+export * from '@madkarmaa/phodrive-core/browser/files';
 
 const DOWNLOAD_URL_LIFETIME_MS = 60_000;
 

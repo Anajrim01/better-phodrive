@@ -1,6 +1,6 @@
-import { FileSort } from '@phodrive/core/models';
+import { FileSort } from '@madkarmaa/phodrive-core/models';
 import { expect, test } from 'vitest';
-import { sortFiles, type FileGroup } from '@phodrive/core/files';
+import { sortFiles, type FileGroup } from '@madkarmaa/phodrive-core/files';
 
 function file(name: string, at: number): FileGroup {
     return {

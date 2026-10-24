@@ -1,7 +1,7 @@
 <script lang="ts">
     import FilterChip from '#components/FilterChip.svelte';
     import { Button } from 'noph-ui';
-    import { DEFAULT_FILE_SORT, FileSort } from '@phodrive/core/models';
+    import { DEFAULT_FILE_SORT, FileSort } from '@madkarmaa/phodrive-core/models';
 
     interface Props {
         types: string[];

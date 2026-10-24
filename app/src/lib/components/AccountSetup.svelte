@@ -1,6 +1,6 @@
 <script lang="ts">
     import { Button, Card, TextField } from 'noph-ui';
-    import { NewAccountSchema } from '@phodrive/core/models';
+    import { NewAccountSchema } from '@madkarmaa/phodrive-core/models';
 
     interface Props {
         email?: string;

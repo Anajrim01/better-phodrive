@@ -1,4 +1,4 @@
-import { FileSort, ThemeMode } from '@phodrive/core/models';
+import { FileSort, ThemeMode } from '@madkarmaa/phodrive-core/models';
 import { expect, test, vi } from 'vitest';
 import { readPreferencesDefaults } from '#server/preferences';
 

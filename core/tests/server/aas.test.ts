@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
-import { exchangeOAuth2ForAas } from '@phodrive/core/server/aas';
-import type { Fetcher } from '@phodrive/core/server/fetcher';
+import { exchangeOAuth2ForAas } from '@madkarmaa/phodrive-core/server/aas';
+import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
 
 test('Phodrive exchanges OAuth2 for an AAS token with the Google auth form', async () => {
     const fakeFetch: Fetcher = async (input, init) => {

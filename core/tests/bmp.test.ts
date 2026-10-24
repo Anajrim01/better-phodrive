@@ -7,10 +7,14 @@ import {
     MAX_CHUNK_PAYLOAD_BYTES,
     MAX_PHOTOS_BMP_BYTES,
     splitBmpByteLength
-} from '@phodrive/core/server/bmp';
-import { chunkFileName } from '@phodrive/core/server/chunks';
-import { groupChunks } from '@phodrive/core/files';
-import { SplitHeaderSchema, type SplitHeader, type RemoteBmp } from '@phodrive/core/models';
+} from '@madkarmaa/phodrive-core/server/bmp';
+import { chunkFileName } from '@madkarmaa/phodrive-core/server/chunks';
+import { groupChunks } from '@madkarmaa/phodrive-core/files';
+import {
+    SplitHeaderSchema,
+    type SplitHeader,
+    type RemoteBmp
+} from '@madkarmaa/phodrive-core/models';
 
 const ORIGINAL = Uint8Array.from({ length: 1031 }, (_, index) => index % 251);
 const FILE_HASH = createHash('sha256').update(ORIGINAL).digest('hex');
@@ -122,7 +126,7 @@ test('remote chunks group into one card', () => {
 });
 
 test('prefix encoding preserves original protocol bytes for Unicode and multibyte indexes', async () => {
-    const { encodeSplitPrefix } = await import('@phodrive/core/bmp/format');
+    const { encodeSplitPrefix } = await import('@madkarmaa/phodrive-core/bmp/format');
     const common = { fileHash: 'ab'.repeat(32), fileId: 'cd'.repeat(32) };
     const first = encodeSplitPrefix({
         ...common,

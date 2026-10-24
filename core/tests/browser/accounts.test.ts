@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from 'vitest';
-import { validateAccount } from '@phodrive/core/browser/accounts';
+import { validateAccount } from '@madkarmaa/phodrive-core/browser/accounts';
 
 const EMAIL = 'test@example.com';
 const TOKEN = 'aas_et/fixture';

@@ -1,18 +1,22 @@
 import { test, expect, vi, afterEach } from 'vitest';
 import { createHash } from 'node:crypto';
-import { groupChunks, type UploadedChunk } from '@phodrive/core/files';
+import { groupChunks, type UploadedChunk } from '@madkarmaa/phodrive-core/files';
 import {
     UploadEventType,
     type UploadEvent,
     FileActionKind,
     type FileRequest
-} from '@phodrive/core/models';
-import { planUpload, uploadFiles } from '@phodrive/core/server/upload';
-import { receiveUpload } from '@phodrive/core/server/upload/input';
-import * as photos from '@phodrive/core/server/photos';
-import { decodeSplitBmp, encodeSplitBmp, MAX_CHUNK_PAYLOAD_BYTES } from '@phodrive/core/server/bmp';
-import { fileIdentity } from '@phodrive/core/server/chunks';
-import { downloadFile } from '@phodrive/core/server/files';
+} from '@madkarmaa/phodrive-core/models';
+import { planUpload, uploadFiles } from '@madkarmaa/phodrive-core/server/upload';
+import { receiveUpload } from '@madkarmaa/phodrive-core/server/upload/input';
+import * as photos from '@madkarmaa/phodrive-core/server/photos';
+import {
+    decodeSplitBmp,
+    encodeSplitBmp,
+    MAX_CHUNK_PAYLOAD_BYTES
+} from '@madkarmaa/phodrive-core/server/bmp';
+import { fileIdentity } from '@madkarmaa/phodrive-core/server/chunks';
+import { downloadFile } from '@madkarmaa/phodrive-core/server/files';
 import { uploadForm, photosUploadHarness } from '../../../core/tests/helpers/upload';
 
 const PAYLOAD = Buffer.from([1, 2, 3, 4]);

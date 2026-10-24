@@ -1,16 +1,16 @@
-import type { ApplicationError } from '@phodrive/core/errors';
+import type { ApplicationError } from '@madkarmaa/phodrive-core/errors';
 import { afterAll, afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { Ok } from 'results-ts';
 import type { AsyncResult } from 'results-ts';
-import { readLibrarySnapshot } from '@phodrive/core/browser/library';
-import * as api from '@phodrive/core/browser/api';
+import { readLibrarySnapshot } from '@madkarmaa/phodrive-core/browser/library';
+import * as api from '@madkarmaa/phodrive-core/browser/api';
 import { DriveController } from '#browser/drive/index.svelte';
 import {
     ThemeMode,
     LibraryResponseSchema,
     type LibraryResponse,
     type RemoteBmp
-} from '@phodrive/core/models';
+} from '@madkarmaa/phodrive-core/models';
 
 const { storage } = vi.hoisted(() => {
     const values = new Map<string, string>();
@@ -32,7 +32,7 @@ const { storage } = vi.hoisted(() => {
 });
 
 vi.mock('esm-env', () => ({ BROWSER: true, DEV: true }));
-vi.mock('@phodrive/core/browser/accounts', () => ({ validateAccount: vi.fn() }));
+vi.mock('@madkarmaa/phodrive-core/browser/accounts', () => ({ validateAccount: vi.fn() }));
 vi.mock('#browser/drive/refresh.svelte', () => ({ useAutomaticRefresh: vi.fn() }));
 
 afterEach(() => vi.restoreAllMocks());

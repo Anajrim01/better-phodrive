@@ -1,16 +1,16 @@
 import { createHash } from 'node:crypto';
 import { afterEach, expect, test, vi } from 'vitest';
-import { receiveUpload } from '@phodrive/core/server/upload/input';
-import { encodeUploadBmp } from '@phodrive/core/server/upload/bmp';
-import { uploadFiles, planUpload } from '@phodrive/core/server/upload';
-import { uploadStream } from '@phodrive/core/server/upload/stream';
-import { decodeSplitBmp, MAX_CHUNK_PAYLOAD_BYTES } from '@phodrive/core/server/bmp';
+import { receiveUpload } from '@madkarmaa/phodrive-core/server/upload/input';
+import { encodeUploadBmp } from '@madkarmaa/phodrive-core/server/upload/bmp';
+import { uploadFiles, planUpload } from '@madkarmaa/phodrive-core/server/upload';
+import { uploadStream } from '@madkarmaa/phodrive-core/server/upload/stream';
+import { decodeSplitBmp, MAX_CHUNK_PAYLOAD_BYTES } from '@madkarmaa/phodrive-core/server/bmp';
 import {
     UploadEventType,
     UploadStatus,
     UploadPhase,
     type UploadEvent
-} from '@phodrive/core/models';
+} from '@madkarmaa/phodrive-core/models';
 import { uploadForm, photosUploadHarness } from '../helpers/upload';
 import * as fs from 'node:fs/promises';
 
@@ -163,7 +163,7 @@ test('paused downstream progress is coalesced rather than retaining every event'
     const fixture = uploadForm();
     const received = await receiveUpload(fixture.request());
     const input = received.unwrap();
-    const uploads = await import('@phodrive/core/server/upload');
+    const uploads = await import('@madkarmaa/phodrive-core/server/upload');
     let finished = false;
     vi.spyOn(uploads, 'uploadFiles').mockImplementation((_input, emit) =>
         encodeUploadBmp(input)

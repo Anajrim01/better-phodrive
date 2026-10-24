@@ -1,7 +1,7 @@
-import { UploadEventType, UploadPhase, type UploadEvent } from '@phodrive/core/models';
+import { UploadEventType, UploadPhase, type UploadEvent } from '@madkarmaa/phodrive-core/models';
 import { afterEach, expect, vi, test } from 'vitest';
 import { Ok } from 'results-ts';
-import { uploadRequest } from '@phodrive/core/browser/upload/request';
+import { uploadRequest } from '@madkarmaa/phodrive-core/browser/upload/request';
 
 const encoder = new TextEncoder();
 afterEach(() => vi.restoreAllMocks());

@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
-import { connectGoogleAccount } from '@phodrive/core/server/accounts';
-import type { Fetcher } from '@phodrive/core/server/fetcher';
-import { SERVER_ERRORS } from '@phodrive/core/server/errors';
+import { connectGoogleAccount } from '@madkarmaa/phodrive-core/server/accounts';
+import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
+import { SERVER_ERRORS } from '@madkarmaa/phodrive-core/server/errors';
 
 test('account connection exchanges OAuth2 then validates the AAS token before returning it', async () => {
     let calls = 0;

@@ -2,19 +2,26 @@ import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
 import { writeFile } from 'node:fs/promises';
 import { test, vi } from 'vitest';
-import { hashFile, hashUploadChunk, uploadIdentity } from '@phodrive/core/browser/upload/hash';
-import { uploadFiles } from '@phodrive/core/browser/upload';
-import { encodeSplitPrefix, MAX_CHUNK_PAYLOAD_BYTES as CHUNK } from '@phodrive/core/bmp/format';
-import { planChunks } from '@phodrive/core/upload';
-import { FileSort, UploadJobStatus, type SplitHeader } from '@phodrive/core/models';
-import { groupChunks, sortFiles, type UploadedChunk } from '@phodrive/core/files';
-import { encodeSplitBmp } from '@phodrive/core/server/bmp';
-import { SplitBmpReader } from '@phodrive/core/server/bmp/stream';
-import { receiveUpload } from '@phodrive/core/server/upload/input';
-import { encodeUploadBmp } from '@phodrive/core/server/upload/bmp';
-import { uploadStream } from '@phodrive/core/server/upload/stream';
-import { parseLibraryPage } from '@phodrive/core/server/photos/library/metadata';
-import { bytesField, numberField, message } from '@phodrive/core/server/protobuf';
+import {
+    hashFile,
+    hashUploadChunk,
+    uploadIdentity
+} from '@madkarmaa/phodrive-core/browser/upload/hash';
+import { uploadFiles } from '@madkarmaa/phodrive-core/browser/upload';
+import {
+    encodeSplitPrefix,
+    MAX_CHUNK_PAYLOAD_BYTES as CHUNK
+} from '@madkarmaa/phodrive-core/bmp/format';
+import { planChunks } from '@madkarmaa/phodrive-core/upload';
+import { FileSort, UploadJobStatus, type SplitHeader } from '@madkarmaa/phodrive-core/models';
+import { groupChunks, sortFiles, type UploadedChunk } from '@madkarmaa/phodrive-core/files';
+import { encodeSplitBmp } from '@madkarmaa/phodrive-core/server/bmp';
+import { SplitBmpReader } from '@madkarmaa/phodrive-core/server/bmp/stream';
+import { receiveUpload } from '@madkarmaa/phodrive-core/server/upload/input';
+import { encodeUploadBmp } from '@madkarmaa/phodrive-core/server/upload/bmp';
+import { uploadStream } from '@madkarmaa/phodrive-core/server/upload/stream';
+import { parseLibraryPage } from '@madkarmaa/phodrive-core/server/photos/library/metadata';
+import { bytesField, numberField, message } from '@madkarmaa/phodrive-core/server/protobuf';
 import { uploadForm } from '../core/tests/helpers/upload';
 import { provider } from './transport';
 
@@ -22,7 +29,7 @@ const transport = vi.hoisted(() => ({
     fetcher: null as typeof fetch | null,
     fetcherWithProgress: null as ((callback: (sent: number) => void) => typeof fetch) | null
 }));
-vi.mock('@phodrive/core/server/fetcher', () => ({
+vi.mock('@madkarmaa/phodrive-core/server/fetcher', () => ({
     photosFetch: (...args: Parameters<typeof fetch>) => transport.fetcher!(...args),
     photosFetchWithProgress:
         (callback: (sent: number) => void) =>

@@ -1,9 +1,9 @@
 import { afterEach, expect, test, vi } from 'vitest';
 import { Ok } from 'results-ts';
-import { UploadStatus } from '@phodrive/core/models';
-import { receiveUpload } from '@phodrive/core/server/upload/input';
-import { uploadStream } from '@phodrive/core/server/upload/stream';
-import * as photos from '@phodrive/core/server/photos';
+import { UploadStatus } from '@madkarmaa/phodrive-core/models';
+import { receiveUpload } from '@madkarmaa/phodrive-core/server/upload/input';
+import { uploadStream } from '@madkarmaa/phodrive-core/server/upload/stream';
+import * as photos from '@madkarmaa/phodrive-core/server/photos';
 import { uploadForm } from '../../../core/tests/helpers/upload';
 
 afterEach(() => vi.restoreAllMocks());

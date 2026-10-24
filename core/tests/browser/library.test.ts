@@ -1,6 +1,6 @@
 import { afterEach, expect, test, vi } from 'vitest';
-import { readLibrarySnapshot } from '@phodrive/core/browser/library';
-import type { RemoteBmp } from '@phodrive/core/models';
+import { readLibrarySnapshot } from '@madkarmaa/phodrive-core/browser/library';
+import type { RemoteBmp } from '@madkarmaa/phodrive-core/models';
 
 afterEach(() => vi.restoreAllMocks());
 

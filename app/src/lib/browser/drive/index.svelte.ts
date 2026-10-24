@@ -6,11 +6,11 @@ import {
     NewAccountSchema,
     ThemeSchema,
     type PreferencesDefaults
-} from '@phodrive/core/models';
+} from '@madkarmaa/phodrive-core/models';
 import { watch } from 'runed';
-import { fileKey, type FileGroup, type FileAction } from '@phodrive/core/files';
+import { fileKey, type FileGroup, type FileAction } from '@madkarmaa/phodrive-core/files';
 import { useAutomaticRefresh } from '#browser/drive/refresh.svelte';
-import { validateAccount } from '@phodrive/core/browser/accounts';
+import { validateAccount } from '@madkarmaa/phodrive-core/browser/accounts';
 import { createBrowserPreferences, type BrowserPreferences } from '#browser/storage';
 import {
     createUploadJobs,

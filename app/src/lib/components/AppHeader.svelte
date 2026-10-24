@@ -2,7 +2,7 @@
     import { onMount } from 'svelte';
     import { AppBar, IconButton, Search } from 'noph-ui';
     import { MediaQuery } from 'svelte/reactivity';
-    import { ThemeMode } from '@phodrive/core/models';
+    import { ThemeMode } from '@madkarmaa/phodrive-core/models';
     import ThemeButton from '#components/ThemeButton.svelte';
     import darkLogo from '#assets/favicon.svg';
     import lightLogo from '#assets/favicon-light.svg';

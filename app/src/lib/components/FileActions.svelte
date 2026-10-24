@@ -1,7 +1,7 @@
 <script lang="ts">
     import { Button, IconButton } from 'noph-ui';
-    import { FileActionKind } from '@phodrive/core/models';
-    import type { FileGroup } from '@phodrive/core/files';
+    import { FileActionKind } from '@madkarmaa/phodrive-core/models';
+    import type { FileGroup } from '@madkarmaa/phodrive-core/files';
     import IconDownload from '~icons/material-symbols/download';
     import IconDelete from '~icons/material-symbols/delete-outline';
 

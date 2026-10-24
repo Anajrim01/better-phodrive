@@ -1,5 +1,5 @@
-import { listBmps } from '@phodrive/core/server/photos';
-import { LibraryRequestSchema } from '@phodrive/core/models';
+import { listBmps } from '@madkarmaa/phodrive-core/server/photos';
+import { LibraryRequestSchema } from '@madkarmaa/phodrive-core/models';
 import { errorResponse, jsonResponse, readJsonRequest } from '#server/api';
 import type { RequestHandler } from './$types';
 

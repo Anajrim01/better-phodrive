@@ -2,7 +2,7 @@
     import { Button, Divider } from 'noph-ui';
     import { onMount } from 'svelte';
     import { MediaQuery } from 'svelte/reactivity';
-    import { ThemeMode } from '@phodrive/core/models';
+    import { ThemeMode } from '@madkarmaa/phodrive-core/models';
     import { APP_NAME, APP_VERSION, APP_MOTTO, APP_REPOSITORY_URL } from '#lib/app';
     import darkLogo from '#assets/favicon.svg';
     import lightLogo from '#assets/favicon-light.svg';

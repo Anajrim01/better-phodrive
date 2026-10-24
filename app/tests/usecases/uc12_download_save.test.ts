@@ -1,13 +1,18 @@
 import { createHash } from 'node:crypto';
 import { afterAll, beforeEach, expect, test, vi } from 'vitest';
 import { Err, Ok } from 'results-ts';
-import { ThemeMode, FileActionKind, type FileRequest, type RemoteBmp } from '@phodrive/core/models';
-import type { FileGroup } from '@phodrive/core/files';
+import {
+    ThemeMode,
+    FileActionKind,
+    type FileRequest,
+    type RemoteBmp
+} from '@madkarmaa/phodrive-core/models';
+import type { FileGroup } from '@madkarmaa/phodrive-core/files';
 import { DriveController } from '#browser/drive/index.svelte';
 import * as browserFiles from '#browser/files';
-import { downloadFile as downloadServerFile } from '@phodrive/core/server/files';
-import { encodeSplitBmp } from '@phodrive/core/server/bmp';
-import { downloadBmp } from '@phodrive/core/server/photos';
+import { downloadFile as downloadServerFile } from '@madkarmaa/phodrive-core/server/files';
+import { encodeSplitBmp } from '@madkarmaa/phodrive-core/server/bmp';
+import { downloadBmp } from '@madkarmaa/phodrive-core/server/photos';
 import { bmpResponse } from '../../../core/tests/helpers/download';
 
 const EMAIL = 'test@example.com';
@@ -35,9 +40,9 @@ const { storage } = vi.hoisted(() => {
 });
 
 vi.mock('esm-env', () => ({ BROWSER: true, DEV: true }));
-vi.mock('@phodrive/core/browser/accounts', () => ({ validateAccount: vi.fn() }));
+vi.mock('@madkarmaa/phodrive-core/browser/accounts', () => ({ validateAccount: vi.fn() }));
 vi.mock('#browser/drive/refresh.svelte', () => ({ useAutomaticRefresh: vi.fn() }));
-vi.mock('@phodrive/core/server/photos', () => ({ downloadBmp: vi.fn() }));
+vi.mock('@madkarmaa/phodrive-core/server/photos', () => ({ downloadBmp: vi.fn() }));
 
 beforeEach(() => {
     storage.clear();

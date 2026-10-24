@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
-import type { Fetcher } from '@phodrive/core/server/fetcher';
-import { bytesField, message, nested, numberField } from '@phodrive/core/server/protobuf';
+import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
+import { bytesField, message, nested, numberField } from '@madkarmaa/phodrive-core/server/protobuf';
 
 /** No provider latency or retained upload bodies; consume every transferred byte. */
 export function provider(options: { duplicate?: boolean; failCommit?: boolean } = {}) {

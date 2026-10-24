@@ -31,7 +31,7 @@ bun --bun run dev
 
 Open `http://127.0.0.1:5173`. With Node.js, use `npm install` and `npm run dev` instead.
 
-The repository uses [Bun workspaces](https://bun.sh/docs/pm/workspaces), also supported by npm. `app/` contains the SvelteKit web app. `core/` is the standalone `@phodrive/core` library for the file format, Google Photos protocol, and transfers. Root commands build core before running the app. See [core usage](./core/README.md) for using the library elsewhere.
+The repository uses [Bun workspaces](https://bun.sh/docs/pm/workspaces), also supported by npm. `app/` contains the SvelteKit web app. `core/` is the standalone `@madkarmaa/phodrive-core` library for the file format, Google Photos protocol, and transfers. Root commands build core before running the app. See [core usage](./core/README.md) for using the library elsewhere.
 
 Keep environment files at the repository root, for example `.env`.
 

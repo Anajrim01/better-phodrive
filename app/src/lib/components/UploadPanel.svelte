@@ -1,6 +1,6 @@
 <script lang="ts">
     import { IconButton, List, Sheet } from 'noph-ui';
-    import { UploadJobStatus } from '@phodrive/core/models';
+    import { UploadJobStatus } from '@madkarmaa/phodrive-core/models';
 
     import { slide } from 'svelte/transition';
     import { prefersReducedMotion } from 'svelte/motion';

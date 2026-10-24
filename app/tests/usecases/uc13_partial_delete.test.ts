@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { FileActionKind, ThemeMode, type RemoteBmp } from '@phodrive/core/models';
+import { FileActionKind, ThemeMode, type RemoteBmp } from '@madkarmaa/phodrive-core/models';
 import { DriveController } from '#browser/drive/index.svelte';
 
 const { storage } = vi.hoisted(() => {
@@ -28,7 +28,7 @@ const { storage } = vi.hoisted(() => {
 });
 
 vi.mock('esm-env', () => ({ BROWSER: true, DEV: true }));
-vi.mock('@phodrive/core/browser/accounts', () => ({ validateAccount: vi.fn() }));
+vi.mock('@madkarmaa/phodrive-core/browser/accounts', () => ({ validateAccount: vi.fn() }));
 vi.mock('#browser/drive/refresh.svelte', () => ({ useAutomaticRefresh: vi.fn() }));
 
 afterAll(() => vi.unstubAllGlobals());

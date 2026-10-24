@@ -19,7 +19,7 @@ vi.mock('undici/index.js', async (importOriginal) => {
 
 test('Google transport disables connection, header and body timeouts', async () => {
     vi.resetModules();
-    const transport = await import('@phodrive/core/server/fetcher');
+    const transport = await import('@madkarmaa/phodrive-core/server/fetcher');
 
     expect(transport.photosFetch).toBeTypeOf('function');
     expect(configureAgent).toHaveBeenCalledWith({

@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { AppView, ConfirmKind, FileActionKind } from '@phodrive/core/models';
+    import { AppView, ConfirmKind, FileActionKind } from '@madkarmaa/phodrive-core/models';
 
     import { onMount, untrack } from 'svelte';
     import type { PageData } from './$types';

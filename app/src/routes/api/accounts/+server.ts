@@ -1,5 +1,5 @@
-import { NewAccountSchema } from '@phodrive/core/models';
-import { connectGoogleAccount } from '@phodrive/core/server/accounts';
+import { NewAccountSchema } from '@madkarmaa/phodrive-core/models';
+import { connectGoogleAccount } from '@madkarmaa/phodrive-core/server/accounts';
 import { errorResponse, jsonResponse, readJsonRequest } from '#server/api';
 import type { RequestHandler } from './$types';
 

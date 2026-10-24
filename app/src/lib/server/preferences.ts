@@ -1,6 +1,6 @@
 import * as env from '$app/env/private';
-import { parsePreferencesDefaults } from '@phodrive/core/preferences';
-import type { PreferencesDefaults } from '@phodrive/core/models';
+import { parsePreferencesDefaults } from '@madkarmaa/phodrive-core/preferences';
+import type { PreferencesDefaults } from '@madkarmaa/phodrive-core/models';
 
 export function readPreferencesDefaults(): PreferencesDefaults {
     return parsePreferencesDefaults({

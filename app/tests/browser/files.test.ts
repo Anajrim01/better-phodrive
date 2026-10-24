@@ -3,10 +3,10 @@ import {
     UploadJobStatus,
     UploadEventType,
     type RemoteBmp
-} from '@phodrive/core/models';
+} from '@madkarmaa/phodrive-core/models';
 import { afterEach, expect, vi, test } from 'vitest';
 import { createHash } from 'node:crypto';
-import { groupChunks, type UploadedChunk } from '@phodrive/core/files';
+import { groupChunks, type UploadedChunk } from '@madkarmaa/phodrive-core/files';
 import {
     downloadFile,
     uploadFiles,
@@ -14,7 +14,7 @@ import {
     saveDownloadedFile,
     type UploadJob
 } from '#browser/files';
-import { HASH_BLOCK_BYTES, hashFile } from '@phodrive/core/browser/upload/hash';
+import { HASH_BLOCK_BYTES, hashFile } from '@madkarmaa/phodrive-core/browser/upload/hash';
 import { browserUploadResponse } from '../../../core/tests/helpers/upload';
 
 const PAYLOAD = Uint8Array.of(0, 255, 13, 10, 42);

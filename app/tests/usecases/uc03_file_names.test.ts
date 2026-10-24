@@ -1,9 +1,9 @@
 import { afterEach, expect, test, vi } from 'vitest';
-import { UploadJobStatus } from '@phodrive/core/models';
+import { UploadJobStatus } from '@madkarmaa/phodrive-core/models';
 import { uploadFiles, type UploadJob } from '#browser/files';
-import { decodeSplitBmp, encodeSplitBmp } from '@phodrive/core/server/bmp';
-import { receiveUpload } from '@phodrive/core/server/upload/input';
-import { encodeUploadBmp } from '@phodrive/core/server/upload/bmp';
+import { decodeSplitBmp, encodeSplitBmp } from '@madkarmaa/phodrive-core/server/bmp';
+import { receiveUpload } from '@madkarmaa/phodrive-core/server/upload/input';
+import { encodeUploadBmp } from '@madkarmaa/phodrive-core/server/upload/bmp';
 import { uploadForm, browserUploadResponse } from '../../../core/tests/helpers/upload';
 
 afterEach(() => vi.restoreAllMocks());

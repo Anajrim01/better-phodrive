@@ -1,7 +1,10 @@
 import { expect, test } from 'vitest';
-import { pageRequest, parseLibraryPage } from '@phodrive/core/server/photos/library/metadata';
-import { LIBRARY_PAGE_REQUEST } from '@phodrive/core/server/photos/library/requests';
-import { bytesField, message, nested } from '@phodrive/core/server/protobuf';
+import {
+    pageRequest,
+    parseLibraryPage
+} from '@madkarmaa/phodrive-core/server/photos/library/metadata';
+import { LIBRARY_PAGE_REQUEST } from '@madkarmaa/phodrive-core/server/photos/library/requests';
+import { bytesField, message, nested } from '@madkarmaa/phodrive-core/server/protobuf';
 
 test('library pagination sends the resume token at field 1.4 and preserves the metadata mask', () => {
     const resume = Buffer.from('resume-next-page');

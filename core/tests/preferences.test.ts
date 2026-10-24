@@ -1,6 +1,6 @@
-import { FileSort, ThemeMode, DEFAULT_PREFERENCES_DEFAULTS } from '@phodrive/core/models';
+import { FileSort, ThemeMode, DEFAULT_PREFERENCES_DEFAULTS } from '@madkarmaa/phodrive-core/models';
 import { expect, test } from 'vitest';
-import { parsePreferencesDefaults } from '@phodrive/core/preferences';
+import { parsePreferencesDefaults } from '@madkarmaa/phodrive-core/preferences';
 
 test('missing deployment preferences use hardcoded defaults', () => {
     expect(parsePreferencesDefaults({})).toEqual(DEFAULT_PREFERENCES_DEFAULTS);

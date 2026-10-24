@@ -4,7 +4,7 @@ import {
     UploadEventType,
     UploadJobStatus,
     UploadRequestSchema
-} from '@phodrive/core/models';
+} from '@madkarmaa/phodrive-core/models';
 import { browserUploadResponse } from '../../../core/tests/helpers/upload';
 import { DriveController } from '#browser/drive/index.svelte';
 
@@ -34,7 +34,7 @@ const { storage } = vi.hoisted(() => {
 });
 
 vi.mock('esm-env', () => ({ BROWSER: true, DEV: true }));
-vi.mock('@phodrive/core/browser/accounts', () => ({ validateAccount: vi.fn() }));
+vi.mock('@madkarmaa/phodrive-core/browser/accounts', () => ({ validateAccount: vi.fn() }));
 vi.mock('#browser/drive/refresh.svelte', () => ({ useAutomaticRefresh: vi.fn() }));
 
 afterEach(() => vi.restoreAllMocks());

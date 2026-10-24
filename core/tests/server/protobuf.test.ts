@@ -6,7 +6,7 @@ import {
     nested,
     numberField,
     parse
-} from '@phodrive/core/server/protobuf';
+} from '@madkarmaa/phodrive-core/server/protobuf';
 
 test('nested protobuf fields respect nonzero backing offsets and keep all sibling validation', () => {
     const encoded = message(bytesField(1, bytesField(2, 'value')), numberField(3, 7));

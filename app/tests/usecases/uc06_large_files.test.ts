@@ -1,14 +1,14 @@
 import { createHash } from 'node:crypto';
 import { expect, test } from 'vitest';
-import { receiveUpload } from '@phodrive/core/server/upload/input';
-import { encodeUploadBmp } from '@phodrive/core/server/upload/bmp';
+import { receiveUpload } from '@madkarmaa/phodrive-core/server/upload/input';
+import { encodeUploadBmp } from '@madkarmaa/phodrive-core/server/upload/bmp';
 import { uploadForm } from '../../../core/tests/helpers/upload';
 import {
     MAX_CHUNK_PAYLOAD_BYTES,
     MAX_PHOTOS_BMP_BYTES,
     splitBmpByteLength
-} from '@phodrive/core/server/bmp';
-import { planUpload } from '@phodrive/core/server/upload';
+} from '@madkarmaa/phodrive-core/server/bmp';
+import { planUpload } from '@madkarmaa/phodrive-core/server/upload';
 
 const FILE_HASH = 'a'.repeat(64);
 

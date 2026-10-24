@@ -5,8 +5,8 @@ import {
     DEFAULT_FILE_LAYOUT,
     ThemeMode,
     type PreferencesDefaults
-} from '@phodrive/core/models';
-import type { ApplicationError } from '@phodrive/core/errors';
+} from '@madkarmaa/phodrive-core/models';
+import type { ApplicationError } from '@madkarmaa/phodrive-core/errors';
 import type { Result } from 'results-ts';
 import type { BrowserPreferences } from '#browser/storage';
 

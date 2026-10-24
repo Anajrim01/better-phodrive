@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { UploadJobStatus, UploadPhase, UploadStatus } from '@phodrive/core/models';
+    import { UploadJobStatus, UploadPhase, UploadStatus } from '@madkarmaa/phodrive-core/models';
 
     import { CircularProgress, IconButton, ListItem } from 'noph-ui';
     import type { UploadJob } from '#browser/files';

@@ -4,7 +4,7 @@ import {
     MAX_CONCURRENT_WORKERS,
     MAX_REFRESH_INTERVAL_SECONDS,
     ThemeMode
-} from '@phodrive/core/models';
+} from '@madkarmaa/phodrive-core/models';
 import { DriveController } from '#browser/drive/index.svelte';
 import {
     BrowserPreferences,

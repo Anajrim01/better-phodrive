@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
-import { FileActionKind, type FileRequest, type RemoteBmp } from '@phodrive/core/models';
-import { encodeSplitBmp } from '@phodrive/core/server/bmp';
+import { FileActionKind, type FileRequest, type RemoteBmp } from '@madkarmaa/phodrive-core/models';
+import { encodeSplitBmp } from '@madkarmaa/phodrive-core/server/bmp';
 
 export function bmpResponse(
     bmp: Uint8Array,

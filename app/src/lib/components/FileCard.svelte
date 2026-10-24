@@ -1,9 +1,9 @@
 <script lang="ts">
     import { Card } from 'noph-ui';
-    import type { FileActionKind } from '@phodrive/core/models';
+    import type { FileActionKind } from '@madkarmaa/phodrive-core/models';
 
-    import type { FileGroup } from '@phodrive/core/files';
-    import { fileType } from '@phodrive/core/files';
+    import type { FileGroup } from '@madkarmaa/phodrive-core/files';
+    import { fileType } from '@madkarmaa/phodrive-core/files';
     import FileActions from '#components/FileActions.svelte';
     import IconDescription from '~icons/material-symbols/description';
     import IconDescriptionOutline from '~icons/material-symbols/description-outline';

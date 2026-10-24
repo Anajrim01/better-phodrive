@@ -1,5 +1,5 @@
-import { receiveUpload } from '@phodrive/core/server/upload/input';
-import { uploadStream } from '@phodrive/core/server/upload/stream';
+import { receiveUpload } from '@madkarmaa/phodrive-core/server/upload/input';
+import { uploadStream } from '@madkarmaa/phodrive-core/server/upload/stream';
 import { errorResponse } from '#server/api';
 import type { RequestHandler } from './$types';
 

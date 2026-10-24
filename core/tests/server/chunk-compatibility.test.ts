@@ -1,21 +1,24 @@
 import { createHash } from 'node:crypto';
 import { expect, test, vi } from 'vitest';
 import { Ok } from 'results-ts';
-import { groupChunks, type UploadedChunk } from '@phodrive/core/files';
-import { FileActionKind } from '@phodrive/core/models';
+import { groupChunks, type UploadedChunk } from '@madkarmaa/phodrive-core/files';
+import { FileActionKind } from '@madkarmaa/phodrive-core/models';
 import {
     decodeSplitBmp,
     encodeSplitBmp,
     MAX_CHUNK_PAYLOAD_BYTES,
     MAX_PHOTOS_BMP_BYTES
-} from '@phodrive/core/server/bmp';
-import { fileIdentity } from '@phodrive/core/server/chunks';
-import { downloadFile } from '@phodrive/core/server/files';
-import { downloadBmp } from '@phodrive/core/server/photos';
-import { planUpload } from '@phodrive/core/server/upload';
+} from '@madkarmaa/phodrive-core/server/bmp';
+import { fileIdentity } from '@madkarmaa/phodrive-core/server/chunks';
+import { downloadFile } from '@madkarmaa/phodrive-core/server/files';
+import { downloadBmp } from '@madkarmaa/phodrive-core/server/photos';
+import { planUpload } from '@madkarmaa/phodrive-core/server/upload';
 import { bmpResponse } from '../helpers/download';
 
-vi.mock('@phodrive/core/server/photos', () => ({ downloadBmp: vi.fn(), uploadBmp: vi.fn() }));
+vi.mock('@madkarmaa/phodrive-core/server/photos', () => ({
+    downloadBmp: vi.fn(),
+    uploadBmp: vi.fn()
+}));
 
 const FILE_NAME = 'compatible.bin';
 const EMAIL = 'test@example.com';

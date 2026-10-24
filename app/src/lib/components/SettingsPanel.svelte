@@ -12,7 +12,7 @@
         ConcurrentWorkersSchema,
         type PreferencesDefaults,
         type ThemeMode
-    } from '@phodrive/core/models';
+    } from '@madkarmaa/phodrive-core/models';
 
     interface Props {
         refreshIntervalSeconds: number;

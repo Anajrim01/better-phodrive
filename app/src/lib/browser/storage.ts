@@ -1,4 +1,4 @@
-import type { ApplicationError } from '@phodrive/core/errors';
+import type { ApplicationError } from '@madkarmaa/phodrive-core/errors';
 import { PersistedState } from 'runed';
 import { Err, Ok, type Result } from 'results-ts';
 import type { z } from 'zod';
@@ -19,7 +19,7 @@ import {
     FileSort,
     type PreferencesDefaults,
     ThemeMode
-} from '@phodrive/core/models';
+} from '@madkarmaa/phodrive-core/models';
 
 export const ACCOUNTS_KEY = 'accounts';
 export const SELECTED_KEY = 'selectedAccount';

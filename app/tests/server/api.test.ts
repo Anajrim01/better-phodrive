@@ -1,4 +1,4 @@
-import { LibraryRequestSchema } from '@phodrive/core/models';
+import { LibraryRequestSchema } from '@madkarmaa/phodrive-core/models';
 import { expect, test } from 'vitest';
 import { errorResponse, jsonResponse, readJsonRequest } from '#server/api';
 

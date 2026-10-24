@@ -1,12 +1,12 @@
 import { open, mkdtemp, writeFile } from 'node:fs/promises';
 import { afterEach, expect, test, vi } from 'vitest';
 import { Ok } from 'results-ts';
-import { downloadFile } from '@phodrive/core/server/files';
-import { downloadBmp } from '@phodrive/core/server/photos';
+import { downloadFile } from '@madkarmaa/phodrive-core/server/files';
+import { downloadBmp } from '@madkarmaa/phodrive-core/server/photos';
 import { bmpResponse, downloadFixture } from '../../../core/tests/helpers/download';
 import { uploadForm } from '../../../core/tests/helpers/upload';
-import { encodeUploadBmp } from '@phodrive/core/server/upload/bmp';
-import { receiveUpload } from '@phodrive/core/server/upload/input';
+import { encodeUploadBmp } from '@madkarmaa/phodrive-core/server/upload/bmp';
+import { receiveUpload } from '@madkarmaa/phodrive-core/server/upload/input';
 
 vi.mock('node:fs/promises', async (importOriginal) => {
     const actual = await importOriginal<typeof import('node:fs/promises')>();
@@ -17,7 +17,10 @@ vi.mock('node:fs/promises', async (importOriginal) => {
         writeFile: vi.fn().mockRejectedValue(new Error('ENOSPC'))
     };
 });
-vi.mock('@phodrive/core/server/photos', () => ({ downloadBmp: vi.fn(), moveToTrash: vi.fn() }));
+vi.mock('@madkarmaa/phodrive-core/server/photos', () => ({
+    downloadBmp: vi.fn(),
+    moveToTrash: vi.fn()
+}));
 afterEach(() => vi.clearAllMocks());
 
 test('uploads need no temporary storage even when all disk allocations would fail', async () => {

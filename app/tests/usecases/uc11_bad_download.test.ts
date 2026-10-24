@@ -1,10 +1,13 @@
 import { afterEach, expect, test, vi } from 'vitest';
 import { Err, Ok } from 'results-ts';
-import { downloadFile } from '@phodrive/core/server/files';
-import { downloadBmp } from '@phodrive/core/server/photos';
+import { downloadFile } from '@madkarmaa/phodrive-core/server/files';
+import { downloadBmp } from '@madkarmaa/phodrive-core/server/photos';
 import { bmpResponse, downloadFixture } from '../../../core/tests/helpers/download';
 
-vi.mock('@phodrive/core/server/photos', () => ({ downloadBmp: vi.fn(), moveToTrash: vi.fn() }));
+vi.mock('@madkarmaa/phodrive-core/server/photos', () => ({
+    downloadBmp: vi.fn(),
+    moveToTrash: vi.fn()
+}));
 afterEach(() => vi.clearAllMocks());
 
 function setup() {

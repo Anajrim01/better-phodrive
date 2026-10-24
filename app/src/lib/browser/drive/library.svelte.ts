@@ -4,9 +4,9 @@ import {
     filterFiles,
     fileType,
     type UploadedChunk
-} from '@phodrive/core/files';
-import { FileSort } from '@phodrive/core/models';
-import { readLibraryPage, readLibrarySnapshot } from '@phodrive/core/browser/library';
+} from '@madkarmaa/phodrive-core/files';
+import { FileSort } from '@madkarmaa/phodrive-core/models';
+import { readLibraryPage, readLibrarySnapshot } from '@madkarmaa/phodrive-core/browser/library';
 
 /** Library pagination, filtering, and stale-request protection for the selected account. */
 export class DriveLibrary {

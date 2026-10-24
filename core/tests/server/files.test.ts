@@ -1,14 +1,17 @@
-import { SERVER_ERRORS } from '@phodrive/core/server/errors';
+import { SERVER_ERRORS } from '@madkarmaa/phodrive-core/server/errors';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { createHash } from 'node:crypto';
 import { Err, Ok } from 'results-ts';
-import { downloadFile, deleteFile } from '@phodrive/core/server/files';
-import { downloadBmp, moveToTrash } from '@phodrive/core/server/photos';
-import { decodeSplitHeader } from '@phodrive/core/server/bmp';
-import { FileActionKind } from '@phodrive/core/models';
+import { downloadFile, deleteFile } from '@madkarmaa/phodrive-core/server/files';
+import { downloadBmp, moveToTrash } from '@madkarmaa/phodrive-core/server/photos';
+import { decodeSplitHeader } from '@madkarmaa/phodrive-core/server/bmp';
+import { FileActionKind } from '@madkarmaa/phodrive-core/models';
 import { bmpResponse, downloadFixture } from '../helpers/download';
 
-vi.mock('@phodrive/core/server/photos', () => ({ downloadBmp: vi.fn(), moveToTrash: vi.fn() }));
+vi.mock('@madkarmaa/phodrive-core/server/photos', () => ({
+    downloadBmp: vi.fn(),
+    moveToTrash: vi.fn()
+}));
 
 beforeEach(() => {
     vi.mocked(moveToTrash).mockImplementation(() =>

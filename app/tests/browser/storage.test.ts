@@ -11,7 +11,7 @@ import {
     MAX_CONCURRENT_WORKERS,
     MAX_REFRESH_INTERVAL_SECONDS,
     type PreferencesDefaults
-} from '@phodrive/core/models';
+} from '@madkarmaa/phodrive-core/models';
 import { afterAll, afterEach, beforeEach, expect, vi, test } from 'vitest';
 import {
     ACCOUNTS_SERIALIZER,

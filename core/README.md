@@ -1,13 +1,13 @@
 # Phodrive core
 
-`@phodrive/core` contains the split BMP format, chunk planning, file grouping, Google Photos protocol, and transfer logic. It has no Svelte or SvelteKit dependency. Server modules require Node.js 22.22.2 or a supported newer version, or Bun. Browser modules use standard web APIs.
+`@madkarmaa/phodrive-core` contains the split BMP format, chunk planning, file grouping, Google Photos protocol, and transfer logic. It has no Svelte or SvelteKit dependency. Server modules require Node.js 22.22.2 or a supported newer version, or Bun. Browser modules use standard web APIs.
 
 Build from the repository root with `bun run build`, or build only the library with `bun run --cwd core build`. With npm, use `npm run build --workspace core`.
 
-The main export contains shared schemas, types, chunk planning, file grouping, and BMP format helpers. Google Photos authentication, listing, upload, download, and deletion are available from `@phodrive/core/server`. Browser clients for the Phodrive HTTP API are available from `@phodrive/core/browser`. The browser clients use relative `/api/*` URLs and require that API on the same origin.
+The main export contains shared schemas, types, chunk planning, file grouping, and BMP format helpers. Google Photos authentication, listing, upload, download, and deletion are available from `@madkarmaa/phodrive-core/server`. Browser clients for the Phodrive HTTP API are available from `@madkarmaa/phodrive-core/browser`. The browser clients use relative `/api/*` URLs and require that API on the same origin.
 
 ```ts
-import { connectGoogleAccount, listBmps } from '@phodrive/core/server';
+import { connectGoogleAccount, listBmps } from '@madkarmaa/phodrive-core/server';
 
 const connected = await connectGoogleAccount(email, token);
 const listed = await connected.andThenAsync((aasToken) => listBmps(email, aasToken, ''));

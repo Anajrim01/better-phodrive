@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { expect, test, vi } from 'vitest';
-import { hashFile, hashUploadChunk } from '@phodrive/core/browser/upload/hash';
-import { encodeSplitBmp } from '@phodrive/core/server/bmp';
+import { hashFile, hashUploadChunk } from '@madkarmaa/phodrive-core/browser/upload/hash';
+import { encodeSplitBmp } from '@madkarmaa/phodrive-core/server/bmp';
 
 test('concurrent hashing isolates reusable states and failed reads cannot contaminate later files', async () => {
     const damaged = new File([new Uint8Array(2 * 1024 * 1024).fill(99)], 'damaged.bin');

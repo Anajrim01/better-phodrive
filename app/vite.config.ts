@@ -14,7 +14,7 @@ function disableRequestTimeouts({ httpServer }: ViteDevServer | PreviewServer) {
 
 export default defineConfig({
     envDir: '..',
-    ssr: { noExternal: ['@phodrive/core'] },
+    ssr: { noExternal: ['@madkarmaa/phodrive-core'] },
     test: { include: ['tests/**/*.test.ts'] },
     plugins: [
         {

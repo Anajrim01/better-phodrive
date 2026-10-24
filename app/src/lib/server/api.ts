@@ -1,6 +1,6 @@
-import type { ApplicationError } from '@phodrive/core/errors';
-import { readJson } from '@phodrive/core/server/request';
-import { schemaResult } from '@phodrive/core/validation';
+import type { ApplicationError } from '@madkarmaa/phodrive-core/errors';
+import { readJson } from '@madkarmaa/phodrive-core/server/request';
+import { schemaResult } from '@madkarmaa/phodrive-core/validation';
 import type { AsyncResult } from 'results-ts';
 import type { z } from 'zod';
 

@@ -5,12 +5,12 @@ import {
     UploadPhase,
     UploadStatus,
     type UploadEvent
-} from '@phodrive/core/models';
-import { encodeSplitBmp, decodeSplitBmp } from '@phodrive/core/server/bmp';
-import { encodeSplitPrefix, MAX_CHUNK_PAYLOAD_BYTES } from '@phodrive/core/bmp/format';
-import { fileIdentity } from '@phodrive/core/server/chunks';
-import { bytesField, message, nested, numberField } from '@phodrive/core/server/protobuf';
-import type { Fetcher } from '@phodrive/core/server/fetcher';
+} from '@madkarmaa/phodrive-core/models';
+import { encodeSplitBmp, decodeSplitBmp } from '@madkarmaa/phodrive-core/server/bmp';
+import { encodeSplitPrefix, MAX_CHUNK_PAYLOAD_BYTES } from '@madkarmaa/phodrive-core/bmp/format';
+import { fileIdentity } from '@madkarmaa/phodrive-core/server/chunks';
+import { bytesField, message, nested, numberField } from '@madkarmaa/phodrive-core/server/protobuf';
+import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
 
 export function uploadForm(
     payload: Uint8Array = Buffer.from([0, 255, 13, 10, 42]),

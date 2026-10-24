@@ -61,6 +61,6 @@
         "typescript": "^6.0.3",
         "vitest": "^5.0.3",
         "@types/node": "^24.19.2",
-        "@phodrive/core": "^1.0.0"
+        "@madkarmaa/phodrive-core": "^1.0.0"
     }
 }

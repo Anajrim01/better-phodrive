@@ -1,18 +1,18 @@
-import { UploadStatus } from '@phodrive/core/models';
+import { UploadStatus } from '@madkarmaa/phodrive-core/models';
 import { expect, test, vi } from 'vitest';
 import { bmpResponse, downloadFixture } from '../helpers/download';
 import { createHash } from 'node:crypto';
 import Varint from 'varint';
-import { encodeSplitBmp } from '@phodrive/core/server/bmp';
+import { encodeSplitBmp } from '@madkarmaa/phodrive-core/server/bmp';
 import {
     downloadBmp,
     listBmps,
     moveToTrash,
     uploadBmp,
     validateAasAccount
-} from '@phodrive/core/server/photos';
-import type { Fetcher } from '@phodrive/core/server/fetcher';
-import { nested } from '@phodrive/core/server/protobuf';
+} from '@madkarmaa/phodrive-core/server/photos';
+import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
+import { nested } from '@madkarmaa/phodrive-core/server/protobuf';
 
 function varint(value: number): Buffer {
     return Buffer.from(Varint.encode(value));

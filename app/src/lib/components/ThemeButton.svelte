@@ -1,6 +1,6 @@
 <script lang="ts">
     import { IconButton } from 'noph-ui';
-    import { ThemeMode } from '@phodrive/core/models';
+    import { ThemeMode } from '@madkarmaa/phodrive-core/models';
     import { NEXT_THEME } from '#browser/storage';
     import IconLightMode from '~icons/material-symbols/light-mode-outline';
     import IconDarkMode from '~icons/material-symbols/dark-mode-outline';

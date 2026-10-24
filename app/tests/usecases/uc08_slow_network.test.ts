@@ -1,6 +1,6 @@
 import { afterEach, expect, test, vi } from 'vitest';
 import { uploadFiles, type UploadJob } from '#browser/files';
-import { UploadJobStatus } from '@phodrive/core/models';
+import { UploadJobStatus } from '@madkarmaa/phodrive-core/models';
 import { browserUploadResponse } from '../../../core/tests/helpers/upload';
 
 afterEach(() => vi.restoreAllMocks());

@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { ConfirmKind } from '@phodrive/core/models';
+    import { ConfirmKind } from '@madkarmaa/phodrive-core/models';
     import { Button, Dialog } from 'noph-ui';
     import type { ConfirmTarget } from '#browser/drive/index.svelte';
 

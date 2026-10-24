@@ -1,8 +1,8 @@
 <script lang="ts">
     import { Button } from 'noph-ui';
     import prettyBytes from 'pretty-bytes';
-    import { FileSort } from '@phodrive/core/models';
-    import { fileKey, type FileGroup, type FileAction } from '@phodrive/core/files';
+    import { FileSort } from '@madkarmaa/phodrive-core/models';
+    import { fileKey, type FileGroup, type FileAction } from '@madkarmaa/phodrive-core/files';
     import LocalizedDate from '#components/LocalizedDate.svelte';
     import FileActions from '#components/FileActions.svelte';
     import IconDescription from '~icons/material-symbols/description';

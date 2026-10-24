@@ -1,10 +1,10 @@
-import { ConfirmKind, FileSort, ThemeMode, type RemoteBmp } from '@phodrive/core/models';
+import { ConfirmKind, FileSort, ThemeMode, type RemoteBmp } from '@madkarmaa/phodrive-core/models';
 import { afterAll, beforeEach, expect, test, vi } from 'vitest';
 import { Ok } from 'results-ts';
 import { DriveController } from '#browser/drive/index.svelte';
 import { BrowserPreferences } from '#browser/storage';
 import * as filesApi from '#browser/files';
-import * as libraryApi from '@phodrive/core/browser/library';
+import * as libraryApi from '@madkarmaa/phodrive-core/browser/library';
 
 const { storage } = vi.hoisted(() => {
     const values = new Map<string, string>();
@@ -69,7 +69,7 @@ function preferences(): BrowserPreferences {
 }
 
 vi.mock('esm-env', () => ({ BROWSER: true, DEV: true }));
-vi.mock('@phodrive/core/browser/accounts', () => ({ validateAccount: vi.fn() }));
+vi.mock('@madkarmaa/phodrive-core/browser/accounts', () => ({ validateAccount: vi.fn() }));
 vi.mock('#browser/drive/refresh.svelte', () => ({ useAutomaticRefresh: vi.fn() }));
 vi.mock('#browser/storage', async (importOriginal) => {
     const actual = await importOriginal<typeof import('#browser/storage')>();

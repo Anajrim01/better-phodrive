@@ -1,5 +1,5 @@
-import { FileActionKind, FileRequestSchema } from '@phodrive/core/models';
-import { downloadFile, deleteFile } from '@phodrive/core/server/files';
+import { FileActionKind, FileRequestSchema } from '@madkarmaa/phodrive-core/models';
+import { downloadFile, deleteFile } from '@madkarmaa/phodrive-core/server/files';
 import { errorResponse, jsonResponse, readJsonRequest } from '#server/api';
 import type { RequestHandler } from './$types';
 

@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { beforeEach, expect, test, vi } from 'vitest';
 import { createSHA1, createSHA256 } from 'hash-wasm';
-import { encodeSplitBmp } from '@phodrive/core/server/bmp';
+import { encodeSplitBmp } from '@madkarmaa/phodrive-core/server/bmp';
 
 vi.mock('hash-wasm', async (importOriginal) => {
     const original = await importOriginal<typeof import('hash-wasm')>();
@@ -39,7 +39,7 @@ test.each(['update', 'digest'] as const)(
             throw new Error('WASM failure');
         });
         vi.mocked(createSHA256).mockResolvedValueOnce(hasher);
-        const { hashFile } = await import('@phodrive/core/browser/upload/hash');
+        const { hashFile } = await import('@madkarmaa/phodrive-core/browser/upload/hash');
         const file = new File([bytes], header.fileName);
 
         const failed = await hashFile(file, () => {});
@@ -72,7 +72,7 @@ test.each(['prefix', 'payload', 'padding', 'digest'] as const)(
             });
         }
         vi.mocked(createSHA1).mockResolvedValueOnce(hasher);
-        const { hashUploadChunk } = await import('@phodrive/core/browser/upload/hash');
+        const { hashUploadChunk } = await import('@madkarmaa/phodrive-core/browser/upload/hash');
         const file = new File([bytes], header.fileName);
 
         const failed = await hashUploadChunk(file, header);
@@ -89,7 +89,8 @@ test.each(['prefix', 'payload', 'padding', 'digest'] as const)(
 test('rejected hasher initialization becomes Err for file and chunk hashing', async () => {
     vi.mocked(createSHA256).mockRejectedValueOnce(new Error('WASM unavailable'));
     vi.mocked(createSHA1).mockRejectedValueOnce(new Error('WASM unavailable'));
-    const { hashFile, hashUploadChunk } = await import('@phodrive/core/browser/upload/hash');
+    const { hashFile, hashUploadChunk } =
+        await import('@madkarmaa/phodrive-core/browser/upload/hash');
     const file = new File([bytes], header.fileName);
 
     const hashed = await hashFile(file, () => {});
@@ -99,7 +100,7 @@ test('rejected hasher initialization becomes Err for file and chunk hashing', as
 });
 
 test('progress callback exceptions propagate instead of becoming hashing errors', async () => {
-    const { hashFile } = await import('@phodrive/core/browser/upload/hash');
+    const { hashFile } = await import('@madkarmaa/phodrive-core/browser/upload/hash');
     const failure = new Error('callback failure');
     const hashed = hashFile(new File([bytes], header.fileName), () => {
         throw failure;

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { ThemeMode } from '@phodrive/core/models';
+import { ThemeMode } from '@madkarmaa/phodrive-core/models';
 import { BrowserPreferences, THEME_KEY } from '#browser/storage';
 
 const { storage } = vi.hoisted(() => {

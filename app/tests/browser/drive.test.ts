@@ -1,9 +1,9 @@
-import { ThemeMode, UploadJobStatus, UploadStatus } from '@phodrive/core/models';
+import { ThemeMode, UploadJobStatus, UploadStatus } from '@madkarmaa/phodrive-core/models';
 import { afterAll, beforeEach, expect, test, vi } from 'vitest';
 import { Err, Ok } from 'results-ts';
 import { DriveController } from '#browser/drive/index.svelte';
 import * as filesApi from '#browser/files';
-import * as libraryApi from '@phodrive/core/browser/library';
+import * as libraryApi from '@madkarmaa/phodrive-core/browser/library';
 
 const { storage } = vi.hoisted(() => {
     const values = new Map<string, string>();
@@ -31,7 +31,7 @@ const { storage } = vi.hoisted(() => {
 });
 
 vi.mock('esm-env', () => ({ BROWSER: true, DEV: true }));
-vi.mock('@phodrive/core/browser/accounts', () => ({ validateAccount: vi.fn() }));
+vi.mock('@madkarmaa/phodrive-core/browser/accounts', () => ({ validateAccount: vi.fn() }));
 vi.mock('#browser/drive/refresh.svelte', () => ({ useAutomaticRefresh: vi.fn() }));
 
 beforeEach(() => {
