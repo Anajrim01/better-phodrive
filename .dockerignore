@@ -7,17 +7,24 @@
 !core
 !core/package.json
 !core/tsconfig.json
+!core/tsdown.config.ts
 !core/src
 !core/src/**
 !app
 !app/package.json
 !app/vite.config.ts
 !app/tsconfig.json
-!app/tsconfig.server.json
+!app/tsdown.config.ts
 !app/src
 !app/src/**
 !app/static
 !app/static/**
+!cli
+!cli/package.json
+!cli/tsconfig.json
+!cli/tsdown.config.ts
+!cli/src
+!cli/src/**
 !LICENSE*
 
 # Keep credentials excluded even inside an allowed source directory.
