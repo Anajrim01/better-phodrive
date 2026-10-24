@@ -1,4 +1,4 @@
-﻿<script lang="ts" generics="Value extends string">
+<script lang="ts" generics="Value extends string">
     import { Button, Menu, MenuItem } from 'noph-ui';
     import IconArrow from '~icons/material-symbols/arrow-drop-down';
     import IconCheck from '~icons/material-symbols/check';

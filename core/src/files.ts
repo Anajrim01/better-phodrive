@@ -83,8 +83,12 @@ export function groupChunks(items: UploadedChunk[]): FileGroup[] {
     });
 }
 
+/** A trailing dot has no extension; an empty type would collide with the "All" filter. */
 export function fileType(name: string): string {
-    return name.includes('.') ? (name.split('.').pop() ?? '').slice(0, 5).toUpperCase() : 'FILE';
+    const extension = name.slice(name.lastIndexOf('.') + 1);
+    if (!name.includes('.') || !extension) return 'FILE';
+
+    return extension.slice(0, 5).toUpperCase();
 }
 
 export function sortFiles(files: readonly FileGroup[], order: FileSort): FileGroup[] {

@@ -101,3 +101,10 @@ test('grouped file becomes searchable and typed when its naming chunk arrives la
     ).toHaveLength(1);
     expect(fileType(afterName[0]?.name ?? '')).toBe('JPG');
 });
+
+test('UC17 file types never collide with the empty all-types filter', () => {
+    expect(fileType('archive.tar.gz')).toBe('GZ');
+    expect(fileType('notes')).toBe('FILE');
+    expect(fileType('photo.')).toBe('FILE');
+    expect(fileType('backup.verylongextension')).toBe('VERYL');
+});
