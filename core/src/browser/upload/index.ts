@@ -213,14 +213,28 @@ export function uploadFiles(
     token: string,
     workers: number,
     onJob: (job: UploadJob) => void,
-    onChunk: (chunk: UploadedChunk) => void,
-    transport: ChunkTransport = httpChunkTransport
+    onChunk: (chunk: UploadedChunk) => void
 ): AsyncResult<void, ApplicationError> {
     return schemaResult(
         ConcurrentWorkersSchema,
         workers,
         'Invalid concurrent worker count.'
-    ).andThenAsync(async (concurrency) => {
+    ).andThenAsync((concurrency) =>
+        transferFiles(files, email, token, concurrency, onJob, onChunk, httpChunkTransport)
+    );
+}
+
+/** The shared pool behind every uploader; callers validate the worker count for their runtime. */
+export function transferFiles(
+    files: readonly File[],
+    email: string,
+    token: string,
+    concurrency: number,
+    onJob: (job: UploadJob) => void,
+    onChunk: (chunk: UploadedChunk) => void,
+    transport: ChunkTransport
+): AsyncResult<void, ApplicationError> {
+    return Ok(undefined).andThenAsync(async () => {
         const jobs = createUploadJobs(files);
         const sources: { file: File; jobId: number }[] = [];
         for (const [id, file] of files.entries()) {

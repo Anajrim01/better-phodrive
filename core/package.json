@@ -201,6 +201,10 @@
             "@madkarmaa/phodrive-source": "./src/server/upload/stream.ts",
             "default": "./dist/server/upload/stream.js"
         },
+        "./server/workers": {
+            "@madkarmaa/phodrive-source": "./src/server/workers.ts",
+            "default": "./dist/server/workers.js"
+        },
         "./upload": {
             "@madkarmaa/phodrive-source": "./src/upload.ts",
             "default": "./dist/upload.js"

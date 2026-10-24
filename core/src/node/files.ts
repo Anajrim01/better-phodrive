@@ -11,6 +11,7 @@ import {
     deleteFile as deleteRemoteFile,
     downloadFile as downloadRemoteFile
 } from '../server/files';
+import { validateWorkers } from '../server/workers';
 
 export type DownloadOptions = {
     force?: boolean;
@@ -192,7 +193,7 @@ export function deleteFile(
     token: string,
     workers: number
 ): AsyncResult<DeleteResult, FileError> {
-    return fileRequest(item, FileActionKind.Delete, token, workers).andThenAsync((input) =>
-        deleteRemoteFile(input)
-    );
+    return validateWorkers(workers)
+        .andThen((concurrency) => fileRequest(item, FileActionKind.Delete, token, concurrency))
+        .andThenAsync((input) => deleteRemoteFile(input));
 }

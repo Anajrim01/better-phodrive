@@ -144,3 +144,30 @@ test.skipIf(process.platform === 'win32')(
         ).toEqual(['a.txt', 'b.txt', 'o.txt']);
     }
 );
+
+test('local uploads accept up to one worker per processor', async () => {
+    const { availableParallelism } = await import('node:os');
+    const path = join(folder, 'proof.bin');
+    await writeFile(path, 'workers');
+    const opened = await openLocalFiles([path]);
+    const files = opened.unwrap().map(({ file }) => file);
+    const harness = photosUploadHarness();
+    const upload = (workers: number) =>
+        uploadFiles(
+            files,
+            'test@example.com',
+            'aas_et/test',
+            workers,
+            () => {},
+            () => {},
+            {
+                fetcher: harness.fetcher
+            }
+        );
+
+    const tooMany = await upload(availableParallelism() + 1);
+    const allowed = await upload(availableParallelism());
+
+    expect(tooMany.unwrapErr()).toMatchObject({ code: 'INVALID_CONCURRENT_WORKERS' });
+    expect(allowed.isOk()).toBe(true);
+});

@@ -7,4 +7,5 @@ export {
     type LocalFile,
     type TransferOptions
 } from './upload';
+export { maxWorkers } from '../server/workers';
 export type { UploadJob } from '../browser/upload/jobs';

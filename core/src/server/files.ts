@@ -4,6 +4,7 @@ import pLimit from 'p-limit';
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import { moveToTrash } from './photos/index';
 import { streamDownload } from './download';
+import { limitWorkers } from './workers';
 
 function validateChunks(input: FileRequest): Result<RemoteBmp[], ServerError> {
     const chunks = input.chunks.toSorted((a, b) => a.chunkIndex - b.chunkIndex);
@@ -43,7 +44,7 @@ export function deleteFile(
     return validateChunks(input).andThenAsync(async (chunks) => {
         const deleted: RemoteBmp[] = [];
         const failures: ServerError[] = [];
-        const limit = pLimit(input.workers);
+        const limit = pLimit(limitWorkers(input.workers));
         await limit.map(chunks, async (chunk) => {
             const removed = await moveToTrash(input.email, input.token, chunk.sha1);
 

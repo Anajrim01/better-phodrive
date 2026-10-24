@@ -73,6 +73,8 @@ export const ThemeSchema = z.enum(ThemeMode);
 export const FileSortSchema = z.enum(FileSort);
 export const RefreshIntervalSchema = z.int().min(0).max(MAX_REFRESH_INTERVAL_SECONDS);
 export const ConcurrentWorkersSchema = z.int().min(1).max(MAX_CONCURRENT_WORKERS);
+/** Servers limit requested workers to their own processors, so any positive count is accepted. */
+export const WorkerCountSchema = z.int().positive();
 export const PreferencesDefaultsSchema = z.object({
     theme: ThemeSchema,
     fileSort: FileSortSchema,
@@ -201,7 +203,7 @@ export const FileRequestSchema = AccountRequestSchema.extend({
     fileHash: Sha256HexSchema,
     fileId: Sha256HexSchema,
     chunks: z.array(RemoteBmpSchema).nonempty(),
-    workers: ConcurrentWorkersSchema
+    workers: WorkerCountSchema
 });
 export const FileDeleteResponseSchema = z.object({
     deleted: z.array(RemoteBmpSchema),

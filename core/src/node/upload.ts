@@ -6,12 +6,13 @@ import { Err, Ok, type AsyncResult } from 'results-ts';
 import type { ApplicationError } from '../errors';
 import type { UploadedChunk } from '../files';
 import { UploadEventType, type UploadEvent } from '../models';
-import { uploadFiles as uploadChunks } from '../browser/upload/index';
+import { transferFiles } from '../browser/upload/index';
 import type { ChunkTransport } from '../browser/upload/request';
 import type { UploadJob } from '../browser/upload/jobs';
 import type { Fetcher } from '../server/fetcher';
 import { receiveChunk } from '../server/upload/input';
 import { uploadFiles as forwardChunk } from '../server/upload/index';
+import { validateWorkers } from '../server/workers';
 
 export type TransferOptions = { signal?: AbortSignal; fetcher?: Fetcher };
 export type LocalFile = { path: string; file: File };
@@ -175,7 +176,10 @@ export function openLocalFiles(
     });
 }
 
-/** Upload local files with the web app's hashing, chunking, deduplication, and worker pool. */
+/**
+ * Upload local files with the web app's hashing, chunking, deduplication, and worker pool,
+ * using up to one worker per available processor.
+ */
 export function uploadFiles(
     files: readonly File[],
     email: string,
@@ -185,5 +189,15 @@ export function uploadFiles(
     onChunk: (chunk: UploadedChunk) => void,
     options: TransferOptions = {}
 ): AsyncResult<void, ApplicationError> {
-    return uploadChunks(files, email, token, workers, onJob, onChunk, localChunkTransport(options));
+    return validateWorkers(workers).andThenAsync((concurrency) =>
+        transferFiles(
+            files,
+            email,
+            token,
+            concurrency,
+            onJob,
+            onChunk,
+            localChunkTransport(options)
+        )
+    );
 }
