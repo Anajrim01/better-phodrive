@@ -113,7 +113,7 @@ For Docker, pass the same variables with `-e`, for example `-e PHODRIVE_DEFAULT_
 
 ## Command line
 
-The `phodrive` command does everything the web app does, directly from your machine, without running the server. It is published to GitHub Packages, which requires a GitHub [personal access token (classic)](https://github.com/settings/tokens) with the `read:packages` scope, even for public packages. Add it to `~/.npmrc`:
+The `phodrive` command does everything the web app does without running the server. It is on GitHub Packages, and installing from there needs a GitHub [personal access token (classic)](https://github.com/settings/tokens) with the `read:packages` scope, even for public packages. Add the registry and your token to `~/.npmrc`:
 
 ```ini
 @madkarmaa:registry=https://npm.pkg.github.com
@@ -123,19 +123,17 @@ The `phodrive` command does everything the web app does, directly from your mach
 Then install it with `npm install --global @madkarmaa/phodrive-cli`, or run it once with `npx @madkarmaa/phodrive-cli`.
 
 ```sh
-phodrive account add you@gmail.com   # prompts for the oauth2_4/ token from the steps above
-phodrive file list                   # search, filter, and sort with: file list report --type pdf --days 30 --sort name-asc
+phodrive account add you@gmail.com   # asks for the oauth2_4/ token from the steps above
+phodrive file list                   # add a search term, --type pdf, --days 30, or --sort name-asc
 phodrive file upload ./photos        # files and whole folders
-phodrive file download report.pdf    # by name or by the ID shown in file list
+phodrive file download report.pdf    # by name or by the ID that file list shows
 phodrive file delete report.pdf
 phodrive setting set workers 4
 ```
 
-Run `phodrive help` for every command, and `phodrive help <command>`, `phodrive <command> --help`, or `-h` for its options, for example `phodrive help file upload`. Accounts are `account add`, `remove`, `list`, and `use`; files are `file list`, `upload`, `download`, and `delete`; settings are `setting show`, `set`, and `reset`.
+`phodrive help` lists every command. `phodrive help file upload`, `phodrive file upload --help`, and `phodrive file upload -h` all show the options of one command.
 
-Without a terminal, pass values as arguments and flags instead of prompts: pipe the token into `account add`, and pass `--yes` to `delete` and `account remove`. `--json` prints machine-readable lists. Downloads never replace existing files unless you pass `--force`.
-
-Accounts and settings are saved in `config.json` in your user configuration folder, readable only by your user on macOS and Linux. Set `PHODRIVE_CONFIG` to use another file. `PHODRIVE_DEFAULT_SORT` and `PHODRIVE_DEFAULT_CONCURRENT_WORKERS` apply when no setting is saved. The command line allows up to one worker per processor, detected each time it runs, instead of the web limit of 32.
+`phodrive` saves accounts and settings in `config.json` in your user configuration folder. On macOS and Linux, only your user can read that file. Set `PHODRIVE_CONFIG` to use another file.
 
 ## Attribution
 
