@@ -117,6 +117,69 @@ jobs:
               env:
                   NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+    publish-executables:
+        needs: release
+        if: needs.release.outputs.published == 'true'
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+        env:
+            HUSKY: '0'
+        steps:
+            - name: Check out the release commit
+              uses: actions/checkout@v7
+              with:
+                  ref: ${{ needs.release.outputs.tag }}
+                  persist-credentials: false
+
+            - name: Cache dependencies
+              uses: actions/cache@v6
+              with:
+                  path: '**/node_modules'
+                  key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
+
+            - name: Set up Node.js
+              uses: actions/setup-node@v7
+              with:
+                  node-version-file: .node-version
+                  package-manager-cache: false
+
+            - name: Set up Bun
+              uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: '1.4.3'
+
+            - name: Install dependencies
+              run: bun install --frozen-lockfile
+
+            # Executables print the version from the cli manifest.
+            - name: Set the release version
+              run: npm pkg set "version=$VERSION" --workspace cli
+              env:
+                  VERSION: ${{ needs.release.outputs.version }}
+
+            # Each executable records its asset name so `phodrive update` downloads the same build.
+            - name: Compile executables
+              working-directory: cli
+              run: |
+                  for target in linux-x64 linux-arm64 linux-x64-musl linux-arm64-musl darwin-x64 darwin-arm64 windows-x64 windows-arm64; do
+                      asset="phodrive-$target"
+                      if [[ $target == windows-* ]]; then asset="$asset.exe"; fi
+
+                      bun build src/index.ts --compile --minify \
+                          --conditions @madkarmaa/phodrive-core \
+                          --target "bun-$target" \
+                          --define "PHODRIVE_RELEASE_ASSET=\"$asset\"" \
+                          --outfile "build/release/$asset"
+                  done
+                  chmod +x build/release/*
+
+            - name: Attach executables to the release
+              run: gh release upload "$TAG" cli/build/release/* --clobber
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  TAG: ${{ needs.release.outputs.tag }}
+
     publish-image:
         needs: release
         if: needs.release.outputs.published == 'true'
