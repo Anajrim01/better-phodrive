@@ -2,8 +2,16 @@ import tailwindcss from '@tailwindcss/vite';
 import adapter from '@sveltejs/adapter-node';
 import { sveltekit } from '@sveltejs/kit/vite';
 import Icons from 'unplugin-icons/vite';
-import type { PreviewServer, ViteDevServer } from 'vite';
+import {
+    defaultClientConditions,
+    defaultServerConditions,
+    type PreviewServer,
+    type ViteDevServer
+} from 'vite';
 import { defineConfig } from 'vitest/config';
+
+// Resolve core to source for hot reload, as the core package exports it under this condition.
+const SOURCE_CONDITION = '@madkarmaa/phodrive-source';
 
 function disableRequestTimeouts({ httpServer }: ViteDevServer | PreviewServer) {
     if (!httpServer) return;
@@ -14,7 +22,11 @@ function disableRequestTimeouts({ httpServer }: ViteDevServer | PreviewServer) {
 
 export default defineConfig({
     envDir: '..',
-    ssr: { noExternal: ['@madkarmaa/phodrive-core'] },
+    resolve: { conditions: [SOURCE_CONDITION, ...defaultClientConditions] },
+    ssr: {
+        noExternal: ['@madkarmaa/phodrive-core'],
+        resolve: { conditions: [SOURCE_CONDITION, ...defaultServerConditions] }
+    },
     test: { include: ['tests/**/*.test.ts'] },
     plugins: [
         {

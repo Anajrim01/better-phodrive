@@ -20,4 +20,4 @@ listed.match({
 
 Fallible synchronous operations return results-ts `Result`; asynchronous operations return `AsyncResult`. Handle both variants with `match` or compose them with `andThen` and `andThenAsync`. Credentials are supplied per operation and are not persisted by the library.
 
-To install outside this repository, run `npm pack --workspace core --pack-destination <directory>` and install the generated archive in the consuming project. The package includes JavaScript, type declarations, source maps, and licenses. Node.js and Bun resolve the compiled JavaScript; Vite development builds use the source files for hot reload.
+To install outside this repository, run `npm pack --workspace core --pack-destination <directory>` and install the generated archive in the consuming project. The package includes JavaScript, type declarations, source maps, and licenses. Node.js and Bun resolve the compiled JavaScript; Vite and Vitest in this repository opt into the `@madkarmaa/phodrive-source` export condition to use the source files for hot reload.

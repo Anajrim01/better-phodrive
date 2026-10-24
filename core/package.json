@@ -22,191 +22,191 @@
     "types": "./dist/index.d.ts",
     "exports": {
         ".": {
-            "development": "./src/index.ts",
+            "@madkarmaa/phodrive-source": "./src/index.ts",
             "default": "./dist/index.js"
         },
         "./bmp/errors": {
-            "development": "./src/bmp/errors.ts",
+            "@madkarmaa/phodrive-source": "./src/bmp/errors.ts",
             "default": "./dist/bmp/errors.js"
         },
         "./bmp/format": {
-            "development": "./src/bmp/format.ts",
+            "@madkarmaa/phodrive-source": "./src/bmp/format.ts",
             "default": "./dist/bmp/format.js"
         },
         "./browser": {
-            "development": "./src/browser/index.ts",
+            "@madkarmaa/phodrive-source": "./src/browser/index.ts",
             "default": "./dist/browser/index.js"
         },
         "./browser/accounts": {
-            "development": "./src/browser/accounts.ts",
+            "@madkarmaa/phodrive-source": "./src/browser/accounts.ts",
             "default": "./dist/browser/accounts.js"
         },
         "./browser/api": {
-            "development": "./src/browser/api.ts",
+            "@madkarmaa/phodrive-source": "./src/browser/api.ts",
             "default": "./dist/browser/api.js"
         },
         "./browser/files": {
-            "development": "./src/browser/files.ts",
+            "@madkarmaa/phodrive-source": "./src/browser/files.ts",
             "default": "./dist/browser/files.js"
         },
         "./browser/library": {
-            "development": "./src/browser/library.ts",
+            "@madkarmaa/phodrive-source": "./src/browser/library.ts",
             "default": "./dist/browser/library.js"
         },
         "./browser/upload": {
-            "development": "./src/browser/upload/index.ts",
+            "@madkarmaa/phodrive-source": "./src/browser/upload/index.ts",
             "default": "./dist/browser/upload/index.js"
         },
         "./browser/upload/hash": {
-            "development": "./src/browser/upload/hash.ts",
+            "@madkarmaa/phodrive-source": "./src/browser/upload/hash.ts",
             "default": "./dist/browser/upload/hash.js"
         },
         "./browser/upload/jobs": {
-            "development": "./src/browser/upload/jobs.ts",
+            "@madkarmaa/phodrive-source": "./src/browser/upload/jobs.ts",
             "default": "./dist/browser/upload/jobs.js"
         },
         "./browser/upload/request": {
-            "development": "./src/browser/upload/request.ts",
+            "@madkarmaa/phodrive-source": "./src/browser/upload/request.ts",
             "default": "./dist/browser/upload/request.js"
         },
         "./errors": {
-            "development": "./src/errors.ts",
+            "@madkarmaa/phodrive-source": "./src/errors.ts",
             "default": "./dist/errors.js"
         },
         "./files": {
-            "development": "./src/files.ts",
+            "@madkarmaa/phodrive-source": "./src/files.ts",
             "default": "./dist/files.js"
         },
         "./models": {
-            "development": "./src/models.ts",
+            "@madkarmaa/phodrive-source": "./src/models.ts",
             "default": "./dist/models.js"
         },
         "./node": {
-            "development": "./src/node/index.ts",
+            "@madkarmaa/phodrive-source": "./src/node/index.ts",
             "default": "./dist/node/index.js"
         },
         "./node/files": {
-            "development": "./src/node/files.ts",
+            "@madkarmaa/phodrive-source": "./src/node/files.ts",
             "default": "./dist/node/files.js"
         },
         "./node/library": {
-            "development": "./src/node/library.ts",
+            "@madkarmaa/phodrive-source": "./src/node/library.ts",
             "default": "./dist/node/library.js"
         },
         "./node/upload": {
-            "development": "./src/node/upload.ts",
+            "@madkarmaa/phodrive-source": "./src/node/upload.ts",
             "default": "./dist/node/upload.js"
         },
         "./preferences": {
-            "development": "./src/preferences.ts",
+            "@madkarmaa/phodrive-source": "./src/preferences.ts",
             "default": "./dist/preferences.js"
         },
         "./server": {
-            "development": "./src/server/index.ts",
+            "@madkarmaa/phodrive-source": "./src/server/index.ts",
             "default": "./dist/server/index.js"
         },
         "./server/aas": {
-            "development": "./src/server/aas.ts",
+            "@madkarmaa/phodrive-source": "./src/server/aas.ts",
             "default": "./dist/server/aas.js"
         },
         "./server/accounts": {
-            "development": "./src/server/accounts.ts",
+            "@madkarmaa/phodrive-source": "./src/server/accounts.ts",
             "default": "./dist/server/accounts.js"
         },
         "./server/bmp": {
-            "development": "./src/server/bmp/index.ts",
+            "@madkarmaa/phodrive-source": "./src/server/bmp/index.ts",
             "default": "./dist/server/bmp/index.js"
         },
         "./server/bmp/stream": {
-            "development": "./src/server/bmp/stream.ts",
+            "@madkarmaa/phodrive-source": "./src/server/bmp/stream.ts",
             "default": "./dist/server/bmp/stream.js"
         },
         "./server/chunks": {
-            "development": "./src/server/chunks.ts",
+            "@madkarmaa/phodrive-source": "./src/server/chunks.ts",
             "default": "./dist/server/chunks.js"
         },
         "./server/download": {
-            "development": "./src/server/download.ts",
+            "@madkarmaa/phodrive-source": "./src/server/download.ts",
             "default": "./dist/server/download.js"
         },
         "./server/errors": {
-            "development": "./src/server/errors.ts",
+            "@madkarmaa/phodrive-source": "./src/server/errors.ts",
             "default": "./dist/server/errors.js"
         },
         "./server/fetcher": {
-            "development": "./src/server/fetcher.ts",
+            "@madkarmaa/phodrive-source": "./src/server/fetcher.ts",
             "default": "./dist/server/fetcher.js"
         },
         "./server/files": {
-            "development": "./src/server/files.ts",
+            "@madkarmaa/phodrive-source": "./src/server/files.ts",
             "default": "./dist/server/files.js"
         },
         "./server/photos": {
-            "development": "./src/server/photos/index.ts",
+            "@madkarmaa/phodrive-source": "./src/server/photos/index.ts",
             "default": "./dist/server/photos/index.js"
         },
         "./server/photos/auth": {
-            "development": "./src/server/photos/auth.ts",
+            "@madkarmaa/phodrive-source": "./src/server/photos/auth.ts",
             "default": "./dist/server/photos/auth.js"
         },
         "./server/photos/download": {
-            "development": "./src/server/photos/download.ts",
+            "@madkarmaa/phodrive-source": "./src/server/photos/download.ts",
             "default": "./dist/server/photos/download.js"
         },
         "./server/photos/library": {
-            "development": "./src/server/photos/library/index.ts",
+            "@madkarmaa/phodrive-source": "./src/server/photos/library/index.ts",
             "default": "./dist/server/photos/library/index.js"
         },
         "./server/photos/library/metadata": {
-            "development": "./src/server/photos/library/metadata.ts",
+            "@madkarmaa/phodrive-source": "./src/server/photos/library/metadata.ts",
             "default": "./dist/server/photos/library/metadata.js"
         },
         "./server/photos/library/requests": {
-            "development": "./src/server/photos/library/requests.ts",
+            "@madkarmaa/phodrive-source": "./src/server/photos/library/requests.ts",
             "default": "./dist/server/photos/library/requests.js"
         },
         "./server/photos/transport": {
-            "development": "./src/server/photos/transport.ts",
+            "@madkarmaa/phodrive-source": "./src/server/photos/transport.ts",
             "default": "./dist/server/photos/transport.js"
         },
         "./server/photos/trash": {
-            "development": "./src/server/photos/trash.ts",
+            "@madkarmaa/phodrive-source": "./src/server/photos/trash.ts",
             "default": "./dist/server/photos/trash.js"
         },
         "./server/photos/upload": {
-            "development": "./src/server/photos/upload.ts",
+            "@madkarmaa/phodrive-source": "./src/server/photos/upload.ts",
             "default": "./dist/server/photos/upload.js"
         },
         "./server/protobuf": {
-            "development": "./src/server/protobuf.ts",
+            "@madkarmaa/phodrive-source": "./src/server/protobuf.ts",
             "default": "./dist/server/protobuf.js"
         },
         "./server/request": {
-            "development": "./src/server/request.ts",
+            "@madkarmaa/phodrive-source": "./src/server/request.ts",
             "default": "./dist/server/request.js"
         },
         "./server/upload": {
-            "development": "./src/server/upload/index.ts",
+            "@madkarmaa/phodrive-source": "./src/server/upload/index.ts",
             "default": "./dist/server/upload/index.js"
         },
         "./server/upload/bmp": {
-            "development": "./src/server/upload/bmp.ts",
+            "@madkarmaa/phodrive-source": "./src/server/upload/bmp.ts",
             "default": "./dist/server/upload/bmp.js"
         },
         "./server/upload/input": {
-            "development": "./src/server/upload/input.ts",
+            "@madkarmaa/phodrive-source": "./src/server/upload/input.ts",
             "default": "./dist/server/upload/input.js"
         },
         "./server/upload/stream": {
-            "development": "./src/server/upload/stream.ts",
+            "@madkarmaa/phodrive-source": "./src/server/upload/stream.ts",
             "default": "./dist/server/upload/stream.js"
         },
         "./upload": {
-            "development": "./src/upload.ts",
+            "@madkarmaa/phodrive-source": "./src/upload.ts",
             "default": "./dist/upload.js"
         },
         "./validation": {
-            "development": "./src/validation.ts",
+            "@madkarmaa/phodrive-source": "./src/validation.ts",
             "default": "./dist/validation.js"
         },
         "./package.json": "./package.json"
@@ -232,6 +232,7 @@
         "@types/varint": "^6.0.3",
         "tsdown": "^0.23.2",
         "typescript": "^6.0.3",
+        "vite": "^8.3.4",
         "vitest": "^5.0.3"
     },
     "publishConfig": {

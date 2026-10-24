@@ -1,12 +1,15 @@
 import { defineConfig } from 'tsdown';
 
-/** Vite and Vitest resolve the development condition to source for hot reload and tests. */
+// Workspace Vite and Vitest configs opt into this condition to use source for hot reload and tests.
+// A package-specific name keeps consumers' development builds on the compiled JavaScript.
+const SOURCE_CONDITION = '@madkarmaa/phodrive-source';
+
 function withSource(target: unknown): unknown {
     if (typeof target !== 'string' || !target.startsWith('./dist/')) return target;
 
     const source = target.replace(/^\.\/dist\//, './src/').replace(/\.js$/, '.ts');
 
-    return { development: source, default: target };
+    return { [SOURCE_CONDITION]: source, default: target };
 }
 
 export default defineConfig({
