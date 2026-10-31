@@ -1,4 +1,10 @@
-import { SERVER_ERRORS, isThrottleError, type ServerError } from './errors';
+import {
+    SERVER_ERRORS,
+    isThrottleError,
+    throttleError,
+    type ServerError,
+    type ThrottleMode
+} from './errors';
 import { FileActionKind, FileNameSchema, type FileRequest, type RemoteBmp } from '../models';
 import pLimit from 'p-limit';
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
@@ -32,14 +38,18 @@ function validateChunks(input: FileRequest): Result<RemoteBmp[], ServerError> {
 /** Reconstruct in order as the browser reads, verifying integrity before stream completion. */
 export function downloadFile(
     input: FileRequest,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    mode: ThrottleMode = 'auto'
 ): AsyncResult<Response, ServerError> {
-    return validateChunks(input).andThenAsync((chunks) => streamDownload(input, chunks, signal));
+    return validateChunks(input).andThenAsync((chunks) =>
+        streamDownload(input, chunks, signal, mode)
+    );
 }
 
 /** Attempt every known chunk and return all confirmed removals even after partial failure. */
 export function deleteFile(
-    input: FileRequest
+    input: FileRequest,
+    mode: ThrottleMode = 'auto'
 ): AsyncResult<{ deleted: RemoteBmp[]; error?: string; retryAfterSeconds?: number }, ServerError> {
     return validateChunks(input).andThenAsync(async (chunks) => {
         const deleted: RemoteBmp[] = [];
@@ -59,10 +69,15 @@ export function deleteFile(
         });
 
         const failure = failures.find(isThrottleError) ?? failures[0];
+        const failureMessage = failure
+            ? isThrottleError(failure)
+                ? throttleError(failure.retryAfterSeconds, mode).message
+                : failure.message
+            : undefined;
 
         return Ok({
             deleted,
-            ...(failure ? { error: failure.message } : {}),
+            ...(failureMessage ? { error: failureMessage } : {}),
             ...(failure && isThrottleError(failure)
                 ? { retryAfterSeconds: failure.retryAfterSeconds }
                 : {})

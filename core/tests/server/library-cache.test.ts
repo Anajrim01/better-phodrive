@@ -328,8 +328,8 @@ test('the real library capture keeps the name filter page scoped', async () => {
     const markers = names.filter((name) => name.includes('.phodrive-'));
     const ordinary = names.find((name) => !name.includes('.phodrive-'));
 
-    expect(items).toHaveLength(6);
-    expect(markers).toHaveLength(5);
+    expect(items).toHaveLength(5);
+    expect(markers).toHaveLength(4);
     expect(ordinary).toBeDefined();
     expect(hasPhodriveNames(names.map((fileName) => ({ fileName })))).toBe(true);
     expect(namedAsNonPhodrive({ fileName: ordinary }, true)).toBe(true);

@@ -11,7 +11,7 @@ import {
     throttleWaitSeconds
 } from '../../src/server/photos/throttle';
 import { guardedSend, send } from '../../src/server/photos/transport';
-import { isThrottleError } from '../../src/server/errors';
+import { isThrottleError, throttleError } from '../../src/server/errors';
 import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
 
 const EMAIL = 'test@example.com';
@@ -290,4 +290,13 @@ test('a 5xx during an active pause returns the remaining wait without counting',
     expect(recordServerFailure(EMAIL, NO_JITTER)).toBeNull();
     expect(recordServerFailure(EMAIL, NO_JITTER)).toBeNull();
     expect(recordServerFailure(EMAIL, NO_JITTER)).toBe(60);
+});
+
+test('throttle errors distinguish automatic retry from manual action', () => {
+    expect(throttleError(120).message).toBe(
+        'Google Photos is limiting requests, retrying in about 2 min'
+    );
+    expect(throttleError(120, 'manual').message).toBe(
+        'Google Photos is limiting requests, try again in about 2 min'
+    );
 });

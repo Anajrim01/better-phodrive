@@ -7,7 +7,7 @@ export const POST: RequestHandler = ({ request }) =>
     readJsonRequest(request, FileRequestSchema, 'Invalid request')
         .andThenAsync((input) =>
             input.action === FileActionKind.Download
-                ? downloadFile(input, request.signal)
-                : deleteFile(input).map(jsonResponse)
+                ? downloadFile(input, request.signal, 'manual')
+                : deleteFile(input, 'manual').map(jsonResponse)
         )
         .match({ Ok: (response) => response, Err: errorResponse });

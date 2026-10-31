@@ -62,6 +62,7 @@
     $effect(() => {
         if (!busy || !paused.length) return;
 
+        now = Date.now();
         const timer = setInterval(() => (now = Date.now()), 1_000);
 
         return () => clearInterval(timer);

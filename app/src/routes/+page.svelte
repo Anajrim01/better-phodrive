@@ -269,6 +269,7 @@
     }
 
     .crumb-separator {
+        margin-inline: -4px;
         padding-inline: 4px;
         color: var(--app-subtle);
     }

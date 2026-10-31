@@ -178,7 +178,12 @@ export function deleteFiles(
                     (chunk) => !removed.has(`${chunk.mediaKey}\u0000${chunk.sha1}`)
                 );
 
-                if (!current.retryAfterSeconds || remaining.length === 0) break;
+                if (
+                    !current.retryAfterSeconds ||
+                    remaining.length === 0 ||
+                    attempt === THROTTLE_RETRY_LIMIT
+                )
+                    break;
 
                 await waitForThrottle(context, current.retryAfterSeconds);
             }

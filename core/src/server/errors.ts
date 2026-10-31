@@ -163,12 +163,14 @@ export const THROTTLE_ERROR: {
     retryAfterSeconds: 1
 };
 
-export function throttleError(seconds: number): ServerError {
+export type ThrottleMode = 'auto' | 'manual';
+
+export function throttleError(seconds: number, mode: ThrottleMode = 'auto'): ServerError {
     const wait = Math.max(1, Math.round(seconds));
 
     return {
         code: 'THROTTLED',
-        message: throttleMessage(wait),
+        message: throttleMessage(wait, mode === 'manual' ? 'try again' : 'retrying'),
         retryAfterSeconds: wait
     };
 }
