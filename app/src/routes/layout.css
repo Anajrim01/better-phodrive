@@ -7,7 +7,7 @@
     --app-panel: var(--np-color-surface-container-low);
     --app-text: var(--np-color-on-surface);
     --app-muted: var(--np-color-on-surface-variant);
-    --app-subtle: var(--np-color-on-surface-variant);
+    --app-subtle: var(--np-color-outline);
     --app-search: var(--np-color-surface-container);
     --app-menu: var(--np-color-surface-container);
     --app-card: var(--np-color-surface-container);
@@ -15,12 +15,16 @@
     --app-hover: var(--np-color-surface-container-high);
     --app-selected: var(--np-color-primary-container);
     --app-selected-text: var(--np-color-on-primary-container);
-    --app-border: var(--np-color-outline-variant);
+    --app-border: color-mix(in srgb, var(--np-color-on-surface) 12%, transparent);
+    --app-border-strong: var(--np-color-outline-variant);
+    --app-ease: cubic-bezier(0.22, 1, 0.36, 1);
     --app-primary: var(--np-color-primary);
-    --app-avatar: var(--np-color-primary);
-    --app-avatar-text: var(--np-color-on-primary);
+    --app-avatar: var(--np-color-surface-container-highest);
+    --app-avatar-text: var(--np-color-on-surface);
     --app-success: light-dark(#146c2e, #a6e3a1);
     --app-feedback: var(--np-color-secondary-container);
+    --np-icon-button-icon-size: 20px;
+    --np-button-icon-size: 20px;
 }
 
 :root[theme='light'] {
@@ -64,13 +68,19 @@ body {
     --color-outline: var(--np-color-outline);
 }
 
+/* Controls use one 8px radius. Pills stay on search, switches and icon buttons. */
+:root .np-button.round,
+:root .np-button.round:is(:active, .pressed) {
+    border-radius: 8px;
+}
+
 @layer components {
     .workspace-heading {
-        @apply flex min-h-13 items-start justify-between gap-5 max-[520px]:min-h-14.5;
+        @apply flex h-10 items-center justify-between gap-4;
     }
 
     .workspace-heading h1 {
-        @apply m-0 text-2xl font-normal tracking-tight max-[520px]:text-[25px];
+        @apply m-0 text-2xl leading-8 font-normal max-[520px]:text-xl;
     }
 }
 

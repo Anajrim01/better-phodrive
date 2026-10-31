@@ -5,5 +5,5 @@ export function folderCount(files: number, subfolders: number): string {
     if (subfolders > 0)
         parts.push(`${subfolders} ${subfolders === 1 ? 'subfolder' : 'subfolders'}`);
 
-    return parts.join(', ');
+    return parts.join(' · ');
 }

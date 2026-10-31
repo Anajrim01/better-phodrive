@@ -4,8 +4,8 @@
     import { CircularProgress, IconButton, ListItem } from 'noph-ui';
     import type { UploadJob } from '#browser/files';
     import { uploadJobDetail } from '#browser/upload-status';
-    import IconDescription from '~icons/material-symbols/description';
-    import IconCheckCircle from '~icons/material-symbols/check-circle';
+    import IconDescription from '~icons/material-symbols/description-outline';
+    import IconCheckCircle from '~icons/material-symbols/check-circle-outline';
     import IconError from '~icons/material-symbols/error-outline';
     import IconRetry from '~icons/material-symbols/replay';
 
@@ -29,12 +29,12 @@
 
 <ListItem class="upload-status-row" variant="text" aria-label={job.name}>
     {#snippet start()}
-        <IconDescription aria-hidden="true" class="size-5 shrink-0 text-primary" />
+        <IconDescription aria-hidden="true" class="size-5 shrink-0 text-muted" />
     {/snippet}
     <p class="truncate text-sm" title={job.name}>{job.name}</p>
     {#snippet supportingText()}
         <p
-            class="text-xs"
+            class="text-xs tabular-nums"
             class:text-error={job.status === UploadJobStatus.Error}
             class:text-muted={job.status !== UploadJobStatus.Error}
             role={job.status === UploadJobStatus.Error ? 'alert' : 'status'}
@@ -52,7 +52,7 @@
                 --np-circular-progress-size="24px"
             />
         {:else if job.status === UploadJobStatus.Error}
-            <IconError aria-hidden="true" class="size-6 shrink-0 text-error" />
+            <IconError aria-hidden="true" class="size-5 shrink-0 text-error" />
             <IconButton
                 size="s"
                 aria-label={`Retry ${job.name}`}
@@ -63,7 +63,7 @@
                 <IconRetry aria-hidden="true" />
             </IconButton>
         {:else if job.status === UploadJobStatus.Complete}
-            <IconCheckCircle aria-hidden="true" class="size-6 shrink-0 text-success" />
+            <IconCheckCircle aria-hidden="true" class="size-5 shrink-0 text-success" />
         {/if}
     {/snippet}
 </ListItem>
@@ -72,7 +72,7 @@
     :global(:root .upload-status-row.np-item) {
         --np-item-container-height: 64px;
         padding: 12px 16px;
-        gap: 16px;
+        gap: 12px;
     }
     :global(:root .upload-status-row.np-item .np-item-text) {
         min-width: 0;

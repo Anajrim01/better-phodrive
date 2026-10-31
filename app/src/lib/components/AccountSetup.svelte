@@ -39,9 +39,9 @@
     );
 </script>
 
-<div class="max-w-162.5">
+<div class="mt-6 max-w-162">
     <Card type="text" variant="outlined" class="account-setup-card">
-        <div class="p-7 max-[520px]:p-4">
+        <div class="p-6 max-[520px]:p-4">
             <h2 class="text-xl font-medium">Connect to Google Photos</h2>
             <p class="mt-2 text-sm leading-normal text-muted">
                 Enter your Google email and an OAuth2 token. Phodrive exchanges it locally and saves
@@ -49,7 +49,7 @@
             </p>
 
             <form
-                class="mt-7 grid gap-4.5"
+                class="mt-6 grid gap-4"
                 novalidate
                 onsubmit={(event) => {
                     event.preventDefault();
@@ -90,7 +90,7 @@
                         required
                     />
                 </div>
-                <div class="flex flex-wrap items-center gap-2.5">
+                <div class="flex flex-wrap items-center gap-2">
                     <Button
                         type="submit"
                         variant="filled"
@@ -116,9 +116,9 @@
         </div>
     </Card>
 
-    <div class="px-1 py-7">
+    <div class="pt-8">
         <h2 class="text-xl font-medium">Get your OAuth2 token</h2>
-        <ol class="mt-3.75 grid list-decimal gap-2.25 pl-5 text-sm leading-relaxed text-muted">
+        <ol class="mt-3 grid list-decimal gap-2 pl-5 text-sm leading-relaxed text-muted">
             <li>
                 Open <Button
                     class="setup-link"
@@ -130,12 +130,12 @@
                 > and sign in.
             </li>
             <li>
-                In developer tools, open Application → Cookies →
-                <code>https://accounts.google.com</code> and copy the cookie value starting with
-                <code>oauth2_4/…</code>.
+                In developer tools, open Application, then Cookies, then
+                <code>https://accounts.google.com</code>. Copy the cookie value that starts with
+                <code>oauth2_4/</code>.
             </li>
             <li>
-                Paste it above with your email. An existing <code>aas_et/…</code> token also works.
+                Paste it above with your email. A token that starts with <code>aas_et/</code> also works.
             </li>
         </ol>
     </div>

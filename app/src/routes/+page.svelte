@@ -105,7 +105,7 @@
     />
 
     <main
-        class="mr-4 mb-5 flex min-w-0 flex-col rounded-[22px] bg-panel px-7 pt-6.5 pb-12 text-text max-[800px]:mx-2 max-[800px]:mb-2 max-[800px]:px-4.5 max-[800px]:pt-5.5 max-[800px]:pb-[calc(96px+env(safe-area-inset-bottom,0px))]"
+        class="mr-4 mb-4 flex min-w-0 flex-col rounded-[20px] bg-panel px-6 pt-6 pb-12 text-text max-[800px]:mx-2 max-[800px]:mb-2 max-[800px]:px-4 max-[800px]:pt-4 max-[800px]:pb-[calc(96px+env(safe-area-inset-bottom,0px))]"
     >
         {#if drive.ready && view === AppView.Settings}
             <SettingsPanel
@@ -176,7 +176,9 @@
                                 </button>
                             {/each}
                         </span>
-                        <span class="text-subtle">({drive.library.visibleFiles.length})</span>
+                        <span class="text-subtle tabular-nums"
+                            >({drive.library.visibleFiles.length})</span
+                        >
                     </h1>
                     <LayoutToggle bind:layout={drive.settings.fileLayout} />
                 </div>
@@ -250,15 +252,17 @@
         padding: 4px 0;
         overflow: hidden;
         border-radius: 8px;
-        color: var(--app-subtle);
+        color: var(--app-muted);
         font: inherit;
         text-overflow: ellipsis;
         white-space: nowrap;
+        transition: color var(--np-motion-standard-fast-effects);
     }
 
     .crumb:hover {
         color: var(--app-text);
-        box-shadow: 0 0 0 4px var(--app-hover);
+        text-decoration: underline;
+        text-underline-offset: 6px;
     }
 
     .crumb.current {
@@ -266,7 +270,7 @@
     }
 
     .crumb:focus-visible {
-        outline: 2px solid var(--app-primary);
+        outline: 3px solid var(--app-primary);
         outline-offset: 2px;
     }
 

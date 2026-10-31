@@ -71,7 +71,7 @@
         {disabled}
         onclick={() => (connected ? picker.click() : onconnect())}
     >
-        {#snippet icon()}<IconAdd aria-hidden="true" class="size-6" />{/snippet}
+        {#snippet icon()}<IconAdd aria-hidden="true" class="size-5" />{/snippet}
     </ExtendedFab>
 
     <input
@@ -151,22 +151,21 @@
             {#snippet icon()}<IconSettings aria-hidden="true" class="size-5 shrink-0" />{/snippet}
         </NavigationDrawerItem>
 
-        <div class="storage-section">
-            {#if connected}
-                <StorageSummary {stats} hasMore={statsPartial} />
-            {/if}
-        </div>
+        {#if connected}
+            <StorageSummary {stats} hasMore={statsPartial} />
+        {/if}
     </NavigationDrawer>
 
     <div class="mobile-upload">
         <Fab
+            class="upload-fab"
             label="Upload"
             variant="secondary-container"
             shape="square"
             {disabled}
             onclick={() => (connected ? picker.click() : onconnect())}
         >
-            {#snippet icon()}<IconAdd aria-hidden="true" class="size-6" />{/snippet}
+            {#snippet icon()}<IconAdd aria-hidden="true" class="size-5" />{/snippet}
         </Fab>
     </div>
 </aside>
@@ -180,26 +179,48 @@
         margin-bottom: 16px;
     }
 
-    .storage-section {
-        padding-top: 8px;
+    .folder-upload :global(.np-button) {
+        --np-button-padding: 16px;
+        --np-button-gap: 12px;
+        --np-text-button-label-text-color: var(--app-muted);
     }
 
     :global(.mobile-navigation) {
         --np-navigation-drawer-width: min(320px, calc(100vw - 56px));
-        --np-navigation-drawer-padding: max(16px, env(safe-area-inset-top, 0px)) 12px 24px;
+        --np-navigation-drawer-padding: max(16px, env(safe-area-inset-top, 0px)) 16px 24px;
         --np-color-secondary-container: var(--app-selected);
         --np-color-on-secondary-container: var(--app-selected-text);
+        --np-navigation-drawer-item-container-shape: 8px;
+    }
+
+    :global(.mobile-navigation .np-navigation-drawer-item) {
+        height: 48px;
+        padding: 0 16px;
+        gap: 12px;
+    }
+
+    :global(:root .upload-fab.np-fab) {
+        --np-fab-container-color: var(--app-panel);
+        --np-fab-icon-color: var(--app-text);
+        --np-fab-shape: 16px;
+        --np-fab-elevation: inset 0 0 0 1px var(--app-border-strong);
+        --np-icon-size: 20px;
+    }
+
+    :global(:root .upload-button.np-extended-fab:disabled),
+    :global(:root .upload-fab.np-fab:disabled) {
+        box-shadow: inset 0 0 0 1px var(--app-border-strong);
     }
 
     :global(:root .upload-button.np-extended-fab) {
         height: 56px;
         min-width: 110px;
-        margin-bottom: 12px;
-        border: 1px solid var(--app-border);
+        margin-bottom: 8px;
         --np-fab-container-color: var(--app-panel);
         --np-fab-icon-color: var(--app-text);
-        --np-fab-shape: 18px;
-        --np-fab-elevation: var(--np-elevation-1);
+        --np-fab-shape: 16px;
+        --np-fab-elevation: inset 0 0 0 1px var(--app-border-strong);
+        --np-icon-size: 20px;
     }
 
     :global(:root .drive-navigation.np-navigation-drawer-container) {
@@ -210,6 +231,7 @@
         --np-navigation-drawer-background: transparent;
         --np-color-secondary-container: var(--app-selected);
         --np-color-on-secondary-container: var(--app-selected-text);
+        --np-navigation-drawer-item-container-shape: 8px;
     }
 
     :global(:root .drive-navigation.np-navigation-drawer-container .np-navigation-drawer) {
@@ -218,8 +240,8 @@
     :global(:root .drive-navigation.np-navigation-drawer-container .np-navigation-drawer-item) {
         height: 40px;
         width: 100%;
-        padding: 0 18px 0 24px;
-        gap: 16px;
+        padding: 0 16px;
+        gap: 12px;
     }
 
     @media (width <= 800px), (hover: none), (pointer: coarse) {

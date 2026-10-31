@@ -50,7 +50,7 @@
     }: Props = $props();
 </script>
 
-<section class="flex min-h-0 flex-1 flex-col" aria-labelledby="files-heading">
+<section class="mt-6 flex min-h-0 flex-1 flex-col gap-6" aria-labelledby="files-heading">
     <FolderTiles {folders} {disabled} onopen={onopenfolder} />
 
     {#if files.length}
@@ -58,7 +58,7 @@
             <FileList {files} bind:sort {disabled} {action} {showFolder} {ondownload} {ondelete} />
         {:else}
             <ul
-                class="mt-4 grid list-none grid-cols-[repeat(auto-fill,minmax(min(100%,220px),1fr))] gap-4 p-0"
+                class="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(min(100%,220px),1fr))] gap-4 p-0"
             >
                 {#each files as item (fileKey(item))}
                     <li
@@ -84,9 +84,9 @@
             {#if loading}
                 <LoadingIndicator aria-label="Loading Google Photos files" />
             {:else if loadFailed}
-                <p>Use Refresh to try loading your files again.</p>
+                <p>Use Refresh to load your files again</p>
             {:else if filtered && hasFiles}
-                <p>No files match your search or filters.</p>
+                <p>No files match your search or filters</p>
             {:else}
                 <EmptyFiles />
             {/if}
@@ -94,7 +94,7 @@
     {/if}
 
     {#if hasMore}
-        <div class="mt-6 flex justify-center">
+        <div class="flex justify-center">
             <Button
                 variant="outlined"
                 {loading}

@@ -8,7 +8,7 @@
     import lightLogo from '#assets/favicon-light.svg';
     import IconRefresh from '~icons/material-symbols/refresh';
     import IconMenu from '~icons/material-symbols/menu';
-    import IconPerson from '~icons/material-symbols/person';
+    import IconPerson from '~icons/material-symbols/person-outline';
 
     interface Props {
         search?: string;
@@ -68,7 +68,7 @@
             </IconButton>
         </div>
         <div
-            class="flex items-center gap-3 text-[22px] whitespace-nowrap text-subtle max-[800px]:hidden"
+            class="flex items-center gap-3 text-xl font-medium whitespace-nowrap text-text max-[800px]:hidden"
             aria-label="Phodrive"
         >
             <img src={logo} alt="" class="size-10 max-[520px]:size-8" />
@@ -154,9 +154,9 @@
 
     :global(:root .shell-header.np-app-bar .np-app-bar-row) {
         display: grid;
-        grid-template-columns: 256px minmax(240px, 720px) 1fr;
-        gap: 16px;
-        padding-inline: 24px;
+        grid-template-columns: 240px minmax(240px, 720px) 1fr;
+        gap: 24px;
+        padding-inline: 16px;
     }
 
     :global(:root .shell-header.np-app-bar .np-app-bar-leading),
@@ -164,6 +164,7 @@
         min-width: 0;
         width: 100%;
         margin: 0;
+        padding-inline: 0;
     }
 
     :global(:root .shell-header.np-app-bar .np-app-bar-trailing) {
@@ -173,6 +174,8 @@
 
     :global(:root .profile-button) {
         anchor-name: --account-button;
+        --np-filled-icon-button-container-color: var(--app-avatar);
+        --np-filled-icon-button-icon-color: var(--app-avatar-text);
     }
 
     :global(:root .drive-search.np-search) {

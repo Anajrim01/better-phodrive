@@ -32,14 +32,14 @@
     ];
 
     const SORT_OPTIONS: readonly { value: FileSort; label: string }[] = [
-        { value: FileSort.NameAscending, label: 'Name A–Z' },
-        { value: FileSort.NameDescending, label: 'Name Z–A' },
+        { value: FileSort.NameAscending, label: 'Name A to Z' },
+        { value: FileSort.NameDescending, label: 'Name Z to A' },
         { value: FileSort.ModifiedDescending, label: 'Newest first' },
         { value: FileSort.ModifiedAscending, label: 'Oldest first' }
     ];
 </script>
 
-<div class="flex min-h-13.5 flex-wrap items-start gap-2 pt-1 pb-3" aria-label="File filters">
+<div class="mt-4 flex min-h-8 flex-wrap items-center gap-2" aria-label="File filters">
     <FilterChip
         label="Type"
         ariaLabel="Filter by file type"

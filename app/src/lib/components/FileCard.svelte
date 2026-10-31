@@ -5,7 +5,6 @@
     import type { FileGroup } from '@madkarmaa/phodrive-core/files';
     import { fileType } from '@madkarmaa/phodrive-core/files';
     import FileActions from '#components/FileActions.svelte';
-    import IconDescription from '~icons/material-symbols/description';
     import IconDescriptionOutline from '~icons/material-symbols/description-outline';
 
     interface Props {
@@ -21,7 +20,7 @@
 
 <Card type="text" variant="filled" class="file-card">
     <div class="flex h-12 min-w-0 items-center gap-3 px-3">
-        <IconDescription aria-hidden="true" class="size-5 shrink-0 text-primary" />
+        <IconDescriptionOutline aria-hidden="true" class="size-5 shrink-0 text-muted" />
         <h3 class="min-w-0 flex-1 truncate text-sm font-medium" title={item.name}>{item.name}</h3>
     </div>
 
@@ -29,10 +28,10 @@
         class="file-preview mx-2 mb-2 grid place-items-center rounded bg-preview"
         aria-hidden="true"
     >
-        <div class="relative size-22 text-primary">
+        <div class="relative size-22 text-muted">
             <IconDescriptionOutline class="size-22" />
             <span
-                class="absolute top-13 left-3 w-16 truncate rounded bg-preview text-center text-xs font-bold"
+                class="absolute top-13 left-3 w-16 truncate rounded bg-preview text-center text-xs font-medium"
                 >{fileType(item.name)}</span
             >
         </div>

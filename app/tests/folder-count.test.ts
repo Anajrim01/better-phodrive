@@ -12,8 +12,8 @@ test('a folder with only subfolders never shows a zero file part', () => {
 });
 
 test('a folder with both shows files then subfolders', () => {
-    expect(folderCount(1, 1)).toBe('1 file, 1 subfolder');
-    expect(folderCount(4, 3)).toBe('4 files, 3 subfolders');
+    expect(folderCount(1, 1)).toBe('1 file · 1 subfolder');
+    expect(folderCount(4, 3)).toBe('4 files · 3 subfolders');
 });
 
 test('a folder with neither renders nothing', () => {

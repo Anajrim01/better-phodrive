@@ -9,8 +9,8 @@
     </div>
     <h3>{APP_MOTTO}</h3>
     <p>
-        <span class="desktop-hint">Drag your files here or use Upload to add your first file.</span>
-        <span class="mobile-hint">Use Upload to add your first file.</span>
+        <span class="desktop-hint">Drag files here or use Upload to add your first file</span>
+        <span class="mobile-hint">Use Upload to add your first file</span>
     </p>
 </div>
 
@@ -26,7 +26,7 @@
     .cat-illustration {
         width: 200px;
         max-width: 100%;
-        margin-bottom: 28px;
+        margin-bottom: 24px;
     }
 
     .cat-illustration img {
@@ -69,7 +69,7 @@
         }
 
         h3 {
-            font-size: 22px;
+            font-size: 20px;
             line-height: 28px;
         }
 

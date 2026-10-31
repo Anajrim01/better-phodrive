@@ -5,7 +5,7 @@
     import { fileKey, type FileGroup, type FileAction } from '@madkarmaa/phodrive-core/files';
     import LocalizedDate from '#components/LocalizedDate.svelte';
     import FileActions from '#components/FileActions.svelte';
-    import IconDescription from '~icons/material-symbols/description';
+    import IconDescription from '~icons/material-symbols/description-outline';
     import IconArrowUp from '~icons/material-symbols/arrow-upward';
     import IconArrowDown from '~icons/material-symbols/arrow-downward';
 
@@ -95,7 +95,7 @@
             <tr>
                 <td>
                     <div class="file-name">
-                        <IconDescription aria-hidden="true" class="size-5 shrink-0 text-primary" />
+                        <IconDescription aria-hidden="true" class="size-5 shrink-0 text-muted" />
                         <div class="min-w-0">
                             <span class="block truncate font-medium" title={item.name}
                                 >{item.name}</span
@@ -121,9 +121,7 @@
                 <td class="size-column">
                     {#if item.complete}
                         {prettyBytes(item.chunks.reduce((sum, chunk) => sum + chunk.size, 0))}
-                    {:else}<span aria-label="File size unavailable until all chunks are loaded"
-                            >—</span
-                        >{/if}
+                    {:else}<span title="Available once all chunks are loaded">Unknown</span>{/if}
                 </td>
                 <td class="actions-column">
                     <FileActions
@@ -145,25 +143,34 @@
         width: 100%;
         table-layout: fixed;
         border-collapse: collapse;
-        margin-top: 16px;
         font-size: 14px;
     }
 
     th,
     td {
         height: 48px;
-        border-bottom: 1px solid var(--np-color-outline-variant);
+        border-bottom: 1px solid var(--app-border);
         padding: 4px 12px;
         text-align: start;
         vertical-align: middle;
     }
 
     th {
+        height: 40px;
         font-weight: 500;
     }
 
+    .mobile-date {
+        font-variant-numeric: tabular-nums;
+    }
+
     td:not(:first-child) {
-        color: var(--np-color-on-surface-variant);
+        color: var(--app-muted);
+        font-variant-numeric: tabular-nums;
+    }
+
+    tbody tr {
+        transition: background-color var(--np-motion-standard-fast-effects);
     }
 
     tbody tr:hover,
@@ -183,6 +190,8 @@
     }
     .size-column {
         width: 100px;
+        font-variant-numeric: tabular-nums;
+        text-align: end;
         white-space: nowrap;
     }
     .actions-column {
@@ -196,7 +205,6 @@
     .file-list :global(.column-sort) {
         --np-button-padding: 12px;
         --np-button-gap: 4px;
-        --np-button-icon-size: 18px;
         --np-text-button-label-text-color: var(--np-color-on-surface);
         margin-inline: -12px;
         font-size: 14px;

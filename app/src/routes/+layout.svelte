@@ -13,7 +13,7 @@
 </script>
 
 <svelte:head>
-    <title>{APP_NAME} - {APP_MOTTO}</title>
+    <title>{APP_NAME} · {APP_MOTTO}</title>
 </svelte:head>
 
 {@render children()}

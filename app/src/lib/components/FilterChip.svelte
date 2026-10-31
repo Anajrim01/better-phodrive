@@ -128,7 +128,7 @@
         anchor-scope: --filter-chip;
         --np-button-shape: 8px;
         --np-button-gap: 8px;
-        --np-button-icon-size: 24px;
+        --np-button-icon-size: 20px;
         --np-outlined-button-outline-color: var(--np-color-outline);
         --np-outlined-button-label-text-color: var(--np-color-on-surface-variant);
         --np-tonal-button-container-color: var(--app-selected);
@@ -168,10 +168,14 @@
         position-anchor: --filter-chip;
         min-width: 210px;
         max-width: min(320px, calc(100vw - 24px));
-        --np-menu-container-color: var(--app-panel);
+        --np-menu-container-color: var(--app-menu);
         --np-menu-container-shape: 8px;
         --np-menu-position-area: bottom span-right;
         --np-menu-justify-self: start;
+    }
+
+    :global(:root .filter-menu.np-menu-container[popover]) {
+        border: 1px solid var(--np-color-outline);
     }
 
     .filter-chip :global(.filter-menu .np-item) {

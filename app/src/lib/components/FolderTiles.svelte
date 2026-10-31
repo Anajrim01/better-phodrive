@@ -1,7 +1,7 @@
 <script lang="ts">
     import type { FolderEntry } from '@madkarmaa/phodrive-core/files';
     import { folderCount } from '#lib/folders';
-    import IconFolder from '~icons/material-symbols/folder';
+    import IconFolder from '~icons/material-symbols/folder-outline';
 
     interface Props {
         folders: FolderEntry[];
@@ -28,7 +28,7 @@
                         {disabled}
                         onclick={() => onopen(folder.path)}
                     >
-                        <IconFolder aria-hidden="true" class="size-5 shrink-0 text-primary" />
+                        <IconFolder aria-hidden="true" class="size-5 shrink-0 text-muted" />
                         <span class="folder-text">
                             <span class="folder-name" title={folder.name}>{folder.name}</span>
                             <span class="folder-count">
@@ -65,7 +65,15 @@
         font: inherit;
         text-align: start;
         cursor: pointer;
-        transition: background-color 120ms;
+        transition:
+            background-color var(--np-motion-standard-fast-effects),
+            transform var(--np-motion-standard-fast-effects);
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+        .folder-tile:active:not(:disabled) {
+            transform: scale(0.98);
+        }
     }
 
     .folder-tile:hover:not(:disabled) {
@@ -73,7 +81,7 @@
     }
 
     .folder-tile:focus-visible {
-        outline: 2px solid var(--app-primary);
+        outline: 3px solid var(--app-primary);
         outline-offset: 2px;
     }
 
@@ -93,6 +101,7 @@
         overflow: hidden;
         font-size: 14px;
         font-weight: 500;
+        line-height: 20px;
         text-overflow: ellipsis;
         white-space: nowrap;
     }
@@ -100,5 +109,6 @@
     .folder-count {
         color: var(--app-muted);
         font-size: 12px;
+        line-height: 16px;
     }
 </style>
