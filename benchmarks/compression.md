@@ -36,9 +36,14 @@ identifier to carry or migrate.
 
 Higher brotli qualities saved little more on these samples and cost two to four
 times the CPU, so the server stays at quality 1. Chunks under 4 KiB stay raw
-because the saved bytes are negligible next to the codec call. A 256 KiB probe
-decides whether to compress the rest of a larger chunk; incompressible media
-exits after the probe instead of compressing the full 195 MB.
+because the saved bytes are negligible next to the codec call. An 85 KiB start
+probe decides whether to stream raw or buffer for compression. The buffered path
+checks 85 KiB at the start, middle and end before compressing the full 195 MB,
+and falls back to raw when the full result misses 5%.
+
+Brotli output is deterministic for a fixed Node and brotli version. A Node or
+brotli upgrade can change the stored bytes and SHA-1, so the same raw chunk may
+be stored again instead of deduplicating after an upgrade.
 
 ## Why a threshold
 
@@ -71,7 +76,9 @@ session artifacts.
 Throughput counts original input bytes, so a compressing upload moves fewer
 bytes over the network than the number suggests. `bmp-stream` isolates the cost:
 encoding a 195 MB repetitive chunk now takes 308 ms instead of 217 ms, because
-the server compresses and then hashes the stored bytes.
+the server compresses and then hashes the stored bytes. With
+`PHODRIVE_COMPRESSION=off`, the same case takes 222 ms and peaks at 1012 MiB
+instead of 1193 MiB, which is the streaming raw path.
 
 Peak process RSS rises where 195 MB chunks are buffered for compression:
 `upload-large` 1271.9 to 1760.5 MiB, `upload-boundaries` 2585.0 to 3293.0 MiB,

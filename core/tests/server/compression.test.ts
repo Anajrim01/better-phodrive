@@ -12,20 +12,25 @@ import {
     type SplitHeader
 } from '@madkarmaa/phodrive-core/models';
 import {
-    decodeSplitBmp,
     decodeSplitHeader,
     encodeSplitBmp,
     MAX_CHUNK_PAYLOAD_BYTES
 } from '@madkarmaa/phodrive-core/server/bmp';
+import { decodeSplitBmp } from '../helpers/bmp';
 import {
+    COMPRESSION_ENV,
     COMPRESSION_MIN_BYTES,
     COMPRESSION_MIN_SAVING,
+    compressionSavesEnough,
     compressPayload,
     decompressPayload
 } from '@madkarmaa/phodrive-core/server/compress';
+import { encodeUploadBmp } from '@madkarmaa/phodrive-core/server/upload/bmp';
+import { receiveUpload } from '@madkarmaa/phodrive-core/server/upload/input';
 import { downloadFile } from '@madkarmaa/phodrive-core/server/files';
 import { downloadBmp } from '@madkarmaa/phodrive-core/server/photos';
 import { bmpResponse } from '../helpers/download';
+import { uploadForm } from '../helpers/upload';
 
 vi.mock('@madkarmaa/phodrive-core/server/photos', () => ({
     downloadBmp: vi.fn(),
@@ -41,16 +46,18 @@ function header(
     storedSize: number,
     compressed: boolean,
     fileHash = FILE_HASH,
-    fileId = FILE_ID
+    fileId = FILE_ID,
+    chunkIndex = 0,
+    last = true
 ): SplitHeader {
     return {
         fileHash,
         fileId,
-        chunkIndex: 0,
-        flags: SPLIT_FLAG_LAST | (compressed ? SPLIT_FLAG_COMPRESSED : 0),
+        chunkIndex,
+        flags: (last ? SPLIT_FLAG_LAST : 0) | (compressed ? SPLIT_FLAG_COMPRESSED : 0),
         payloadSize: storedSize,
         originalSize: compressed ? originalSize : undefined,
-        fileName: NAME
+        fileName: chunkIndex === 0 ? NAME : undefined
     };
 }
 
@@ -143,6 +150,75 @@ test('chunks below four kilobytes stay raw even when repetitive', async () => {
     expect(COMPRESSION_MIN_BYTES).toBe(4 * 1024);
     expect(stored.compressed).toBe(false);
     expect(stored.storedSize).toBe(payload.length);
+});
+
+test('the size floor is exact at 4095 and 4096 bytes', async () => {
+    const below = await compressPayload(new Uint8Array(4095).fill(1));
+    const at = await compressPayload(new Uint8Array(4096).fill(1));
+
+    expect(below.unwrap().compressed).toBe(false);
+    expect(at.unwrap().compressed).toBe(true);
+});
+
+test('the saving threshold is exact at five percent', () => {
+    expect(compressionSavesEnough(100, 95)).toBe(true);
+    expect(compressionSavesEnough(100, 96)).toBe(false);
+    expect(compressionSavesEnough(1000, 950)).toBe(true);
+    expect(compressionSavesEnough(1000, 951)).toBe(false);
+});
+
+test('a compressible prefix with a random tail still compresses', async () => {
+    const payload = new Uint8Array(4 * 1024 * 1024);
+    payload.fill(1, 0, payload.length / 2);
+    payload.set(randomBytes(payload.length / 2), payload.length / 2);
+    const fixture = uploadForm(payload);
+    const input = (await receiveUpload(fixture.request())).unwrap();
+    const source = (await encodeUploadBmp(input)).unwrap();
+
+    expect(source.compressed).toBe(true);
+    expect((await source.drain()).isOk()).toBe(true);
+    await input.cancel();
+});
+
+test('the buffered codec sees a compressible tail after a random prefix', async () => {
+    const payload = new Uint8Array(4 * 1024 * 1024);
+    payload.set(randomBytes(payload.length / 2), 0);
+    payload.fill(1, payload.length / 2);
+    const result = await compressPayload(payload);
+
+    expect(result.unwrap().compressed).toBe(true);
+});
+
+test('PHODRIVE_COMPRESSION=off streams the raw BMP and keeps the browser hash', async () => {
+    const previous = process.env[COMPRESSION_ENV];
+    process.env[COMPRESSION_ENV] = 'off';
+
+    try {
+        const payload = new Uint8Array(64 * 1024).fill(7);
+        const fixture = uploadForm(payload);
+        const input = (await receiveUpload(fixture.request())).unwrap();
+        const source = (await encodeUploadBmp(input)).unwrap();
+
+        expect(source.compressed).toBe(false);
+        expect(source.length).toBe(input.bmp.totalSize);
+        expect(source.sha1).toBe(fixture.metadata.sha1);
+        expect(source.drain).toBeTypeOf('function');
+        expect((await source.drain()).isOk()).toBe(true);
+        await input.cancel();
+    } finally {
+        if (previous === undefined) delete process.env[COMPRESSION_ENV];
+        else process.env[COMPRESSION_ENV] = previous;
+    }
+});
+
+test('a truncated brotli stream is rejected with a decompression error', async () => {
+    const payload = new Uint8Array(64 * 1024).fill(3);
+    const { stored } = await encoded(payload);
+    const truncated = stored.data.subarray(0, stored.data.length - 1);
+
+    const result = await decompressPayload(truncated, stored.originalSize);
+    expect(result.isErr()).toBe(true);
+    if (result.isErr()) expect(result.unwrapErr().code).toBe('DECOMPRESSION_FAILED');
 });
 
 test('the flags bitfield requires originalSize exactly when compression is set', () => {
@@ -250,6 +326,217 @@ test('a compressed chunk downloads as the original bytes', async () => {
 
     try {
         const downloaded = await downloadFile(input);
+        const bytes = await downloaded.unwrap().arrayBuffer();
+
+        expect(Buffer.from(bytes)).toEqual(Buffer.from(original));
+    } finally {
+        vi.mocked(downloadBmp).mockReset();
+    }
+});
+
+test('a corrupt compressed chunk fails the download instead of writing short bytes', async () => {
+    const original = new Uint8Array(1024 * 1024);
+    for (let index = 0; index < original.length; index++) original[index] = index % 251;
+    const fileHash = createHash('sha256').update(original).digest('hex');
+
+    const { stored, bmp } = await encoded(original, fileHash, fileHash);
+    expect(stored.compressed).toBe(true);
+
+    const payloadOffset = decodeSplitHeader(bmp, bmp.length).unwrap().payloadOffset;
+    bmp[payloadOffset + 10] ^= 0xff;
+    const sha1 = createHash('sha1').update(bmp).digest('hex');
+    const chunk: RemoteBmp = {
+        fileHash,
+        fileId: fileHash,
+        chunkIndex: 0,
+        isLast: true,
+        originalName: NAME,
+        size: original.length,
+        storedSize: stored.storedSize,
+        compressed: true,
+        at: 1,
+        mediaKey: 'media-key',
+        sha1
+    };
+    const input: FileRequest = {
+        action: FileActionKind.Download,
+        email: 'test@example.com',
+        token: 'aas_et/test',
+        name: NAME,
+        fileHash,
+        fileId: fileHash,
+        chunks: [chunk],
+        workers: 1
+    };
+    vi.mocked(downloadBmp).mockImplementation(() =>
+        Ok(bmpResponse(bmp)).andThenAsync(async (response) => Ok(response))
+    );
+
+    try {
+        const downloaded = await downloadFile(input);
+
+        expect(downloaded.isOk()).toBe(true);
+        if (downloaded.isOk())
+            await expect(downloaded.unwrap().arrayBuffer()).rejects.toMatchObject({
+                code: 'DECOMPRESSION_FAILED'
+            });
+    } finally {
+        vi.mocked(downloadBmp).mockReset();
+    }
+});
+
+test('a truncated brotli stream fails through the download reader', async () => {
+    const original = new Uint8Array(64 * 1024).fill(3);
+    const fileHash = createHash('sha256').update(original).digest('hex');
+    const compressed = (await compressPayload(original)).unwrap();
+    const truncated = compressed.data.subarray(0, compressed.data.length - 1);
+    const split = header(original.length, truncated.length, true, fileHash, fileHash);
+    const bmp = encodeSplitBmp(truncated, split).unwrap();
+    const sha1 = createHash('sha1').update(bmp).digest('hex');
+    const chunk: RemoteBmp = {
+        fileHash,
+        fileId: fileHash,
+        chunkIndex: 0,
+        isLast: true,
+        originalName: NAME,
+        size: original.length,
+        storedSize: truncated.length,
+        compressed: true,
+        at: 1,
+        mediaKey: 'truncated',
+        sha1
+    };
+    vi.mocked(downloadBmp).mockImplementation(() =>
+        Ok(bmpResponse(bmp)).andThenAsync(async (response) => Ok(response))
+    );
+
+    try {
+        const downloaded = await downloadFile({
+            action: FileActionKind.Download,
+            email: 'test@example.com',
+            token: 'aas_et/test',
+            name: NAME,
+            fileHash,
+            fileId: fileHash,
+            chunks: [chunk],
+            workers: 1
+        });
+
+        expect(downloaded.isOk()).toBe(true);
+        if (downloaded.isOk())
+            await expect(downloaded.unwrap().arrayBuffer()).rejects.toMatchObject({
+                code: 'DECOMPRESSION_FAILED'
+            });
+    } finally {
+        vi.mocked(downloadBmp).mockReset();
+    }
+});
+
+test('a stream that expands past the header size fails instead of growing', async () => {
+    const expanded = new Uint8Array(64 * 1024).fill(4);
+    const compressed = (await compressPayload(expanded)).unwrap();
+    const fileHash = createHash('sha256').update(new Uint8Array(1024)).digest('hex');
+    const split = header(1024, compressed.storedSize, true, fileHash, fileHash);
+    const bmp = encodeSplitBmp(compressed.data, split).unwrap();
+    const sha1 = createHash('sha1').update(bmp).digest('hex');
+    const chunk: RemoteBmp = {
+        fileHash,
+        fileId: fileHash,
+        chunkIndex: 0,
+        isLast: true,
+        originalName: NAME,
+        size: 1024,
+        storedSize: compressed.storedSize,
+        compressed: true,
+        at: 1,
+        mediaKey: 'expanded',
+        sha1
+    };
+    vi.mocked(downloadBmp).mockImplementation(() =>
+        Ok(bmpResponse(bmp)).andThenAsync(async (response) => Ok(response))
+    );
+
+    try {
+        const downloaded = await downloadFile({
+            action: FileActionKind.Download,
+            email: 'test@example.com',
+            token: 'aas_et/test',
+            name: NAME,
+            fileHash,
+            fileId: fileHash,
+            chunks: [chunk],
+            workers: 1
+        });
+
+        expect(downloaded.isOk()).toBe(true);
+        if (downloaded.isOk())
+            await expect(downloaded.unwrap().arrayBuffer()).rejects.toMatchObject({
+                code: 'DECOMPRESSION_FAILED'
+            });
+    } finally {
+        vi.mocked(downloadBmp).mockReset();
+    }
+});
+
+test('a mixed file downloads one compressed chunk and one raw chunk', async () => {
+    const first = new Uint8Array(1024 * 1024).fill(5);
+    const second = new Uint8Array(randomBytes(1024 * 1024));
+    const original = new Uint8Array(first.length + second.length);
+    original.set(first);
+    original.set(second, first.length);
+    const fileHash = createHash('sha256').update(original).digest('hex');
+
+    const chunks: RemoteBmp[] = [];
+    const bmps = new Map<string, Uint8Array>();
+
+    for (const [index, payload] of [first, second].entries()) {
+        const stored = (await compressPayload(payload)).unwrap();
+        const split = header(
+            payload.length,
+            stored.storedSize,
+            stored.compressed,
+            fileHash,
+            fileHash,
+            index,
+            index === 1
+        );
+        const bmp = encodeSplitBmp(stored.data, split).unwrap();
+        const mediaKey = `mixed-${index}`;
+        bmps.set(mediaKey, bmp);
+        chunks.push({
+            fileHash,
+            fileId: fileHash,
+            chunkIndex: index,
+            isLast: index === 1,
+            originalName: index === 0 ? NAME : undefined,
+            size: payload.length,
+            storedSize: stored.storedSize,
+            compressed: stored.compressed,
+            at: 1,
+            mediaKey,
+            sha1: createHash('sha1').update(bmp).digest('hex')
+        });
+    }
+
+    expect(chunks[0].compressed).toBe(true);
+    expect(chunks[1].compressed).toBe(false);
+    vi.mocked(downloadBmp).mockImplementation((_email, _token, mediaKey) => {
+        const bmp = bmps.get(mediaKey)!;
+
+        return Ok(bmpResponse(bmp)).andThenAsync(async (response) => Ok(response));
+    });
+
+    try {
+        const downloaded = await downloadFile({
+            action: FileActionKind.Download,
+            email: 'test@example.com',
+            token: 'aas_et/test',
+            name: NAME,
+            fileHash,
+            fileId: fileHash,
+            chunks,
+            workers: 1
+        });
         const bytes = await downloaded.unwrap().arrayBuffer();
 
         expect(Buffer.from(bytes)).toEqual(Buffer.from(original));

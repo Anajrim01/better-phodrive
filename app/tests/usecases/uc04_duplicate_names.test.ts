@@ -10,11 +10,8 @@ import {
 import { planUpload, uploadFiles } from '@madkarmaa/phodrive-core/server/upload';
 import { receiveUpload } from '@madkarmaa/phodrive-core/server/upload/input';
 import * as photos from '@madkarmaa/phodrive-core/server/photos';
-import {
-    decodeSplitBmp,
-    encodeSplitBmp,
-    MAX_CHUNK_PAYLOAD_BYTES
-} from '@madkarmaa/phodrive-core/server/bmp';
+import { encodeSplitBmp, MAX_CHUNK_PAYLOAD_BYTES } from '@madkarmaa/phodrive-core/server/bmp';
+import { decodeSplitBmp } from '../../../core/tests/helpers/bmp';
 import { fileIdentity } from '@madkarmaa/phodrive-core/server/chunks';
 import { downloadFile } from '@madkarmaa/phodrive-core/server/files';
 import { uploadForm, photosUploadHarness } from '../../../core/tests/helpers/upload';

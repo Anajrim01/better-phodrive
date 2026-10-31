@@ -335,13 +335,11 @@ async function workload(): Promise<{ run: () => Promise<void> | void; bytes: num
                 const received = await receiveUpload(
                     new Request('http://localhost/api/upload', init)
                 );
-                const response = received.match({
+                return received.match({
                     Ok: uploadStream,
                     Err: (error) =>
                         new Response(JSON.stringify({ error: error.message }), { status: 400 })
                 });
-
-                return response;
             });
             let completed = 0;
             let failed = 0;
@@ -363,7 +361,7 @@ async function workload(): Promise<{ run: () => Promise<void> | void; bytes: num
                 );
             try {
                 const result = await run();
-                assert.ok(result.isOk(), result.isErr() ? result.unwrapErr().message : '');
+                assert.ok(result.isOk());
                 if (name === 'upload-retry') {
                     assert.equal(failed, sources.length);
                     const retried = await run();

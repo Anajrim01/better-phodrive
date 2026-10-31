@@ -2,10 +2,15 @@ import { BMP_ERRORS } from './errors';
 import type { BmpError } from './errors';
 import { Err, Ok, type Result } from 'results-ts';
 import Varint from 'varint';
-import { SplitHeaderSchema, splitHeaderIsCompressed, type SplitHeader } from '../models';
+import {
+    MAX_CHUNK_PAYLOAD_BYTES,
+    SplitHeaderSchema,
+    splitHeaderIsCompressed,
+    type SplitHeader
+} from '../models';
+export { MAX_CHUNK_PAYLOAD_BYTES };
 
 export const MAX_PHOTOS_BMP_BYTES = 200_000_000;
-export const MAX_CHUNK_PAYLOAD_BYTES = 195_000_000;
 export const MAX_SPLIT_HEADER_BYTES = 65_536;
 
 export const BMP_HEADER_BYTES = 54;

@@ -1,7 +1,7 @@
 import { afterEach, expect, test, vi } from 'vitest';
 import { readJson } from '@madkarmaa/phodrive-core/server/request';
 import { parse } from '@madkarmaa/phodrive-core/server/protobuf';
-import { decodeSplitBmp } from '@madkarmaa/phodrive-core/server/bmp';
+import { decodeSplitBmp } from '../../../core/tests/helpers/bmp';
 import { receiveUpload } from '@madkarmaa/phodrive-core/server/upload/input';
 import { encodeUploadBmp } from '@madkarmaa/phodrive-core/server/upload/bmp';
 import { uploadForm } from '../../../core/tests/helpers/upload';

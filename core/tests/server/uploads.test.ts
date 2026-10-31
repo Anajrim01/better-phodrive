@@ -5,7 +5,8 @@ import { receiveUpload } from '@madkarmaa/phodrive-core/server/upload/input';
 import { encodeUploadBmp } from '@madkarmaa/phodrive-core/server/upload/bmp';
 import { uploadFiles, planUpload } from '@madkarmaa/phodrive-core/server/upload';
 import { uploadStream } from '@madkarmaa/phodrive-core/server/upload/stream';
-import { decodeSplitBmp, MAX_CHUNK_PAYLOAD_BYTES } from '@madkarmaa/phodrive-core/server/bmp';
+import { MAX_CHUNK_PAYLOAD_BYTES } from '@madkarmaa/phodrive-core/server/bmp';
+import { decodeSplitBmp } from '../helpers/bmp';
 import {
     UploadEventType,
     UploadStatus,
@@ -71,6 +72,43 @@ test('compressed uploads report stored and original sizes and commit the uploade
     expect(Buffer.from(decodeSplitBmp(stored).unwrap().payload)).toEqual(original);
     expect(chunk.chunk.sha1).not.toBe(fixture.metadata.sha1);
     await input.cancel();
+});
+
+test('a compressed chunk dedupes by the stored hash, not the browser BMP hash', async () => {
+    const original = Buffer.alloc(2_000_000, 24);
+    const harness = photosUploadHarness();
+
+    const upload = async () => {
+        const fixture = uploadForm(original);
+        const input = (await receiveUpload(fixture.request())).unwrap();
+        const events: UploadEvent[] = [];
+        const uploaded = await uploadFiles(input, (event) => events.push(event), harness.fetcher);
+
+        expect(uploaded.isOk()).toBe(true);
+        await input.cancel();
+
+        return { fixture, events };
+    };
+
+    const first = await upload();
+    const firstChunk = first.events.find((event) => event.type === UploadEventType.Chunk);
+    const firstComplete = first.events.find((event) => event.type === UploadEventType.FileComplete);
+    expect(firstChunk?.type).toBe(UploadEventType.Chunk);
+    expect(firstComplete).toMatchObject({ result: { status: UploadStatus.Uploaded } });
+    expect(harness.counts.transfers).toBe(1);
+
+    const second = await upload();
+    const secondChunk = second.events.find((event) => event.type === UploadEventType.Chunk);
+    const secondComplete = second.events.find(
+        (event) => event.type === UploadEventType.FileComplete
+    );
+    expect(secondComplete).toMatchObject({ result: { status: UploadStatus.AlreadyExists } });
+    expect(harness.counts.transfers).toBe(1);
+    expect(harness.counts.commits).toBe(1);
+    if (firstChunk?.type !== UploadEventType.Chunk) throw new Error('Missing first chunk');
+    if (secondChunk?.type !== UploadEventType.Chunk) throw new Error('Missing second chunk');
+    expect(secondChunk.chunk.sha1).toBe(firstChunk.chunk.sha1);
+    expect(first.fixture.metadata.sha1).not.toBe(firstChunk.chunk.sha1);
 });
 
 test('encoder compresses repetitive chunks and hashes the bytes it uploads', async () => {

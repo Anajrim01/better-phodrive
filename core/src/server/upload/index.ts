@@ -33,9 +33,11 @@ export function uploadFiles(
     fetcher?: Fetcher
 ): AsyncResult<void, ServerError> {
     return encodeUploadBmp(input).andThenAsync(async (source) => {
-        // Progress stays on the raw BMP scale so browser job totals match the planned
-        // chunk sizes; compression only makes the bytes on the wire smaller.
+        // Browser job totals are raw plan sizes, so map stored bytes back onto that
+        // scale instead of letting the bar lag and jump at the forced final report.
         const progressTotal = input.bmp.totalSize;
+        const scale = source.length > 0 ? progressTotal / source.length : 1;
+        const scaled = (sent: number) => Math.min(progressTotal, Math.round(sent * scale));
         let lastProgress = 0;
         const report = (completed: number, reused = 0, force = false) => {
             const now = performance.now();
@@ -65,7 +67,7 @@ export function uploadFiles(
                 input.chunkCount
             ),
             source,
-            fetcher ?? photosFetchWithProgress((sent) => report(sent)),
+            fetcher ?? photosFetchWithProgress((sent) => report(scaled(sent))),
             input.signal
         );
 

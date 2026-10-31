@@ -6,7 +6,8 @@ import {
     UploadStatus,
     type UploadEvent
 } from '@madkarmaa/phodrive-core/models';
-import { encodeSplitBmp, decodeSplitBmp } from '@madkarmaa/phodrive-core/server/bmp';
+import { encodeSplitBmp } from '@madkarmaa/phodrive-core/server/bmp';
+import { decodeSplitBmp } from './bmp';
 import { encodeSplitPrefix, MAX_CHUNK_PAYLOAD_BYTES } from '@madkarmaa/phodrive-core/bmp/format';
 import { fileIdentity } from '@madkarmaa/phodrive-core/server/chunks';
 import { bytesField, message, nested, numberField } from '@madkarmaa/phodrive-core/server/protobuf';

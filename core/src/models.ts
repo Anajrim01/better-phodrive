@@ -107,6 +107,7 @@ export const FileNameSchema = z
     .refine((name) => !/[\\/\r\n\0]/.test(name));
 export const MAX_FOLDER_PATH_LENGTH = 512;
 export const MAX_FOLDER_SEGMENT_LENGTH = 255;
+export const MAX_CHUNK_PAYLOAD_BYTES = 195_000_000;
 export const FolderPathSchema = z
     .string()
     .min(1)
@@ -175,8 +176,8 @@ export const SplitHeaderSchema = z
         fileId: Sha256HexSchema,
         chunkIndex: z.int().nonnegative(),
         flags: z.int().min(0).max(SPLIT_FLAGS_MAX),
-        payloadSize: z.int().nonnegative(),
-        originalSize: z.int().nonnegative().optional(),
+        payloadSize: z.int().nonnegative().max(MAX_CHUNK_PAYLOAD_BYTES),
+        originalSize: z.int().nonnegative().max(MAX_CHUNK_PAYLOAD_BYTES).optional(),
         fileName: z.string().min(1).optional(),
         folder: FolderPathSchema.optional()
     })

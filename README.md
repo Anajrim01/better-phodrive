@@ -99,6 +99,14 @@ bunx cross-env PHODRIVE_DEFAULT_REFRESH_INTERVAL_SECONDS=120 PHODRIVE_DEFAULT_CO
 
 For Docker, pass the same variables with `-e`, for example `-e PHODRIVE_DEFAULT_CONCURRENT_WORKERS=4`.
 
+### Compression and memory
+
+The server compresses each chunk with brotli quality 1 when that saves at least 5% of the payload, and stores it raw otherwise. Chunks under 4 KiB stay raw. Set `PHODRIVE_COMPRESSION=off` before starting the server or CLI to stream chunks without compression. This trades storage and bandwidth for lower memory.
+
+The single-chunk 195 MB benchmark peaks at about 1,194 MiB with compression and 1,012 MiB with it off, in 298 ms and 222 ms respectively. The difference is the buffered chunk, which is needed because the BMP header declares the final size before the payload is written. Concurrent chunks multiply that difference.
+
+Brotli output is deterministic for a fixed Node and brotli version. A Node or brotli upgrade can change the stored bytes and SHA-1, so the same raw chunk may be stored again instead of deduplicating after an upgrade.
+
 ## Connect a Google account
 
 1. Open the app at the address shown above for your setup.
