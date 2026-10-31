@@ -99,6 +99,7 @@
         overflow: hidden;
         font-size: 14px;
         font-weight: 500;
+        line-height: 20px;
         text-overflow: ellipsis;
         white-space: nowrap;
     }
@@ -106,5 +107,6 @@
     .folder-count {
         color: var(--app-muted);
         font-size: 12px;
+        line-height: 16px;
     }
 </style>

@@ -156,6 +156,7 @@
     }
 
     th {
+        height: 40px;
         font-weight: 500;
     }
 

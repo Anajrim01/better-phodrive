@@ -201,7 +201,8 @@
     }
 
     :global(:root .upload-fab.np-fab) {
-        border: 1px solid var(--app-border);
+        outline: 1px solid var(--app-border);
+        outline-offset: -1px;
         --np-fab-container-color: var(--app-panel);
         --np-fab-icon-color: var(--app-text);
         --np-fab-shape: 16px;
@@ -213,7 +214,8 @@
         height: 56px;
         min-width: 110px;
         margin-bottom: 8px;
-        border: 1px solid var(--app-border);
+        outline: 1px solid var(--app-border);
+        outline-offset: -1px;
         --np-fab-container-color: var(--app-panel);
         --np-fab-icon-color: var(--app-text);
         --np-fab-shape: 16px;
