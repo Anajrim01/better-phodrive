@@ -61,5 +61,5 @@ test('a throttled group upload marks its owner paused', async () => {
 
     await uploads.upload([new File(['x'], 'x.bin')]);
 
-    expect(markPaused).toHaveBeenCalledWith(FIRST);
+    expect(markPaused).toHaveBeenCalledWith(FIRST, expect.any(Number));
 });

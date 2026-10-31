@@ -103,6 +103,7 @@
         groups={drive.groupSettings.groups}
         uploadTarget={drive.groupMode.uploadTarget}
         currentEmail={drive.selectedEmail}
+        unavailableTarget={drive.groupMode.unavailableTargetName}
         onnavigate={(nextView) => (view = nextView)}
         onuploadtarget={(id) => drive.groupMode.choose(id)}
         onconnect={addAccount}
@@ -178,7 +179,7 @@
                     {@const target = drive.groupMode.target}
                     <GroupListingStatus
                         groupName={target.group.name}
-                        total={target.group.accounts.length}
+                        total={target.members.length}
                         accounts={drive.library.accounts}
                     />
                 {/if}

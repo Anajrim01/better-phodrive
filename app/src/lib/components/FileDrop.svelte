@@ -118,7 +118,7 @@
             >
                 <span>Drop files to upload them to</span>
                 <span class="flex items-center gap-2">
-                    <IconFolder aria-hidden="true" class="size-4.5" />
+                    <IconFolder aria-hidden="true" class="size-5" />
                     My files
                 </span>
             </div>

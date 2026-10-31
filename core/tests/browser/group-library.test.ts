@@ -34,6 +34,25 @@ function pageFor(email: string): Response {
     });
 }
 
+test('a member with a future pause is not fetched', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch');
+    fetchMock.mockImplementation(async () =>
+        Response.json({ items: [remote('first-only')], nextPageToken: '' })
+    );
+    const until = Date.now() + 30_000;
+
+    const loaded = await readGroupLibrary([
+        { email: 'first@example.com', token: 'aas_et/first' },
+        { email: 'second@example.com', token: 'aas_et/second', pausedUntil: until }
+    ]);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(loaded.unwrap().accounts).toContainEqual(
+        expect.objectContaining({ email: 'second@example.com', status: 'paused' })
+    );
+    expect(loaded.unwrap().partial).toBe(true);
+});
+
 test('a group listing tags owners, dedupes media keys, and names a paused member', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch');
     fetchMock.mockImplementation(async (_input, init) => {

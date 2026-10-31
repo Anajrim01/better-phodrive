@@ -124,17 +124,66 @@ test('removing the last member is refused', () => {
     expect(preferences.groups[0]?.accounts).toEqual([FIRST]);
 });
 
-test('the paused state is tracked for member status', () => {
+test('member status is unknown until an observation and pauses expire', () => {
+    const store = groups();
+    store.create('Family', [FIRST, SECOND]);
+    const now = Date.now();
+
+    expect(store.memberStatus(FIRST)).toBe('unknown');
+
+    store.applyAccountStates([
+        { email: FIRST, status: 'ok' },
+        { email: SECOND, status: 'ok' }
+    ]);
+    expect(store.memberStatus(FIRST)).toBe('ready');
+
+    const until = now + 30_000;
+    store.markPaused(FIRST.toUpperCase(), until);
+    expect(store.memberStatus(FIRST)).toBe('paused');
+    expect(store.memberStatus(FIRST, until + 1)).toBe('ready');
+    expect(store.pausedUntilFor(FIRST)).toBe(until);
+
+    store.markPaused(FIRST, now + 10_000);
+    expect(store.pausedUntilFor(FIRST)).toBe(until);
+});
+
+test('an upload pause that expires without a listing stays unknown', () => {
+    const store = groups();
+    store.create('Family', [FIRST, SECOND]);
+    const until = Date.now() + 1_000;
+
+    store.markPaused(FIRST, until);
+
+    expect(store.memberStatus(FIRST)).toBe('paused');
+    expect(store.memberStatus(FIRST, until + 1)).toBe('unknown');
+});
+
+test('a listing ok does not clear a pause that is still running', () => {
+    const store = groups();
+    store.create('Family', [FIRST, SECOND]);
+    store.applyAccountStates([{ email: FIRST, status: 'ok' }]);
+    store.markPaused(FIRST, Date.now() + 30_000);
+
+    store.applyAccountStates([{ email: FIRST, status: 'ok' }]);
+
+    expect(store.isPaused(FIRST)).toBe(true);
+});
+
+test('removing a member or deleting a group forgets pause state', () => {
     const store = groups();
     store.create('Family', [FIRST, SECOND]);
     const [created] = preferences.groups;
+    store.applyAccountStates([
+        { email: FIRST, status: 'paused', retryAfterSeconds: 30 },
+        { email: SECOND, status: 'paused', retryAfterSeconds: 30 }
+    ]);
 
-    store.setPausedEmails([FIRST.toUpperCase()]);
-    expect(store.pausedEmails).toEqual([FIRST]);
-    expect(groupReadiness(created!, store.pausedEmails)).toBe('ready');
+    store.removeMember(created!.id, SECOND);
+    expect(store.memberStatus(SECOND)).toBe('unknown');
+    expect(store.memberStatus(FIRST)).toBe('paused');
 
-    store.setPausedEmails([FIRST, SECOND]);
-    expect(groupReadiness(created!, store.pausedEmails)).toBe('all-paused');
+    store.delete(created!.id);
+    expect(store.memberStatus(FIRST)).toBe('unknown');
 });
 
 test('the upload target defaults to the current account and persists', () => {
@@ -147,10 +196,12 @@ test('group readiness covers the three empty states', () => {
     expect(preferences.groups).toEqual([]);
 
     const oneMember = group([FIRST]);
-    expect(groupReadiness(oneMember, [])).toBe('needs-members');
+    expect(groupReadiness(oneMember, () => 'ready')).toBe('needs-members');
 
     const allPaused = group([FIRST, SECOND]);
-    expect(groupReadiness(allPaused, [FIRST.toUpperCase(), SECOND])).toBe('all-paused');
+    expect(groupReadiness(allPaused, () => 'paused')).toBe('all-paused');
 
-    expect(groupReadiness(allPaused, [FIRST])).toBe('ready');
+    expect(groupReadiness(allPaused, (email) => (email === FIRST ? 'paused' : 'ready'))).toBe(
+        'ready'
+    );
 });

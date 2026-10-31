@@ -100,12 +100,31 @@ async function readMemberPages(email: string, token: string): Promise<GroupPage>
 
 /** Query every member, merge their items, and report a paused member instead of failing. */
 export function readGroupLibrary(
-    members: readonly { email: string; token: string }[]
+    members: readonly { email: string; token: string; pausedUntil?: number }[]
 ): AsyncResult<GroupLibrarySnapshot, ApplicationError> {
     return Ok(undefined).andThenAsync(async () => {
         const pages: GroupPage[] = [];
+        const now = Date.now();
 
-        for (const member of members) pages.push(await readMemberPages(member.email, member.token));
+        for (const member of members) {
+            if (member.pausedUntil && member.pausedUntil > now) {
+                pages.push({
+                    email: member.email,
+                    error: {
+                        code: 'THROTTLED',
+                        message: 'Google Photos is limiting requests',
+                        retryAfterSeconds: Math.max(
+                            1,
+                            Math.ceil((member.pausedUntil - now) / 1_000)
+                        )
+                    }
+                });
+
+                continue;
+            }
+
+            pages.push(await readMemberPages(member.email, member.token));
+        }
 
         const merged = mergeGroupLibrary(pages);
 

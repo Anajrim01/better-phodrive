@@ -6,10 +6,11 @@
         groups: readonly Group[];
         value: string;
         currentEmail: string;
+        unavailable?: string | null;
         onchange: (id: string) => void;
     }
 
-    let { groups, value, currentEmail, onchange }: Props = $props();
+    let { groups, value, currentEmail, unavailable = null, onchange }: Props = $props();
 
     const options = $derived([
         {
@@ -32,5 +33,10 @@
             {value}
             onchange={(event) => onchange(event.currentTarget.value)}
         />
+        {#if unavailable}
+            <p class="mt-1 text-xs leading-relaxed text-muted">
+                {unavailable} needs at least two connected accounts. Using the current account.
+            </p>
+        {/if}
     </div>
 {/if}

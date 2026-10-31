@@ -1,4 +1,5 @@
 import { ConfirmKind, FileActionKind } from '@madkarmaa/phodrive-core/models';
+import { deleteRoute, downloadRoute, type RouteMember } from '@madkarmaa/phodrive-core/groups';
 import {
     fileKey,
     type FileAction,
@@ -23,8 +24,7 @@ export type FileDeps = {
     reloadGroup: () => void;
     removeAccount: (email: string) => void;
     groupMode: () => boolean;
-    tokenForOwner: (email: string) => string | undefined;
-    ownerPaused: (email: string) => boolean;
+    routeMembers: () => readonly RouteMember[];
 };
 
 export class DriveFiles {
@@ -75,25 +75,28 @@ export class DriveFiles {
     async act(item: FileGroup, action: FileActionKind): Promise<void> {
         if (this.deps.busy() || this.action || this.deps.loading()) return;
 
-        const { email } = this.deps.account();
-        if (!this.deps.groupMode() && item.email !== email) {
-            this.deps.feedback('Select the connected account for this file before continuing.');
+        const { email, token: selectedToken } = this.deps.account();
+        let token: string;
 
-            return;
-        }
-        if (this.deps.ownerPaused(item.email)) {
-            this.deps.feedback(
-                `Files owned by ${item.email} are unavailable while that account is paused.`
-            );
+        if (this.deps.groupMode()) {
+            const members = this.deps.routeMembers();
+            const routed =
+                action === FileActionKind.Delete
+                    ? deleteRoute(item, members)
+                    : downloadRoute(item, members);
+            if (routed.isErr()) {
+                this.deps.feedback(routed.unwrapErr().message);
 
-            return;
-        }
+                return;
+            }
+            token = routed.unwrap().token;
+        } else {
+            if (item.email !== email || !selectedToken) {
+                this.deps.feedback('Select the connected account for this file before continuing.');
 
-        const token = this.deps.tokenForOwner(item.email);
-        if (!token) {
-            this.deps.feedback('The account for this file is not connected.');
-
-            return;
+                return;
+            }
+            token = selectedToken;
         }
 
         this.action = { fileId: item.fileId, kind: action };

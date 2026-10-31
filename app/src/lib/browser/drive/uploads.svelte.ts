@@ -18,7 +18,7 @@ export type UploadDeps = {
     afterUpload: () => void;
     reload: (email: string, token: string) => void;
     reloadGroup: () => void;
-    markPaused: (email: string) => void;
+    markPaused: (email: string, retryAt: number) => void;
 };
 
 export class DriveUploads {
@@ -83,7 +83,8 @@ export class DriveUploads {
         const preferences = this.deps.preferences();
         const onJob = (job: UploadJob) => {
             const id = retryId ?? job.id;
-            if (group && job.retryAt !== null && job.account) this.deps.markPaused(job.account);
+            if (group && job.retryAt !== null && job.account)
+                this.deps.markPaused(job.account, job.retryAt);
             this.jobs = this.jobs.map((current) => (current.id === id ? { ...job, id } : current));
 
             if (job.status === UploadJobStatus.Error) this.deps.feedback(job.message);

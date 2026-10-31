@@ -88,6 +88,10 @@ The client lists each group member and merges the pages into one result.
   and the result is marked partial. Its files stay hidden until that member
   answers. The partial state tells the view why, so the files are not reported
   as deleted.
+- A member status is unknown until a listing or an upload observes it. Paused
+  carries a deadline. A listing that returns ok clears the pause only after
+  that deadline, and automatic refresh skips members inside their window
+  instead of querying them again.
 - The merged list sorts newest first, then by owner email, file id, chunk index,
   and media key, so the order does not depend on which request finished first.
   The view's chosen sort re-sorts the merged list.

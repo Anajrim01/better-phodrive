@@ -1,7 +1,7 @@
 <script lang="ts">
     import { Button, IconButton, Select, TextField } from 'noph-ui';
     import { GroupNameSchema, type Group } from '@madkarmaa/phodrive-core/models';
-    import { groupReadiness } from '#browser/drive/group-state';
+    import { groupReadiness, type GroupMemberStatus } from '#browser/drive/group-state';
     import IconClose from '~icons/material-symbols/close';
     import IconDelete from '~icons/material-symbols/delete-outline';
     import IconEdit from '~icons/material-symbols/edit';
@@ -9,14 +9,14 @@
     interface Props {
         group: Group;
         accounts: readonly string[];
-        pausedEmails: readonly string[];
+        memberStatus: (email: string) => GroupMemberStatus;
         onrename: (name: string) => boolean;
         ondelete: () => void;
         onaddmember: (email: string) => boolean;
         onremovemember: (email: string) => boolean;
     }
 
-    let { group, accounts, pausedEmails, onrename, ondelete, onaddmember, onremovemember }: Props =
+    let { group, accounts, memberStatus, onrename, ondelete, onaddmember, onremovemember }: Props =
         $props();
 
     let renaming = $state(false);
@@ -25,8 +25,7 @@
     let draft = $state('');
     let touched = $state(false);
     let selected = $state('');
-    const readiness = $derived(groupReadiness(group, pausedEmails));
-    const paused = $derived(new Set(pausedEmails.map((email) => email.toLowerCase())));
+    const readiness = $derived(groupReadiness(group, memberStatus));
     const available = $derived(
         accounts.filter(
             (email) =>
@@ -41,6 +40,13 @@
     const issues = $derived(
         touched && !nameValidation.success ? nameValidation.error.issues : undefined
     );
+
+    function statusLabel(status: GroupMemberStatus): string {
+        if (status === 'paused') return 'Paused';
+        if (status === 'ready') return 'Ready';
+
+        return 'Unknown';
+    }
 
     function startRename() {
         draft = group.name;
@@ -70,7 +76,7 @@
     <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
             <h3 class="truncate text-sm font-medium">{group.name}</h3>
-            <p class="mt-0.5 text-xs text-muted tabular-nums">
+            <p class="mt-1 text-xs text-muted tabular-nums">
                 {group.accounts.length}
                 {group.accounts.length === 1 ? 'account' : 'accounts'}
             </p>
@@ -120,17 +126,23 @@
 
     <ul class="mt-3 divide-y divide-border/40 border-y border-border/40">
         {#each group.accounts as email (email)}
-            <li class="flex min-h-10 items-center gap-3 py-1.5">
-                <span
-                    class="size-2 shrink-0 rounded-full"
-                    class:bg-success={!paused.has(email.toLowerCase())}
-                    class:bg-outline={paused.has(email.toLowerCase())}
-                    aria-hidden="true"
-                ></span>
+            {@const status = memberStatus(email)}
+            <li class="flex min-h-10 items-center gap-3 py-2">
+                {#if status === 'unknown'}
+                    <span
+                        class="size-2 shrink-0 rounded-full border border-outline"
+                        aria-hidden="true"
+                    ></span>
+                {:else}
+                    <span
+                        class="size-2 shrink-0 rounded-full"
+                        class:bg-success={status === 'ready'}
+                        class:bg-outline={status === 'paused'}
+                        aria-hidden="true"
+                    ></span>
+                {/if}
                 <span class="min-w-0 flex-1 truncate text-sm">{email}</span>
-                <span class="shrink-0 text-xs text-muted">
-                    {paused.has(email.toLowerCase()) ? 'Paused' : 'Ready'}
-                </span>
+                <span class="shrink-0 text-xs text-muted">{statusLabel(status)}</span>
                 <IconButton
                     size="xs"
                     title={group.accounts.length === 1

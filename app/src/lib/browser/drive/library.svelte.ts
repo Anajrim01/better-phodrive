@@ -14,10 +14,11 @@ import {
     readLibrarySnapshot
 } from '@madkarmaa/phodrive-core/browser/library';
 import type { GroupAccountState } from '@madkarmaa/phodrive-core/groups';
+import { nextRetryAt } from '#browser/drive/group-target';
 
 const POST_UPLOAD_COOLDOWN_MS = 2 * 60 * 1_000;
 
-export type LibraryGroup = readonly { email: string; token: string }[] | null;
+export type LibraryGroup = readonly { email: string; token: string; pausedUntil?: number }[] | null;
 
 export class DriveLibrary {
     chunks = $state<UploadedChunk[]>([]);
@@ -159,7 +160,10 @@ export class DriveLibrary {
         this.loading = false;
     }
 
-    private async loadGroup(members: readonly { email: string; token: string }[], reset: boolean) {
+    private async loadGroup(
+        members: readonly { email: string; token: string; pausedUntil?: number }[],
+        reset: boolean
+    ) {
         if (this.actionsDisabled() || (!reset && this.loading)) return;
 
         const request = ++this.libraryRequest;
@@ -188,6 +192,7 @@ export class DriveLibrary {
                 this.nextPageToken = '';
                 this.loadedPages = 1;
                 this.onAccounts(snapshot.accounts);
+                this.retryAt = nextRetryAt(snapshot.accounts);
                 if (this.folder && !this.hasFolder(this.folder)) this.folder = '';
             },
             Err: (error) => {

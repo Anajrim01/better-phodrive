@@ -40,22 +40,22 @@ test('a group target needs two connected members and carries pause state', () =>
         accounts: [FIRST, SECOND, 'missing@example.com']
     };
 
-    expect(
-        resolveGroupTarget([group], 'family', { [FIRST]: 'aas_et/first' }, () => false)
-    ).toBeNull();
+    expect(resolveGroupTarget([group], 'family', { [FIRST]: 'aas_et/first' }, () => 0)).toBeNull();
+
+    const until = Date.now() + 30_000;
 
     expect(
         resolveGroupTarget(
             [group],
             'family',
             { [FIRST]: 'aas_et/first', [SECOND]: 'aas_et/second' },
-            (email) => email === SECOND
+            (email) => (email === SECOND ? until : 0)
         )
     ).toEqual({
         group,
         members: [
-            { email: FIRST, token: 'aas_et/first', paused: false },
-            { email: SECOND, token: 'aas_et/second', paused: true }
+            { email: FIRST, token: 'aas_et/first', paused: false, pausedUntil: 0 },
+            { email: SECOND, token: 'aas_et/second', paused: true, pausedUntil: until }
         ]
     });
 });
@@ -95,6 +95,7 @@ test('a group library merges owners, dedupes, and reports paused members', async
     ]);
     expect(library.partial).toBe(true);
     expect(library.accounts).toEqual(accounts);
+    expect(library.retryAt).toBeGreaterThan(Date.now());
     expect(onAccounts).toHaveBeenCalledWith(accounts);
     expect(library.chunks.map((item) => item.email)).toEqual([FIRST, FIRST]);
 });

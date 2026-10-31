@@ -29,6 +29,7 @@
         groups: readonly Group[];
         uploadTarget: string;
         currentEmail: string;
+        unavailableTarget?: string | null;
         onnavigate: (view: AppView) => void;
         onupload: (files: File[]) => void;
         onuploadtarget: (id: string) => void;
@@ -45,6 +46,7 @@
         groups,
         uploadTarget,
         currentEmail,
+        unavailableTarget = null,
         onnavigate,
         onupload,
         onuploadtarget,
@@ -73,7 +75,13 @@
 </script>
 
 <aside class="upload-sidebar min-w-0 px-4 pt-2 pb-8" aria-label="Navigation and accounts">
-    <UploadTarget {groups} value={uploadTarget} {currentEmail} onchange={onuploadtarget} />
+    <UploadTarget
+        {groups}
+        value={uploadTarget}
+        {currentEmail}
+        unavailable={unavailableTarget}
+        onchange={onuploadtarget}
+    />
 
     <ExtendedFab
         class="upload-button"

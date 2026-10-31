@@ -1,8 +1,10 @@
 import { GroupNameSchema, type Group } from '@madkarmaa/phodrive-core/models';
+import type { GroupAccountState } from '@madkarmaa/phodrive-core/groups';
+import { GroupPauses, type GroupMemberStatus } from '#browser/drive/group-pauses.svelte';
 import type { BrowserPreferences } from '#browser/storage';
 
 export class DriveGroups {
-    pausedEmails = $state<string[]>([]);
+    readonly pauses = new GroupPauses();
     error = $state('');
 
     constructor(
@@ -18,19 +20,32 @@ export class DriveGroups {
         return Object.keys(this.accounts());
     }
 
+    pausedUntilFor(email: string): number {
+        return this.pauses.until(email);
+    }
+
+    memberStatus(email: string, now?: number): GroupMemberStatus {
+        return this.pauses.status(email, now);
+    }
+
     isPaused(email: string): boolean {
-        return this.pausedEmails.includes(email.toLowerCase());
+        return this.pauses.isPaused(email);
     }
 
-    setPausedEmails(emails: readonly string[]): void {
-        this.pausedEmails = [...new Set(emails.map((email) => email.toLowerCase()))];
+    markPaused(email: string, until: number): void {
+        this.pauses.mark(email, until);
     }
 
-    markPaused(email: string): void {
-        const wanted = email.toLowerCase();
-        if (this.pausedEmails.includes(wanted)) return;
+    applyAccountStates(accounts: readonly GroupAccountState[]): void {
+        this.pauses.apply(accounts);
+    }
 
-        this.pausedEmails = [...this.pausedEmails, wanted];
+    clearPauses(): void {
+        this.pauses.clear();
+    }
+
+    clearError(): void {
+        this.error = '';
     }
 
     create(name: string, accounts: readonly string[]): boolean {
@@ -85,7 +100,10 @@ export class DriveGroups {
     }
 
     delete(id: string): boolean {
-        return this.persist(this.groups.filter((group) => group.id !== id));
+        const group = this.groups.find((current) => current.id === id);
+        if (group) for (const email of group.accounts) this.pauses.forget(email);
+
+        return this.persist(this.groups.filter((current) => current.id !== id));
     }
 
     addMember(id: string, email: string): boolean {
@@ -119,6 +137,8 @@ export class DriveGroups {
         );
         if (accounts.length === group.accounts.length) return false;
 
+        this.pauses.forget(email);
+
         return this.update(id, { accounts });
     }
 
@@ -130,7 +150,7 @@ export class DriveGroups {
 
     private update(id: string, change: Partial<Pick<Group, 'name' | 'accounts'>>): boolean {
         return this.persist(
-            this.groups.map((group) => (group.id === id ? { ...group, ...change } : group))
+            this.groups.map((current) => (current.id === id ? { ...current, ...change } : current))
         );
     }
 

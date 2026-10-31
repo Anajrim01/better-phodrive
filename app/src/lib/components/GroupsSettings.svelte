@@ -13,7 +13,6 @@
 
     const groups = $derived(store.groups);
     const accounts = $derived(store.connectedAccounts);
-    const pausedEmails = $derived(store.pausedEmails);
 
     let creating = $state(false);
     let name = $state('');
@@ -139,7 +138,7 @@
                 <GroupCard
                     {group}
                     {accounts}
-                    {pausedEmails}
+                    memberStatus={(email) => store.memberStatus(email)}
                     onrename={(value) => store.rename(group.id, value)}
                     ondelete={() => store.delete(group.id)}
                     onaddmember={(email) => store.addMember(group.id, email)}

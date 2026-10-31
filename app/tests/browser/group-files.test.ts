@@ -62,8 +62,10 @@ function driveFiles(feedback: string[]) {
         reloadGroup: vi.fn(),
         removeAccount: vi.fn(),
         groupMode: () => true,
-        tokenForOwner: (email) => (email === OWNER ? 'aas_et/owner' : undefined),
-        ownerPaused: (email) => email === PAUSED
+        routeMembers: () => [
+            { email: OWNER, token: 'aas_et/owner', paused: false },
+            { email: PAUSED, token: 'aas_et/paused', paused: true }
+        ]
     });
 }
 
@@ -109,5 +111,5 @@ test('a paused owner reports why the file is unavailable', async () => {
     await files.act(file(PAUSED), FileActionKind.Download);
 
     expect(downloadFile).not.toHaveBeenCalled();
-    expect(feedback.at(-1)).toContain(`Files owned by ${PAUSED} are unavailable`);
+    expect(feedback.at(-1)).toContain(`Files owned by ${PAUSED} cannot download`);
 });

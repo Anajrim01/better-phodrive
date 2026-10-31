@@ -113,12 +113,7 @@ export class DriveController extends DriveView {
             matches: (email, token) =>
                 this.selectedEmail === email && this.accounts[email] === token
         });
-        const fileGroup = groupFileAccess(
-            this.groupMode,
-            this.groupSettings,
-            () => this.accounts,
-            () => void this.library.load()
-        );
+        const fileGroup = groupFileAccess(this.groupMode, () => void this.library.load());
         this.files = new DriveFiles({
             account: () => this.account(),
             busy: () => this.uploads.busy,
@@ -148,6 +143,13 @@ export class DriveController extends DriveView {
                 if (!this.ready || (email === previousEmail && token === previousToken)) return;
 
                 this.session.reset();
+            }
+        );
+
+        watch(
+            () => this.groupMode.target?.group.id ?? '',
+            (id, previous) => {
+                if (previous !== undefined && previous !== id) this.groupSettings.clearPauses();
             }
         );
 
