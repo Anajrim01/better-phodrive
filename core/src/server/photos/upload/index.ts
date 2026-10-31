@@ -60,7 +60,7 @@ function uploadAuthenticatedBmp(
     );
 }
 
-/** Streaming upload with caller-supplied SHA-1 verified before a photo can be committed. */
+/** A photo must not be committed before the caller's SHA-1 matches the streamed bytes. */
 export function uploadBmpStream(
     email: string,
     token: string,
@@ -141,7 +141,6 @@ function uploadAuthenticatedStream(
     );
 }
 
-/** A read-only duplicate check, including after a commit with an uncertain result. */
 export function findBmpBySha1(
     email: string,
     token: string,

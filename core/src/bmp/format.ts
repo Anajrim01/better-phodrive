@@ -65,12 +65,10 @@ function splitHeaderLayout(
     return Ok({ prefixSize, nameBytes, folderBytes });
 }
 
-/** Exact prefix size, including the BMP header, before the payload begins. */
 export function splitHeaderByteLength(input: SplitHeader): Result<number, BmpError> {
     return splitHeaderLayout(input).map(({ prefixSize }) => prefixSize);
 }
 
-/** Exact projected BMP size before a file slice is read. */
 export function splitBmpByteLength(input: SplitHeader): Result<number, BmpError> {
     return splitHeaderByteLength(input).andThen((length) =>
         bmpLayout(length - BMP_HEADER_BYTES + input.payloadSize).map(({ total }) => total)

@@ -59,12 +59,13 @@
     const failures = $derived(jobs.filter((job) => job.status === UploadJobStatus.Error).length);
     const heading = $derived.by(() => {
         if (busy) {
-            const label = `Uploading ${remaining} ${remaining === 1 ? 'item' : 'items'}`;
             if (paused.length)
-                return `${label} · paused by Google, retrying in about ${formatDuration(Math.max(...paused))}`;
+                return `Paused by Google, retrying in about ${formatDuration(Math.max(...paused))}`;
+
+            const label = `Uploading ${remaining} ${remaining === 1 ? 'item' : 'items'}`;
             if (eta === null) return label;
 
-            return `${label} · about ${formatDuration(eta)} left`;
+            return `${label}, about ${formatDuration(eta)} left`;
         }
         if (failures) return `${failures} ${failures === 1 ? 'upload' : 'uploads'} failed`;
 

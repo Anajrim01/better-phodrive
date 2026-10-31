@@ -12,7 +12,6 @@ import { readLibraryPage, readLibrarySnapshot } from '@madkarmaa/phodrive-core/b
 
 const POST_UPLOAD_COOLDOWN_MS = 2 * 60 * 1_000;
 
-/** Library pagination, filtering, and stale-request protection for the selected account. */
 export class DriveLibrary {
     chunks = $state<UploadedChunk[]>([]);
     nextPageToken = $state('');

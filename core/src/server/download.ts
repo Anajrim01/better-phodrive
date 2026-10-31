@@ -33,7 +33,7 @@ function openChunk(
         .andThenAsync((response) => SplitBmpReader.open(response, expected, chunk.sha1));
 }
 
-/** Ordered, demand-driven reconstruction with no temporary storage. */
+/** Never buffer the whole file; pull each chunk only when the consumer reads. */
 export function streamDownload(
     input: FileRequest,
     chunks: RemoteBmp[],

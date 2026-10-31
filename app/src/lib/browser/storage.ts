@@ -46,7 +46,6 @@ export const NEXT_THEME: Record<ThemeMode, ThemeMode> = {
 
 type Accounts = Record<string, string>;
 
-/** Enum choices are stored as their raw values; an invalid value falls back to the default. */
 function enumSerializer<T extends string>(schema: z.ZodType<T>) {
     return {
         serialize: (value: T | undefined) => value ?? '',
@@ -105,7 +104,6 @@ export const SELECTED_ACCOUNT_SERIALIZER = {
     }
 };
 
-/** Per-page reactive preferences, with validated data and synchronization across tabs. */
 export class BrowserPreferences {
     constructor(private readonly defaults: PreferencesDefaults = DEFAULT_PREFERENCES_DEFAULTS) {}
 

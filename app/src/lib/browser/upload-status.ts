@@ -8,19 +8,22 @@ export function uploadJobDetail(job: UploadJob): string {
         progress.completed + (progress.phase === UploadPhase.Uploading ? progress.reused : 0);
     const percent = progress.total ? Math.round((processed / progress.total) * 100) : 0;
 
-    if (job.status === UploadJobStatus.Queued) return 'Waiting.';
+    if (job.status === UploadJobStatus.Queued) return 'Waiting';
     if (job.status === UploadJobStatus.Error) return job.message;
     if (job.status === UploadJobStatus.Complete)
         return job.result?.status === UploadStatus.AlreadyExists
             ? 'Already in Google Photos'
-            : 'Uploaded successfully';
-    if (progress.phase === UploadPhase.Receiving) return 'Sending files to server.';
-    if (job.retryAfterSeconds !== null)
-        return `Paused at ${percent}%. Retrying in about ${formatDuration(job.retryAfterSeconds)}.`;
-    if (progress.phase === UploadPhase.Preparing) return `Preparing file. ${percent}%`;
-    if (processed === progress.total) return 'Finishing upload.';
+            : 'Uploaded';
+    if (job.retryAfterSeconds !== null) {
+        const place = percent > 0 ? ` at ${percent}%` : '';
 
-    const eta = job.etaSeconds === null ? '' : ` · about ${formatDuration(job.etaSeconds)} left`;
+        return `Paused${place}, retrying in about ${formatDuration(job.retryAfterSeconds)}`;
+    }
+    if (progress.phase === UploadPhase.Receiving) return 'Sending files to server';
+    if (progress.phase === UploadPhase.Preparing) return `Preparing ${percent}%`;
+    if (processed === progress.total) return 'Finishing upload';
 
-    return `Uploading. ${percent}%${eta}`;
+    const eta = job.etaSeconds === null ? '' : `, about ${formatDuration(job.etaSeconds)} left`;
+
+    return `Uploading ${percent}%${eta}`;
 }

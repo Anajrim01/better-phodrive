@@ -100,7 +100,6 @@ function resolveTarget(
     });
 }
 
-/** Resolve each target once, keeping the order given and skipping repeated files. */
 export function resolveTargets(
     context: CliContext,
     files: readonly FileGroup[],
@@ -120,7 +119,6 @@ export function resolveTargets(
     });
 }
 
-/** Load the library and resolve file names or IDs given on the command line. */
 export function findFiles(
     context: CliContext,
     session: Session,

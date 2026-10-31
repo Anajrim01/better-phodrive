@@ -237,14 +237,15 @@
         display: inline-flex;
         flex-wrap: wrap;
         align-items: baseline;
-        gap: 2px;
+        gap: 0;
     }
 
     .crumb {
         max-width: 100%;
-        padding: 2px 4px;
+        min-width: 0;
+        padding: 4px 8px;
         overflow: hidden;
-        border-radius: 6px;
+        border-radius: 8px;
         color: var(--app-subtle);
         font: inherit;
         text-overflow: ellipsis;
@@ -262,7 +263,7 @@
 
     .crumb:focus-visible {
         outline: 2px solid var(--app-primary);
-        outline-offset: 1px;
+        outline-offset: 2px;
     }
 
     .crumb-separator {

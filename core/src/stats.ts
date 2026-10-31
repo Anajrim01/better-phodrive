@@ -11,7 +11,6 @@ export type LibraryStats = {
     types: FileTypeStat[];
 };
 
-/** Counts bytes already stored for partial files. */
 export function libraryStats(files: readonly FileGroup[]): LibraryStats {
     const types = new Map<string, FileTypeStat>();
     const folders = new Set<string>();

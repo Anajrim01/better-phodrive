@@ -177,8 +177,7 @@
     }
 
     .folder-upload {
-        margin-top: -12px;
-        margin-bottom: 18px;
+        margin-bottom: 16px;
     }
 
     .storage-section {
@@ -195,7 +194,7 @@
     :global(:root .upload-button.np-extended-fab) {
         height: 56px;
         min-width: 110px;
-        margin-bottom: 22px;
+        margin-bottom: 12px;
         border: 1px solid var(--app-border);
         --np-fab-container-color: var(--app-panel);
         --np-fab-icon-color: var(--app-text);

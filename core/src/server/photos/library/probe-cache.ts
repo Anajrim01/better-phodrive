@@ -70,7 +70,7 @@ function load(): void {
             PROBE_CACHE.delete(oldest);
         }
     } catch {
-        // A corrupt or unreadable cache file is ignored and rebuilt.
+        // A corrupt cache must not block a fresh probe pass.
     }
 }
 

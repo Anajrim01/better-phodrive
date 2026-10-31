@@ -192,10 +192,6 @@ export function openLocalFiles(
     });
 }
 
-/**
- * Upload local files with the web app's hashing, chunking, deduplication, and worker pool,
- * using up to one worker per available processor.
- */
 export function uploadFiles(
     files: readonly File[],
     email: string,

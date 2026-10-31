@@ -14,9 +14,8 @@
 
     const PRIMARY_COLOR = 'var(--np-color-primary)';
     const SECONDARY_COLOR = 'var(--np-color-on-surface-variant)';
-    const TERTIARY_COLOR =
-        'color-mix(in srgb, var(--np-color-on-surface-variant) 45%, transparent)';
-    const OTHER_COLOR = 'color-mix(in srgb, var(--np-color-on-surface-variant) 20%, transparent)';
+    const TERTIARY_COLOR = 'var(--np-color-outline)';
+    const OTHER_COLOR = 'var(--np-color-outline-variant)';
     const TYPE_COLORS = [PRIMARY_COLOR, SECONDARY_COLOR, TERTIARY_COLOR];
 
     const segments = $derived.by((): Segment[] => {
@@ -59,7 +58,10 @@
         <p class="storage-count">{filesLabel} · {foldersLabel}</p>
 
         {#if stats.incompleteFiles > 0}
-            <p class="storage-note">{stats.incompleteFiles} incomplete</p>
+            <p class="storage-note">
+                {stats.incompleteFiles}
+                {stats.incompleteFiles === 1 ? 'incomplete file' : 'incomplete files'}
+            </p>
         {/if}
 
         {#if hasMore}
@@ -124,12 +126,12 @@
     }
 
     .storage-count {
-        margin: 2px 0 0;
+        margin: 4px 0 0;
         font-size: 14px;
     }
 
     .storage-note {
-        margin: 2px 0 0;
+        margin: 4px 0 0;
         color: var(--app-muted);
         font-size: 12px;
         line-height: 1.35;
@@ -156,8 +158,8 @@
 
     .storage-legend {
         display: grid;
-        gap: 6px;
-        margin: 10px 0 0;
+        gap: 8px;
+        margin: 12px 0 0;
         padding: 0;
         list-style: none;
     }
@@ -173,7 +175,7 @@
     .legend-dot {
         width: 8px;
         height: 8px;
-        border-radius: 999px;
+        border-radius: 50%;
     }
 
     .legend-name {

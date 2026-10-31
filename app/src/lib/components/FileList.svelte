@@ -145,7 +145,7 @@
         width: 100%;
         table-layout: fixed;
         border-collapse: collapse;
-        margin-top: 12px;
+        margin-top: 16px;
         font-size: 14px;
     }
 

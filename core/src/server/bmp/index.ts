@@ -48,7 +48,6 @@ function readVarint(
     }
 }
 
-/** Encode a complete BMP for protocol fixtures and compatibility checks. */
 export function encodeSplitBmp(
     payload: Uint8Array,
     input: SplitHeader
@@ -118,7 +117,7 @@ function readSplitFolder(
     });
 }
 
-/** Read metadata from the beginning of a BMP without loading its payload. */
+/** Only the prefix is read; the payload must stay unread. */
 export function decodeSplitHeader(
     prefix: Uint8Array,
     totalSize: number
@@ -196,7 +195,7 @@ export function decodeSplitHeader(
         );
 }
 
-/** Parse a complete chunk and reject damaged payload bounds or nonzero padding. */
+/** A damaged payload bound or nonzero padding must fail the chunk. */
 export function decodeSplitBmp(
     bmp: Uint8Array
 ): Result<{ header: SplitHeader; payload: Uint8Array }, ServerError> {

@@ -19,7 +19,19 @@ test('a paused upload shows the throttle state and the remaining wait', () => {
         })
     );
 
-    expect(detail).toBe('Paused at 50%. Retrying in about 2 min.');
+    expect(detail).toBe('Paused at 50%, retrying in about 2 min');
+});
+
+test('a paused receiving upload shows the pause before the phase', () => {
+    const detail = uploadJobDetail(
+        job({
+            status: UploadJobStatus.Active,
+            retryAfterSeconds: 60,
+            progress: { phase: UploadPhase.Receiving, completed: 0, total: 10 }
+        })
+    );
+
+    expect(detail).toBe('Paused, retrying in about 1 min');
 });
 
 test('an active upload appends the estimate only when one exists', () => {
@@ -37,8 +49,8 @@ test('an active upload appends the estimate only when one exists', () => {
         })
     );
 
-    expect(withEstimate).toBe('Uploading. 50% · about 1 min 20 s left');
-    expect(withoutEstimate).toBe('Uploading. 50%');
+    expect(withEstimate).toBe('Uploading 50%, about 1 min 20 s left');
+    expect(withoutEstimate).toBe('Uploading 50%');
 });
 
 test('completed and deduplicated uploads keep their existing wording', () => {
@@ -55,6 +67,6 @@ test('completed and deduplicated uploads keep their existing wording', () => {
         })
     );
 
-    expect(uploaded).toBe('Uploaded successfully');
+    expect(uploaded).toBe('Uploaded');
     expect(existing).toBe('Already in Google Photos');
 });

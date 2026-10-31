@@ -10,7 +10,6 @@ export function uploadStream(input: ReceivedUpload): Response {
     const confirmations: UploadEvent[] = [];
     const encoder = new TextEncoder();
     const flush = (controller: ReadableStreamDefaultController<Uint8Array>) => {
-        // Enqueue only while the browser is reading, so events coalesce instead of queueing.
         if (!open || (controller.desiredSize ?? 0) <= 0) return;
 
         const event = progress ?? confirmations.shift();

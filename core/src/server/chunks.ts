@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { identityInput } from '../files';
 import { MAX_CHUNK_PAYLOAD_BYTES } from './bmp/index';
 
-/** Stable across retries; names and split layouts keep independent chunk groups. */
+/** The key must stay stable across retries; names and split layouts keep groups apart. */
 export function fileIdentity(
     name: string,
     fileHash: string,

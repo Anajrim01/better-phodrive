@@ -77,7 +77,6 @@ export async function runCli(
 
 let sequence = 0;
 
-/** A complete single-chunk file as the library returns it. */
 export function remoteFile(
     name: string,
     at = 1_700_000_000_000,

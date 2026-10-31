@@ -52,7 +52,6 @@ export function defaultConfigPath(environment: Record<string, string | undefined
     return join(envPaths('phodrive', { suffix: '' }).config, CONFIG_FILE_NAME);
 }
 
-/** Unknown or invalid entries are dropped, as the web app does with browser storage. */
 function parseConfig(value: unknown): CliConfig {
     const parsed = StoredConfigSchema.catch(EMPTY_CONFIG).parse(value);
     const accounts: Record<string, string> = {};
@@ -119,7 +118,6 @@ export function writeConfig(path: string, config: CliConfig): AsyncResult<void, 
     });
 }
 
-/** Read, change, and save the configuration in one step. */
 export function updateConfig(
     path: string,
     change: (config: CliConfig) => Result<CliConfig, CliError>
