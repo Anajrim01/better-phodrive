@@ -111,18 +111,34 @@ function definitelyNotPhodrive(prefix: Uint8Array): boolean {
     return !SPLIT_MAGIC_PREFIX.every((byte, index) => prefix[BMP_HEADER_BYTES + index] === byte);
 }
 
+export function hasPhodriveNames(items: readonly { fileName?: string }[]): boolean {
+    return items.some((item) => item.fileName?.includes('.phodrive-'));
+}
+
+export function namedAsNonPhodrive(
+    candidate: { fileName?: string },
+    pageHasPhodriveName: boolean
+): boolean {
+    return (
+        pageHasPhodriveName &&
+        candidate.fileName !== undefined &&
+        !candidate.fileName.includes('.phodrive-')
+    );
+}
+
 export function probeLibraryItem(
     email: string,
     candidate: LibraryCandidate,
     commonHeaders: Record<string, string>,
     rpcHeaders: Record<string, string>,
-    fetcher: Fetcher
+    fetcher: Fetcher,
+    pageHasPhodriveName: boolean
 ): AsyncResult<RemoteBmp | null, ServerError> {
     const cached = readProbe(email, candidate);
     if (cached !== undefined)
         return Ok(undefined).andThenAsync<RemoteBmp | null, ServerError>(async () => Ok(cached));
 
-    if (candidate.fileName !== undefined && !candidate.fileName.includes('.phodrive-')) {
+    if (namedAsNonPhodrive(candidate, pageHasPhodriveName)) {
         writeProbe(email, candidate, null);
 
         return Ok(undefined).andThenAsync<RemoteBmp | null, ServerError>(async () => Ok(null));

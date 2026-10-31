@@ -1,4 +1,4 @@
-import { SERVER_ERRORS, type ServerError } from './errors';
+import { SERVER_ERRORS, isThrottleError, type ServerError } from './errors';
 import { FileActionKind, FileNameSchema, type FileRequest, type RemoteBmp } from '../models';
 import pLimit from 'p-limit';
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
@@ -40,7 +40,7 @@ export function downloadFile(
 /** Attempt every known chunk and return all confirmed removals even after partial failure. */
 export function deleteFile(
     input: FileRequest
-): AsyncResult<{ deleted: RemoteBmp[]; error?: string }, ServerError> {
+): AsyncResult<{ deleted: RemoteBmp[]; error?: string; retryAfterSeconds?: number }, ServerError> {
     return validateChunks(input).andThenAsync(async (chunks) => {
         const deleted: RemoteBmp[] = [];
         const failures: ServerError[] = [];
@@ -58,11 +58,14 @@ export function deleteFile(
             });
         });
 
-        const failure = failures[0];
+        const failure = failures.find(isThrottleError) ?? failures[0];
 
         return Ok({
             deleted,
-            ...(failure ? { error: failure.message } : {})
+            ...(failure ? { error: failure.message } : {}),
+            ...(failure && isThrottleError(failure)
+                ? { retryAfterSeconds: failure.retryAfterSeconds }
+                : {})
         });
     });
 }

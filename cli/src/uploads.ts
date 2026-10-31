@@ -72,10 +72,11 @@ function trackUploads(
         const previous = jobs.get(job.id);
         jobs.set(job.id, job);
 
-        if (job.retryAfterSeconds !== null) {
-            if (paused.get(job.id) !== job.retryAfterSeconds) {
-                paused.set(job.id, job.retryAfterSeconds);
-                status(context).warn(`${job.name}: ${throttleMessage(job.retryAfterSeconds)}`);
+        if (job.retryAt !== null) {
+            if (paused.get(job.id) !== job.retryAt) {
+                paused.set(job.id, job.retryAt);
+                const seconds = Math.max(1, Math.ceil((job.retryAt - Date.now()) / 1_000));
+                status(context).warn(`${job.name}: ${throttleMessage(seconds)}`);
             }
         } else {
             paused.delete(job.id);

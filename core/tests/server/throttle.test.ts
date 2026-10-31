@@ -278,3 +278,16 @@ test('jitter stays within twenty percent of the base backoff', () => {
     expect(low).toBe(48);
     expect(high).toBe(72);
 });
+
+test('a 5xx during an active pause returns the remaining wait without counting', () => {
+    recordThrottle(EMAIL, 60);
+    now += 10_000;
+
+    expect(recordServerFailure(EMAIL, NO_JITTER)).toBe(50);
+
+    now += 50_000;
+
+    expect(recordServerFailure(EMAIL, NO_JITTER)).toBeNull();
+    expect(recordServerFailure(EMAIL, NO_JITTER)).toBeNull();
+    expect(recordServerFailure(EMAIL, NO_JITTER)).toBe(60);
+});

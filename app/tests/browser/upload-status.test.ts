@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { createUploadJobs, type UploadJob } from '#browser/files';
-import { uploadJobDetail } from '#browser/upload-status';
+import { retryRemainingSeconds, uploadJobDetail } from '#browser/upload-status';
 import { UploadJobStatus, UploadPhase, UploadStatus } from '@madkarmaa/phodrive-core/models';
 
 function job(overrides: Partial<UploadJob> = {}): UploadJob {
@@ -11,15 +11,19 @@ function job(overrides: Partial<UploadJob> = {}): UploadJob {
 }
 
 test('a paused upload shows the throttle state and the remaining wait', () => {
+    const now = Date.now();
     const detail = uploadJobDetail(
         job({
             status: UploadJobStatus.Active,
-            retryAfterSeconds: 120,
+            retryAt: now + 120_000,
             progress: { phase: UploadPhase.Uploading, completed: 5, reused: 0, total: 10 }
-        })
+        }),
+        now
     );
 
-    expect(detail).toBe('Paused at 50%, retrying in about 2 min');
+    expect(detail).toBe(
+        'Paused at 50%. Google Photos is limiting requests, retrying in about 2 min'
+    );
 });
 
 test('an active upload appends the estimate only when one exists', () => {
@@ -57,4 +61,13 @@ test('completed and deduplicated uploads keep their existing wording', () => {
 
     expect(uploaded).toBe('Uploaded');
     expect(existing).toBe('Already in Google Photos');
+});
+
+test('the retry wait counts down from the stored deadline', () => {
+    const now = Date.now();
+    const paused = job({ retryAt: now + 120_000 });
+
+    expect(retryRemainingSeconds(paused, now)).toBe(120);
+    expect(retryRemainingSeconds(paused, now + 60_000)).toBe(60);
+    expect(retryRemainingSeconds(paused, now + 120_000)).toBe(0);
 });

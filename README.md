@@ -113,9 +113,11 @@ For Docker, pass the same variables with `-e`, for example `-e PHODRIVE_DEFAULT_
 
 ## Folders and storage totals
 
-Drop a folder onto the page, or use **Upload folder**, to keep its relative path. Paths are stored in the uploaded chunk header, so the same folder tree appears from any browser that loads the library. Each folder is also mirrored to a Google Photos album with the same name, which keeps those files grouped in the Photos app too. Album keys are remembered in this browser, per account.
+Drop a folder onto the page, or use **Upload folder**, to keep its relative path. Paths are stored in the uploaded chunk header, so the same folder tree appears from any browser that loads the library. Each folder is also mirrored to a Google Photos album with the same name, which keeps those files grouped in the Photos app too. Album keys are remembered in this browser, per account. If an album create times out after Google accepted it, a retry can create a second album with the same name because the key was never saved.
 
-The navigation sidebar shows how much data the loaded library holds, plus file and folder counts and a breakdown by file type. Totals grow as you press **Load more**, and uploads into a folder show an estimated time remaining next to the progress.
+The Upload folder button is hidden below 800px. On a phone or a narrow window, drop a folder onto the page instead.
+
+The navigation sidebar shows how much data the loaded library holds, plus file and folder counts and a breakdown by file type. Totals grow as you press **Load more**, and every upload shows an estimated time remaining next to the progress.
 
 ## Command line
 

@@ -12,10 +12,11 @@
     interface Props {
         job: UploadJob;
         retryDisabled: boolean;
+        now: number;
         onretry: () => void;
     }
 
-    let { job, retryDisabled, onretry }: Props = $props();
+    let { job, retryDisabled, now, onretry }: Props = $props();
 
     const progress = $derived(job.progress);
     const processed = $derived(
@@ -23,7 +24,7 @@
     );
     const percent = $derived(progress.total ? Math.round((processed / progress.total) * 100) : 0);
     const indeterminate = $derived(progress.phase === UploadPhase.Receiving || !progress.total);
-    const detail = $derived(uploadJobDetail(job));
+    const detail = $derived(uploadJobDetail(job, now));
 </script>
 
 <ListItem class="upload-status-row" variant="text" aria-label={job.name}>

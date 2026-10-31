@@ -1,9 +1,21 @@
 import { beforeEach, expect, test } from 'vitest';
 import { createHash } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { listBmps } from '@madkarmaa/phodrive-core/server/photos';
 import { clearProbeCache } from '@madkarmaa/phodrive-core/server/photos/library';
+import {
+    hasPhodriveNames,
+    namedAsNonPhodrive
+} from '@madkarmaa/phodrive-core/server/photos/library/probe';
 import { encodeSplitBmp } from '@madkarmaa/phodrive-core/server/bmp';
-import { bytesField, message, numberField } from '@madkarmaa/phodrive-core/server/protobuf';
+import {
+    bytes,
+    bytesField,
+    message,
+    numberField,
+    parse,
+    utf8
+} from '@madkarmaa/phodrive-core/server/protobuf';
 import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
 import { bmpResponse } from '../helpers/download';
 
@@ -238,8 +250,9 @@ test('a video without a download URL is not cached as a miss', async () => {
     expect(counts).toEqual({ prepare: 2, range: 0 });
 });
 
-test('a name without the Phodrive marker skips the probe', async () => {
-    const photo = {
+test('a page with a Phodrive name skips the ordinary item', async () => {
+    const file = fixture('note.txt', 'named probe content');
+    const ordinary = {
         mediaKey: 'ordinary-photo',
         sha1: 'a'.repeat(40),
         size: 1_000,
@@ -248,17 +261,34 @@ test('a name without the Phodrive marker skips the probe', async () => {
     };
     const counts: ProbeCounts = { prepare: 0, range: 0 };
     const fetcher = fetcherFor(
-        libraryPage([photo]),
-        { mediaKey: photo.mediaKey, sha1: photo.sha1, url: `${DOWNLOAD_HOST}/unused` },
-        new Response('unused'),
+        libraryPage([ordinary, { ...file, fileName: `note.txt.phodrive-${file.sha1}-0-of-1.bmp` }]),
+        { mediaKey: file.mediaKey, sha1: file.sha1, url: `${DOWNLOAD_HOST}/photo` },
+        () => new Response(file.bmp),
         counts
     );
 
-    expect((await listBmps(EMAIL, TOKEN, '', fetcher)).unwrap().items).toEqual([]);
-    expect(counts).toEqual({ prepare: 0, range: 0 });
+    const items = (await listBmps(EMAIL, TOKEN, '', fetcher)).unwrap().items;
 
-    expect((await listBmps(EMAIL, TOKEN, '', fetcher)).unwrap().items).toEqual([]);
-    expect(counts).toEqual({ prepare: 0, range: 0 });
+    expect(items).toHaveLength(1);
+    expect(items[0]?.originalName).toBe('note.txt');
+    expect(counts).toEqual({ prepare: 1, range: 1 });
+});
+
+test('a page without a Phodrive name probes every item', async () => {
+    const file = fixture('ordinary.bmp', 'ordinary content');
+    const counts: ProbeCounts = { prepare: 0, range: 0 };
+    const fetcher = fetcherFor(
+        libraryPage([{ ...file, fileName: 'IMG_0001.jpg' }]),
+        { mediaKey: file.mediaKey, sha1: file.sha1, url: `${DOWNLOAD_HOST}/photo` },
+        () => new Response(file.bmp),
+        counts
+    );
+
+    const items = (await listBmps(EMAIL, TOKEN, '', fetcher)).unwrap().items;
+
+    expect(items).toHaveLength(1);
+    expect(items[0]?.mediaKey).toBe(file.mediaKey);
+    expect(counts).toEqual({ prepare: 1, range: 1 });
 });
 
 test('a name with the Phodrive marker still probes', async () => {
@@ -275,4 +305,35 @@ test('a name with the Phodrive marker still probes', async () => {
 
     expect(items).toHaveLength(1);
     expect(counts).toEqual({ prepare: 1, range: 1 });
+});
+
+test('the real library capture keeps the name filter page scoped', async () => {
+    const body = await readFile(new URL('../fixtures/library-page.bin', import.meta.url));
+    const root = (await parse(body)).unwrap();
+    const page = (await parse((await bytes(root, 1)).unwrap())).unwrap();
+    const items = page.filter((field) => field.number === 2 && typeof field.value !== 'number');
+    const names: string[] = [];
+
+    for (const item of items) {
+        const entry = (await parse(item.value as Buffer)).unwrap();
+        const details = (await parse((await bytes(entry, 2)).unwrap())).unwrap();
+        const nameField = details.find(
+            (field) => field.number === 4 && typeof field.value !== 'number'
+        );
+        if (!nameField || typeof nameField.value === 'number') throw new Error('Missing name');
+
+        names.push((await utf8(nameField.value)).unwrap());
+    }
+
+    const markers = names.filter((name) => name.includes('.phodrive-'));
+    const ordinary = names.find((name) => !name.includes('.phodrive-'));
+
+    expect(items).toHaveLength(6);
+    expect(markers).toHaveLength(5);
+    expect(ordinary).toBeDefined();
+    expect(hasPhodriveNames(names.map((fileName) => ({ fileName })))).toBe(true);
+    expect(namedAsNonPhodrive({ fileName: ordinary }, true)).toBe(true);
+    expect(namedAsNonPhodrive({ fileName: markers[0] }, true)).toBe(false);
+    expect(hasPhodriveNames([{ fileName: ordinary }])).toBe(false);
+    expect(namedAsNonPhodrive({ fileName: ordinary }, false)).toBe(false);
 });

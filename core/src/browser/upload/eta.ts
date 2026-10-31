@@ -25,6 +25,13 @@ export function remainingSeconds(remainingBytes: number, bytesPerSecond: number)
     return remainingBytes / bytesPerSecond;
 }
 
+export function throttleMessage(
+    seconds: number,
+    action: 'retrying' | 'try again' = 'retrying'
+): string {
+    return `Google Photos is limiting requests, ${action} in about ${formatDuration(Math.max(1, Math.round(seconds)))}`;
+}
+
 export function formatDuration(seconds: number): string {
     const total = Math.max(0, Math.round(seconds));
     if (total < 60) return `${total} s`;

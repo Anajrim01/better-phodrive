@@ -7,7 +7,7 @@ import type { CliContext, CliError } from './context';
 import { activity, fileSize, shortId, status } from './output';
 import { askChoice } from './prompts';
 import { flushProbeCache } from '@madkarmaa/phodrive-core/server/photos/library';
-import { retryThrottled } from './throttle';
+import { retryThrottled, THROTTLE_RETRY_LIMIT, throttleMessage, waitForThrottle } from './throttle';
 
 const ID_PREFIX_PATTERN = /^[a-f0-9]{4,64}$/;
 
@@ -131,7 +131,7 @@ export function findFiles(
 
 /** A file is deleted only when every known chunk is confirmed in the trash. */
 function deleteFailure(file: FileGroup, { deleted, error }: DeleteResult): string | null {
-    if (!error && deleted.length === file.chunks.length) return null;
+    if (deleted.length === file.chunks.length) return null;
 
     const reason = error ? ` ${error}` : '';
 
@@ -148,14 +148,45 @@ export function deleteFiles(
         let failed = 0;
 
         for (const file of files) {
-            const deleted = await retryThrottled(context, () =>
-                deleteFile(file, session.token, workers)
-            );
+            let remaining = file.chunks;
+            const deleted: DeleteResult['deleted'] = [];
+            let error: string | undefined;
+            let lastThrottle: number | undefined;
 
-            const failure = deleted.match({
-                Ok: (result) => deleteFailure(file, result),
-                Err: (error) => `${file.name}: ${error.message}`
-            });
+            for (let attempt = 1; attempt <= THROTTLE_RETRY_LIMIT; attempt++) {
+                const result = await deleteFile(
+                    { ...file, chunks: remaining },
+                    session.token,
+                    workers
+                );
+                if (result.isErr()) {
+                    error = result.unwrapErr().message;
+                    lastThrottle = undefined;
+
+                    break;
+                }
+
+                const current = result.unwrap();
+                deleted.push(...current.deleted);
+                error = current.error;
+                lastThrottle = current.retryAfterSeconds;
+
+                const removed = new Set(
+                    current.deleted.map((chunk) => `${chunk.mediaKey}\u0000${chunk.sha1}`)
+                );
+                remaining = remaining.filter(
+                    (chunk) => !removed.has(`${chunk.mediaKey}\u0000${chunk.sha1}`)
+                );
+
+                if (!current.retryAfterSeconds || remaining.length === 0) break;
+
+                await waitForThrottle(context, current.retryAfterSeconds);
+            }
+
+            if (remaining.length && lastThrottle !== undefined)
+                error = throttleMessage(lastThrottle, 'try again');
+
+            const failure = deleteFailure(file, { deleted, error });
             if (failure) {
                 failed++;
                 status(context).error(failure);

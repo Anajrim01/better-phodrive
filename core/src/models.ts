@@ -265,7 +265,8 @@ export const FileRequestSchema = AccountRequestSchema.extend({
 });
 export const FileDeleteResponseSchema = z.object({
     deleted: z.array(RemoteBmpSchema),
-    error: z.string().optional()
+    error: z.string().optional(),
+    retryAfterSeconds: z.int().positive().optional()
 });
 export const UploadFileSchema = z.object({
     name: FileNameSchema,

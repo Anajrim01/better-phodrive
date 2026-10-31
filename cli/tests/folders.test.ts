@@ -103,7 +103,7 @@ function mockUpload(chunks: UploadedChunk[]): void {
                         },
                         bytesPerSecond: 0,
                         etaSeconds: null,
-                        retryAfterSeconds: null
+                        retryAt: null
                     });
                 }
 
@@ -248,7 +248,7 @@ test('a throttled listing prints the pause and retries', async () => {
             if (attempts === 1)
                 return Err({
                     code: 'THROTTLED',
-                    message: 'Paused',
+                    message: 'Google Photos is limiting requests',
                     retryAfterSeconds: 1
                 } as const);
 
@@ -259,7 +259,7 @@ test('a throttled listing prints the pause and retries', async () => {
     const listed = await runCli(['file', 'list', '--json'], { folder: folder.path });
 
     expect(listed.exitCode).toBe(0);
-    expect(listed.stderr).toContain('Paused, retrying in about 1 s');
+    expect(listed.stderr).toContain('Google Photos is limiting requests, retrying in about 1 s');
     expect(JSON.parse(listed.stdout)).toHaveLength(1);
     expect(attempts).toBe(2);
 });
@@ -272,7 +272,7 @@ test('a throttled listing keeps retrying beyond three attempts', async () => {
             if (attempts <= 4)
                 return Err({
                     code: 'THROTTLED',
-                    message: 'Paused',
+                    message: 'Google Photos is limiting requests',
                     retryAfterSeconds: 1
                 } as const);
 

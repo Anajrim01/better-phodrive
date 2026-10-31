@@ -8,7 +8,7 @@ import { guardedSend, readBody } from '../transport';
 import { bodyBytes } from '../../protobuf';
 import { pageRequest, parseLibraryPage, type LibraryCandidate } from './metadata';
 import { LIBRARY_STATE_REQUEST } from './requests';
-import { probeLibraryItem } from './probe';
+import { hasPhodriveNames, probeLibraryItem } from './probe';
 
 export { clearProbeCache, configureProbeCache, flushProbeCache } from './probe-cache';
 
@@ -112,8 +112,16 @@ function scanLibraryPage(
 ): AsyncResult<{ items: RemoteBmp[]; nextPageToken: string }, ServerError> {
     return Ok(undefined).andThenAsync(async () => {
         const limit = pLimit(LIBRARY_PROBE_CONCURRENCY);
+        const pageHasPhodriveName = hasPhodriveNames(page.items);
         const scanned = await limit.map(page.items, (candidate) =>
-            probeLibraryItem(email, candidate, headers.commonHeaders, headers.rpcHeaders, fetcher)
+            probeLibraryItem(
+                email,
+                candidate,
+                headers.commonHeaders,
+                headers.rpcHeaders,
+                fetcher,
+                pageHasPhodriveName
+            )
         );
 
         const items: RemoteBmp[] = [];

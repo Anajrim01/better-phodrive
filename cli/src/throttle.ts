@@ -1,15 +1,13 @@
 import type { AsyncResult, Result } from 'results-ts';
-import { formatDuration } from '@madkarmaa/phodrive-core/browser/upload/eta';
+import { throttleMessage } from '@madkarmaa/phodrive-core/browser/upload/eta';
 import type { CliContext } from './context';
 import { status } from './output';
 
-const THROTTLE_RETRY_LIMIT = 8;
+export const THROTTLE_RETRY_LIMIT = 8;
 
 export type Throttled = { code: string; message: string; retryAfterSeconds?: number };
 
-export function throttleMessage(seconds: number): string {
-    return `Paused, retrying in about ${formatDuration(Math.max(1, seconds))}`;
-}
+export { throttleMessage };
 
 export async function waitForThrottle(context: CliContext, seconds: number): Promise<void> {
     status(context).warn(throttleMessage(seconds));

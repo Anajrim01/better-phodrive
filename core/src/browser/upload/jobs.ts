@@ -21,7 +21,7 @@ export interface UploadJob {
     result: UploadResponse | null;
     bytesPerSecond: number;
     etaSeconds: number | null;
-    retryAfterSeconds: number | null;
+    retryAt: number | null;
 }
 
 export interface UploadSource {
@@ -39,7 +39,7 @@ export function createUploadJobs(files: readonly File[]): UploadJob[] {
         result: null,
         bytesPerSecond: 0,
         etaSeconds: null,
-        retryAfterSeconds: null
+        retryAt: null
     }));
 }
 
@@ -74,10 +74,12 @@ function updateProgress(
     )
         return invalidProgress();
 
-    const retryAfterSeconds =
-        progress.phase === UploadPhase.Uploading ? (progress.retryAfterSeconds ?? null) : null;
+    const retryAt =
+        progress.phase === UploadPhase.Uploading && progress.retryAfterSeconds !== undefined
+            ? Date.now() + progress.retryAfterSeconds * 1_000
+            : null;
 
-    return Ok({ ...job, status: UploadJobStatus.Active, progress, retryAfterSeconds });
+    return Ok({ ...job, status: UploadJobStatus.Active, progress, retryAt });
 }
 
 function completeJob(
@@ -100,7 +102,7 @@ function completeJob(
     )
         return invalidProgress();
 
-    return Ok({ ...job, status: UploadJobStatus.Complete, result, retryAfterSeconds: null });
+    return Ok({ ...job, status: UploadJobStatus.Complete, result, retryAt: null });
 }
 
 /** Server IDs index submitted files; local job IDs also include rejected selections. */

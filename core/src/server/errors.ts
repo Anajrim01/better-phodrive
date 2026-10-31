@@ -1,3 +1,4 @@
+import { throttleMessage } from '../browser/upload/eta';
 import { BMP_ERRORS } from '../bmp/errors';
 
 /** Recoverable server failures contain only application-owned messages. */
@@ -158,7 +159,7 @@ export const THROTTLE_ERROR: {
     retryAfterSeconds: number;
 } = {
     code: 'THROTTLED',
-    message: 'Paused',
+    message: 'Google Photos is limiting requests',
     retryAfterSeconds: 1
 };
 
@@ -167,25 +168,15 @@ export function throttleError(seconds: number): ServerError {
 
     return {
         code: 'THROTTLED',
-        message: `${THROTTLE_ERROR.message}, retrying in about ${formatWait(wait)}`,
+        message: throttleMessage(wait),
         retryAfterSeconds: wait
     };
 }
 
-export function isThrottleError(error: ServerError): boolean {
+export function isThrottleError(
+    error: ServerError
+): error is Extract<ServerError, { code: 'THROTTLED' }> {
     return error.code === 'THROTTLED';
-}
-
-function formatWait(seconds: number): string {
-    if (seconds < 60) return `${seconds} s`;
-
-    const totalMinutes = Math.round(seconds / 60);
-    if (totalMinutes < 60) return `${totalMinutes} min`;
-
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-
-    return minutes === 0 ? `${hours} h` : `${hours} h ${minutes} min`;
 }
 
 export type ServerError =

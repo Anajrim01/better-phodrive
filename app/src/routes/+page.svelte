@@ -234,17 +234,18 @@
 
 <style>
     .crumbs {
+        --crumb-pad: 8px;
         display: inline-flex;
         flex-wrap: wrap;
         align-items: baseline;
         gap: 0;
-        margin-inline-start: -8px;
+        margin-inline-start: calc(-1 * var(--crumb-pad));
     }
 
     .crumb {
         max-width: 100%;
         min-width: 0;
-        padding: 4px 8px;
+        padding: 4px var(--crumb-pad);
         overflow: hidden;
         border-radius: 8px;
         color: var(--app-subtle);
@@ -268,6 +269,7 @@
     }
 
     .crumb-separator {
+        padding-inline: 4px;
         color: var(--app-subtle);
     }
 </style>

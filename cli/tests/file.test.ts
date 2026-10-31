@@ -166,7 +166,7 @@ test('uploads expand folders and fail when any file fails', async () => {
                     message: id === 0 ? '' : 'Commit rejected',
                     bytesPerSecond: 0,
                     etaSeconds: null,
-                    retryAfterSeconds: null,
+                    retryAt: null,
                     result:
                         id === 0
                             ? {
@@ -240,4 +240,43 @@ test('rejected tokens suggest connecting the account again', async () => {
     const listed = await runCli(['file', 'list'], { folder: folder.path });
 
     expect(listed.stderr).toContain('run `phodrive account add` again');
+});
+
+test('a paused delete retries the remaining chunks', async () => {
+    const report = remoteFile('report.pdf');
+    const first = report.chunks[0];
+    const twoChunks = {
+        ...report,
+        chunks: [
+            first,
+            {
+                ...first,
+                chunkIndex: 1,
+                isLast: true,
+                mediaKey: 'media-second',
+                sha1: 'b'.repeat(40)
+            }
+        ]
+    };
+    library([twoChunks]);
+    let calls = 0;
+    vi.mocked(deleteFile).mockImplementation((file) =>
+        Ok(undefined).andThenAsync(async () => {
+            calls++;
+
+            return calls === 1
+                ? Ok({ deleted: [file.chunks[0]], retryAfterSeconds: 1 })
+                : Ok({ deleted: file.chunks });
+        })
+    );
+
+    const deleted = await runCli(['file', 'delete', 'report.pdf', '--yes'], {
+        folder: folder.path
+    });
+
+    expect(deleted.exitCode).toBe(0);
+    expect(deleteFile).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(deleteFile).mock.calls[0][0].chunks).toHaveLength(2);
+    expect(vi.mocked(deleteFile).mock.calls[1][0].chunks).toHaveLength(1);
+    expect(deleted.stderr).toContain('Google Photos is limiting requests, retrying in about 1 s');
 });

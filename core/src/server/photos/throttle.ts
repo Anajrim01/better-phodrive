@@ -53,10 +53,10 @@ export function recordServerFailure(
     now = Date.now()
 ): number | null {
     const state = stateFor(email);
-    state.serverFailures += 1;
-
-    if (state.serverFailures < THROTTLE_FAILURE_LIMIT) return null;
     if (state.pausedUntil > now) return Math.ceil((state.pausedUntil - now) / 1000);
+
+    state.serverFailures += 1;
+    if (state.serverFailures < THROTTLE_FAILURE_LIMIT) return null;
 
     const level = state.serverFailures - THROTTLE_FAILURE_LIMIT + 1;
     const seconds = backoffSeconds(level, random);

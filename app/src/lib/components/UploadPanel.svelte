@@ -1,12 +1,17 @@
 <script lang="ts">
     import { IconButton, List, Sheet } from 'noph-ui';
-    import { formatDuration, remainingSeconds } from '@madkarmaa/phodrive-core/browser/upload/eta';
+    import {
+        formatDuration,
+        remainingSeconds,
+        throttleMessage
+    } from '@madkarmaa/phodrive-core/browser/upload/eta';
     import { UploadJobStatus, UploadPhase } from '@madkarmaa/phodrive-core/models';
 
     import { slide } from 'svelte/transition';
     import { prefersReducedMotion } from 'svelte/motion';
     import type { UploadJob } from '#browser/files';
     import UploadStatusRow from '#components/UploadStatusRow.svelte';
+    import { retryRemainingSeconds } from '#browser/upload-status';
     import IconClose from '~icons/material-symbols/close';
     import IconExpandMore from '~icons/material-symbols/expand-more';
 
@@ -51,16 +56,27 @@
         )
     );
     const eta = $derived(busy ? remainingSeconds(remainingBytes, aggregateRate) : null);
-    const paused = $derived(
-        pending
-            .filter((job) => job.retryAfterSeconds !== null)
-            .map((job) => job.retryAfterSeconds ?? 0)
+    const paused = $derived(pending.filter((job) => job.retryAt !== null));
+    let now = $state(Date.now());
+
+    $effect(() => {
+        if (!busy || !paused.length) return;
+
+        const timer = setInterval(() => (now = Date.now()), 1_000);
+
+        return () => clearInterval(timer);
+    });
+
+    const pausedSeconds = $derived(
+        paused
+            .map((job) => retryRemainingSeconds(job, now))
+            .filter((seconds): seconds is number => seconds !== null)
     );
     const failures = $derived(jobs.filter((job) => job.status === UploadJobStatus.Error).length);
     const heading = $derived.by(() => {
         if (busy) {
-            if (paused.length)
-                return `${remaining} ${remaining === 1 ? 'item' : 'items'} waiting, retrying in about ${formatDuration(Math.max(...paused))}`;
+            if (pausedSeconds.length)
+                return `${remaining} ${remaining === 1 ? 'item' : 'items'} waiting. ${throttleMessage(Math.max(...pausedSeconds))}`;
 
             const label = `Uploading ${remaining} ${remaining === 1 ? 'item' : 'items'}`;
             if (eta === null) return label;
@@ -106,7 +122,7 @@
         <div transition:slide={{ duration: prefersReducedMotion.current ? 0 : 140 }}>
             <List class="upload-queue" aria-label="Upload queue">
                 {#each orderedJobs as job (job.id)}
-                    <UploadStatusRow {job} {retryDisabled} onretry={() => onretry(job.id)} />
+                    <UploadStatusRow {job} {retryDisabled} {now} onretry={() => onretry(job.id)} />
                 {/each}
             </List>
         </div>

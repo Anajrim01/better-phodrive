@@ -26,7 +26,7 @@ test('a throttled chunk waits and retries without committing twice', async () =>
             if (attempts.length === 1) {
                 const failure = Err({
                     code: 'THROTTLED',
-                    message: 'Paused, retrying in about 1 s',
+                    message: 'Google Photos is limiting requests, retrying in about 1 s',
                     retryAfterSeconds: 1
                 } as const);
 
@@ -93,7 +93,7 @@ test('a throttled chunk waits and retries without committing twice', async () =>
         'aas_et/retry',
         1,
         (job) => {
-            if (job.retryAfterSeconds !== null) pausedFor = job.retryAfterSeconds;
+            if (job.retryAt !== null) pausedFor = Math.ceil((job.retryAt - Date.now()) / 1_000);
         },
         (chunk) => committed.push(chunk),
         transport
@@ -114,7 +114,7 @@ test('a chunk that stays throttled fails the file after the retry limit', async 
 
         return Err({
             code: 'THROTTLED',
-            message: 'Paused, retrying in about 1 s',
+            message: 'Google Photos is limiting requests, retrying in about 1 s',
             retryAfterSeconds: 1
         } as const).andThenAsync(async () => Ok(undefined));
     };

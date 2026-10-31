@@ -18,7 +18,11 @@ export type DownloadOptions = {
     signal?: AbortSignal;
     onProgress?: (written: number) => void;
 };
-export type DeleteResult = { deleted: RemoteBmp[]; error?: string };
+export type DeleteResult = {
+    deleted: RemoteBmp[];
+    error?: string;
+    retryAfterSeconds?: number;
+};
 
 type FileError = ApplicationError | ServerError;
 
@@ -52,6 +56,14 @@ function fileRequest(
 
 /** The download stream fails with the server's own error values, which keep their messages. */
 function streamFailure(reason: unknown): ServerError {
+    if (
+        typeof reason === 'object' &&
+        reason !== null &&
+        'code' in reason &&
+        reason.code === 'THROTTLED'
+    )
+        return reason as ServerError;
+
     return (
         KNOWN_SERVER_ERRORS.find((error) => error === reason) ??
         SERVER_ERRORS.COULD_NOT_READ_THE_DOWNLOADED_FILE
