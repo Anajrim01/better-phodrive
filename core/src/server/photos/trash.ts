@@ -3,7 +3,7 @@ import { Err, Ok, type AsyncResult } from 'results-ts';
 import { Sha1HexSchema } from '../../models';
 import { authenticatedHeaders } from './auth';
 import { photosFetch, type Fetcher } from '../fetcher';
-import { send, readBody } from './transport';
+import { guardedSend, readBody } from './transport';
 import { message, numberField, bytesField, bodyBytes } from '../protobuf';
 
 const TRASH_URL = 'https://photosdata-pa.googleapis.com/6439526531001121323/17490284929287180316';
@@ -47,7 +47,8 @@ export function moveToTrash(
                 )
             );
 
-            return send(
+            return guardedSend(
+                email,
                 fetcher,
                 TRASH_URL,
                 {

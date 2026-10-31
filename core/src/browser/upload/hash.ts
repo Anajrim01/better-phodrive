@@ -3,6 +3,7 @@ import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import type { ApplicationError } from '../../errors';
 import { MAX_CONCURRENT_WORKERS, type SplitHeader } from '../../models';
 import { encodeSplitPrefix, MAX_CHUNK_PAYLOAD_BYTES } from '../../bmp/format';
+import { identityInput } from '../../files';
 
 export const HASH_BLOCK_BYTES = 1024 * 1024;
 // Avoid native digest call overhead for tiny files.
@@ -172,11 +173,14 @@ function hashFileIncrementally(
 
 export function uploadIdentity(
     name: string,
-    fileHash: string
+    fileHash: string,
+    folder = ''
 ): AsyncResult<string, ApplicationError> {
     return Ok(undefined).andThenAsync(async () => {
         try {
-            const identity = await sha256(`${fileHash}\0${name}\0${MAX_CHUNK_PAYLOAD_BYTES}`);
+            const identity = await sha256(
+                identityInput(name, fileHash, MAX_CHUNK_PAYLOAD_BYTES, folder)
+            );
 
             return Ok(identity);
         } catch {

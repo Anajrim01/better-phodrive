@@ -3,7 +3,7 @@ import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import { Sha1HexSchema } from '../../models';
 import { authenticatedHeaders } from './auth';
 import { photosFetch, type Fetcher } from '../fetcher';
-import { send, readBody } from './transport';
+import { guardedSend, readBody } from './transport';
 import {
     message,
     bytesField,
@@ -38,7 +38,7 @@ export function downloadBmp(
             authenticatedHeaders(email, token, (url, init) => fetcher(url, { ...init, signal }))
         )
         .andThenAsync(({ commonHeaders, rpcHeaders }) =>
-            preparedDownloadUrl(mediaKey, sha1, rpcHeaders, (url, init) =>
+            preparedDownloadUrl(email, mediaKey, sha1, rpcHeaders, (url, init) =>
                 fetcher(url, { ...init, signal })
             ).map((url) => ({
                 url,
@@ -48,7 +48,8 @@ export function downloadBmp(
         .andThenAsync(async ({ url, commonHeaders }) => {
             if (url === null) return Err(SERVER_ERRORS.INVALID_DOWNLOAD_CONTENT_TYPE);
 
-            return await send(
+            return await guardedSend(
+                email,
                 fetcher,
                 url,
                 {
@@ -76,6 +77,7 @@ export function downloadBmp(
 }
 
 export function preparedDownloadUrl(
+    email: string,
     mediaKey: string,
     sha1: string,
     rpcHeaders: Record<string, string>,
@@ -86,7 +88,8 @@ export function preparedDownloadUrl(
         bytesField(2, DOWNLOAD_MASK)
     );
 
-    return send(
+    return guardedSend(
+        email,
         fetcher,
         DOWNLOAD_URL,
         {

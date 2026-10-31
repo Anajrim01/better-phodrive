@@ -6,6 +6,8 @@ import type { Session } from './accounts';
 import type { CliContext, CliError } from './context';
 import { activity, fileSize, shortId, status } from './output';
 import { askChoice } from './prompts';
+import { flushProbeCache } from '@madkarmaa/phodrive-core/server/photos/library';
+import { retryThrottled, THROTTLE_RETRY_LIMIT, throttleMessage, waitForThrottle } from './throttle';
 
 const ID_PREFIX_PATTERN = /^[a-f0-9]{4,64}$/;
 
@@ -16,7 +18,10 @@ export function loadFiles(
     return Ok(undefined).andThenAsync(async () => {
         const indicator = activity(context, `Loading files for ${session.email}`);
 
-        const files = await readLibrary(session.email, session.token);
+        const files = await retryThrottled(context, () =>
+            readLibrary(session.email, session.token)
+        );
+        files.inspect(() => flushProbeCache());
 
         files.match({
             Ok: (found) => indicator.stop(`Found ${found.length} files`),
@@ -27,8 +32,12 @@ export function loadFiles(
     });
 }
 
+export function filePath(file: FileGroup): string {
+    return file.folder ? `${file.folder}/${file.name}` : file.name;
+}
+
 function describe(file: FileGroup): string {
-    return `${file.name} (${shortId(file)})`;
+    return `${filePath(file)} (${shortId(file)})`;
 }
 
 /** A target is a file ID prefix or an exact file name. */
@@ -36,7 +45,12 @@ function matchTarget(files: readonly FileGroup[], target: string): FileGroup[] {
     const prefix = target.toLowerCase();
     const byId = ID_PREFIX_PATTERN.test(prefix);
 
-    return files.filter((file) => file.name === target || (byId && file.fileId.startsWith(prefix)));
+    return files.filter(
+        (file) =>
+            file.name === target ||
+            filePath(file) === target ||
+            (byId && file.fileId.startsWith(prefix))
+    );
 }
 
 /** At a terminal the person picks one match; scripts are told to use an ID instead. */
@@ -86,7 +100,6 @@ function resolveTarget(
     });
 }
 
-/** Resolve each target once, keeping the order given and skipping repeated files. */
 export function resolveTargets(
     context: CliContext,
     files: readonly FileGroup[],
@@ -106,7 +119,6 @@ export function resolveTargets(
     });
 }
 
-/** Load the library and resolve file names or IDs given on the command line. */
 export function findFiles(
     context: CliContext,
     session: Session,
@@ -119,7 +131,7 @@ export function findFiles(
 
 /** A file is deleted only when every known chunk is confirmed in the trash. */
 function deleteFailure(file: FileGroup, { deleted, error }: DeleteResult): string | null {
-    if (!error && deleted.length === file.chunks.length) return null;
+    if (deleted.length === file.chunks.length) return null;
 
     const reason = error ? ` ${error}` : '';
 
@@ -136,12 +148,50 @@ export function deleteFiles(
         let failed = 0;
 
         for (const file of files) {
-            const deleted = await deleteFile(file, session.token, workers);
+            let remaining = file.chunks;
+            const deleted: DeleteResult['deleted'] = [];
+            let error: string | undefined;
+            let lastThrottle: number | undefined;
 
-            const failure = deleted.match({
-                Ok: (result) => deleteFailure(file, result),
-                Err: (error) => `${file.name}: ${error.message}`
-            });
+            for (let attempt = 1; attempt <= THROTTLE_RETRY_LIMIT; attempt++) {
+                const result = await deleteFile(
+                    { ...file, chunks: remaining },
+                    session.token,
+                    workers
+                );
+                if (result.isErr()) {
+                    error = result.unwrapErr().message;
+                    lastThrottle = undefined;
+
+                    break;
+                }
+
+                const current = result.unwrap();
+                deleted.push(...current.deleted);
+                error = current.error;
+                lastThrottle = current.retryAfterSeconds;
+
+                const removed = new Set(
+                    current.deleted.map((chunk) => `${chunk.mediaKey}\u0000${chunk.sha1}`)
+                );
+                remaining = remaining.filter(
+                    (chunk) => !removed.has(`${chunk.mediaKey}\u0000${chunk.sha1}`)
+                );
+
+                if (
+                    !current.retryAfterSeconds ||
+                    remaining.length === 0 ||
+                    attempt === THROTTLE_RETRY_LIMIT
+                )
+                    break;
+
+                await waitForThrottle(context, current.retryAfterSeconds);
+            }
+
+            if (remaining.length && lastThrottle !== undefined)
+                error = throttleMessage(lastThrottle, 'try again');
+
+            const failure = deleteFailure(file, { deleted, error });
             if (failure) {
                 failed++;
                 status(context).error(failure);

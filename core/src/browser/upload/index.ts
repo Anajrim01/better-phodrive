@@ -1,226 +1,42 @@
 import pLimit from 'p-limit';
-import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
+import { Ok, type AsyncResult } from 'results-ts';
 import {
     ConcurrentWorkersSchema,
     FileNameSchema,
     FileSizeSchema,
     UploadEventType,
     UploadPhase,
-    UploadStatus,
-    UploadJobStatus,
-    type UploadEvent,
-    type SplitHeader,
-    type UploadResponse
+    UploadJobStatus
 } from '../../models';
 import type { ApplicationError } from '../../errors';
 import type { UploadedChunk } from '../../files';
+import { folderFromFile } from '../../files';
 import { schemaResult } from '../../validation';
-import { MAX_CHUNK_PAYLOAD_BYTES } from '../../bmp/format';
-import { planChunks, type UploadPlan } from '../../upload';
-import { INVALID_UPLOAD_PROGRESS, httpChunkTransport, type ChunkTransport } from './request';
-import { hashFile, hashUploadChunk, uploadIdentity } from './hash';
+import { planChunks } from '../../upload';
+import { httpChunkTransport, type ChunkTransport } from './request';
+import { hashFile, uploadIdentity } from './hash';
 import { createUploadJobs, createUploadEventHandler, type UploadJob } from './jobs';
+import { uploadPlannedFile } from './file';
 
 const PROGRESS_INTERVAL_MS = 100;
 
-function invalidResponse(): Result<never, ApplicationError> {
-    return Err(INVALID_UPLOAD_PROGRESS);
-}
+export type UploadOptions = { folder?: string; folders?: ReadonlyMap<File, string> };
 
-function uploadChunk(
-    file: File,
-    header: SplitHeader,
-    { email, token }: { email: string; token: string },
-    transport: ChunkTransport,
-    onProgress: (sent: number, reused: number) => void,
-    onChunk: (
-        chunk: UploadEvent & { type: UploadEventType.Chunk }
-    ) => Result<void, ApplicationError>
-): AsyncResult<UploadResponse, ApplicationError> {
-    const start = header.chunkIndex * MAX_CHUNK_PAYLOAD_BYTES;
-    const payload = file.slice(start, start + header.payloadSize);
-
-    return hashUploadChunk(payload, header).andThenAsync(async ({ sha1, size }) => {
-        const metadata = {
-            email,
-            token,
-            file: { name: file.name, size: file.size, fileHash: header.fileHash },
-            chunkIndex: header.chunkIndex,
-            sha1
-        };
-
-        let sent = 0;
-        let reused = 0;
-        let saved: UploadedChunk | null = null;
-        let result: UploadResponse | null = null;
-        const uploaded = await transport(metadata, payload, (event) => {
-            if (event.type === UploadEventType.Error)
-                return Err({ code: 'UPLOAD_FAILED', message: event.error } as const);
-            if (event.type === UploadEventType.Complete)
-                return saved && result ? Ok(undefined) : invalidResponse();
-            if (event.id !== 0 || result) return invalidResponse();
-            if (event.type === UploadEventType.Progress) {
-                const progress = event.progress;
-                if (
-                    progress.phase !== UploadPhase.Uploading ||
-                    progress.total !== size ||
-                    progress.completed < sent ||
-                    progress.reused < reused
-                )
-                    return invalidResponse();
-
-                sent = progress.completed;
-                reused = progress.reused;
-                onProgress(sent, reused);
-
-                return Ok(undefined);
-            }
-            if (event.type === UploadEventType.Chunk) {
-                const chunk = event.chunk;
-                if (
-                    saved ||
-                    chunk.fileHash !== header.fileHash ||
-                    chunk.fileId !== header.fileId ||
-                    chunk.chunkIndex !== header.chunkIndex ||
-                    chunk.isLast !== Boolean(header.flags) ||
-                    chunk.size !== header.payloadSize ||
-                    chunk.originalName !== header.fileName ||
-                    chunk.sha1 !== sha1
-                )
-                    return invalidResponse();
-
-                saved = { ...chunk, email };
-
-                return onChunk(event);
-            }
-            if (event.type === UploadEventType.FileComplete) {
-                if (
-                    !saved ||
-                    sent + reused !== size ||
-                    event.result.sha1 !== saved.sha1 ||
-                    event.result.mediaKey !== saved.mediaKey
-                )
-                    return invalidResponse();
-
-                result = event.result;
-
-                return Ok(undefined);
-            }
-
-            return invalidResponse();
-        });
-
-        return uploaded.andThen(() => (result ? Ok(result) : invalidResponse()));
-    });
-}
-
-function uploadPlannedFile(
-    { file, id }: { file: File; id: number },
-    { headers, sizes }: UploadPlan,
-    account: { email: string; token: string },
-    transport: ChunkTransport,
-    chunkLimit: ReturnType<typeof pLimit>,
-    handle: (event: UploadEvent) => Result<void, ApplicationError>
-): AsyncResult<void, ApplicationError> {
-    return Ok(undefined).andThenAsync(async () => {
-        const total = sizes.reduce((sum, size) => sum + size, 0);
-        const sent = headers.map(() => 0);
-        const reused = headers.map(() => 0);
-        let failure: ApplicationError | null = null;
-        let uploadedAny = false;
-        handle({
-            type: UploadEventType.Progress,
-            id,
-            progress: { phase: UploadPhase.Uploading, completed: 0, reused: 0, total }
-        });
-
-        const results = await chunkLimit.map(headers, async (header) => {
-            if (failure) return Err(failure);
-
-            const result = await uploadChunk(
-                file,
-                header,
-                account,
-                transport,
-                (completed, existing) => {
-                    sent[header.chunkIndex] = completed;
-                    reused[header.chunkIndex] = existing;
-                    handle({
-                        type: UploadEventType.Progress,
-                        id,
-                        progress: {
-                            phase: UploadPhase.Uploading,
-                            completed: sent.reduce((sum, size) => sum + size, 0),
-                            reused: reused.reduce((sum, size) => sum + size, 0),
-                            total
-                        }
-                    });
-                },
-                (event) => handle({ ...event, id })
-            );
-
-            result.match({
-                Ok: (response) => {
-                    uploadedAny ||= response.status === UploadStatus.Uploaded;
-                },
-                Err: (error) => {
-                    failure ??= error;
-                }
-            });
-
-            return result;
-        });
-
-        const failed = results.find((result) => result.isErr());
-        if (failed) {
-            failed.inspectErr((error) =>
-                handle({ type: UploadEventType.FileError, id, error: error.message })
-            );
-
-            return Ok(undefined);
-        }
-
-        const last = results.at(-1);
-        if (!last) {
-            handle({
-                type: UploadEventType.FileError,
-                id,
-                error: 'No chunks were uploaded.'
-            });
-
-            return Ok(undefined);
-        }
-
-        last.inspect((result) =>
-            handle({
-                type: UploadEventType.FileComplete,
-                id,
-                result: {
-                    ...result,
-                    status: uploadedAny ? UploadStatus.Uploaded : UploadStatus.AlreadyExists
-                }
-            })
-        );
-
-        return Ok(undefined);
-    });
-}
-
-/** Hash locally, then send bounded slices through a single shared transfer pool. */
 export function uploadFiles(
     files: readonly File[],
     email: string,
     token: string,
     workers: number,
     onJob: (job: UploadJob) => void,
-    onChunk: (chunk: UploadedChunk) => void
+    onChunk: (chunk: UploadedChunk) => void,
+    options: UploadOptions = {}
 ): AsyncResult<void, ApplicationError> {
     return schemaResult(
         ConcurrentWorkersSchema,
         workers,
         'Invalid concurrent worker count.'
     ).andThenAsync((concurrency) =>
-        transferFiles(files, email, token, concurrency, onJob, onChunk, httpChunkTransport)
+        transferFiles(files, email, token, concurrency, onJob, onChunk, httpChunkTransport, options)
     );
 }
 
@@ -232,7 +48,8 @@ export function transferFiles(
     concurrency: number,
     onJob: (job: UploadJob) => void,
     onChunk: (chunk: UploadedChunk) => void,
-    transport: ChunkTransport
+    transport: ChunkTransport,
+    options: UploadOptions = {}
 ): AsyncResult<void, ApplicationError> {
     return Ok(undefined).andThenAsync(async () => {
         const jobs = createUploadJobs(files);
@@ -261,6 +78,7 @@ export function transferFiles(
         await fileLimit.map(sources, async ({ file }, id) => {
             handle({ type: UploadEventType.Queued, id });
 
+            const folder = options.folders?.get(file) ?? folderFromFile(file, options.folder);
             let lastProgress = 0;
             const prepared = await hashFile(file, (completed) => {
                 const now = performance.now();
@@ -273,7 +91,10 @@ export function transferFiles(
                     progress: { phase: UploadPhase.Preparing, completed, total: file.size }
                 });
             }).andThenAsync((fileHash) =>
-                uploadIdentity(file.name, fileHash).map((fileId) => ({ fileHash, fileId }))
+                uploadIdentity(file.name, fileHash, folder).map((fileId) => ({
+                    fileHash,
+                    fileId
+                }))
             );
             if (prepared.isErr()) {
                 prepared.inspectErr((error) =>
@@ -284,7 +105,15 @@ export function transferFiles(
             }
 
             const planned = prepared.andThen(({ fileHash, fileId }) =>
-                planChunks({ name: file.name, size: file.size, fileHash }, fileId)
+                planChunks(
+                    {
+                        name: file.name,
+                        folder: folder || undefined,
+                        size: file.size,
+                        fileHash
+                    },
+                    fileId
+                )
             );
 
             if (planned.isErr()) {

@@ -23,7 +23,7 @@ export function planUpload(file: UploadFile): Result<UploadPlan, ServerError> {
         FileNameSchema.safeParse(file.name).success && FileSizeSchema.safeParse(file.size).success;
     if (!valid) return Err(SERVER_ERRORS.INVALID_FILE_NAME_OR_SIZE);
 
-    return planChunks(file, fileIdentity(file.name, file.fileHash));
+    return planChunks(file, fileIdentity(file.name, file.fileHash, undefined, file.folder ?? ''));
 }
 
 /** Encode and forward one incoming chunk without disk storage or a whole-chunk buffer. */
@@ -79,6 +79,7 @@ export function uploadFiles(
                     chunkIndex: input.header.chunkIndex,
                     isLast: input.header.flags === 1,
                     originalName: input.header.fileName,
+                    folder: input.header.folder,
                     size: input.header.payloadSize,
                     at: Date.now(),
                     mediaKey: result.mediaKey,

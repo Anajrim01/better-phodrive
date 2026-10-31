@@ -1,4 +1,5 @@
 import type { ApplicationError } from '../errors';
+import { throttleMessage } from './upload/eta';
 import { FileActionKind, ConcurrentWorkersSchema, FileDeleteResponseSchema } from '../models';
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import type { FileGroup, UploadedChunk } from '../files';
@@ -49,7 +50,7 @@ export function deleteFile(
             )
         )
         .andThen((data) => schemaResult(FileDeleteResponseSchema, data, 'Delete failed'))
-        .andThen(({ deleted, error }): Result<void, ApplicationError> => {
+        .andThen(({ deleted, error, retryAfterSeconds }): Result<void, ApplicationError> => {
             for (const chunk of deleted) {
                 const known = item.chunks.find(
                     (current) => current.mediaKey === chunk.mediaKey && current.sha1 === chunk.sha1
@@ -62,6 +63,13 @@ export function deleteFile(
 
                 onDeleted(known);
             }
+
+            if (retryAfterSeconds !== undefined)
+                return Err({
+                    code: 'THROTTLED',
+                    message: `Deleted ${deleted.length} of ${item.chunks.length} chunks. ${throttleMessage(retryAfterSeconds, 'try again')}`,
+                    retryAfterSeconds
+                });
 
             return error ? Err({ code: 'DELETE_FAILED', message: error } as const) : Ok(undefined);
         });
@@ -87,7 +95,8 @@ export function downloadFile(item: FileGroup, token: string): AsyncResult<Blob, 
             } catch {
                 return Err({
                     code: 'DOWNLOAD_RECEIVE_FAILED',
-                    message: 'Could not receive the downloaded file.'
+                    message:
+                        'Download was interrupted, possibly because Google Photos is limiting requests. Try again.'
                 } as const);
             }
         });

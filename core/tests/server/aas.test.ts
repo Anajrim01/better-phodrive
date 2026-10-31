@@ -31,3 +31,14 @@ test('OAuth2 exchange rejects a response without an AAS token', async () => {
         message: 'OAuth2 exchange failed'
     });
 });
+
+test('OAuth2 exchange reports the HTTP status when Google rejects the request', async () => {
+    const fakeFetch: Fetcher = async () =>
+        new Response('Error=BadAuthentication\n', { status: 403 });
+    const exchanged = await exchangeOAuth2ForAas('test@example.com', 'oauth2_4/test', fakeFetch);
+
+    expect(exchanged.unwrapErr()).toEqual({
+        code: 'OAUTH_EXCHANGE_FAILED',
+        message: 'OAuth2 exchange failed (HTTP 403)'
+    });
+});

@@ -77,8 +77,12 @@ export async function runCli(
 
 let sequence = 0;
 
-/** A complete single-chunk file as the library returns it. */
-export function remoteFile(name: string, at = 1_700_000_000_000, size = 1024): FileGroup {
+export function remoteFile(
+    name: string,
+    at = 1_700_000_000_000,
+    size = 1024,
+    folder = ''
+): FileGroup {
     sequence++;
     const hex = sequence.toString(16).padStart(2, '0');
     const chunk: RemoteBmp = {
@@ -87,6 +91,7 @@ export function remoteFile(name: string, at = 1_700_000_000_000, size = 1024): F
         chunkIndex: 0,
         isLast: true,
         originalName: name,
+        folder: folder || undefined,
         size,
         at,
         mediaKey: `media-${sequence}`,

@@ -25,6 +25,10 @@
             "@madkarmaa/phodrive-core": "./src/index.ts",
             "default": "./dist/index.js"
         },
+        "./albums": {
+            "@madkarmaa/phodrive-core": "./src/albums.ts",
+            "default": "./dist/albums.js"
+        },
         "./bmp/errors": {
             "@madkarmaa/phodrive-core": "./src/bmp/errors.ts",
             "default": "./dist/bmp/errors.js"
@@ -41,6 +45,10 @@
             "@madkarmaa/phodrive-core": "./src/browser/accounts.ts",
             "default": "./dist/browser/accounts.js"
         },
+        "./browser/albums": {
+            "@madkarmaa/phodrive-core": "./src/browser/albums.ts",
+            "default": "./dist/browser/albums.js"
+        },
         "./browser/api": {
             "@madkarmaa/phodrive-core": "./src/browser/api.ts",
             "default": "./dist/browser/api.js"
@@ -56,6 +64,18 @@
         "./browser/upload": {
             "@madkarmaa/phodrive-core": "./src/browser/upload/index.ts",
             "default": "./dist/browser/upload/index.js"
+        },
+        "./browser/upload/chunk": {
+            "@madkarmaa/phodrive-core": "./src/browser/upload/chunk.ts",
+            "default": "./dist/browser/upload/chunk.js"
+        },
+        "./browser/upload/eta": {
+            "@madkarmaa/phodrive-core": "./src/browser/upload/eta.ts",
+            "default": "./dist/browser/upload/eta.js"
+        },
+        "./browser/upload/file": {
+            "@madkarmaa/phodrive-core": "./src/browser/upload/file.ts",
+            "default": "./dist/browser/upload/file.js"
         },
         "./browser/upload/hash": {
             "@madkarmaa/phodrive-core": "./src/browser/upload/hash.ts",
@@ -145,9 +165,17 @@
             "@madkarmaa/phodrive-core": "./src/server/photos/index.ts",
             "default": "./dist/server/photos/index.js"
         },
+        "./server/photos/albums": {
+            "@madkarmaa/phodrive-core": "./src/server/photos/albums.ts",
+            "default": "./dist/server/photos/albums.js"
+        },
         "./server/photos/auth": {
             "@madkarmaa/phodrive-core": "./src/server/photos/auth.ts",
             "default": "./dist/server/photos/auth.js"
+        },
+        "./server/photos/auth-cache": {
+            "@madkarmaa/phodrive-core": "./src/server/photos/auth-cache.ts",
+            "default": "./dist/server/photos/auth-cache.js"
         },
         "./server/photos/download": {
             "@madkarmaa/phodrive-core": "./src/server/photos/download.ts",
@@ -161,9 +189,21 @@
             "@madkarmaa/phodrive-core": "./src/server/photos/library/metadata.ts",
             "default": "./dist/server/photos/library/metadata.js"
         },
+        "./server/photos/library/probe": {
+            "@madkarmaa/phodrive-core": "./src/server/photos/library/probe.ts",
+            "default": "./dist/server/photos/library/probe.js"
+        },
+        "./server/photos/library/probe-cache": {
+            "@madkarmaa/phodrive-core": "./src/server/photos/library/probe-cache.ts",
+            "default": "./dist/server/photos/library/probe-cache.js"
+        },
         "./server/photos/library/requests": {
             "@madkarmaa/phodrive-core": "./src/server/photos/library/requests.ts",
             "default": "./dist/server/photos/library/requests.js"
+        },
+        "./server/photos/throttle": {
+            "@madkarmaa/phodrive-core": "./src/server/photos/throttle.ts",
+            "default": "./dist/server/photos/throttle.js"
         },
         "./server/photos/transport": {
             "@madkarmaa/phodrive-core": "./src/server/photos/transport.ts",
@@ -174,8 +214,16 @@
             "default": "./dist/server/photos/trash.js"
         },
         "./server/photos/upload": {
-            "@madkarmaa/phodrive-core": "./src/server/photos/upload.ts",
-            "default": "./dist/server/photos/upload.js"
+            "@madkarmaa/phodrive-core": "./src/server/photos/upload/index.ts",
+            "default": "./dist/server/photos/upload/index.js"
+        },
+        "./server/photos/upload/lookup": {
+            "@madkarmaa/phodrive-core": "./src/server/photos/upload/lookup.ts",
+            "default": "./dist/server/photos/upload/lookup.js"
+        },
+        "./server/photos/upload/transfer": {
+            "@madkarmaa/phodrive-core": "./src/server/photos/upload/transfer.ts",
+            "default": "./dist/server/photos/upload/transfer.js"
         },
         "./server/protobuf": {
             "@madkarmaa/phodrive-core": "./src/server/protobuf.ts",
@@ -204,6 +252,10 @@
         "./server/workers": {
             "@madkarmaa/phodrive-core": "./src/server/workers.ts",
             "default": "./dist/server/workers.js"
+        },
+        "./stats": {
+            "@madkarmaa/phodrive-core": "./src/stats.ts",
+            "default": "./dist/stats.js"
         },
         "./upload": {
             "@madkarmaa/phodrive-core": "./src/upload.ts",
@@ -244,14 +296,19 @@
         "registry": "https://npm.pkg.github.com",
         "exports": {
             ".": "./dist/index.js",
+            "./albums": "./dist/albums.js",
             "./bmp/errors": "./dist/bmp/errors.js",
             "./bmp/format": "./dist/bmp/format.js",
             "./browser": "./dist/browser/index.js",
             "./browser/accounts": "./dist/browser/accounts.js",
+            "./browser/albums": "./dist/browser/albums.js",
             "./browser/api": "./dist/browser/api.js",
             "./browser/files": "./dist/browser/files.js",
             "./browser/library": "./dist/browser/library.js",
             "./browser/upload": "./dist/browser/upload/index.js",
+            "./browser/upload/chunk": "./dist/browser/upload/chunk.js",
+            "./browser/upload/eta": "./dist/browser/upload/eta.js",
+            "./browser/upload/file": "./dist/browser/upload/file.js",
             "./browser/upload/hash": "./dist/browser/upload/hash.js",
             "./browser/upload/jobs": "./dist/browser/upload/jobs.js",
             "./browser/upload/request": "./dist/browser/upload/request.js",
@@ -274,14 +331,21 @@
             "./server/fetcher": "./dist/server/fetcher.js",
             "./server/files": "./dist/server/files.js",
             "./server/photos": "./dist/server/photos/index.js",
+            "./server/photos/albums": "./dist/server/photos/albums.js",
             "./server/photos/auth": "./dist/server/photos/auth.js",
+            "./server/photos/auth-cache": "./dist/server/photos/auth-cache.js",
             "./server/photos/download": "./dist/server/photos/download.js",
             "./server/photos/library": "./dist/server/photos/library/index.js",
             "./server/photos/library/metadata": "./dist/server/photos/library/metadata.js",
+            "./server/photos/library/probe": "./dist/server/photos/library/probe.js",
+            "./server/photos/library/probe-cache": "./dist/server/photos/library/probe-cache.js",
             "./server/photos/library/requests": "./dist/server/photos/library/requests.js",
+            "./server/photos/throttle": "./dist/server/photos/throttle.js",
             "./server/photos/transport": "./dist/server/photos/transport.js",
             "./server/photos/trash": "./dist/server/photos/trash.js",
-            "./server/photos/upload": "./dist/server/photos/upload.js",
+            "./server/photos/upload": "./dist/server/photos/upload/index.js",
+            "./server/photos/upload/lookup": "./dist/server/photos/upload/lookup.js",
+            "./server/photos/upload/transfer": "./dist/server/photos/upload/transfer.js",
             "./server/protobuf": "./dist/server/protobuf.js",
             "./server/request": "./dist/server/request.js",
             "./server/upload": "./dist/server/upload/index.js",
@@ -289,6 +353,7 @@
             "./server/upload/input": "./dist/server/upload/input.js",
             "./server/upload/stream": "./dist/server/upload/stream.js",
             "./server/workers": "./dist/server/workers.js",
+            "./stats": "./dist/stats.js",
             "./upload": "./dist/upload.js",
             "./validation": "./dist/validation.js",
             "./package.json": "./package.json"

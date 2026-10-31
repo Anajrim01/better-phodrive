@@ -7,6 +7,7 @@ import type { Session } from './accounts';
 import type { CliContext, CliError } from './context';
 import { createFolder, inspectFolder } from './filesystem';
 import { fileSize, status, transferProgress } from './output';
+import { retryThrottled } from './throttle';
 
 const UNSAFE_NAMES = new Set(['.', '..']);
 
@@ -27,7 +28,10 @@ function intoFolder(
         const created = await createFolder(folder);
 
         return created.map(() =>
-            files.map((file) => ({ file, destination: join(folder, file.name) }))
+            files.map((file) => ({
+                file,
+                destination: join(folder, ...file.folder.split('/').filter(Boolean), file.name)
+            }))
         );
     });
 }
@@ -68,15 +72,27 @@ export function saveFiles(
         for (const { file, destination } of planned) {
             if (context.signal.aborted) break;
 
+            const parent = await createFolder(dirname(destination));
+            if (parent.isErr()) {
+                parent.inspectErr((error) => {
+                    status(context).error(`${file.name}: ${error.message}`);
+                    failures.push(error);
+                });
+
+                continue;
+            }
+
             const size = fileSize(file);
             const bar = transferProgress(context, `Downloading ${file.name}`, size);
 
-            const saved = await downloadFile(file, session.token, destination, {
-                force,
-                signal: context.signal,
-                onProgress: (written) =>
-                    bar.update(written, `${prettyBytes(written)} of ${prettyBytes(size)}`)
-            });
+            const saved = await retryThrottled(context, () =>
+                downloadFile(file, session.token, destination, {
+                    force,
+                    signal: context.signal,
+                    onProgress: (written) =>
+                        bar.update(written, `${prettyBytes(written)} of ${prettyBytes(size)}`)
+                })
+            );
 
             saved.match({
                 Ok: () => {

@@ -74,7 +74,6 @@ function readToken(context: CliContext, token?: string): AsyncResult<string, Cli
     });
 }
 
-/** Exchange an OAuth2 token if needed and return the AAS token Google validated. */
 function verifyAccount({ email, token }: Credentials): AsyncResult<string, CliError> {
     return Ok(undefined).andThenAsync<string, CliError>(async () => {
         const parsed = NewAccountSchema.safeParse({ email, token });

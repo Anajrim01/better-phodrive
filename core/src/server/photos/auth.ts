@@ -3,26 +3,36 @@ import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import { randomBytes } from 'node:crypto';
 import { parseAuthFields } from '../aas';
 import { photosFetch, type Fetcher } from '../fetcher';
-import { send, readBody } from './transport';
+import { guardedSend, readBody } from './transport';
+import { readAuthHeaders, writeAuthHeaders } from './auth-cache';
 import { utf8 } from '../protobuf';
 import { AccountSchema } from '../../models';
 
 const AUTH_URL = 'https://android.googleapis.com/auth';
 const APP = 'com.google.android.apps.photos';
 const SIGNATURE = '24bb24c05e47e0aefa68a58a766179d9b613a600';
+
 export type PhotosHeaders = {
     commonHeaders: Record<string, string>;
     rpcHeaders: Record<string, string>;
 };
 
+export { clearAuthCache, invalidateAuth } from './auth-cache';
+
 export function authenticatedHeaders(
     email: string,
     token: string,
-    fetcher: Fetcher
+    fetcher: Fetcher,
+    force = false
 ): AsyncResult<PhotosHeaders, ServerError> {
     return Ok(undefined).andThenAsync(async () => {
         if (!AccountSchema.safeParse({ email, token }).success)
             return Err(SERVER_ERRORS.INVALID_ACCOUNT);
+
+        if (!force) {
+            const cached = readAuthHeaders(email, token);
+            if (cached) return Ok(cached);
+        }
 
         const androidId = randomBytes(8).toString('hex');
         const form = new URLSearchParams({
@@ -44,7 +54,8 @@ export function authenticatedHeaders(
                 'oauth2:openid https://www.googleapis.com/auth/mobileapps.native https://www.googleapis.com/auth/photos.native'
         });
 
-        return send(
+        const authenticated = await guardedSend(
+            email,
             fetcher,
             AUTH_URL,
             {
@@ -60,13 +71,29 @@ export function authenticatedHeaders(
                 body: form
             },
             'Authentication'
-        ).andThenAsync((response) =>
+        );
+
+        const failure = authenticated.match<ServerError | null>({
+            Ok: () => null,
+            Err: (error) => error
+        });
+        if (failure) return Err(failure);
+
+        const parsed = authenticated.andThenAsync((response) =>
             readBody(response, 'Authentication').andThen(utf8).andThen(authHeadersFromResponse)
         );
+
+        return parsed.map(({ headers, expiresAt }) => {
+            writeAuthHeaders(email, token, headers, expiresAt);
+
+            return headers;
+        });
     });
 }
 
-function authHeadersFromResponse(text: string): Result<PhotosHeaders, ServerError> {
+function authHeadersFromResponse(
+    text: string
+): Result<{ headers: PhotosHeaders; expiresAt: number }, ServerError> {
     const authFields = Object.fromEntries(parseAuthFields(text));
     if (authFields.Error || !authFields.Auth || Number(authFields.Expiry) <= Date.now() / 1000)
         return Err(SERVER_ERRORS.AAS_AUTHENTICATION_FAILED);
@@ -85,7 +112,10 @@ function authHeadersFromResponse(text: string): Result<PhotosHeaders, ServerErro
         'x-goog-ext-174067345-bin': 'CgIIAg=='
     };
 
-    return Ok({ commonHeaders, rpcHeaders });
+    return Ok({
+        headers: { commonHeaders, rpcHeaders },
+        expiresAt: Number(authFields.Expiry) * 1000
+    });
 }
 
 /** Confirm Google accepts this email and AAS token for Photos without exposing the bearer token. */
@@ -94,5 +124,5 @@ export function validateAasAccount(
     token: string,
     fetcher: Fetcher = photosFetch
 ): AsyncResult<void, ServerError> {
-    return authenticatedHeaders(email, token, fetcher).map(() => undefined);
+    return authenticatedHeaders(email, token, fetcher, true).map(() => undefined);
 }

@@ -3,12 +3,15 @@ import {
     sortFiles,
     filterFiles,
     fileType,
+    childFolders,
+    folderTrail,
     type UploadedChunk
 } from '@madkarmaa/phodrive-core/files';
 import { FileSort } from '@madkarmaa/phodrive-core/models';
 import { readLibraryPage, readLibrarySnapshot } from '@madkarmaa/phodrive-core/browser/library';
 
-/** Library pagination, filtering, and stale-request protection for the selected account. */
+const POST_UPLOAD_COOLDOWN_MS = 2 * 60 * 1_000;
+
 export class DriveLibrary {
     chunks = $state<UploadedChunk[]>([]);
     nextPageToken = $state('');
@@ -21,16 +24,26 @@ export class DriveLibrary {
     searchTerm = $state('');
     typeFilter = $state('');
     modifiedDays = $state('');
+    folder = $state('');
     loadFailed = $state(false);
+    retryAt = $state(0);
+    cooldownUntil = $state(0);
 
     files = $derived(groupChunks(this.chunks));
     availableTypes = $derived([...new Set(this.files.map((item) => fileType(item.name)))].sort());
-    visibleFiles = $derived.by(() =>
-        sortFiles(
-            filterFiles(this.files, this.searchTerm, this.typeFilter, this.modifiedDays),
+    filtering = $derived(!!(this.searchTerm || this.typeFilter || this.modifiedDays));
+    folders = $derived(childFolders(this.files, this.folder));
+    trail = $derived(folderTrail(this.folder));
+    visibleFiles = $derived.by(() => {
+        const scoped = this.filtering
+            ? this.files
+            : this.files.filter((file) => file.folder === this.folder);
+
+        return sortFiles(
+            filterFiles(scoped, this.searchTerm, this.typeFilter, this.modifiedDays),
             this.sortOrder()
-        )
-    );
+        );
+    });
 
     constructor(
         private readonly account: () => { email: string; token: string | undefined },
@@ -43,6 +56,7 @@ export class DriveLibrary {
         this.searchTerm = '';
         this.typeFilter = '';
         this.modifiedDays = '';
+        this.folder = '';
         this.chunks = [];
         this.nextPageToken = '';
         this.loadedPages = 0;
@@ -50,6 +64,18 @@ export class DriveLibrary {
         this.libraryRequest++;
         this.loading = false;
         this.loadFailed = false;
+    }
+
+    openFolder(path: string) {
+        if (path && !this.hasFolder(path)) return;
+
+        this.folder = path;
+    }
+
+    private hasFolder(path: string): boolean {
+        const prefix = `${path}/`;
+
+        return this.files.some((file) => file.folder === path || file.folder.startsWith(prefix));
     }
 
     async load(reset = true) {
@@ -105,14 +131,17 @@ export class DriveLibrary {
             },
             Err: (error) => {
                 this.loadFailed = true;
+                if (error.code === 'THROTTLED')
+                    this.retryAt = Date.now() + error.retryAfterSeconds * 1_000;
                 this.feedback(error.message);
             }
         });
         this.loading = false;
     }
 
-    async refresh() {
+    async refresh(manual = false) {
         if (this.actionsDisabled() || this.loading || document.hidden) return;
+        if (!manual && (Date.now() < this.retryAt || Date.now() < this.cooldownUntil)) return;
 
         const { email, token } = this.account();
         if (!email || !token) return;
@@ -126,7 +155,9 @@ export class DriveLibrary {
         refreshed.match({
             Ok: (snapshot) => {
                 this.loadFailed = false;
+                this.retryAt = 0;
                 this.chunks = snapshot.items.map((item) => ({ ...item, email }));
+                if (this.folder && !this.hasFolder(this.folder)) this.folder = '';
                 this.nextPageToken = snapshot.nextPageToken;
                 this.loadedPages = snapshot.pages;
                 this.libraryPageTokens.clear();
@@ -134,10 +165,16 @@ export class DriveLibrary {
             },
             Err: (error) => {
                 this.loadFailed = true;
+                if (error.code === 'THROTTLED')
+                    this.retryAt = Date.now() + error.retryAfterSeconds * 1_000;
                 this.feedback(error.message);
             }
         });
 
         this.loading = false;
+    }
+
+    deferRefresh(): void {
+        this.cooldownUntil = Date.now() + POST_UPLOAD_COOLDOWN_MS;
     }
 }

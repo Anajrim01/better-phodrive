@@ -1,5 +1,5 @@
 import type { ApplicationError } from '../errors';
-import { Err, Ok, type AsyncResult } from 'results-ts';
+import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import { ErrorResponseSchema } from '../models';
 import { schemaResult } from '../validation';
 
@@ -34,9 +34,15 @@ export function request(
 
         const body = await readJson(response, fallback);
 
-        return body.andThen((data) => {
+        return body.andThen((data): Result<never, ApplicationError> => {
             const parsed = schemaResult(ErrorResponseSchema, data, fallback);
             const message = parsed.match({ Ok: (value) => value.error, Err: () => fallback });
+            const retryAfterSeconds = parsed.match({
+                Ok: (value) => value.retryAfterSeconds,
+                Err: () => undefined
+            });
+            if (retryAfterSeconds !== undefined)
+                return Err({ code: 'THROTTLED', message, retryAfterSeconds } as const);
 
             return Err({ code: 'REQUEST_FAILED', message } as const);
         });

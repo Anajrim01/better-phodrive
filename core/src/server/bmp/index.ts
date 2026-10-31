@@ -6,6 +6,9 @@ import {
     encodeSplitPrefix,
     BMP_HEADER_BYTES,
     SPLIT_MAGIC,
+    SPLIT_MAGIC_PREFIX,
+    SPLIT_MAGIC_WITH_FOLDER,
+    SPLIT_FOLDER_VERSION,
     FILE_HASH_BYTES
 } from '../../bmp/format';
 export {
@@ -45,7 +48,6 @@ function readVarint(
     }
 }
 
-/** Encode a complete BMP for protocol fixtures and compatibility checks. */
 export function encodeSplitBmp(
     payload: Uint8Array,
     input: SplitHeader
@@ -90,7 +92,32 @@ function readSplitName(
     });
 }
 
-/** Read metadata from the beginning of a BMP without loading its payload. */
+function readSplitFolder(
+    prefix: Uint8Array,
+    offset: number,
+    chunkIndex: number,
+    withFolder: boolean
+): Result<{ folder: string | undefined; payloadOffset: number }, ServerError> {
+    if (!withFolder) return Ok({ folder: undefined, payloadOffset: offset });
+    if (chunkIndex !== 0) return Err(SERVER_ERRORS.INVALID_DOWNLOADED_BMP);
+
+    return readVarint(prefix, offset).andThen((length) => {
+        if (!length.value || length.value > prefix.length - length.next)
+            return Err(SERVER_ERRORS.INVALID_DOWNLOADED_BMP);
+
+        const payloadOffset = length.next + length.value;
+
+        try {
+            const folder = UTF8.decode(prefix.subarray(length.next, payloadOffset));
+
+            return Ok({ folder, payloadOffset });
+        } catch {
+            return Err(SERVER_ERRORS.INVALID_DOWNLOADED_BMP);
+        }
+    });
+}
+
+/** Only the prefix is read; the payload must stay unread. */
 export function decodeSplitHeader(
     prefix: Uint8Array,
     totalSize: number
@@ -99,6 +126,9 @@ export function decodeSplitHeader(
     if (prefix.length < BMP_HEADER_BYTES + SPLIT_MAGIC.length + 2 * FILE_HASH_BYTES + 3)
         return invalid();
 
+    const magicOffset = BMP_HEADER_BYTES;
+    const withFolder = prefix[magicOffset + SPLIT_MAGIC_PREFIX.length] === SPLIT_FOLDER_VERSION;
+    const magic = withFolder ? SPLIT_MAGIC_WITH_FOLDER : SPLIT_MAGIC;
     const view = new DataView(prefix.buffer, prefix.byteOffset, prefix.byteLength);
     const width = view.getInt32(18, true);
     const height = view.getInt32(22, true);
@@ -116,11 +146,11 @@ export function decodeSplitHeader(
         width % 4 !== 0 ||
         width * 3 * height !== totalSize - BMP_HEADER_BYTES ||
         view.getUint32(34, true) !== totalSize - BMP_HEADER_BYTES ||
-        SPLIT_MAGIC.some((byte, index) => prefix[BMP_HEADER_BYTES + index] !== byte)
+        magic.some((byte, index) => prefix[magicOffset + index] !== byte)
     )
         return invalid();
 
-    let offset = BMP_HEADER_BYTES + SPLIT_MAGIC.length;
+    let offset = magicOffset + magic.length;
     const fileHash = hashHex(prefix.subarray(offset, offset + FILE_HASH_BYTES));
     offset += FILE_HASH_BYTES;
 
@@ -144,10 +174,11 @@ export function decodeSplitHeader(
 
     return metadata
         .andThen((header) =>
-            readSplitName(prefix, header.payloadOffset, header.chunkIndex).map((name) => ({
-                ...header,
-                ...name
-            }))
+            readSplitName(prefix, header.payloadOffset, header.chunkIndex).andThen((name) =>
+                readSplitFolder(prefix, name.payloadOffset, header.chunkIndex, withFolder).map(
+                    (folder) => ({ ...header, ...name, ...folder })
+                )
+            )
         )
         .andThen(
             ({
@@ -164,7 +195,6 @@ export function decodeSplitHeader(
         );
 }
 
-/** Parse a complete chunk and reject damaged payload bounds or nonzero padding. */
 export function decodeSplitBmp(
     bmp: Uint8Array
 ): Result<{ header: SplitHeader; payload: Uint8Array }, ServerError> {

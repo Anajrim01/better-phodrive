@@ -105,6 +105,53 @@ export const FileNameSchema = z
     .string()
     .min(1)
     .refine((name) => !/[\\/\r\n\0]/.test(name));
+export const MAX_FOLDER_PATH_LENGTH = 512;
+export const MAX_FOLDER_SEGMENT_LENGTH = 255;
+export const FolderPathSchema = z
+    .string()
+    .min(1)
+    .max(MAX_FOLDER_PATH_LENGTH)
+    .refine((path) =>
+        path
+            .split('/')
+            .every(
+                (segment) =>
+                    segment.length > 0 &&
+                    segment.length <= MAX_FOLDER_SEGMENT_LENGTH &&
+                    segment !== '.' &&
+                    segment !== '..' &&
+                    !/[\\\r\n\0]/.test(segment)
+            )
+    );
+export const AlbumKeySchema = z
+    .string()
+    .min(1)
+    .max(512)
+    .refine((key) => !/[\s\0]/.test(key));
+export type StoredAlbums = Record<string, Record<string, string>>;
+
+export function parseStoredAlbums(value: unknown): StoredAlbums {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+
+    const albums: StoredAlbums = {};
+    for (const [email, folders] of Object.entries(value)) {
+        if (!EmailSchema.safeParse(email).success) continue;
+        if (!folders || typeof folders !== 'object' || Array.isArray(folders)) continue;
+
+        const valid: Record<string, string> = {};
+        for (const [folder, key] of Object.entries(folders)) {
+            const parsedFolder = FolderPathSchema.safeParse(folder);
+            const parsedKey = AlbumKeySchema.safeParse(key);
+            if (parsedFolder.success && parsedKey.success)
+                valid[parsedFolder.data] = parsedKey.data;
+        }
+        if (Object.keys(valid).length) albums[email] = valid;
+    }
+
+    return albums;
+}
+
+export const StoredAlbumsSchema = z.unknown().transform(parseStoredAlbums);
 export const FileSizeSchema = z.int().nonnegative();
 export const Sha1HexSchema = z.string().regex(/^[a-f0-9]{40}$/);
 export const Sha256HexSchema = z.string().regex(/^[a-f0-9]{64}$/);
@@ -116,9 +163,11 @@ export const SplitHeaderSchema = z
         chunkIndex: z.int().nonnegative(),
         flags: z.union([z.literal(0), z.literal(1)]),
         payloadSize: z.int().nonnegative(),
-        fileName: z.string().min(1).optional()
+        fileName: z.string().min(1).optional(),
+        folder: FolderPathSchema.optional()
     })
-    .refine((header) => header.chunkIndex !== 0 || header.fileName !== undefined);
+    .refine((header) => header.chunkIndex !== 0 || header.fileName !== undefined)
+    .refine((header) => header.chunkIndex === 0 || header.folder === undefined);
 
 export const RemoteBmpSchema = z.object({
     fileHash: Sha256HexSchema,
@@ -126,6 +175,7 @@ export const RemoteBmpSchema = z.object({
     chunkIndex: z.int().nonnegative(),
     isLast: z.boolean(),
     originalName: z.string().min(1).optional(),
+    folder: FolderPathSchema.optional(),
     size: z.number().nonnegative(),
     at: z.int().nonnegative(),
     mediaKey: z.string().min(1),
@@ -144,7 +194,10 @@ export const UploadResponseSchema = z.object({
 });
 
 export const DeleteResponseSchema = z.object({ deleted: z.literal(true) });
-export const ErrorResponseSchema = z.object({ error: z.string() });
+export const ErrorResponseSchema = z.object({
+    error: z.string(),
+    retryAfterSeconds: z.int().nonnegative().optional()
+});
 export const UploadProgressSchema = z
     .discriminatedUnion('phase', [
         z.object({
@@ -156,7 +209,8 @@ export const UploadProgressSchema = z
             phase: z.literal(UploadPhase.Uploading),
             completed: z.int().nonnegative(),
             total: z.int().positive(),
-            reused: z.int().nonnegative()
+            reused: z.int().nonnegative(),
+            retryAfterSeconds: z.int().positive().optional()
         })
     ])
     .refine(
@@ -187,7 +241,11 @@ export const UploadEventSchema = z.discriminatedUnion('type', [
         error: z.string()
     }),
     z.object({ type: z.literal(UploadEventType.Complete) }),
-    z.object({ type: z.literal(UploadEventType.Error), error: z.string() })
+    z.object({
+        type: z.literal(UploadEventType.Error),
+        error: z.string(),
+        retryAfterSeconds: z.int().positive().optional()
+    })
 ]);
 export const AccountConnectionSchema = z.union([
     z.object({ token: AasTokenSchema }),
@@ -207,10 +265,12 @@ export const FileRequestSchema = AccountRequestSchema.extend({
 });
 export const FileDeleteResponseSchema = z.object({
     deleted: z.array(RemoteBmpSchema),
-    error: z.string().optional()
+    error: z.string().optional(),
+    retryAfterSeconds: z.int().positive().optional()
 });
 export const UploadFileSchema = z.object({
     name: FileNameSchema,
+    folder: FolderPathSchema.optional(),
     size: FileSizeSchema,
     fileHash: Sha256HexSchema
 });
@@ -219,8 +279,17 @@ export const UploadRequestSchema = AccountSchema.extend({
     chunkIndex: z.int().nonnegative(),
     sha1: Sha1HexSchema
 });
+export const MAX_ALBUM_BATCH_SIZE = 500;
+export const AlbumAssignRequestSchema = AccountRequestSchema.extend({
+    folder: FolderPathSchema,
+    albumKey: AlbumKeySchema.optional(),
+    mediaKeys: z.array(z.string().min(1).max(2048)).min(1).max(MAX_ALBUM_BATCH_SIZE)
+});
+export const AlbumAssignResponseSchema = z.object({ albumKey: AlbumKeySchema });
 export type UploadFile = z.infer<typeof UploadFileSchema>;
 export type ChunkUploadRequest = z.infer<typeof UploadRequestSchema>;
+export type AlbumAssignRequest = z.infer<typeof AlbumAssignRequestSchema>;
+export type AlbumAssignResponse = z.infer<typeof AlbumAssignResponseSchema>;
 
 export type RemoteBmp = z.infer<typeof RemoteBmpSchema>;
 export type LibraryResponse = z.infer<typeof LibraryResponseSchema>;

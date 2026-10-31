@@ -227,7 +227,8 @@ test('an interrupted download body returns a receive error instead of a partial 
     const downloaded = await downloadFile(group, 'aas_et/test');
     expect(downloaded.unwrapErr()).toEqual({
         code: 'DOWNLOAD_RECEIVE_FAILED',
-        message: 'Could not receive the downloaded file.'
+        message:
+            'Download was interrupted, possibly because Google Photos is limiting requests. Try again.'
     });
 });
 

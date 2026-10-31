@@ -96,6 +96,7 @@ test('confirming a file after switching accounts refuses the old account target'
         fileId: HASH_A,
         name: 'alpha.bmp',
         at: 1,
+        folder: '',
         chunkCount: 1,
         chunks: [chunk(HASH_A, FIRST, 0, 'alpha-chunk')],
         complete: true
@@ -147,6 +148,7 @@ test('refresh removing a chunk invalidates the stale file confirmation', async (
             fileId: HASH_A,
             name: 'alpha.bmp',
             at: 1,
+            folder: '',
             chunkCount: 2,
             chunks: [chunkZero, chunkOne],
             complete: true

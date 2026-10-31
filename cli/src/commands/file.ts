@@ -5,7 +5,8 @@ import type { FileSort } from '@madkarmaa/phodrive-core/models';
 import { openSession, type Session } from '../accounts';
 import type { CliContext, CliError } from '../context';
 import { planDownloads, saveFiles } from '../downloads';
-import { deleteFiles, findFiles, loadFiles } from '../library';
+import { deleteFiles, filePath, findFiles, loadFiles } from '../library';
+import { parseFolder, showFolders } from '../folders';
 import {
     FILE_TABLE_HEAD,
     fileJson,
@@ -22,8 +23,21 @@ import { openUploads, sendFiles } from '../uploads';
 
 const DAYS_PATTERN = /^[1-9]\d*$/;
 
-type ListOptions = { type?: string; days?: string; sort?: string; json?: boolean };
-type Filters = { query: string; type: string; days: string; order: FileSort };
+type ListOptions = {
+    type?: string;
+    days?: string;
+    sort?: string;
+    folder?: string;
+    folders?: boolean;
+    json?: boolean;
+};
+type Filters = {
+    query: string;
+    type: string;
+    days: string;
+    order: FileSort;
+    folder?: string;
+};
 
 function parseDays(option?: string): Result<string, CliError> {
     if (option === undefined) return Ok('');
@@ -43,14 +57,18 @@ function parseFilters(
     query: string | undefined,
     options: ListOptions
 ): Result<Filters, CliError> {
-    return parseDays(options.days).andThen((days) =>
-        chooseSort(session.config, context.environment, options.sort).map((order) => ({
-            query: query ?? '',
-            type: options.type?.trim().toUpperCase() ?? '',
-            days,
-            order
-        }))
-    );
+    return parseDays(options.days)
+        .andThen((days) =>
+            chooseSort(session.config, context.environment, options.sort).map((order) => ({
+                query: query ?? '',
+                type: options.type?.trim().toUpperCase() ?? '',
+                days,
+                order
+            }))
+        )
+        .andThen((filters) =>
+            parseFolder(options.folder).map((folder) => ({ ...filters, folder }))
+        );
 }
 
 function showFiles(
@@ -59,7 +77,11 @@ function showFiles(
     filters: Filters,
     json = false
 ): void {
-    const filtered = filterFiles(files, filters.query, filters.type, filters.days);
+    const scoped =
+        filters.folder === undefined
+            ? files
+            : files.filter((file) => file.folder === filters.folder);
+    const filtered = filterFiles(scoped, filters.query, filters.type, filters.days);
     const shown = sortFiles(filtered, filters.order);
 
     if (json) {
@@ -85,9 +107,10 @@ function listFiles(
 
     return openSession(output, options.account).andThenAsync((session) =>
         parseFilters(output, session, query, options).andThenAsync((filters) =>
-            loadFiles(output, session).map((files) =>
-                showFiles(output, files, filters, options.json)
-            )
+            loadFiles(output, session).map((files) => {
+                if (options.folders) showFolders(output, files, filters.folder, options.json);
+                else showFiles(output, files, filters, options.json);
+            })
         )
     );
 }
@@ -125,7 +148,7 @@ function confirmDeletion(
     files: readonly FileGroup[],
     confirmed?: boolean
 ): AsyncResult<void, CliError> {
-    const names = files.map((file) => file.name).join(', ');
+    const names = files.map(filePath).join(', ');
 
     return askConfirmation(context, `Delete ${names} from ${session.email}?`, confirmed);
 }
@@ -161,6 +184,8 @@ export function registerFileCommands(program: Command, context: CliContext, run:
         .option('--type <extension>', 'show one file type, for example pdf')
         .option('--days <days>', 'show files modified in the last number of days')
         .option('--sort <order>', 'modified-desc, modified-asc, name-asc, or name-desc')
+        .option('--folder <path>', 'show files in one folder, . for the library root')
+        .option('--folders', 'show folders instead of files')
         .option('--json', 'print JSON')
         .option('-a, --account <email>', 'use this account instead of the active one')
         .action((search, options) => run(() => listFiles(context, search, options)));

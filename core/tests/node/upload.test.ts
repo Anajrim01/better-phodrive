@@ -17,8 +17,11 @@ afterEach(async () => {
     await rm(folder, { recursive: true, force: true });
 });
 
-async function upload(files: readonly File[], options: { duplicate?: boolean } = {}) {
-    const harness = photosUploadHarness(options);
+async function upload(
+    files: readonly File[],
+    options: { duplicate?: boolean; folders?: ReadonlyMap<File, string> } = {}
+) {
+    const harness = photosUploadHarness({ duplicate: options.duplicate });
     const jobs = new Map<number, UploadJob>();
     const chunks: UploadedChunk[] = [];
     const uploaded = await uploadFiles(
@@ -28,13 +31,13 @@ async function upload(files: readonly File[], options: { duplicate?: boolean } =
         2,
         (job) => jobs.set(job.id, job),
         (chunk) => chunks.push(chunk),
-        { fetcher: harness.fetcher }
+        { fetcher: harness.fetcher, folders: options.folders }
     );
 
     return { uploaded, jobs: [...jobs.values()], chunks, harness };
 }
 
-test('folders expand recursively into files named after their basenames', async () => {
+test('folders expand recursively and keep their relative paths', async () => {
     await mkdir(join(folder, 'nested', 'deeper'), { recursive: true });
     await writeFile(join(folder, 'top.txt'), 'top');
     await writeFile(join(folder, 'nested', 'deeper', 'inner.bin'), 'inner');
@@ -46,7 +49,22 @@ test('folders expand recursively into files named after their basenames', async 
     const files = opened.unwrap();
     expect(files.map(({ file }) => file.name)).toEqual(['inner.bin', 'single.txt']);
     expect(files[0].path).toBe(join(folder, 'nested', 'deeper', 'inner.bin'));
+    expect(files[0].folder).toBe('nested/deeper');
+    expect(files[1].folder).toBe('');
     expect(await files[0].file.text()).toBe('inner');
+});
+
+test('relative folders reach the split header', async () => {
+    await mkdir(join(folder, 'photos', 'nested'), { recursive: true });
+    await writeFile(join(folder, 'photos', 'nested', 'inner.bin'), 'inner');
+
+    const opened = (await openLocalFiles([join(folder, 'photos')])).unwrap();
+    const files = opened.map(({ file }) => file);
+    const folders = new Map(opened.map(({ file, folder: path }) => [file, path]));
+
+    const { chunks } = await upload(files, { folders });
+
+    expect(chunks[0]?.folder).toBe('photos/nested');
 });
 
 test('missing paths fail before any upload starts', async () => {

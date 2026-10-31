@@ -1,3 +1,4 @@
+import { throttleMessage } from '../browser/upload/eta';
 import { BMP_ERRORS } from '../bmp/errors';
 
 /** Recoverable server failures contain only application-owned messages. */
@@ -36,6 +37,16 @@ export const SERVER_ERRORS = {
         message: 'Google Photos repeated a library page. Refresh to try again.'
     },
     MISSING_MEDIA_KEY: { code: 'MISSING_MEDIA_KEY', message: 'Missing media key' },
+    INVALID_FOLDER_PATH: { code: 'INVALID_FOLDER_PATH', message: 'Invalid folder path' },
+    INVALID_ALBUM_KEY: { code: 'INVALID_ALBUM_KEY', message: 'Invalid album key' },
+    INVALID_ALBUM_MEDIA_KEYS: {
+        code: 'INVALID_ALBUM_MEDIA_KEYS',
+        message: 'Invalid album media keys'
+    },
+    ALBUM_CREATE_RESPONSE_FAILED: {
+        code: 'ALBUM_CREATE_RESPONSE_FAILED',
+        message: 'Create album response failed'
+    },
     HASH_LOOKUP_MISMATCH: { code: 'HASH_LOOKUP_MISMATCH', message: 'Hash lookup mismatch' },
     COMMIT_TOKEN_MISMATCH: { code: 'COMMIT_TOKEN_MISMATCH', message: 'Commit token mismatch' },
     COMMIT_REJECTED: { code: 'COMMIT_REJECTED', message: 'Commit rejected' },
@@ -142,6 +153,40 @@ export const SERVER_ERRORS = {
     }
 } as const;
 
+export const THROTTLE_ERROR: {
+    code: 'THROTTLED';
+    message: string;
+    retryAfterSeconds: number;
+} = {
+    code: 'THROTTLED',
+    message: 'Google Photos is limiting requests',
+    retryAfterSeconds: 1
+};
+
+export type ThrottleMode = 'auto' | 'manual';
+
+export function throttleError(seconds: number, mode: ThrottleMode = 'auto'): ServerError {
+    const wait = Math.max(1, Math.round(seconds));
+
+    return {
+        code: 'THROTTLED',
+        message: throttleMessage(wait, mode === 'manual' ? 'try again' : 'retrying'),
+        retryAfterSeconds: wait
+    };
+}
+
+export function isThrottleError(
+    error: ServerError
+): error is Extract<ServerError, { code: 'THROTTLED' }> {
+    return error.code === 'THROTTLED';
+}
+
 export type ServerError =
     | (typeof SERVER_ERRORS)[keyof typeof SERVER_ERRORS]
-    | { readonly code: 'REQUEST_FAILED'; readonly message: string };
+    | {
+          readonly code: 'REQUEST_FAILED';
+          readonly message: string;
+          readonly status?: number;
+          readonly retryAfterSeconds?: number;
+      }
+    | { readonly code: 'THROTTLED'; readonly message: string; readonly retryAfterSeconds: number };

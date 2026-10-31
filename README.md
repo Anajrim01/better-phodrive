@@ -111,6 +111,14 @@ For Docker, pass the same variables with `-e`, for example `-e PHODRIVE_DEFAULT_
 > [!NOTE]
 > Your browser stores the credentials. The server uses them for each request and does not save them.
 
+## Folders and storage totals
+
+Drop a folder onto the page, or use **Upload folder**, to keep its relative path. Paths are stored in the uploaded chunk header, so the same folder tree appears from any browser that loads the library. Each folder is also mirrored to a Google Photos album with the same name, which keeps those files grouped in the Photos app too. Album keys are remembered in this browser, per account. If an album create times out after Google accepted it, a retry can create a second album with the same name because the key was never saved.
+
+Folder upload needs a mouse. At 800px or narrower, or without a mouse, the folder button is hidden and dropping folders is unavailable, so upload single files instead.
+
+The navigation sidebar shows how much data the loaded library holds, plus file and folder counts and a breakdown by file type. Totals grow as you press **Load more**, and every upload shows an estimated time remaining next to the progress.
+
 ## Command line
 
 The `phodrive` command does everything the web app does without running the server. Each [release](https://github.com/madkarmaa/phodrive/releases/latest) includes executables that don't need Node.js. On Linux or macOS, download yours and make it executable:
@@ -134,13 +142,15 @@ Then install it with `npm install --global @madkarmaa/phodrive-cli`, or run it o
 ```sh
 phodrive account add you@gmail.com   # asks for the oauth2_4/ token from the steps above
 phodrive file list                   # add a search term, --type pdf, --days 30, or --sort name-asc
+phodrive file list --folders          # folder paths and file counts
+phodrive file list --folder photos/2024  # files in one folder
 phodrive file upload ./photos        # files and whole folders
 phodrive file download report.pdf    # by name or by the ID that file list shows
 phodrive file delete report.pdf
 phodrive setting set workers 4
 ```
 
-`phodrive help` lists every command. `phodrive help file upload`, `phodrive file upload --help`, and `phodrive file upload -h` all show the options of one command.
+Uploading a folder keeps its relative paths, and each folder becomes a same-named Google Photos album, the same as the web app. `phodrive help` lists every command. `phodrive help file upload`, `phodrive file upload --help`, and `phodrive file upload -h` all show the options of one command.
 
 `phodrive` saves accounts and settings in `config.json` in your user configuration folder. On macOS and Linux, only your user can read that file. Set `PHODRIVE_CONFIG` to use another file.
 

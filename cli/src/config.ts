@@ -9,7 +9,9 @@ import {
     FileSortSchema,
     SelectedAccountSchema,
     StoredAccountsSchema,
-    WorkerCountSchema
+    StoredAlbumsSchema,
+    WorkerCountSchema,
+    type StoredAlbums
 } from '@madkarmaa/phodrive-core/models';
 import type { CliError } from './context';
 import { isMissingPath } from './filesystem';
@@ -29,7 +31,8 @@ const StoredSettingsSchema = z.object({
 const StoredConfigSchema = z.object({
     accounts: StoredAccountsSchema.catch({}),
     selected: SelectedAccountSchema.catch(''),
-    settings: StoredSettingsSchema.catch({})
+    settings: StoredSettingsSchema.catch({}),
+    albums: StoredAlbumsSchema.catch({})
 });
 
 export type StoredSettings = z.infer<typeof StoredSettingsSchema>;
@@ -37,9 +40,10 @@ export type CliConfig = {
     accounts: Record<string, string>;
     selected: string;
     settings: StoredSettings;
+    albums: StoredAlbums;
 };
 
-const EMPTY_CONFIG: CliConfig = { accounts: {}, selected: '', settings: {} };
+const EMPTY_CONFIG: CliConfig = { accounts: {}, selected: '', settings: {}, albums: {} };
 
 export function defaultConfigPath(environment: Record<string, string | undefined>): string {
     const override = environment[CONFIG_PATH_VARIABLE]?.trim();
@@ -48,7 +52,6 @@ export function defaultConfigPath(environment: Record<string, string | undefined
     return join(envPaths('phodrive', { suffix: '' }).config, CONFIG_FILE_NAME);
 }
 
-/** Unknown or invalid entries are dropped, as the web app does with browser storage. */
 function parseConfig(value: unknown): CliConfig {
     const parsed = StoredConfigSchema.catch(EMPTY_CONFIG).parse(value);
     const accounts: Record<string, string> = {};
@@ -60,7 +63,12 @@ function parseConfig(value: unknown): CliConfig {
         accounts[account.data.email] = account.data.token;
     }
 
-    return { accounts, selected: parsed.selected, settings: parsed.settings };
+    return {
+        accounts,
+        selected: parsed.selected,
+        settings: parsed.settings,
+        albums: parsed.albums
+    };
 }
 
 function parseJson(text: string, path: string): Result<unknown, CliError> {
@@ -110,7 +118,6 @@ export function writeConfig(path: string, config: CliConfig): AsyncResult<void, 
     });
 }
 
-/** Read, change, and save the configuration in one step. */
 export function updateConfig(
     path: string,
     change: (config: CliConfig) => Result<CliConfig, CliError>

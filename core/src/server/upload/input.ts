@@ -42,7 +42,7 @@ function chunkMetadata(input: ChunkUploadRequest) {
 
     const header = chunkHeader(
         input.file,
-        fileIdentity(input.file.name, input.file.fileHash),
+        fileIdentity(input.file.name, input.file.fileHash, undefined, input.file.folder ?? ''),
         input.chunkIndex
     );
 
@@ -126,7 +126,7 @@ export function receiveChunk(
         );
 }
 
-/** Read just the manifest, then expose the live multipart file with backpressure. */
+/** The manifest must be read without buffering the multipart body. */
 export function receiveUpload(request: Request): AsyncResult<ReceivedUpload, ServerError> {
     return Ok(undefined).andThenAsync(async () => {
         const contentType = request.headers.get('content-type');

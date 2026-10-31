@@ -1,8 +1,9 @@
 <script lang="ts">
-    import { UploadJobStatus, UploadPhase, UploadStatus } from '@madkarmaa/phodrive-core/models';
+    import { UploadJobStatus, UploadPhase } from '@madkarmaa/phodrive-core/models';
 
     import { CircularProgress, IconButton, ListItem } from 'noph-ui';
     import type { UploadJob } from '#browser/files';
+    import { uploadJobDetail } from '#browser/upload-status';
     import IconDescription from '~icons/material-symbols/description';
     import IconCheckCircle from '~icons/material-symbols/check-circle';
     import IconError from '~icons/material-symbols/error-outline';
@@ -11,10 +12,11 @@
     interface Props {
         job: UploadJob;
         retryDisabled: boolean;
+        now: number;
         onretry: () => void;
     }
 
-    let { job, retryDisabled, onretry }: Props = $props();
+    let { job, retryDisabled, now, onretry }: Props = $props();
 
     const progress = $derived(job.progress);
     const processed = $derived(
@@ -22,19 +24,7 @@
     );
     const percent = $derived(progress.total ? Math.round((processed / progress.total) * 100) : 0);
     const indeterminate = $derived(progress.phase === UploadPhase.Receiving || !progress.total);
-    const detail = $derived.by(() => {
-        if (job.status === UploadJobStatus.Queued) return 'Waiting…';
-        if (job.status === UploadJobStatus.Error) return job.message;
-        if (job.status === UploadJobStatus.Complete)
-            return job.result?.status === UploadStatus.AlreadyExists
-                ? 'Already in Google Photos'
-                : 'Uploaded successfully';
-        if (progress.phase === UploadPhase.Receiving) return 'Sending files to server…';
-        if (progress.phase === UploadPhase.Preparing) return `Preparing file… ${percent}%`;
-        if (processed === progress.total) return 'Finishing upload…';
-
-        return `Uploading… ${percent}%`;
-    });
+    const detail = $derived(uploadJobDetail(job, now));
 </script>
 
 <ListItem class="upload-status-row" variant="text" aria-label={job.name}>

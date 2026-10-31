@@ -3,13 +3,14 @@ import { Err, Ok, type AsyncResult } from 'results-ts';
 import type { FileRequest, RemoteBmp, SplitHeader } from '../models';
 import { SplitBmpReader } from './bmp/stream';
 import { MAX_SPLIT_HEADER_BYTES, splitHeaderByteLength } from './bmp/index';
-import { SERVER_ERRORS, type ServerError } from './errors';
+import { SERVER_ERRORS, throttleError, type ServerError, type ThrottleMode } from './errors';
 import { downloadBmp } from './photos/index';
 
 function openChunk(
     input: FileRequest,
     chunk: RemoteBmp,
-    signal: AbortSignal
+    signal: AbortSignal,
+    mode: ThrottleMode
 ): AsyncResult<SplitBmpReader, ServerError> {
     const expected: SplitHeader = {
         fileHash: input.fileHash,
@@ -17,7 +18,8 @@ function openChunk(
         chunkIndex: chunk.chunkIndex,
         flags: chunk.isLast ? 1 : 0,
         payloadSize: chunk.size,
-        fileName: chunk.chunkIndex === 0 ? input.name : undefined
+        fileName: chunk.chunkIndex === 0 ? input.name : undefined,
+        folder: chunk.folder
     };
 
     return splitHeaderByteLength(expected)
@@ -27,16 +29,26 @@ function openChunk(
                 : Err(SERVER_ERRORS.INVALID_CHUNK_METADATA)
         )
         .andThenAsync(() =>
-            downloadBmp(input.email, input.token, chunk.mediaKey, chunk.sha1, undefined, signal)
+            downloadBmp(
+                input.email,
+                input.token,
+                chunk.mediaKey,
+                chunk.sha1,
+                undefined,
+                signal
+            ).mapErr((error) =>
+                error.code === 'THROTTLED' ? throttleError(error.retryAfterSeconds, mode) : error
+            )
         )
         .andThenAsync((response) => SplitBmpReader.open(response, expected, chunk.sha1));
 }
 
-/** Ordered, demand-driven reconstruction with no temporary storage. */
+/** Never buffer the whole file; pull each chunk only when the consumer reads. */
 export function streamDownload(
     input: FileRequest,
     chunks: RemoteBmp[],
-    requestSignal?: AbortSignal
+    requestSignal?: AbortSignal,
+    mode: ThrottleMode = 'auto'
 ): AsyncResult<Response, ServerError> {
     return Ok(undefined).andThenAsync(async () => {
         const abort = new AbortController();
@@ -71,7 +83,7 @@ export function streamDownload(
         if (closed) return Err(SERVER_ERRORS.COULD_NOT_READ_THE_DOWNLOADED_FILE);
 
         // Validate the first header before sending a response so HTTP errors reach the browser.
-        const first = await openChunk(input, chunks[0], abort.signal);
+        const first = await openChunk(input, chunks[0], abort.signal, mode);
         if (first.isErr()) {
             await cleanup();
 
@@ -109,7 +121,12 @@ export function streamDownload(
                                 return;
                             }
 
-                            const opened = await openChunk(input, chunks[index], abort.signal);
+                            const opened = await openChunk(
+                                input,
+                                chunks[index],
+                                abort.signal,
+                                mode
+                            );
 
                             opened.inspect((reader) => {
                                 active = reader;

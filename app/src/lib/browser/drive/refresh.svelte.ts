@@ -1,6 +1,5 @@
 import { useInterval, watch } from 'runed';
 
-/** Refresh when idle, with reactive timing and component lifecycle cleanup. */
 export function useAutomaticRefresh(
     seconds: () => number,
     enabled: () => boolean,

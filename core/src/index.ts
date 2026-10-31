@@ -5,3 +5,4 @@ export * from './upload';
 export * from './validation';
 export * from './preferences';
 export * from './bmp/format';
+export * from './albums';

@@ -10,6 +10,7 @@ import {
 import type { UploadedChunk } from '../../files';
 import { Err, Ok, type Result } from 'results-ts';
 import { INVALID_UPLOAD_PROGRESS } from './request';
+import { remainingSeconds, transferRate, type RateSample } from './eta';
 
 export interface UploadJob {
     id: number;
@@ -18,6 +19,9 @@ export interface UploadJob {
     progress: UploadProgress;
     message: string;
     result: UploadResponse | null;
+    bytesPerSecond: number;
+    etaSeconds: number | null;
+    retryAt: number | null;
 }
 
 export interface UploadSource {
@@ -32,12 +36,21 @@ export function createUploadJobs(files: readonly File[]): UploadJob[] {
         status: UploadJobStatus.Queued,
         progress: { phase: UploadPhase.Receiving, completed: 0, total: file.size },
         message: '',
-        result: null
+        result: null,
+        bytesPerSecond: 0,
+        etaSeconds: null,
+        retryAt: null
     }));
 }
 
 function invalidProgress(): Result<never, ApplicationError> {
     return Err(INVALID_UPLOAD_PROGRESS);
+}
+
+function processedBytes(progress: UploadProgress): number {
+    return progress.phase === UploadPhase.Uploading
+        ? progress.completed + progress.reused
+        : progress.completed;
 }
 
 function updateProgress(
@@ -52,16 +65,21 @@ function updateProgress(
         (progress.total !== file.size || previous.phase === UploadPhase.Uploading)
     )
         return invalidProgress();
+    const processed = processedBytes(progress);
+    const previousProcessed = processedBytes(previous);
     if (
         progress.phase === UploadPhase.Uploading &&
         previous.phase === UploadPhase.Uploading &&
-        (progress.total !== previous.total ||
-            progress.completed < previous.completed ||
-            progress.reused < previous.reused)
+        (progress.total !== previous.total || processed < previousProcessed)
     )
         return invalidProgress();
 
-    return Ok({ ...job, status: UploadJobStatus.Active, progress });
+    const retryAt =
+        progress.phase === UploadPhase.Uploading && progress.retryAfterSeconds !== undefined
+            ? Date.now() + progress.retryAfterSeconds * 1_000
+            : null;
+
+    return Ok({ ...job, status: UploadJobStatus.Active, progress, retryAt });
 }
 
 function completeJob(
@@ -84,7 +102,7 @@ function completeJob(
     )
         return invalidProgress();
 
-    return Ok({ ...job, status: UploadJobStatus.Complete, result });
+    return Ok({ ...job, status: UploadJobStatus.Complete, result, retryAt: null });
 }
 
 /** Server IDs index submitted files; local job IDs also include rejected selections. */
@@ -93,13 +111,38 @@ export function createUploadEventHandler(
     jobs: UploadJob[],
     email: string,
     onJob: (job: UploadJob) => void,
-    onChunk: (chunk: UploadedChunk) => void
+    onChunk: (chunk: UploadedChunk) => void,
+    now: () => number = () => performance.now()
 ): (event: UploadEvent) => Result<void, ApplicationError> {
     const confirmed = jobs.map(() => new Map<number, UploadedChunk>());
+    const samples = jobs.map((): RateSample[] => []);
+
+    function estimate(job: UploadJob): UploadJob {
+        const jobSamples = samples[job.id];
+
+        if (job.status !== UploadJobStatus.Active || job.progress.phase !== UploadPhase.Uploading) {
+            jobSamples.length = 0;
+
+            return { ...job, bytesPerSecond: 0, etaSeconds: null };
+        }
+
+        const { completed, reused, total } = job.progress;
+        jobSamples.push({ at: now(), bytes: completed });
+
+        const rate = transferRate(jobSamples);
+        if (rate === null) return { ...job, bytesPerSecond: 0, etaSeconds: null };
+
+        return {
+            ...job,
+            bytesPerSecond: rate,
+            etaSeconds: remainingSeconds(total - completed - reused, rate)
+        };
+    }
 
     function publish(job: UploadJob): void {
-        jobs[job.id] = job;
-        onJob(job);
+        const estimated = estimate(job);
+        jobs[job.id] = estimated;
+        onJob(estimated);
     }
 
     return (event) => {

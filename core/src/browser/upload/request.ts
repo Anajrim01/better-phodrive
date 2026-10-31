@@ -22,7 +22,6 @@ const UPLOAD_STREAM_INTERRUPTED = {
 } as const satisfies ApplicationError;
 const MAX_EVENT_CHARACTERS = 16 * 1024;
 
-/** Delivers one chunk and reports the server's upload events until completion or failure. */
 export type ChunkTransport = (
     metadata: ChunkUploadRequest,
     payload: Blob,
@@ -86,6 +85,15 @@ function readUploadResponse(
                 const received = await readEvent(reader);
 
                 const handled = received.andThen((event) => {
+                    if (
+                        event.type === UploadEventType.Error &&
+                        event.retryAfterSeconds !== undefined
+                    )
+                        return Err({
+                            code: 'THROTTLED',
+                            message: event.error,
+                            retryAfterSeconds: event.retryAfterSeconds
+                        } as const);
                     if (event.type === UploadEventType.Error)
                         return Err({ code: 'UPLOAD_FAILED', message: event.error } as const);
 
@@ -113,7 +121,6 @@ export function uploadRequest(
     );
 }
 
-/** Send a chunk to the same-origin Phodrive API. */
 export const httpChunkTransport: ChunkTransport = (metadata, payload, onEvent) => {
     const form = new FormData();
     form.set('metadata', JSON.stringify(metadata));

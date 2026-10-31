@@ -14,11 +14,20 @@
         sort: FileSort;
         disabled: boolean;
         action: FileAction | null;
+        showFolder?: boolean;
         ondownload: (item: FileGroup) => void;
         ondelete: (item: FileGroup) => void;
     }
 
-    let { files, sort = $bindable(), disabled, action, ondownload, ondelete }: Props = $props();
+    let {
+        files,
+        sort = $bindable(),
+        disabled,
+        action,
+        showFolder = false,
+        ondownload,
+        ondelete
+    }: Props = $props();
     const nameSort = $derived(sort === FileSort.NameAscending || sort === FileSort.NameDescending);
     const ascending = $derived(
         sort === FileSort.NameAscending || sort === FileSort.ModifiedAscending
@@ -91,6 +100,11 @@
                             <span class="block truncate font-medium" title={item.name}
                                 >{item.name}</span
                             >
+                            {#if showFolder && item.folder}
+                                <span class="block truncate text-xs text-muted" title={item.folder}
+                                    >{item.folder}</span
+                                >
+                            {/if}
                             {#if !item.complete}
                                 <span class="text-xs text-muted"
                                     >{item.chunks.length}/{item.chunkCount ?? '?'} chunks</span
@@ -131,7 +145,7 @@
         width: 100%;
         table-layout: fixed;
         border-collapse: collapse;
-        margin-top: 12px;
+        margin-top: 16px;
         font-size: 14px;
     }
 

@@ -1,10 +1,10 @@
 import { openAsBlob } from 'node:fs';
 import { realpath, stat } from 'node:fs/promises';
-import { basename } from 'node:path';
+import { basename, dirname, relative, resolve } from 'node:path';
 import { fdir } from 'fdir';
 import { Err, Ok, type AsyncResult } from 'results-ts';
 import type { ApplicationError } from '../errors';
-import type { UploadedChunk } from '../files';
+import { folderFromPath, type UploadedChunk } from '../files';
 import { UploadEventType, type UploadEvent } from '../models';
 import { transferFiles } from '../browser/upload/index';
 import type { ChunkTransport } from '../browser/upload/request';
@@ -14,8 +14,12 @@ import { receiveChunk } from '../server/upload/input';
 import { uploadFiles as forwardChunk } from '../server/upload/index';
 import { validateWorkers } from '../server/workers';
 
-export type TransferOptions = { signal?: AbortSignal; fetcher?: Fetcher };
-export type LocalFile = { path: string; file: File };
+export type TransferOptions = {
+    signal?: AbortSignal;
+    fetcher?: Fetcher;
+    folders?: ReadonlyMap<File, string>;
+};
+export type LocalFile = { path: string; folder: string; file: File };
 
 function readFailure(path: string): ApplicationError {
     return { code: 'FILE_READ_FAILED', message: `Could not read ${path}.` };
@@ -85,40 +89,53 @@ function listFolder(path: string): AsyncResult<string[], ApplicationError> {
     });
 }
 
-function openFile(path: string): AsyncResult<LocalFile, ApplicationError> {
+function openFile(path: string, folder: string): AsyncResult<LocalFile, ApplicationError> {
     return Ok(undefined).andThenAsync(async () => {
         try {
             const blob = await openAsBlob(path);
 
             // Disk-backed blobs are read lazily, so large files are never loaded into memory.
-            return Ok({ path, file: new File([blob], basename(path)) });
+            return Ok({ path, folder, file: new File([blob], basename(path)) });
         } catch {
             return Err(readFailure(path));
         }
     });
 }
 
-function expandPath(path: string): AsyncResult<string[], ApplicationError> {
-    return Ok(undefined).andThenAsync(async () => {
-        let isFolder: boolean;
+function expandPath(
+    path: string
+): AsyncResult<{ path: string; folder: string }[], ApplicationError> {
+    return Ok(undefined).andThenAsync<{ path: string; folder: string }[], ApplicationError>(
+        async () => {
+            let isFolder: boolean;
 
-        try {
-            const stats = await stat(path);
-            if (!stats.isFile() && !stats.isDirectory())
-                return Err({
-                    code: 'FILE_READ_FAILED',
-                    message: `${path} is not a file or folder.`
-                } as const);
+            try {
+                const stats = await stat(path);
+                if (!stats.isFile() && !stats.isDirectory())
+                    return Err({
+                        code: 'FILE_READ_FAILED',
+                        message: `${path} is not a file or folder.`
+                    } as const);
 
-            isFolder = stats.isDirectory();
-        } catch {
-            return Err(readFailure(path));
+                isFolder = stats.isDirectory();
+            } catch {
+                return Err(readFailure(path));
+            }
+
+            if (!isFolder) return Ok([{ path, folder: '' }]);
+
+            const listed = listFolder(path).map((found) => {
+                const base = dirname(resolve(path));
+
+                return found.map((file) => ({
+                    path: file,
+                    folder: folderFromPath(relative(base, file))
+                }));
+            });
+
+            return await listed;
         }
-
-        if (!isFolder) return Ok([path]);
-
-        return await listFolder(path);
-    });
+    );
 }
 
 function canonicalPath(path: string): AsyncResult<string, ApplicationError> {
@@ -135,18 +152,18 @@ function canonicalPath(path: string): AsyncResult<string, ApplicationError> {
 
 /** Open each file once, even when it is selected again directly or through a link. */
 function openFiles(
-    paths: readonly string[],
+    entries: readonly { path: string; folder: string }[],
     files: LocalFile[],
     opened: Set<string>
 ): AsyncResult<LocalFile[], ApplicationError> {
     return Ok(undefined).andThenAsync(async () => {
-        for (const path of paths) {
+        for (const { path, folder } of entries) {
             const added = await canonicalPath(path).andThenAsync(async (real) => {
                 if (opened.has(real)) return Ok(undefined);
 
                 opened.add(real);
 
-                return await openFile(path).map((local) => {
+                return await openFile(path, folder).map((local) => {
                     files.push(local);
                 });
             });
@@ -157,7 +174,6 @@ function openFiles(
     });
 }
 
-/** Open files and every file below folders, flattening names as the web app does. */
 export function openLocalFiles(
     paths: readonly string[]
 ): AsyncResult<LocalFile[], ApplicationError> {
@@ -176,10 +192,6 @@ export function openLocalFiles(
     });
 }
 
-/**
- * Upload local files with the web app's hashing, chunking, deduplication, and worker pool,
- * using up to one worker per available processor.
- */
 export function uploadFiles(
     files: readonly File[],
     email: string,
@@ -197,7 +209,8 @@ export function uploadFiles(
             concurrency,
             onJob,
             onChunk,
-            localChunkTransport(options)
+            localChunkTransport(options),
+            { folders: options.folders }
         )
     );
 }

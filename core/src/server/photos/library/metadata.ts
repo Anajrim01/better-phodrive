@@ -34,7 +34,13 @@ export function pageRequest(resume: Buffer): Result<Buffer, ServerError> {
     });
 }
 
-export type LibraryCandidate = { size: number; at: number; mediaKey: string; sha1: string };
+export type LibraryCandidate = {
+    size: number;
+    at: number;
+    mediaKey: string;
+    sha1: string;
+    fileName?: string;
+};
 
 function libraryItem(value: Buffer): Result<LibraryCandidate | null, ServerError> {
     const parsed = parse(value).andThen((item) =>
@@ -49,19 +55,21 @@ function libraryItem(value: Buffer): Result<LibraryCandidate | null, ServerError
     return visibility.andThen(({ item, details, visible }) => {
         if (!visible) return Ok(null);
 
-        return libraryMetadata(item, details).map(({ fingerprint, size, at, mediaKey }) => {
-            const sha1 = fingerprint.toString('hex');
-            if (
-                !Sha1HexSchema.safeParse(sha1).success ||
-                !mediaKey ||
-                !Number.isSafeInteger(at) ||
-                size < BMP_HEADER_BYTES ||
-                size > MAX_PHOTOS_BMP_BYTES
-            )
-                return null;
+        return libraryMetadata(item, details).map(
+            ({ fingerprint, size, at, mediaKey, fileName }) => {
+                const sha1 = fingerprint.toString('hex');
+                if (
+                    !Sha1HexSchema.safeParse(sha1).success ||
+                    !mediaKey ||
+                    !Number.isSafeInteger(at) ||
+                    size < BMP_HEADER_BYTES ||
+                    size > MAX_PHOTOS_BMP_BYTES
+                )
+                    return null;
 
-            return { size, at, mediaKey, sha1 };
-        });
+                return { size, at, mediaKey, sha1, fileName };
+            }
+        );
     });
 }
 
@@ -75,7 +83,16 @@ function visibleInLibrary(details: Field[]): Result<boolean, ServerError> {
 function libraryMetadata(
     item: Field[],
     details: Field[]
-): Result<{ fingerprint: Buffer; size: number; at: number; mediaKey: string }, ServerError> {
+): Result<
+    {
+        fingerprint: Buffer;
+        size: number;
+        at: number;
+        mediaKey: string;
+        fileName?: string;
+    },
+    ServerError
+> {
     const fingerprint = bytes(details, 13).andThen((data) => nested(data, 1));
     const sized = fingerprint.andThen((fingerprint) =>
         integer(details, 10).map((size) => ({ fingerprint, size }))
@@ -87,8 +104,18 @@ function libraryMetadata(
     return dated.andThen((metadata) =>
         bytes(item, 1)
             .andThen(utf8)
-            .map((mediaKey) => ({ ...metadata, mediaKey }))
+            .map((mediaKey) => ({ ...metadata, mediaKey, ...fileName(details) }))
     );
+}
+
+function fileName(details: Field[]): { fileName?: string } {
+    const field = optional(details, 4);
+    if (!field || typeof field.value === 'number') return {};
+
+    return utf8(field.value).match({
+        Ok: (value) => (value ? { fileName: value } : {}),
+        Err: () => ({})
+    });
 }
 
 export function parseLibraryPage(

@@ -98,6 +98,7 @@ export class SplitBmpReader {
                         header.flags !== expected.flags ||
                         header.payloadSize !== expected.payloadSize ||
                         header.fileName !== expected.fileName ||
+                        header.folder !== expected.folder ||
                         payloadOffset !== length
                     )
                         return Err(SERVER_ERRORS.DOWNLOAD_CHUNK_MISMATCH);

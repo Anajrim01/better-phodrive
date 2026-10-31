@@ -10,7 +10,6 @@ export function uploadStream(input: ReceivedUpload): Response {
     const confirmations: UploadEvent[] = [];
     const encoder = new TextEncoder();
     const flush = (controller: ReadableStreamDefaultController<Uint8Array>) => {
-        // Enqueue only while the browser is reading, so events coalesce instead of queueing.
         if (!open || (controller.desiredSize ?? 0) <= 0) return;
 
         const event = progress ?? confirmations.shift();
@@ -43,7 +42,14 @@ export function uploadStream(input: ReceivedUpload): Response {
                     .andThen(() => cancelled)
                     .match({
                         Ok: () => emit({ type: UploadEventType.Complete }),
-                        Err: (error) => emit({ type: UploadEventType.Error, error: error.message })
+                        Err: (error) =>
+                            emit({
+                                type: UploadEventType.Error,
+                                error: error.message,
+                                ...(error.code === 'THROTTLED'
+                                    ? { retryAfterSeconds: error.retryAfterSeconds }
+                                    : {})
+                            })
                     });
                 finished = true;
                 flush(controller);

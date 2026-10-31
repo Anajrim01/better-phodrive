@@ -27,7 +27,8 @@ beforeEach(async () => {
     await writeConfig(join(folder.path, 'config', 'config.json'), {
         accounts: { [EMAIL]: AAS_TOKEN },
         selected: EMAIL,
-        settings: {}
+        settings: {},
+        albums: {}
     });
     vi.mocked(downloadFile).mockImplementation(() =>
         Ok(undefined).andThenAsync(async () => Ok(undefined))
@@ -163,6 +164,9 @@ test('uploads expand folders and fail when any file fails', async () => {
                     status: id === 0 ? UploadJobStatus.Complete : UploadJobStatus.Error,
                     progress: { phase: UploadPhase.Uploading, completed: 1, reused: 0, total: 1 },
                     message: id === 0 ? '' : 'Commit rejected',
+                    bytesPerSecond: 0,
+                    etaSeconds: null,
+                    retryAt: null,
                     result:
                         id === 0
                             ? {
@@ -236,4 +240,69 @@ test('rejected tokens suggest connecting the account again', async () => {
     const listed = await runCli(['file', 'list'], { folder: folder.path });
 
     expect(listed.stderr).toContain('run `phodrive account add` again');
+});
+
+test('a paused delete retries the remaining chunks', async () => {
+    const report = remoteFile('report.pdf');
+    const first = report.chunks[0];
+    const twoChunks = {
+        ...report,
+        chunks: [
+            first,
+            {
+                ...first,
+                chunkIndex: 1,
+                isLast: true,
+                mediaKey: 'media-second',
+                sha1: 'b'.repeat(40)
+            }
+        ]
+    };
+    library([twoChunks]);
+    let calls = 0;
+    vi.mocked(deleteFile).mockImplementation((file) =>
+        Ok(undefined).andThenAsync(async () => {
+            calls++;
+
+            return calls === 1
+                ? Ok({ deleted: [file.chunks[0]], retryAfterSeconds: 1 })
+                : Ok({ deleted: file.chunks });
+        })
+    );
+
+    const deleted = await runCli(['file', 'delete', 'report.pdf', '--yes'], {
+        folder: folder.path
+    });
+
+    expect(deleted.exitCode).toBe(0);
+    expect(deleteFile).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(deleteFile).mock.calls[0][0].chunks).toHaveLength(2);
+    expect(vi.mocked(deleteFile).mock.calls[1][0].chunks).toHaveLength(1);
+    expect(deleted.stderr).toContain('Google Photos is limiting requests, retrying in about 1 s');
+});
+
+test('a delete that stays paused fails without a final wait', async () => {
+    const report = remoteFile('report.pdf');
+    library([report]);
+    vi.mocked(deleteFile).mockImplementation(() =>
+        Ok(undefined).andThenAsync(async () => Ok({ deleted: [], retryAfterSeconds: 1 }))
+    );
+    const timer = vi.spyOn(globalThis, 'setTimeout').mockImplementation((handler) => {
+        if (typeof handler === 'function') handler();
+
+        return 0 as unknown as ReturnType<typeof setTimeout>;
+    });
+
+    const deleted = await runCli(['file', 'delete', 'report.pdf', '--yes'], {
+        folder: folder.path
+    });
+
+    timer.mockRestore();
+
+    expect(deleteFile).toHaveBeenCalledTimes(8);
+    expect(
+        (deleted.stderr.match(/Google Photos is limiting requests, retrying/g) ?? []).length
+    ).toBe(7);
+    expect(deleted.stderr).toContain('try again');
+    expect(deleted.failures).toMatchObject([{ code: 'DELETE_INCOMPLETE' }]);
 });

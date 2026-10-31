@@ -1,11 +1,16 @@
 #!/usr/bin/env node
 import process from 'node:process';
+import { dirname, join } from 'node:path';
 import { isCI } from '@clack/prompts';
 import { CommanderError } from '@commander-js/extra-typings';
 import { defaultConfigPath } from './config';
 import type { CliContext, CliError } from './context';
 import { createProgram } from './program';
 import { RELEASE_ASSET } from './update';
+import {
+    configureProbeCache,
+    flushProbeCache
+} from '@madkarmaa/phodrive-core/server/photos/library';
 
 const INTERRUPTED_EXIT_CODE = 130;
 
@@ -31,6 +36,9 @@ const context: CliContext = {
     signal: abort.signal,
     release: RELEASE_ASSET ? { executable: process.execPath, asset: RELEASE_ASSET } : null
 };
+
+configureProbeCache(join(dirname(context.configPath), 'probe-cache.json'));
+process.on('exit', flushProbeCache);
 
 const failures: CliError[] = [];
 const program = createProgram(context, (error) => failures.push(error));
