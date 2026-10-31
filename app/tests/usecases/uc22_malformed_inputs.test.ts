@@ -12,8 +12,13 @@ async function checked(request: Request) {
     const received = await receiveUpload(request);
     if (received.isErr()) return received.map(() => undefined);
     const input = received.unwrap();
-    const source = encodeUploadBmp(input);
-    const result = await source.drain();
+    const source = await encodeUploadBmp(input);
+    if (source.isErr()) {
+        await input.cancel();
+
+        return source;
+    }
+    const result = await source.unwrap().drain();
     await input.cancel();
     return result;
 }

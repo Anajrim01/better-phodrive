@@ -12,6 +12,7 @@ import {
 } from '../throttle';
 import { decodeSplitHeader, MAX_SPLIT_HEADER_BYTES } from '../../bmp/index';
 import { BMP_HEADER_BYTES, SPLIT_MAGIC_PREFIX } from '../../../bmp/format';
+import { splitHeaderIsCompressed, splitHeaderIsLast } from '../../../models';
 import { preparedDownloadUrl } from '../download';
 import { readProbe, writeProbe } from './probe-cache';
 import type { LibraryCandidate } from './metadata';
@@ -157,10 +158,12 @@ export function probeLibraryItem(
                     fileHash: header.fileHash,
                     fileId: header.fileId,
                     chunkIndex: header.chunkIndex,
-                    isLast: header.flags === 1,
+                    isLast: splitHeaderIsLast(header.flags),
                     originalName: header.fileName,
                     folder: header.folder,
-                    size: header.payloadSize,
+                    size: header.originalSize ?? header.payloadSize,
+                    storedSize: header.payloadSize,
+                    compressed: splitHeaderIsCompressed(header.flags),
                     at: candidate.at,
                     mediaKey: candidate.mediaKey,
                     sha1: candidate.sha1

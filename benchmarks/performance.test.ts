@@ -172,8 +172,9 @@ async function workload(): Promise<{ run: () => Promise<void> | void; bytes: num
             run: async () => {
                 const received = await receiveUpload(fixture.request());
                 const input = received.unwrap();
-                const source = encodeUploadBmp(input);
-                const result = await source.drain();
+                const encoded = await encodeUploadBmp(input);
+                assert.ok(encoded.isOk());
+                const result = await encoded.unwrap().drain();
                 assert.ok(result.isOk());
                 await input.cancel();
             }
@@ -287,14 +288,16 @@ async function workload(): Promise<{ run: () => Promise<void> | void; bytes: num
                             }
                         });
                     }
-                    const source = encodeUploadBmp(input);
-                    if (mode === 'cancel') await source.body.cancel();
-                    else {
-                        const drained = await source.drain();
-                        assert.ok(drained.isErr());
+                    const encoded = await encodeUploadBmp(input);
+                    if (mode === 'cancel') {
+                        assert.ok(encoded.isOk());
+                        const source = encoded.unwrap();
+                        await source.body.cancel();
+                        const verified = await source.verified;
+                        assert.ok(verified.isErr());
+                    } else {
+                        assert.ok(encoded.isErr());
                     }
-                    const verified = await source.verified;
-                    assert.ok(verified.isErr());
                     await input.cancel();
                 }
             }
@@ -332,11 +335,13 @@ async function workload(): Promise<{ run: () => Promise<void> | void; bytes: num
                 const received = await receiveUpload(
                     new Request('http://localhost/api/upload', init)
                 );
-                return received.match({
+                const response = received.match({
                     Ok: uploadStream,
                     Err: (error) =>
                         new Response(JSON.stringify({ error: error.message }), { status: 400 })
                 });
+
+                return response;
             });
             let completed = 0;
             let failed = 0;
@@ -358,7 +363,7 @@ async function workload(): Promise<{ run: () => Promise<void> | void; bytes: num
                 );
             try {
                 const result = await run();
-                assert.ok(result.isOk());
+                assert.ok(result.isOk(), result.isErr() ? result.unwrapErr().message : '');
                 if (name === 'upload-retry') {
                     assert.equal(failed, sources.length);
                     const retried = await run();

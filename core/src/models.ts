@@ -156,18 +156,39 @@ export const FileSizeSchema = z.int().nonnegative();
 export const Sha1HexSchema = z.string().regex(/^[a-f0-9]{40}$/);
 export const Sha256HexSchema = z.string().regex(/^[a-f0-9]{64}$/);
 
+/** The split header flags byte is a bitfield; version 1 only ever wrote bit 0. */
+export const SPLIT_FLAG_LAST = 1;
+export const SPLIT_FLAG_COMPRESSED = 2;
+export const SPLIT_FLAGS_MAX = SPLIT_FLAG_LAST | SPLIT_FLAG_COMPRESSED;
+
+export function splitHeaderIsLast(flags: number): boolean {
+    return (flags & SPLIT_FLAG_LAST) !== 0;
+}
+
+export function splitHeaderIsCompressed(flags: number): boolean {
+    return (flags & SPLIT_FLAG_COMPRESSED) !== 0;
+}
+
 export const SplitHeaderSchema = z
     .object({
         fileHash: Sha256HexSchema,
         fileId: Sha256HexSchema,
         chunkIndex: z.int().nonnegative(),
-        flags: z.union([z.literal(0), z.literal(1)]),
+        flags: z.int().min(0).max(SPLIT_FLAGS_MAX),
         payloadSize: z.int().nonnegative(),
+        originalSize: z.int().nonnegative().optional(),
         fileName: z.string().min(1).optional(),
         folder: FolderPathSchema.optional()
     })
     .refine((header) => header.chunkIndex !== 0 || header.fileName !== undefined)
-    .refine((header) => header.chunkIndex === 0 || header.folder === undefined);
+    .refine((header) => header.chunkIndex === 0 || header.folder === undefined)
+    .refine(
+        (header) => splitHeaderIsCompressed(header.flags) === (header.originalSize !== undefined)
+    )
+    .refine(
+        (header) =>
+            !splitHeaderIsCompressed(header.flags) || header.originalSize! >= header.payloadSize
+    );
 
 export const RemoteBmpSchema = z.object({
     fileHash: Sha256HexSchema,
@@ -177,6 +198,8 @@ export const RemoteBmpSchema = z.object({
     originalName: z.string().min(1).optional(),
     folder: FolderPathSchema.optional(),
     size: z.number().nonnegative(),
+    storedSize: z.int().nonnegative().optional(),
+    compressed: z.boolean().optional(),
     at: z.int().nonnegative(),
     mediaKey: z.string().min(1),
     sha1: Sha1HexSchema

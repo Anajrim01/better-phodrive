@@ -26,14 +26,16 @@ export function planUpload(file: UploadFile): Result<UploadPlan, ServerError> {
     return planChunks(file, fileIdentity(file.name, file.fileHash, undefined, file.folder ?? ''));
 }
 
-/** Encode and forward one incoming chunk without disk storage or a whole-chunk buffer. */
+/** Encode and forward one incoming chunk without disk storage. */
 export function uploadFiles(
     input: ReceivedUpload,
     emit: (event: UploadEvent) => void,
     fetcher?: Fetcher
 ): AsyncResult<void, ServerError> {
-    return Ok(undefined).andThenAsync(async () => {
-        const source = encodeUploadBmp(input);
+    return encodeUploadBmp(input).andThenAsync(async (source) => {
+        // Progress stays on the raw BMP scale so browser job totals match the planned
+        // chunk sizes; compression only makes the bytes on the wire smaller.
+        const progressTotal = input.bmp.totalSize;
         let lastProgress = 0;
         const report = (completed: number, reused = 0, force = false) => {
             const now = performance.now();
@@ -47,7 +49,7 @@ export function uploadFiles(
                     phase: UploadPhase.Uploading,
                     completed,
                     reused,
-                    total: input.bmp.totalSize
+                    total: progressTotal
                 }
             });
         };
@@ -68,8 +70,8 @@ export function uploadFiles(
         );
 
         return uploaded.map((result) => {
-            const reused = result.status === UploadStatus.AlreadyExists ? input.bmp.totalSize : 0;
-            report(input.bmp.totalSize - reused, reused, true);
+            const reused = result.status === UploadStatus.AlreadyExists ? progressTotal : 0;
+            report(progressTotal - reused, reused, true);
             emit({
                 type: UploadEventType.Chunk,
                 id: 0,
@@ -77,10 +79,12 @@ export function uploadFiles(
                     fileHash: input.header.fileHash,
                     fileId: input.header.fileId,
                     chunkIndex: input.header.chunkIndex,
-                    isLast: input.header.flags === 1,
+                    isLast: source.last,
                     originalName: input.header.fileName,
                     folder: input.header.folder,
-                    size: input.header.payloadSize,
+                    size: source.originalSize,
+                    storedSize: source.storedSize,
+                    compressed: source.compressed,
                     at: Date.now(),
                     mediaKey: result.mediaKey,
                     sha1: result.sha1

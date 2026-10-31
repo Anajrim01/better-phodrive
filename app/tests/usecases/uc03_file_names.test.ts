@@ -21,8 +21,8 @@ test('empty files preserve Unicode, emoji, combining marks, dotfiles, extensionl
         const fixture = uploadForm(new Uint8Array(), name);
         const received = await receiveUpload(fixture.request());
         const input = received.unwrap();
-        const bmp = encodeUploadBmp(input);
-        const drained = await bmp.drain();
+        const bmp = await encodeUploadBmp(input);
+        const drained = await bmp.unwrap().drain();
         expect(drained.isOk()).toBe(true);
         expect(input.header.fileName).toBe(name);
         const encoded = encodeSplitBmp(new Uint8Array(), input.header).unwrap();

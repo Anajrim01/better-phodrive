@@ -84,7 +84,10 @@ test.each([false, true])(
                 fileId: fileHash,
                 chunkIndex: 0,
                 isLast: false,
+                folder: undefined,
                 size: 2,
+                storedSize: 2,
+                compressed: false,
                 at: 42,
                 mediaKey: 'renamed-first',
                 sha1: fingerprint(first).toString('hex')
@@ -110,7 +113,10 @@ test.each([false, true])(
                     fileId: fileHash,
                     chunkIndex: 1,
                     isLast: true,
+                    folder: undefined,
                     size: 1,
+                    storedSize: 1,
+                    compressed: false,
                     at: 42,
                     mediaKey: 'renamed-last',
                     sha1: fingerprint(last).toString('hex')

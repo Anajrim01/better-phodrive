@@ -1,8 +1,10 @@
 import { createHash } from 'node:crypto';
 import { Err, Ok, type AsyncResult } from 'results-ts';
 import type { FileRequest, RemoteBmp, SplitHeader } from '../models';
+import { SPLIT_FLAG_COMPRESSED, SPLIT_FLAG_LAST, splitHeaderIsCompressed } from '../models';
 import { SplitBmpReader } from './bmp/stream';
 import { MAX_SPLIT_HEADER_BYTES, splitHeaderByteLength } from './bmp/index';
+import { decompressPayload } from './compress';
 import { SERVER_ERRORS, throttleError, type ServerError, type ThrottleMode } from './errors';
 import { downloadBmp } from './photos/index';
 
@@ -12,12 +14,15 @@ function openChunk(
     signal: AbortSignal,
     mode: ThrottleMode
 ): AsyncResult<SplitBmpReader, ServerError> {
+    const compressed = chunk.compressed === true;
+    const storedSize = compressed ? (chunk.storedSize ?? chunk.size) : chunk.size;
     const expected: SplitHeader = {
         fileHash: input.fileHash,
         fileId: input.fileId,
         chunkIndex: chunk.chunkIndex,
-        flags: chunk.isLast ? 1 : 0,
-        payloadSize: chunk.size,
+        flags: (chunk.isLast ? SPLIT_FLAG_LAST : 0) | (compressed ? SPLIT_FLAG_COMPRESSED : 0),
+        payloadSize: storedSize,
+        originalSize: compressed ? chunk.size : undefined,
         fileName: chunk.chunkIndex === 0 ? input.name : undefined,
         folder: chunk.folder
     };
@@ -148,6 +153,47 @@ export function streamDownload(
                             }
                         }
                         if (!active) return;
+
+                        if (splitHeaderIsCompressed(active.header.flags)) {
+                            const stored: Uint8Array[] = [];
+
+                            while (true) {
+                                const next = await active.readPayload();
+                                if (closed) return;
+                                if (next.isErr()) {
+                                    next.inspectErr((error) => controller.error(error));
+                                    await cleanup();
+
+                                    return;
+                                }
+
+                                const part = next.unwrap();
+                                if (part === null) break;
+                                stored.push(part);
+                            }
+
+                            const originalSize = active.header.originalSize!;
+                            active = null;
+                            index++;
+
+                            const decompressed = await decompressPayload(
+                                Buffer.concat(stored),
+                                originalSize
+                            );
+                            if (closed) return;
+                            if (decompressed.isErr()) {
+                                decompressed.inspectErr((error) => controller.error(error));
+                                await cleanup();
+
+                                return;
+                            }
+
+                            const payload = decompressed.unwrap();
+                            hash.update(payload);
+                            controller.enqueue(payload);
+
+                            return;
+                        }
 
                         const next = await active.readPayload();
                         if (closed) return;

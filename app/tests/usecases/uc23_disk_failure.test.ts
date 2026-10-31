@@ -27,8 +27,8 @@ test('uploads need no temporary storage even when all disk allocations would fai
     const fixture = uploadForm();
     const received = await receiveUpload(fixture.request());
     const input = received.unwrap();
-    const source = encodeUploadBmp(input);
-    const drained = await source.drain();
+    const source = await encodeUploadBmp(input);
+    const drained = await source.unwrap().drain();
     expect(drained.isOk()).toBe(true);
     expect(open).not.toHaveBeenCalled();
     expect(mkdtemp).not.toHaveBeenCalled();

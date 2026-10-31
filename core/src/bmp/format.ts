@@ -2,7 +2,7 @@ import { BMP_ERRORS } from './errors';
 import type { BmpError } from './errors';
 import { Err, Ok, type Result } from 'results-ts';
 import Varint from 'varint';
-import { SplitHeaderSchema, type SplitHeader } from '../models';
+import { SplitHeaderSchema, splitHeaderIsCompressed, type SplitHeader } from '../models';
 
 export const MAX_PHOTOS_BMP_BYTES = 200_000_000;
 export const MAX_CHUNK_PAYLOAD_BYTES = 195_000_000;
@@ -47,10 +47,12 @@ function splitHeaderLayout(
 
     const header = parsed.data;
     const first = header.chunkIndex === 0;
+    const compressed = splitHeaderIsCompressed(header.flags);
     const nameBytes =
         first && header.fileName ? new TextEncoder().encode(header.fileName) : new Uint8Array();
     const folderBytes =
         first && header.folder ? new TextEncoder().encode(header.folder) : new Uint8Array();
+    const originalSizeBytes = compressed ? Varint.encodingLength(header.originalSize!) : 0;
     const prefixSize =
         BMP_HEADER_BYTES +
         SPLIT_MAGIC.length +
@@ -59,6 +61,7 @@ function splitHeaderLayout(
         Varint.encodingLength(header.chunkIndex) +
         1 +
         Varint.encodingLength(header.payloadSize) +
+        originalSizeBytes +
         (first ? Varint.encodingLength(nameBytes.length) + nameBytes.length : 0) +
         (folderBytes.length ? Varint.encodingLength(folderBytes.length) + folderBytes.length : 0);
 
@@ -86,6 +89,8 @@ export function encodeSplitPrefix(input: SplitHeader): Result<
 > {
     return splitHeaderLayout(input).andThen(({ prefixSize, nameBytes, folderBytes }) => {
         if (prefixSize > MAX_SPLIT_HEADER_BYTES) return Err(BMP_ERRORS.INVALID_CHUNK_METADATA);
+
+        const compressed = splitHeaderIsCompressed(input.flags);
 
         return bmpLayout(prefixSize - BMP_HEADER_BYTES + input.payloadSize).map(
             ({ width, height, total }) => {
@@ -115,6 +120,11 @@ export function encodeSplitPrefix(input: SplitHeader): Result<
                 offset++;
                 Varint.encode(input.payloadSize, prefix, offset);
                 offset += Varint.encodingLength(input.payloadSize);
+
+                if (compressed) {
+                    Varint.encode(input.originalSize!, prefix, offset);
+                    offset += Varint.encodingLength(input.originalSize!);
+                }
 
                 if (input.chunkIndex === 0) {
                     Varint.encode(nameBytes.length, prefix, offset);

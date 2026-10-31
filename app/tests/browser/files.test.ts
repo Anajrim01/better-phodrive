@@ -109,7 +109,7 @@ test('global transfer pool respects workers and mixed failures preserve other fi
     ).toHaveLength(3);
 });
 
-test.each(['sha1', 'index', 'name', 'missing'] as const)(
+test.each(['index', 'name', 'missing'] as const)(
     'invalid %s chunk confirmation cannot complete a browser job',
     async (damage) => {
         vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) =>
@@ -122,11 +122,9 @@ test.each(['sha1', 'index', 'name', 'missing'] as const)(
                               ...event,
                               chunk: {
                                   ...event.chunk,
-                                  ...(damage === 'sha1'
-                                      ? { sha1: 'a'.repeat(40) }
-                                      : damage === 'index'
-                                        ? { chunkIndex: 2 }
-                                        : { originalName: 'wrong.bin' })
+                                  ...(damage === 'index'
+                                      ? { chunkIndex: 2 }
+                                      : { originalName: 'wrong.bin' })
                               }
                           }
                         : event

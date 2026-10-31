@@ -97,6 +97,14 @@ export const SERVER_ERRORS = {
         code: 'BMP_ALLOCATION_FAILED',
         message: 'Not enough memory to create BMP'
     },
+    COMPRESSION_FAILED: {
+        code: 'COMPRESSION_FAILED',
+        message: 'Could not compress the uploaded chunk.'
+    },
+    DECOMPRESSION_FAILED: {
+        code: 'DECOMPRESSION_FAILED',
+        message: 'Could not decompress the downloaded chunk.'
+    },
     INVALID_DOWNLOADED_BMP: {
         code: 'INVALID_DOWNLOADED_BMP',
         message: 'Downloaded BMP is invalid or damaged'

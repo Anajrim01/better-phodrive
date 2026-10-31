@@ -145,6 +145,10 @@
             "@madkarmaa/phodrive-core": "./src/server/chunks.ts",
             "default": "./dist/server/chunks.js"
         },
+        "./server/compress": {
+            "@madkarmaa/phodrive-core": "./src/server/compress.ts",
+            "default": "./dist/server/compress.js"
+        },
         "./server/download": {
             "@madkarmaa/phodrive-core": "./src/server/download.ts",
             "default": "./dist/server/download.js"
@@ -326,6 +330,7 @@
             "./server/bmp": "./dist/server/bmp/index.js",
             "./server/bmp/stream": "./dist/server/bmp/stream.js",
             "./server/chunks": "./dist/server/chunks.js",
+            "./server/compress": "./dist/server/compress.js",
             "./server/download": "./dist/server/download.js",
             "./server/errors": "./dist/server/errors.js",
             "./server/fetcher": "./dist/server/fetcher.js",

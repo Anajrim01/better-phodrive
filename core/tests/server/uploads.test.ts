@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { afterEach, expect, test, vi } from 'vitest';
+import { Ok } from 'results-ts';
 import { receiveUpload } from '@madkarmaa/phodrive-core/server/upload/input';
 import { encodeUploadBmp } from '@madkarmaa/phodrive-core/server/upload/bmp';
 import { uploadFiles, planUpload } from '@madkarmaa/phodrive-core/server/upload';
@@ -46,58 +47,57 @@ test('multipart ingestion and BMP transfer stream without allocating files on di
     await input.cancel();
 });
 
-test('encoder has bounded blocks and demand-driven ingress, independent of payload size', async () => {
+test('compressed uploads report stored and original sizes and commit the uploaded hash', async () => {
+    const original = Buffer.alloc(2_000_000, 24);
+    const fixture = uploadForm(original);
+    const received = await receiveUpload(fixture.request());
+    const input = received.unwrap();
+    const harness = photosUploadHarness();
+    const events: UploadEvent[] = [];
+    const uploaded = await uploadFiles(input, (event) => events.push(event), harness.fetcher);
+
+    expect(uploaded.isOk()).toBe(true);
+    const chunk = events.find((event) => event.type === UploadEventType.Chunk);
+    expect(chunk).toMatchObject({
+        chunk: {
+            size: original.length,
+            compressed: true
+        }
+    });
+    if (chunk?.type !== UploadEventType.Chunk) throw new Error('Missing chunk event');
+    expect(chunk.chunk.storedSize).toBeLessThan(original.length / 2);
+    expect(harness.stored.has(chunk.chunk.sha1)).toBe(true);
+    const stored = harness.stored.get(chunk.chunk.sha1)!;
+    expect(Buffer.from(decodeSplitBmp(stored).unwrap().payload)).toEqual(original);
+    expect(chunk.chunk.sha1).not.toBe(fixture.metadata.sha1);
+    await input.cancel();
+});
+
+test('encoder compresses repetitive chunks and hashes the bytes it uploads', async () => {
     const original = Buffer.alloc(2_000_000, 42);
     const fixture = uploadForm(original);
-    const serialized = fixture.request();
-    const headers = new Headers(serialized.headers);
-    const serializedBytes = await serialized.arrayBuffer();
-    const wire = new Uint8Array(serializedBytes);
-    let offset = 0;
-    let readAhead = 0;
-    const ingress = new ReadableStream<Uint8Array>(
-        {
-            pull(controller) {
-                if (offset === wire.length) {
-                    controller.close();
-                    return;
-                }
-                const next = wire.subarray(offset, offset + 16 * 1024);
-                offset += next.length;
-                readAhead = offset;
-                controller.enqueue(next);
-            }
-        },
-        { highWaterMark: 0 }
-    );
-    const init = { method: 'POST', headers, body: ingress, duplex: 'half' as const };
-    const request = new Request(serialized.url, init);
-    const received = await receiveUpload(request);
+    const received = await receiveUpload(fixture.request());
     const input = received.unwrap();
-    let blocks = 0;
+    const encoded = await encodeUploadBmp(input);
+    const source = encoded.unwrap();
+    expect(source.compressed).toBe(true);
+    expect(source.originalSize).toBe(original.length);
+    expect(source.storedSize).toBeLessThan(original.length / 2);
+
+    const reader = source.body.getReader();
+    const hash = createHash('sha1');
     let bytes = 0;
-    const encoded = encodeUploadBmp(input);
-    const reader = encoded.body.getReader();
-    const prefix = await reader.read();
-    expect(prefix.value).toEqual(fixture.prefix.prefix);
-    await new Promise((resolve) => setTimeout(resolve, 20));
-    const pausedAt = readAhead;
-    expect(pausedAt).toBeLessThan(256 * 1024);
-    await new Promise((resolve) => setTimeout(resolve, 20));
-    expect(readAhead).toBe(pausedAt);
-    const hash = createHash('sha1').update(prefix.value!);
     while (true) {
         const next = await reader.read();
         if (next.done) break;
         expect(next.value.length).toBeLessThanOrEqual(64 * 1024);
         hash.update(next.value);
         bytes += next.value.length;
-        blocks++;
     }
-    expect(blocks).toBeGreaterThan(30);
-    expect(bytes + prefix.value!.length).toBe(input.bmp.totalSize);
-    expect(hash.digest('hex')).toBe(fixture.metadata.sha1);
-    const verified = await encoded.verified;
+    expect(bytes).toBe(source.length);
+    expect(hash.digest('hex')).toBe(source.sha1);
+    expect(source.sha1).not.toBe(fixture.metadata.sha1);
+    const verified = await source.verified;
     expect(verified.isOk()).toBe(true);
     await input.cancel();
 });
@@ -172,32 +172,39 @@ test('paused downstream progress is coalesced rather than retaining every event'
     const uploads = await import('@madkarmaa/phodrive-core/server/upload');
     let finished = false;
     vi.spyOn(uploads, 'uploadFiles').mockImplementation((_input, emit) =>
-        encodeUploadBmp(input)
-            .drain()
-            .map(() => {
-                for (let completed = 0; completed <= 10_000; completed++) {
-                    emit({
-                        type: UploadEventType.Progress,
-                        id: 0,
-                        progress: {
-                            phase: UploadPhase.Uploading,
-                            completed,
-                            reused: 0,
-                            total: 10_000
-                        }
-                    });
-                }
+        Ok(undefined).andThenAsync(async () => {
+            const encoded = await encodeUploadBmp(input);
+            if (encoded.isErr()) return encoded;
+
+            const source = encoded.unwrap();
+            const drained = await source.drain();
+            if (drained.isErr()) return drained;
+
+            for (let completed = 0; completed <= 10_000; completed++) {
                 emit({
-                    type: UploadEventType.FileComplete,
+                    type: UploadEventType.Progress,
                     id: 0,
-                    result: {
-                        status: UploadStatus.Uploaded,
-                        mediaKey: 'key',
-                        sha1: input.sha1
+                    progress: {
+                        phase: UploadPhase.Uploading,
+                        completed,
+                        reused: 0,
+                        total: 10_000
                     }
                 });
-                finished = true;
-            })
+            }
+            emit({
+                type: UploadEventType.FileComplete,
+                id: 0,
+                result: {
+                    status: UploadStatus.Uploaded,
+                    mediaKey: 'key',
+                    sha1: input.sha1
+                }
+            });
+            finished = true;
+
+            return Ok(undefined);
+        })
     );
     const response = uploadStream(input);
     await vi.waitFor(() => expect(finished).toBe(true));
@@ -217,7 +224,8 @@ test('request cancellation closes unfinished multipart ingress and produces no c
         signal: abort.signal
     });
     const received = await receiveUpload(request);
-    const source = encodeUploadBmp(received.unwrap());
+    const encoded = await encodeUploadBmp(received.unwrap());
+    const source = encoded.unwrap();
     const reader = source.body.getReader();
     await reader.read();
     abort.abort();
