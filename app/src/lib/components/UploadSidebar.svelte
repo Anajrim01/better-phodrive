@@ -79,6 +79,7 @@
         type="file"
         multiple
         class="sr-only"
+        tabindex="-1"
         aria-label="Upload files"
         onchange={(event) => {
             const files = selectedFiles(event.currentTarget);
@@ -95,6 +96,7 @@
         multiple
         webkitdirectory
         class="sr-only"
+        tabindex="-1"
         aria-label="Upload folder"
         onchange={(event) => {
             const files = selectedFiles(event.currentTarget);
@@ -227,6 +229,8 @@
         --np-navigation-drawer-background: transparent;
         --np-color-secondary-container: var(--app-selected);
         --np-color-on-secondary-container: var(--app-selected-text);
+        --np-navigation-drawer-item-container-shape: 8px;
+        --np-navigation-drawer-item-container-shape: 8px;
     }
 
     :global(:root .drive-navigation.np-navigation-drawer-container .np-navigation-drawer) {

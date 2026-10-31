@@ -168,6 +168,10 @@
         font-variant-numeric: tabular-nums;
     }
 
+    tbody tr {
+        transition: background-color var(--np-motion-standard-fast-effects);
+    }
+
     tbody tr:hover,
     tbody tr:focus-within {
         background: var(--np-color-surface-container);

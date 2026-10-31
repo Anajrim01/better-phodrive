@@ -39,7 +39,7 @@
     );
 </script>
 
-<div class="max-w-162">
+<div class="mt-6 max-w-162">
     <Card type="text" variant="outlined" class="account-setup-card">
         <div class="p-6 max-[520px]:p-4">
             <h2 class="text-xl font-medium">Connect to Google Photos</h2>

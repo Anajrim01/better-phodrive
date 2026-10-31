@@ -65,7 +65,13 @@
         font: inherit;
         text-align: start;
         cursor: pointer;
-        transition: background-color 120ms;
+        transition:
+            background-color var(--np-motion-standard-fast-effects),
+            transform var(--np-motion-standard-fast-effects);
+    }
+
+    .folder-tile:active:not(:disabled) {
+        transform: scale(0.98);
     }
 
     .folder-tile:hover:not(:disabled) {
@@ -73,7 +79,7 @@
     }
 
     .folder-tile:focus-visible {
-        outline: 2px solid var(--app-primary);
+        outline: 3px solid var(--app-primary);
         outline-offset: 2px;
     }
 

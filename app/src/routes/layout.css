@@ -15,7 +15,8 @@
     --app-hover: var(--np-color-surface-container-high);
     --app-selected: var(--np-color-primary-container);
     --app-selected-text: var(--np-color-on-primary-container);
-    --app-border: var(--np-color-outline-variant);
+    --app-border: color-mix(in srgb, var(--np-color-on-surface) 12%, transparent);
+    --app-ease: cubic-bezier(0.22, 1, 0.36, 1);
     --app-primary: var(--np-color-primary);
     --app-avatar: var(--np-color-surface-container-highest);
     --app-avatar-text: var(--np-color-on-surface);
@@ -64,6 +65,12 @@ body {
     --color-feedback: var(--app-feedback);
     --color-error: var(--np-color-error);
     --color-outline: var(--np-color-outline);
+}
+
+/* Controls use one 8px radius. Pills stay on search, switches and icon buttons. */
+:root .np-button.round,
+:root .np-button.round:is(:active, .pressed) {
+    border-radius: 8px;
 }
 
 @layer components {

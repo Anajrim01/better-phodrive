@@ -3,7 +3,7 @@
     import { formatDuration, remainingSeconds } from '@madkarmaa/phodrive-core/browser/upload/eta';
     import { UploadJobStatus, UploadPhase } from '@madkarmaa/phodrive-core/models';
 
-    import { slide } from 'svelte/transition';
+    import { fade } from 'svelte/transition';
     import { prefersReducedMotion } from 'svelte/motion';
     import type { UploadJob } from '#browser/files';
     import UploadStatusRow from '#components/UploadStatusRow.svelte';
@@ -102,7 +102,10 @@
         >
             <IconExpandMore
                 aria-hidden="true"
-                class={['transition-transform', collapsed && 'rotate-180']}
+                class={[
+                    'transition-transform duration-150 ease-(--app-ease)',
+                    collapsed && 'rotate-180'
+                ]}
             />
         </IconButton>
         <IconButton
@@ -114,7 +117,7 @@
     </header>
 
     {#if !collapsed}
-        <div transition:slide={{ duration: prefersReducedMotion.current ? 0 : 140 }}>
+        <div transition:fade={{ duration: prefersReducedMotion.current ? 0 : 140 }}>
             <List class="upload-queue" aria-label="Upload queue">
                 {#each orderedJobs as job (job.id)}
                     <UploadStatusRow {job} {retryDisabled} {now} onretry={() => onretry(job.id)} />
@@ -131,9 +134,10 @@
         max-width: calc(100vw - 32px);
         max-height: calc(60vh + 56px);
         border: 1px solid var(--app-border);
+        border-bottom: none;
         --np-sheet-z-index: 30;
-        --np-sheet-shape: 16px;
-        --np-sheet-elevation: var(--np-elevation-3);
+        --np-sheet-shape: 16px 16px 0 0;
+        --np-sheet-elevation: none;
     }
 
     :global(:root .upload-sheet.np-sheet > .np-sheet-content) {

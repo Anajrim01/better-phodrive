@@ -256,6 +256,7 @@
         font: inherit;
         text-overflow: ellipsis;
         white-space: nowrap;
+        transition: color var(--np-motion-standard-fast-effects);
     }
 
     .crumb:hover {
@@ -269,7 +270,7 @@
     }
 
     .crumb:focus-visible {
-        outline: 2px solid var(--app-primary);
+        outline: 3px solid var(--app-primary);
         outline-offset: 2px;
     }
 
