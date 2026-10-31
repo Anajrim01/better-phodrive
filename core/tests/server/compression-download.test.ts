@@ -57,7 +57,8 @@ test('a compressed chunk downloads as the original bytes', async () => {
         const downloaded = await downloadFile(input);
         const bytes = await downloaded.unwrap().arrayBuffer();
 
-        expect(Buffer.from(bytes)).toEqual(Buffer.from(original));
+        expect(bytes.byteLength).toBe(original.length);
+        expect(createHash('sha256').update(new Uint8Array(bytes)).digest('hex')).toBe(fileHash);
     } finally {
         vi.mocked(downloadBmp).mockReset();
     }
@@ -268,7 +269,8 @@ test('a mixed file downloads one compressed chunk and one raw chunk', async () =
         });
         const bytes = await downloaded.unwrap().arrayBuffer();
 
-        expect(Buffer.from(bytes)).toEqual(Buffer.from(original));
+        expect(bytes.byteLength).toBe(original.length);
+        expect(createHash('sha256').update(new Uint8Array(bytes)).digest('hex')).toBe(fileHash);
     } finally {
         vi.mocked(downloadBmp).mockReset();
     }

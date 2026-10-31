@@ -37,7 +37,11 @@ test('compressed uploads report stored and original sizes and commit the uploade
     expect(chunk.chunk.storedSize).toBeLessThan(original.length / 2);
     expect(harness.stored.has(chunk.chunk.sha1)).toBe(true);
     const stored = harness.stored.get(chunk.chunk.sha1)!;
-    expect(Buffer.from(decodeSplitBmp(stored).unwrap().payload)).toEqual(original);
+    const decoded = decodeSplitBmp(stored).unwrap().payload;
+    expect(decoded.length).toBe(original.length);
+    expect(createHash('sha256').update(decoded).digest('hex')).toBe(
+        createHash('sha256').update(original).digest('hex')
+    );
     expect(chunk.chunk.sha1).not.toBe(fixture.metadata.sha1);
     await input.cancel();
 });
