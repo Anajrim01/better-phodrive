@@ -16,6 +16,7 @@
     --app-selected: var(--np-color-primary-container);
     --app-selected-text: var(--np-color-on-primary-container);
     --app-border: color-mix(in srgb, var(--np-color-on-surface) 12%, transparent);
+    --app-border-strong: var(--np-color-outline-variant);
     --app-ease: cubic-bezier(0.22, 1, 0.36, 1);
     --app-primary: var(--np-color-primary);
     --app-avatar: var(--np-color-surface-container-highest);

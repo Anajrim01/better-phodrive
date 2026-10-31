@@ -79,7 +79,6 @@
         type="file"
         multiple
         class="sr-only"
-        tabindex="-1"
         aria-label="Upload files"
         onchange={(event) => {
             const files = selectedFiles(event.currentTarget);
@@ -96,7 +95,6 @@
         multiple
         webkitdirectory
         class="sr-only"
-        tabindex="-1"
         aria-label="Upload folder"
         onchange={(event) => {
             const files = selectedFiles(event.currentTarget);
@@ -192,6 +190,7 @@
         --np-navigation-drawer-padding: max(16px, env(safe-area-inset-top, 0px)) 16px 24px;
         --np-color-secondary-container: var(--app-selected);
         --np-color-on-secondary-container: var(--app-selected-text);
+        --np-navigation-drawer-item-container-shape: 8px;
     }
 
     :global(.mobile-navigation .np-navigation-drawer-item) {
@@ -201,12 +200,10 @@
     }
 
     :global(:root .upload-fab.np-fab) {
-        outline: 1px solid var(--app-border);
-        outline-offset: -1px;
         --np-fab-container-color: var(--app-panel);
         --np-fab-icon-color: var(--app-text);
         --np-fab-shape: 16px;
-        --np-fab-elevation: none;
+        --np-fab-elevation: inset 0 0 0 1px var(--app-border-strong);
         --np-icon-size: 20px;
     }
 
@@ -214,12 +211,10 @@
         height: 56px;
         min-width: 110px;
         margin-bottom: 8px;
-        outline: 1px solid var(--app-border);
-        outline-offset: -1px;
         --np-fab-container-color: var(--app-panel);
         --np-fab-icon-color: var(--app-text);
         --np-fab-shape: 16px;
-        --np-fab-elevation: none;
+        --np-fab-elevation: inset 0 0 0 1px var(--app-border-strong);
         --np-icon-size: 20px;
     }
 
@@ -231,7 +226,6 @@
         --np-navigation-drawer-background: transparent;
         --np-color-secondary-container: var(--app-selected);
         --np-color-on-secondary-container: var(--app-selected-text);
-        --np-navigation-drawer-item-container-shape: 8px;
         --np-navigation-drawer-item-container-shape: 8px;
     }
 

@@ -70,8 +70,10 @@
             transform var(--np-motion-standard-fast-effects);
     }
 
-    .folder-tile:active:not(:disabled) {
-        transform: scale(0.98);
+    @media (prefers-reduced-motion: no-preference) {
+        .folder-tile:active:not(:disabled) {
+            transform: scale(0.98);
+        }
     }
 
     .folder-tile:hover:not(:disabled) {

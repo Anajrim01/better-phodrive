@@ -170,7 +170,7 @@
         max-width: min(320px, calc(100vw - 24px));
         --np-menu-container-color: var(--app-menu);
         --np-menu-container-shape: 8px;
-        border: 1px solid var(--app-border);
+        border: 1px solid var(--app-border-strong);
         --np-menu-position-area: bottom span-right;
         --np-menu-justify-self: start;
     }
