@@ -129,6 +129,17 @@ test('projected chunks fit the photo limit and reject damaged padding', () => {
     expect(decodeSplitBmp(bmp).isErr()).toBe(true);
 });
 
+test('the 256 floor only grows small canvases', () => {
+    for (const [payload, total] of [
+        [1, 196662],
+        [196607, 199734],
+        [198800, 199734],
+        [500000, 500634],
+        [1000000, 1000554]
+    ] as const)
+        expect(splitBmpByteLength(header(1, payload, true)).unwrap()).toBe(total);
+});
+
 test('remote chunks group into one card', () => {
     const makeChunk = (index: number): RemoteBmp => ({
         originalName: index === 0 ? 'video.mp4' : undefined,
