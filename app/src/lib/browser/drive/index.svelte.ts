@@ -1,6 +1,7 @@
 import {
     ConfirmKind,
     FileActionKind,
+    MAX_ALBUM_BATCH_SIZE,
     UploadJobStatus,
     DEFAULT_PREFERENCES_DEFAULTS,
     NewAccountSchema,
@@ -8,7 +9,14 @@ import {
     type PreferencesDefaults
 } from '@madkarmaa/phodrive-core/models';
 import { watch } from 'runed';
-import { fileKey, type FileGroup, type FileAction } from '@madkarmaa/phodrive-core/files';
+import {
+    fileKey,
+    groupChunks,
+    type FileGroup,
+    type FileAction,
+    type UploadedChunk
+} from '@madkarmaa/phodrive-core/files';
+import { assignFolderAlbum } from '@madkarmaa/phodrive-core/browser/albums';
 import { useAutomaticRefresh } from '#browser/drive/refresh.svelte';
 import { validateAccount } from '@madkarmaa/phodrive-core/browser/accounts';
 import { createBrowserPreferences, type BrowserPreferences } from '#browser/storage';
@@ -339,6 +347,9 @@ export class DriveController {
         const token = this.accounts[email];
         if (!token) return;
 
+        const folder = this.library.folder;
+        const uploadedChunks: UploadedChunk[] = [];
+
         this.uploadPanelOpen = true;
         this.feedbackMessage = '';
         this.busy = true;
@@ -359,6 +370,8 @@ export class DriveController {
                 }
             },
             (saved) => {
+                uploadedChunks.push(saved);
+
                 if (this.selectedEmail !== email) return;
 
                 this.library.chunks = [
@@ -368,7 +381,8 @@ export class DriveController {
                             fileKey(item) !== fileKey(saved) || item.chunkIndex !== saved.chunkIndex
                     )
                 ];
-            }
+            },
+            { folder }
         );
 
         uploaded.inspectErr((error) => {
@@ -382,7 +396,51 @@ export class DriveController {
             );
         });
 
+        await this.addToFolderAlbums(email, token, uploadedChunks);
+
         this.busy = false;
         this.reloadChangedAccount(email, token);
+    }
+
+    /** Mirror uploaded folders as Google Photos albums, remembering each album key. */
+    private async addToFolderAlbums(
+        email: string,
+        token: string,
+        chunks: readonly UploadedChunk[]
+    ): Promise<void> {
+        const preferences = this.preferences;
+        if (!preferences) return;
+
+        const folders = new Map<string, string[]>();
+        for (const file of groupChunks([...chunks])) {
+            if (!file.folder || !file.complete) continue;
+
+            const mediaKeys = folders.get(file.folder) ?? [];
+            for (const chunk of file.chunks) mediaKeys.push(chunk.mediaKey);
+            folders.set(file.folder, mediaKeys);
+        }
+
+        for (const [folder, mediaKeys] of folders) {
+            for (let index = 0; index < mediaKeys.length; index += MAX_ALBUM_BATCH_SIZE) {
+                const batch = mediaKeys.slice(index, index + MAX_ALBUM_BATCH_SIZE);
+                const knownKey = preferences.albumKey(email, folder);
+                let assigned = await assignFolderAlbum(email, token, folder, knownKey, batch);
+
+                // A cached album can disappear after a manual delete, so recreate it once.
+                if (assigned.isErr() && knownKey !== undefined)
+                    assigned = await assignFolderAlbum(email, token, folder, undefined, batch);
+
+                assigned.match({
+                    Ok: (albumKey) => {
+                        preferences.saveAlbumKey(email, folder, albumKey).inspectErr((error) => {
+                            this.feedbackMessage = error.message;
+                        });
+                    },
+                    Err: (error) => {
+                        this.feedbackMessage = `Uploaded, but could not add files to the ${folder} album. ${error.message}`;
+                    }
+                });
+            }
+        }
     }
 }

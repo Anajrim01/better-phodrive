@@ -111,6 +111,12 @@ For Docker, pass the same variables with `-e`, for example `-e PHODRIVE_DEFAULT_
 > [!NOTE]
 > Your browser stores the credentials. The server uses them for each request and does not save them.
 
+## Folders and storage totals
+
+Drop a folder onto the page, or use **Upload folder**, to keep its relative path. Paths are stored in the uploaded chunk header, so the same folder tree appears from any browser that loads the library. Each folder is also mirrored to a Google Photos album with the same name, which keeps those files grouped in the Photos app too. Album keys are remembered in this browser, per account.
+
+The navigation sidebar shows how much data the loaded library holds, plus file and folder counts and a breakdown by file type. Totals grow as you press **Load more**, and uploads into a folder show an estimated time remaining next to the progress.
+
 ## Command line
 
 The `phodrive` command does everything the web app does without running the server. Each [release](https://github.com/madkarmaa/phodrive/releases/latest) includes executables that don't need Node.js. On Linux or macOS, download yours and make it executable:

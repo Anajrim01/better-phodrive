@@ -4,14 +4,16 @@
     import { fade } from 'svelte/transition';
     import { flip } from 'svelte/animate';
     import { prefersReducedMotion } from 'svelte/motion';
-    import type { FileGroup, FileAction } from '@madkarmaa/phodrive-core/files';
+    import type { FileGroup, FileAction, FolderEntry } from '@madkarmaa/phodrive-core/files';
     import { fileKey } from '@madkarmaa/phodrive-core/files';
     import FileCard from '#components/FileCard.svelte';
     import FileList from '#components/FileList.svelte';
     import EmptyFiles from '#components/EmptyFiles.svelte';
+    import FolderTiles from '#components/FolderTiles.svelte';
 
     interface Props {
         files: FileGroup[];
+        folders: FolderEntry[];
         layout: FileLayout;
         sort: FileSort;
         loading: boolean;
@@ -20,7 +22,9 @@
         hasFiles: boolean;
         hasMore: boolean;
         disabled: boolean;
+        showFolder: boolean;
         action: FileAction | null;
+        onopenfolder: (path: string) => void;
         ondownload: (item: FileGroup) => void;
         ondelete: (item: FileGroup) => void;
         onmore: () => void;
@@ -28,6 +32,7 @@
 
     let {
         files,
+        folders,
         layout,
         sort = $bindable(),
         loading,
@@ -36,7 +41,9 @@
         hasFiles,
         hasMore,
         disabled,
+        showFolder,
         action,
+        onopenfolder,
         ondownload,
         ondelete,
         onmore
@@ -44,9 +51,11 @@
 </script>
 
 <section class="flex min-h-0 flex-1 flex-col" aria-labelledby="files-heading">
+    <FolderTiles {folders} {disabled} onopen={onopenfolder} />
+
     {#if files.length}
         {#if layout === FileLayout.List}
-            <FileList {files} bind:sort {disabled} {action} {ondownload} {ondelete} />
+            <FileList {files} bind:sort {disabled} {action} {showFolder} {ondownload} {ondelete} />
         {:else}
             <ul
                 class="mt-4 grid list-none grid-cols-[repeat(auto-fill,minmax(min(100%,220px),1fr))] gap-4 p-0"
@@ -68,7 +77,7 @@
                 {/each}
             </ul>
         {/if}
-    {:else}
+    {:else if !folders.length}
         <div
             class="grid min-h-90 flex-1 place-items-center px-6 py-12 text-center text-sm text-muted"
         >

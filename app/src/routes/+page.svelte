@@ -18,6 +18,7 @@
     import SettingsPanel from '#components/SettingsPanel.svelte';
     import ErrorFeedback from '#components/ErrorFeedback.svelte';
     import FileDrop from '#components/FileDrop.svelte';
+    import { libraryStats } from '@madkarmaa/phodrive-core/stats';
 
     interface Props {
         data: PageData;
@@ -27,6 +28,7 @@
 
     const drive = new DriveController(untrack(() => data.preferencesDefaults));
     const actionsDisabled = $derived(drive.busy || !!drive.fileAction);
+    const stats = $derived(libraryStats(drive.library.files));
     let view = $state<AppView>(AppView.Files);
     let navigationOpen = $state(false);
     let accountButton = $state<HTMLElement>();
@@ -95,6 +97,8 @@
         connected={!!drive.selectedEmail}
         disabled={actionsDisabled || drive.library.loading}
         {view}
+        {stats}
+        statsPartial={!!drive.library.nextPageToken}
         onnavigate={(nextView) => (view = nextView)}
         onconnect={addAccount}
         onupload={upload}
@@ -143,10 +147,33 @@
                 in:fade={{ duration: prefersReducedMotion.current ? 0 : 160 }}
             >
                 <div class="workspace-heading">
-                    <h1 id="files-heading">
-                        My files <span class="text-subtle"
-                            >({drive.library.visibleFiles.length})</span
-                        >
+                    <h1 id="files-heading" class="min-w-0">
+                        <span class="crumbs">
+                            <button
+                                type="button"
+                                class="crumb"
+                                class:current={!drive.library.folder}
+                                aria-current={!drive.library.folder ? 'page' : undefined}
+                                onclick={() => drive.library.openFolder('')}
+                            >
+                                My files
+                            </button>
+                            {#each drive.library.trail as crumb (crumb.path)}
+                                <span class="crumb-separator" aria-hidden="true">/</span>
+                                <button
+                                    type="button"
+                                    class="crumb"
+                                    class:current={drive.library.folder === crumb.path}
+                                    aria-current={drive.library.folder === crumb.path
+                                        ? 'page'
+                                        : undefined}
+                                    onclick={() => drive.library.openFolder(crumb.path)}
+                                >
+                                    {crumb.name}
+                                </button>
+                            {/each}
+                        </span>
+                        <span class="text-subtle">({drive.library.visibleFiles.length})</span>
                     </h1>
                     <LayoutToggle bind:layout={drive.settings.fileLayout} />
                 </div>
@@ -166,19 +193,18 @@
                 >
                     <FileGrid
                         files={drive.library.visibleFiles}
+                        folders={drive.library.filtering ? [] : drive.library.folders}
                         layout={drive.settings.fileLayout}
                         bind:sort={drive.settings.fileSort}
                         loading={drive.library.loading}
                         loadFailed={drive.library.loadFailed}
-                        filtered={!!(
-                            drive.library.searchTerm ||
-                            drive.library.typeFilter ||
-                            drive.library.modifiedDays
-                        )}
+                        filtered={drive.library.filtering}
                         hasFiles={!!drive.library.files.length}
                         hasMore={!!drive.library.nextPageToken}
                         disabled={actionsDisabled || drive.library.loading}
+                        showFolder={drive.library.filtering}
                         action={drive.fileAction}
+                        onopenfolder={(path) => drive.library.openFolder(path)}
                         ondownload={(item) => {
                             void drive.actOnFile(item, FileActionKind.Download);
                         }}
@@ -205,3 +231,41 @@
         void drive.retryUpload(id);
     }}
 />
+
+<style>
+    .crumbs {
+        display: inline-flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 2px;
+    }
+
+    .crumb {
+        max-width: 100%;
+        padding: 2px 4px;
+        overflow: hidden;
+        border-radius: 6px;
+        color: var(--app-subtle);
+        font: inherit;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .crumb:hover {
+        background: var(--app-hover);
+        color: var(--app-text);
+    }
+
+    .crumb.current {
+        color: var(--app-text);
+    }
+
+    .crumb:focus-visible {
+        outline: 2px solid var(--app-primary);
+        outline-offset: 1px;
+    }
+
+    .crumb-separator {
+        color: var(--app-subtle);
+    }
+</style>

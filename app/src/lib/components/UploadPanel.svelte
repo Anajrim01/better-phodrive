@@ -1,6 +1,7 @@
 <script lang="ts">
     import { IconButton, List, Sheet } from 'noph-ui';
-    import { UploadJobStatus } from '@madkarmaa/phodrive-core/models';
+    import { formatDuration, remainingSeconds } from '@madkarmaa/phodrive-core/browser/upload/eta';
+    import { UploadJobStatus, UploadPhase } from '@madkarmaa/phodrive-core/models';
 
     import { slide } from 'svelte/transition';
     import { prefersReducedMotion } from 'svelte/motion';
@@ -27,14 +28,37 @@
                 Number(first.status === UploadJobStatus.Error)
         )
     );
-    const remaining = $derived(
+    const pending = $derived(
         jobs.filter(
             (job) => job.status === UploadJobStatus.Queued || job.status === UploadJobStatus.Active
-        ).length
+        )
     );
+    const remaining = $derived(pending.length);
+    const remainingBytes = $derived(
+        pending.reduce((sum, job) => {
+            const progress = job.progress;
+            const processed =
+                progress.completed +
+                (progress.phase === UploadPhase.Uploading ? progress.reused : 0);
+
+            return sum + Math.max(0, progress.total - processed);
+        }, 0)
+    );
+    const aggregateRate = $derived(
+        jobs.reduce(
+            (sum, job) => sum + (job.status === UploadJobStatus.Active ? job.bytesPerSecond : 0),
+            0
+        )
+    );
+    const eta = $derived(busy ? remainingSeconds(remainingBytes, aggregateRate) : null);
     const failures = $derived(jobs.filter((job) => job.status === UploadJobStatus.Error).length);
     const heading = $derived.by(() => {
-        if (busy) return `Uploading ${remaining} ${remaining === 1 ? 'item' : 'items'}`;
+        if (busy) {
+            const label = `Uploading ${remaining} ${remaining === 1 ? 'item' : 'items'}`;
+            if (eta === null) return label;
+
+            return `${label} · ≈ ${formatDuration(eta)} left`;
+        }
         if (failures) return `${failures} ${failures === 1 ? 'upload' : 'uploads'} failed`;
 
         return `${jobs.length} ${jobs.length === 1 ? 'upload' : 'uploads'} complete`;

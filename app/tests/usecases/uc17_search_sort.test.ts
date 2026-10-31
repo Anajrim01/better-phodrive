@@ -16,6 +16,7 @@ function file(name: string, at: number): FileGroup {
         email: 'test@example.com',
         fileHash: name,
         fileId: name,
+        folder: '',
         chunkCount: null,
         chunks: [],
         complete: false

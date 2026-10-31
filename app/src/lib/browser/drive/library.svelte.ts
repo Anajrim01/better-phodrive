@@ -3,6 +3,8 @@ import {
     sortFiles,
     filterFiles,
     fileType,
+    childFolders,
+    folderTrail,
     type UploadedChunk
 } from '@madkarmaa/phodrive-core/files';
 import { FileSort } from '@madkarmaa/phodrive-core/models';
@@ -21,16 +23,24 @@ export class DriveLibrary {
     searchTerm = $state('');
     typeFilter = $state('');
     modifiedDays = $state('');
+    folder = $state('');
     loadFailed = $state(false);
 
     files = $derived(groupChunks(this.chunks));
     availableTypes = $derived([...new Set(this.files.map((item) => fileType(item.name)))].sort());
-    visibleFiles = $derived.by(() =>
-        sortFiles(
-            filterFiles(this.files, this.searchTerm, this.typeFilter, this.modifiedDays),
+    filtering = $derived(!!(this.searchTerm || this.typeFilter || this.modifiedDays));
+    folders = $derived(childFolders(this.files, this.folder));
+    trail = $derived(folderTrail(this.folder));
+    visibleFiles = $derived.by(() => {
+        const scoped = this.filtering
+            ? this.files
+            : this.files.filter((file) => file.folder === this.folder);
+
+        return sortFiles(
+            filterFiles(scoped, this.searchTerm, this.typeFilter, this.modifiedDays),
             this.sortOrder()
-        )
-    );
+        );
+    });
 
     constructor(
         private readonly account: () => { email: string; token: string | undefined },
@@ -43,6 +53,7 @@ export class DriveLibrary {
         this.searchTerm = '';
         this.typeFilter = '';
         this.modifiedDays = '';
+        this.folder = '';
         this.chunks = [];
         this.nextPageToken = '';
         this.loadedPages = 0;
@@ -50,6 +61,19 @@ export class DriveLibrary {
         this.libraryRequest++;
         this.loading = false;
         this.loadFailed = false;
+    }
+
+    /** Open a folder the loaded library already contains; any other path is ignored. */
+    openFolder(path: string) {
+        if (path && !this.hasFolder(path)) return;
+
+        this.folder = path;
+    }
+
+    private hasFolder(path: string): boolean {
+        const prefix = `${path}/`;
+
+        return this.files.some((file) => file.folder === path || file.folder.startsWith(prefix));
     }
 
     async load(reset = true) {
@@ -127,6 +151,7 @@ export class DriveLibrary {
             Ok: (snapshot) => {
                 this.loadFailed = false;
                 this.chunks = snapshot.items.map((item) => ({ ...item, email }));
+                if (this.folder && !this.hasFolder(this.folder)) this.folder = '';
                 this.nextPageToken = snapshot.nextPageToken;
                 this.loadedPages = snapshot.pages;
                 this.libraryPageTokens.clear();

@@ -4,17 +4,20 @@ import { Err, Ok, type Result } from 'results-ts';
 import type { z } from 'zod';
 import {
     AccountSchema,
+    AlbumKeySchema,
     ConcurrentWorkersSchema,
     DEFAULT_PREFERENCES_DEFAULTS,
     FileSortSchema,
     FileLayoutSchema,
     FileLayout,
+    FolderPathSchema,
     DEFAULT_FILE_LAYOUT,
     MAX_CONCURRENT_WORKERS,
     MAX_REFRESH_INTERVAL_SECONDS,
     RefreshIntervalSchema,
     SelectedAccountSchema,
     StoredAccountsSchema,
+    StoredAlbumsSchema,
     ThemeSchema,
     FileSort,
     type PreferencesDefaults,
@@ -28,6 +31,7 @@ export const FILE_SORT_KEY = 'phodrive-sort';
 export const FILE_LAYOUT_KEY = 'phodrive-layout';
 export const REFRESH_INTERVAL_KEY = 'phodrive-refresh-interval';
 export const CONCURRENT_WORKERS_KEY = 'phodrive-concurrent-workers';
+export const ALBUMS_KEY = 'phodrive-albums';
 export const NEXT_THEME: Record<ThemeMode, ThemeMode> = {
     [ThemeMode.Auto]: ThemeMode.Light,
     [ThemeMode.Light]: ThemeMode.Dark,
@@ -35,6 +39,7 @@ export const NEXT_THEME: Record<ThemeMode, ThemeMode> = {
 };
 
 type Accounts = Record<string, string>;
+type StoredAlbums = Record<string, Record<string, string>>;
 const STORAGE_UNAVAILABLE = {
     code: 'STORAGE_UNAVAILABLE',
     message: 'Browser storage is unavailable. Enable it to save your preferences.'
@@ -98,6 +103,15 @@ export const ACCOUNTS_SERIALIZER = {
         }
 
         return valid;
+    }
+};
+
+export const ALBUMS_SERIALIZER = {
+    serialize: (albums: StoredAlbums) => JSON.stringify(albums),
+    deserialize: (raw: string): StoredAlbums => {
+        const parsed = StoredAlbumsSchema.safeParse(readStoredJson(raw));
+
+        return parsed.success ? parsed.data : {};
     }
 };
 
@@ -203,6 +217,13 @@ export class BrowserPreferences {
         undefined,
         { serializer: CONCURRENT_WORKERS_SERIALIZER }
     );
+    private readonly albumsState = new PersistedState<StoredAlbums>(
+        ALBUMS_KEY,
+        {},
+        {
+            serializer: ALBUMS_SERIALIZER
+        }
+    );
 
     get accounts(): Accounts {
         return readState(this.accountsState).unwrapOr({});
@@ -239,6 +260,34 @@ export class BrowserPreferences {
             readState(this.concurrentWorkersState).unwrapOr(undefined) ??
             this.defaults.concurrentWorkers
         );
+    }
+
+    /** Album media keys are per Google account and per folder path. */
+    albumKey(email: string, folder: string): string | undefined {
+        const albums: StoredAlbums = readState(this.albumsState).unwrapOr({});
+        const folderKey = FolderPathSchema.safeParse(folder);
+        if (!folderKey.success) return undefined;
+
+        const key = albums[email]?.[folderKey.data];
+
+        return AlbumKeySchema.safeParse(key).success ? key : undefined;
+    }
+
+    saveAlbumKey(email: string, folder: string, albumKey: string): Result<void, ApplicationError> {
+        const parsedFolder = FolderPathSchema.safeParse(folder);
+        const parsedKey = AlbumKeySchema.safeParse(albumKey);
+        if (!parsedFolder.success || !parsedKey.success) {
+            return Err({
+                code: 'INVALID_ALBUM_KEY',
+                message: 'Could not remember the folder album.'
+            } as const);
+        }
+
+        const albums: StoredAlbums = readState(this.albumsState).unwrapOr({});
+        const account = { ...albums[email], [parsedFolder.data]: parsedKey.data };
+        const updated: StoredAlbums = { ...albums, [email]: account };
+
+        return writeState(this.albumsState, updated);
     }
 
     saveAccounts(accounts: Accounts, selected: string): Result<void, ApplicationError> {

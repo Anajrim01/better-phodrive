@@ -1,10 +1,20 @@
 <script lang="ts">
-    import { ExtendedFab, Fab, IconButton, NavigationDrawer, NavigationDrawerItem } from 'noph-ui';
+    import {
+        ExtendedFab,
+        Fab,
+        Button,
+        IconButton,
+        NavigationDrawer,
+        NavigationDrawerItem
+    } from 'noph-ui';
     import { MediaQuery } from 'svelte/reactivity';
     import { AppView } from '@madkarmaa/phodrive-core/models';
+    import type { LibraryStats } from '@madkarmaa/phodrive-core/stats';
+    import StorageSummary from '#components/StorageSummary.svelte';
     import IconAdd from '~icons/material-symbols/add';
     import IconHome from '~icons/material-symbols/home-outline';
     import IconSettings from '~icons/material-symbols/settings-outline';
+    import IconFolder from '~icons/material-symbols/folder-open-outline';
     import IconClose from '~icons/material-symbols/close';
 
     interface Props {
@@ -12,6 +22,8 @@
         connected: boolean;
         disabled: boolean;
         view: AppView;
+        stats: LibraryStats;
+        statsPartial: boolean;
         onnavigate: (view: AppView) => void;
         onupload: (files: File[]) => void;
         onconnect: () => void;
@@ -22,17 +34,27 @@
         connected,
         disabled,
         view,
+        stats,
+        statsPartial,
         onnavigate,
         onupload,
         onconnect
     }: Props = $props();
 
     let picker: HTMLInputElement;
+    let folderPicker: HTMLInputElement;
     const mobile = new MediaQuery('(width < 800px)');
 
     $effect(() => {
         if (!mobile.current) open = false;
     });
+
+    function selectedFiles(input: HTMLInputElement): File[] {
+        const files = Array.from(input.files ?? []);
+        input.value = '';
+
+        return files;
+    }
 
     function navigate(nextView: AppView) {
         open = false;
@@ -59,14 +81,40 @@
         class="sr-only"
         aria-label="Upload files"
         onchange={(event) => {
-            const files = Array.from(event.currentTarget.files ?? []);
-            event.currentTarget.value = '';
+            const files = selectedFiles(event.currentTarget);
 
             if (!files.length) return;
 
             onupload(files);
         }}
     />
+
+    <input
+        bind:this={folderPicker}
+        type="file"
+        multiple
+        webkitdirectory
+        class="sr-only"
+        aria-label="Upload folder"
+        onchange={(event) => {
+            const files = selectedFiles(event.currentTarget);
+
+            if (!files.length) return;
+
+            onupload(files);
+        }}
+    />
+
+    <div class="folder-upload">
+        <Button
+            variant="text"
+            {disabled}
+            onclick={() => (connected ? folderPicker.click() : onconnect())}
+        >
+            {#snippet start()}<IconFolder aria-hidden="true" class="size-5" />{/snippet}
+            Upload folder
+        </Button>
+    </div>
 
     <NavigationDrawer
         id="main-navigation"
@@ -102,6 +150,12 @@
         >
             {#snippet icon()}<IconSettings aria-hidden="true" class="size-5 shrink-0" />{/snippet}
         </NavigationDrawerItem>
+
+        <div class="storage-section">
+            {#if connected}
+                <StorageSummary {stats} hasMore={statsPartial} />
+            {/if}
+        </div>
     </NavigationDrawer>
 
     <div class="mobile-upload">
@@ -120,6 +174,15 @@
 <style>
     .mobile-upload {
         display: none;
+    }
+
+    .folder-upload {
+        margin-top: -12px;
+        margin-bottom: 18px;
+    }
+
+    .storage-section {
+        padding-top: 8px;
     }
 
     :global(.mobile-navigation) {
@@ -166,6 +229,10 @@
         }
 
         :global(:root .upload-button.np-extended-fab) {
+            display: none;
+        }
+
+        .folder-upload {
             display: none;
         }
 

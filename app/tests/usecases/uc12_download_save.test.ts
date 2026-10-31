@@ -154,6 +154,7 @@ test('browser save failures show an error and always clear the active file actio
         fileId: 'a'.repeat(64),
         name: 'original.bin',
         at: 1,
+        folder: '',
         chunkCount: 1,
         chunks: [],
         complete: true
@@ -182,6 +183,7 @@ test('failed download is surfaced and clears the active file action', async () =
         fileId: 'b'.repeat(64),
         name: 'unavailable.bin',
         at: 1,
+        folder: '',
         chunkCount: 1,
         chunks: [],
         complete: true

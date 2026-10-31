@@ -163,6 +163,8 @@ test('uploads expand folders and fail when any file fails', async () => {
                     status: id === 0 ? UploadJobStatus.Complete : UploadJobStatus.Error,
                     progress: { phase: UploadPhase.Uploading, completed: 1, reused: 0, total: 1 },
                     message: id === 0 ? '' : 'Commit rejected',
+                    bytesPerSecond: 0,
+                    etaSeconds: null,
                     result:
                         id === 0
                             ? {
