@@ -37,6 +37,7 @@ function bySizeThenName(first: AssignmentFile, second: AssignmentFile): number {
 /**
  * Each file goes to one member with the fewest assigned bytes, and every chunk follows its file.
  * A null owner means the file waits for capacity instead of moving to a paused member.
+ * Equal loads go to the earlier member in the group.
  */
 export function assignOwners(
     files: readonly AssignmentFile[],
@@ -121,9 +122,10 @@ function byNewest(first: UploadedChunk, second: UploadedChunk): number {
 export function mergeGroupLibrary(pages: readonly GroupPage[]): GroupLibrary {
     const pagesByAccount = new Map<string, GroupPage[]>();
     for (const page of pages) {
-        const current = pagesByAccount.get(page.email);
+        const email = page.email.toLowerCase();
+        const current = pagesByAccount.get(email);
         if (current) current.push(page);
-        else pagesByAccount.set(page.email, [page]);
+        else pagesByAccount.set(email, [page]);
     }
 
     const ordered = [...pagesByAccount.entries()].toSorted(([first], [second]) =>

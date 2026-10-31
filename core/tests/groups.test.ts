@@ -117,6 +117,10 @@ test('assignment is deterministic and independent of file order', () => {
     expect(ownersById(second)).toEqual(ownersById(first));
 });
 
+test('an empty batch produces no assignments', () => {
+    expect(assignOwners([], [{ email: FIRST, paused: false }])).toEqual([]);
+});
+
 test('a group without available members leaves every file unassigned', () => {
     const files = [file('one.bin', 4_000), file('two.bin', 1_000, 'b'.repeat(64))];
     const waiting = [
@@ -236,6 +240,16 @@ test('several pages from one account produce one state row and keep their items'
     expect(merged.partial).toBe(true);
 });
 
+test('mixed-case pages from one account merge into one account', () => {
+    const merged = mergeGroupLibrary([
+        { email: FIRST.toUpperCase(), items: [chunk({ mediaKey: 'first-upper' })] },
+        { email: FIRST, items: [chunk({ mediaKey: 'first-lower' })] }
+    ]);
+
+    expect(merged.accounts).toEqual([{ email: FIRST, status: 'ok' }]);
+    expect(merged.items.every((item) => item.email === FIRST)).toBe(true);
+});
+
 test('a failed account is reported as an error rather than failing the merge', () => {
     const merged = mergeGroupLibrary([
         { email: FIRST, items: [chunk()] },
@@ -290,6 +304,21 @@ test('the merged listing sorts newest first across accounts with a stable tie br
     ]);
 });
 
+test('the merged listing breaks an equal-time tie by owner email', () => {
+    const merged = mergeGroupLibrary([
+        {
+            email: SECOND,
+            items: [chunk({ mediaKey: 'second-lower-index', at: 5, chunkIndex: 0 })]
+        },
+        {
+            email: FIRST,
+            items: [chunk({ mediaKey: 'first-higher-index', at: 5, chunkIndex: 1 })]
+        }
+    ]);
+
+    expect(merged.items.map((item) => item.email)).toEqual([FIRST, SECOND]);
+});
+
 test('a download and a delete always resolve to the owner', () => {
     const group = members(FIRST, SECOND, THIRD);
 
@@ -335,9 +364,26 @@ test('a paused owner keeps the route and never falls back to another member', ()
     }
 });
 
-test('a file whose owner left the group is unavailable', () => {
-    const routed = downloadRoute({ email: THIRD }, members(FIRST, SECOND));
+test('owner matching ignores email case', () => {
+    const group: RouteMember[] = [
+        { email: FIRST.toUpperCase(), token: `aas_et/${FIRST}`, paused: false }
+    ];
 
-    expect(routed.isErr()).toBe(true);
-    if (routed.isErr()) expect(routed.unwrapErr()).toMatchObject({ code: 'OWNER_NOT_IN_GROUP' });
+    expect(ownerRoute(FIRST, group).unwrap().email).toBe(FIRST.toUpperCase());
+    expect(downloadRoute({ email: FIRST.toUpperCase() }, group).unwrap().token).toBe(
+        `aas_et/${FIRST}`
+    );
+});
+
+test('a file whose owner left the group is unavailable', () => {
+    const group = members(FIRST, SECOND);
+
+    for (const routed of [
+        downloadRoute({ email: THIRD }, group),
+        deleteRoute({ email: THIRD }, group)
+    ]) {
+        expect(routed.isErr()).toBe(true);
+        if (routed.isErr())
+            expect(routed.unwrapErr()).toMatchObject({ code: 'OWNER_NOT_IN_GROUP' });
+    }
 });

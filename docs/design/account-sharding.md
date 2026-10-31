@@ -42,7 +42,8 @@ and keeps that owner for the whole upload.
 - The owner covers the file and all of its chunks: hash lookup, upload start,
   transfer, commit, retries, downloads, and deletes.
 - Assignment is weighted by bytes. Files are placed largest first, each on the
-  member with the fewest assigned bytes. File order does not change the result.
+  member with the fewest assigned bytes. When two members have equal loads, the
+  earlier member in the group wins. File order does not change the result.
 - A paused member takes no new files. The remaining members continue.
 - If every member is paused, files wait. They are never moved to an account
   outside the group, because a split file on two accounts cannot be listed or
