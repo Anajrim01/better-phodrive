@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 import { MAX_ALBUM_BATCH_SIZE } from '@madkarmaa/phodrive-core/models';
 import { assignFolderAlbum } from '@madkarmaa/phodrive-core/server/photos';
 import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
-import { bytesField, message } from '@madkarmaa/phodrive-core/server/protobuf';
+import { bytesField, integer, message, parse } from '@madkarmaa/phodrive-core/server/protobuf';
 
 const AUTH_RESPONSE = `Auth=bearer\nExpiry=${Math.floor(Date.now() / 1000) + 3600}`;
 const CREATE_ALBUM_URL =
@@ -139,4 +139,39 @@ test('HTTP failures and malformed create responses return Err', async () => {
     );
 
     expect(malformed.unwrapErr().code).toBe('ALBUM_CREATE_RESPONSE_FAILED');
+});
+
+test('album requests carry epoch millisecond timestamps', async () => {
+    const bodies: Buffer[] = [];
+    const fetcher: Fetcher = async (input, init) => {
+        if (String(input).includes('android.googleapis.com/auth'))
+            return new Response(AUTH_RESPONSE);
+
+        bodies.push(Buffer.from(await new Response(init?.body).arrayBuffer()));
+
+        return new Response(Uint8Array.from(createdAlbum('album-key')));
+    };
+
+    const before = Date.now();
+    await assignFolderAlbum('test@example.com', 'aas_et/test', 'Trips', undefined, ['m'], fetcher);
+    await assignFolderAlbum(
+        'test@example.com',
+        'aas_et/test',
+        'Trips',
+        'album-key',
+        ['m'],
+        fetcher
+    );
+    const after = Date.now();
+
+    const [createBody, addBody] = bodies;
+    if (!createBody || !addBody) throw new Error('Expected both album requests.');
+
+    const createTime = integer(parse(createBody).unwrap(), 2).unwrap();
+    const addTime = integer(parse(addBody).unwrap(), 7).unwrap();
+
+    for (const time of [createTime, addTime]) {
+        expect(time).toBeGreaterThanOrEqual(before);
+        expect(time).toBeLessThanOrEqual(after);
+    }
 });

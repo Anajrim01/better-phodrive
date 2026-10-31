@@ -62,7 +62,7 @@ function createAlbum(
 ): AsyncResult<string, ServerError> {
     const request = message(
         bytesField(1, albumName(folder)),
-        numberField(2, unixSeconds()),
+        numberField(2, Date.now()),
         numberField(3, 1),
         ...mediaKeys.map((key) =>
             bytesField(4, message(bytesField(1, message(bytesField(1, key)))))
@@ -98,7 +98,7 @@ function addMediaToAlbum(
         bytesField(2, albumKey),
         bytesField(5, message(numberField(1, 2))),
         bytesField(6, DEVICE),
-        numberField(7, unixSeconds())
+        numberField(7, Date.now())
     );
 
     return guardedSend(
@@ -129,8 +129,4 @@ function albumKeyFromCreate(response: Buffer): Result<string, ServerError> {
 /** Google rejects long album names, so deep folders reuse the start of their path. */
 function albumName(folder: string): string {
     return folder.length > MAX_ALBUM_NAME_LENGTH ? folder.slice(0, MAX_ALBUM_NAME_LENGTH) : folder;
-}
-
-function unixSeconds(): number {
-    return Math.floor(Date.now() / 1000);
 }
