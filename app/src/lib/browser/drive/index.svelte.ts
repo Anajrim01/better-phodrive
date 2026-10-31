@@ -1,82 +1,119 @@
 import {
     ConfirmKind,
     FileActionKind,
-    MAX_ALBUM_BATCH_SIZE,
-    UploadJobStatus,
     DEFAULT_PREFERENCES_DEFAULTS,
-    NewAccountSchema,
     ThemeSchema,
     type PreferencesDefaults
 } from '@madkarmaa/phodrive-core/models';
 import { watch } from 'runed';
-import {
-    fileKey,
-    groupChunks,
-    type FileGroup,
-    type FileAction,
-    type UploadedChunk
-} from '@madkarmaa/phodrive-core/files';
-import { assignFolderAlbum } from '@madkarmaa/phodrive-core/browser/albums';
+import { fileKey, type FileGroup, type FileAction } from '@madkarmaa/phodrive-core/files';
 import { useAutomaticRefresh } from '#browser/drive/refresh.svelte';
-import { validateAccount } from '@madkarmaa/phodrive-core/browser/accounts';
-import { createBrowserPreferences, type BrowserPreferences } from '#browser/storage';
-import {
-    createUploadJobs,
-    uploadFiles,
-    downloadFile,
-    saveDownloadedFile,
-    deleteFile,
-    type UploadJob
-} from '#browser/files';
+import type { UploadJob } from '#browser/files';
 import { DriveLibrary } from '#browser/drive/library.svelte';
 import { DriveSettings } from '#browser/drive/settings.svelte';
+import { DriveAccounts } from '#browser/drive/accounts.svelte';
+import { DriveUploads } from '#browser/drive/uploads.svelte';
+import { DriveFiles, type ConfirmTarget } from '#browser/drive/files.svelte';
+import { DriveSession } from '#browser/drive/session.svelte';
+import { DriveView } from '#browser/drive/view.svelte';
 
-export type ConfirmTarget =
-    { kind: ConfirmKind.Account; email: string } | { kind: ConfirmKind.File; item: FileGroup };
+export type { ConfirmTarget } from '#browser/drive/files.svelte';
 
-export class DriveController {
-    private preferences = $state.raw<BrowserPreferences | null>(null);
-    private accountReloadPending = false;
-
-    adding = $state(false);
-    newEmail = $state('');
-    newToken = $state('');
-    connecting = $state(false);
-
+export class DriveController extends DriveView {
     ready = $state(false);
-    busy = $state(false);
-    uploadPanelOpen = $state(false);
-    uploadJobs = $state<UploadJob[]>([]);
-    private uploadSources: readonly File[] = [];
-
     feedbackMessage = $state('');
-    fileAction = $state<FileAction | null>(null);
     accountMenuOpen = $state(false);
-    confirmOpen = $state(false);
-    confirmTarget = $state<ConfirmTarget | null>(null);
 
     readonly library: DriveLibrary;
     readonly settings: DriveSettings;
+    private readonly accountsState: DriveAccounts;
+    protected readonly uploads: DriveUploads;
+    protected readonly files: DriveFiles;
+    private readonly session: DriveSession;
 
     constructor(private readonly defaults: PreferencesDefaults = DEFAULT_PREFERENCES_DEFAULTS) {
+        super();
+
         const feedback = (message: string) => {
             this.feedbackMessage = message;
         };
 
         this.settings = new DriveSettings(() => this.preferences, defaults, feedback);
+        this.accountsState = new DriveAccounts({
+            defaults,
+            blocked: () => this.busy || !!this.fileAction,
+            feedback
+        });
         this.library = new DriveLibrary(
-            () => ({ email: this.selectedEmail, token: this.accounts[this.selectedEmail] }),
+            () => this.account(),
             () => this.busy || !!this.fileAction,
             () => this.settings.fileSort,
             feedback
         );
+        this.uploads = new DriveUploads({
+            account: () => this.account(),
+            folder: () => this.library.folder,
+            workers: () => this.settings.concurrentWorkers,
+            loading: () => this.library.loading,
+            blocked: () => !!this.files.action,
+            preferences: () => this.accountsState.preferences,
+            feedback,
+            onChunk: (saved) => {
+                this.library.chunks = [
+                    saved,
+                    ...this.library.chunks.filter(
+                        (item) =>
+                            fileKey(item) !== fileKey(saved) || item.chunkIndex !== saved.chunkIndex
+                    )
+                ];
+            },
+            afterUpload: () => this.library.deferRefresh(),
+            reload: (email, token) => this.session.reload(email, token)
+        });
+        this.session = new DriveSession({
+            busy: () => this.busy,
+            fileAction: () => !!this.fileAction,
+            resetLibrary: () => this.library.reset(),
+            loadLibrary: () => void this.library.load(),
+            resetUploads: () => this.uploads.reset(),
+            clearConfirmation: () => {
+                this.confirmOpen = false;
+                this.confirmTarget = null;
+            },
+            clearFeedback: () => {
+                this.feedbackMessage = '';
+            },
+            matches: (email, token) =>
+                this.selectedEmail === email && this.accounts[email] === token
+        });
+        this.files = new DriveFiles({
+            account: () => this.account(),
+            busy: () => this.uploads.busy,
+            loading: () => this.library.loading,
+            files: () => this.library.files,
+            workers: () => this.settings.concurrentWorkers,
+            feedback,
+            onDeleted: (item, chunk) => {
+                this.library.chunks = this.library.chunks.filter(
+                    (saved) =>
+                        saved.email !== item.email ||
+                        saved.mediaKey !== chunk.mediaKey ||
+                        saved.sha1 !== chunk.sha1
+                );
+            },
+            closeUploads: () => {
+                this.uploads.panelOpen = false;
+            },
+            reload: (email, token) => this.session.reload(email, token),
+            removeAccount: (email) => this.removeAccount(email)
+        });
 
         watch(
             [() => this.selectedEmail, () => this.accounts[this.selectedEmail]],
             ([email, token], [previousEmail, previousToken]) => {
                 if (!this.ready || (email === previousEmail && token === previousToken)) return;
 
-                this.resetAccountView();
+                this.session.reset();
             }
         );
 
@@ -92,355 +129,83 @@ export class DriveController {
         );
     }
 
+    get preferences() {
+        return this.accountsState.preferences;
+    }
+
     get accounts() {
-        return this.preferences?.accounts ?? {};
+        return this.accountsState.accounts;
     }
 
     get selectedEmail() {
-        return this.preferences?.selectedEmail ?? '';
+        return this.accountsState.selectedEmail;
+    }
+
+    get adding() {
+        return this.accountsState.adding;
+    }
+
+    set adding(value: boolean) {
+        this.accountsState.adding = value;
+    }
+
+    get newEmail() {
+        return this.accountsState.newEmail;
+    }
+
+    set newEmail(value: string) {
+        this.accountsState.newEmail = value;
+    }
+
+    get newToken() {
+        return this.accountsState.newToken;
+    }
+
+    set newToken(value: string) {
+        this.accountsState.newToken = value;
+    }
+
+    get connecting() {
+        return this.accountsState.connecting;
+    }
+
+    private account() {
+        return { email: this.selectedEmail, token: this.accounts[this.selectedEmail] };
     }
 
     initialize() {
         const parsedTheme = ThemeSchema.safeParse(document.documentElement.getAttribute('theme'));
         if (parsedTheme.success) this.settings.themeMode = parsedTheme.data;
 
-        createBrowserPreferences(this.defaults).match({
-            Ok: (preferences) => {
-                this.preferences = preferences;
-            },
-            Err: (error) => {
-                this.feedbackMessage = error.message;
-            }
-        });
-
+        this.accountsState.initialize();
         this.ready = true;
     }
 
     async saveAccount() {
-        if (this.connecting || this.busy || this.fileAction) return;
-
-        const preferences = this.preferences;
-        if (!preferences) {
-            this.feedbackMessage =
-                'Browser storage is unavailable. Enable it to save your credentials.';
-
-            return;
-        }
-
-        this.newEmail = this.newEmail.trim();
-        this.newToken = this.newToken.trim();
-
-        if (!NewAccountSchema.safeParse({ email: this.newEmail, token: this.newToken }).success) {
-            this.feedbackMessage = 'Enter your Google account email and an OAuth2 or AAS token.';
-
-            return;
-        }
-
-        this.connecting = true;
-        this.feedbackMessage = '';
-
-        const email = this.newEmail;
-        const inputToken = this.newToken;
-        const verified = await validateAccount(email, inputToken);
-
-        this.connecting = false;
-
-        const token = verified.match({
-            Ok: (value) => value,
-            Err: (error) => {
-                this.feedbackMessage = error.message;
-
-                return null;
-            }
-        });
-        if (token === null) return;
-
-        const updated = { ...this.accounts, [email]: token };
-        const saved = preferences.saveAccounts(updated, email);
-        saved.match({
-            Ok: () => {
-                this.newEmail = '';
-                this.newToken = '';
-                this.adding = false;
-            },
-            Err: (error) => {
-                this.feedbackMessage = error.message;
-            }
-        });
-    }
-
-    private resetAccountView() {
-        this.confirmOpen = false;
-        this.confirmTarget = null;
-        this.library.reset();
-
-        if (this.busy || this.fileAction) {
-            this.accountReloadPending = true;
-
-            return;
-        }
-
-        this.accountReloadPending = false;
-        this.uploadJobs = [];
-        this.uploadSources = [];
-        this.uploadPanelOpen = false;
-        this.feedbackMessage = '';
-        void this.library.load();
-    }
-
-    private reloadChangedAccount(email: string, token: string) {
-        if (
-            this.accountReloadPending ||
-            this.selectedEmail !== email ||
-            this.accounts[email] !== token
-        ) {
-            this.resetAccountView();
-        }
+        await this.accountsState.save();
     }
 
     selectAccount(email: string) {
-        if (this.busy || this.fileAction) return;
-        if (!Object.hasOwn(this.accounts, email)) return;
-
-        const saved = this.preferences?.selectAccount(email);
-        if (!saved) return;
-
-        saved.inspectErr((error) => {
-            this.feedbackMessage = error.message;
-        });
+        this.accountsState.select(email);
     }
 
     removeAccount(email: string) {
-        if (this.busy || this.fileAction) return;
-        if (!Object.hasOwn(this.accounts, email)) return;
-
-        const updated = { ...this.accounts };
-        delete updated[email];
-
-        const removed = this.preferences?.saveAccounts(updated, Object.keys(updated)[0] ?? '');
-        if (!removed) return;
-
-        removed.inspectErr((error) => {
-            this.feedbackMessage = error.message;
-        });
+        this.accountsState.remove(email);
     }
 
     confirmAction() {
-        const target = this.confirmTarget;
-        this.confirmOpen = false;
-        this.confirmTarget = null;
-        if (!target) return;
-        if (target.kind === ConfirmKind.Account) {
-            this.removeAccount(target.email);
-
-            return;
-        }
-
-        const item = target.item;
-        const current = this.library.files.find((file) => fileKey(file) === fileKey(item));
-        if (
-            item.email !== this.selectedEmail ||
-            !current ||
-            current.name !== item.name ||
-            current.chunks.length !== item.chunks.length ||
-            current.chunks.some(
-                (chunk) =>
-                    !item.chunks.some(
-                        (saved) =>
-                            saved.mediaKey === chunk.mediaKey &&
-                            saved.sha1 === chunk.sha1 &&
-                            saved.chunkIndex === chunk.chunkIndex
-                    )
-            )
-        ) {
-            this.feedbackMessage = 'The file changed. Review its current chunks before deleting.';
-
-            return;
-        }
-
-        void this.actOnFile(current, FileActionKind.Delete);
+        this.files.confirm();
     }
 
     async actOnFile(item: FileGroup, action: FileActionKind) {
-        if (this.busy || this.fileAction || this.library.loading) return;
-
-        const token = this.accounts[item.email];
-        if (item.email !== this.selectedEmail || !token) {
-            this.feedbackMessage = 'Select the connected account for this file before continuing.';
-
-            return;
-        }
-
-        this.fileAction = { fileId: item.fileId, kind: action };
-        this.feedbackMessage = '';
-
-        if (action === FileActionKind.Delete) {
-            const deleted = await deleteFile(
-                item,
-                token,
-                (chunk) => {
-                    this.library.chunks = this.library.chunks.filter(
-                        (saved) =>
-                            saved.email !== item.email ||
-                            saved.mediaKey !== chunk.mediaKey ||
-                            saved.sha1 !== chunk.sha1
-                    );
-                },
-                this.settings.concurrentWorkers
-            );
-
-            deleted.inspectErr((error) => {
-                this.feedbackMessage = error.message;
-            });
-
-            this.uploadPanelOpen = false;
-            this.fileAction = null;
-            this.reloadChangedAccount(item.email, token);
-
-            return;
-        }
-
-        const downloaded = await downloadFile(item, token);
-
-        downloaded
-            .andThen((file) => saveDownloadedFile(file, item.name))
-            .inspectErr((error) => {
-                this.feedbackMessage = error.message;
-            });
-
-        this.fileAction = null;
-        this.reloadChangedAccount(item.email, token);
+        await this.files.act(item, action);
     }
 
     async upload(files: readonly File[]) {
-        if (this.busy || this.fileAction || !this.selectedEmail || files.length === 0) return;
-
-        if (this.library.loading) {
-            this.feedbackMessage =
-                'Files are refreshing. Wait for the refresh to finish, then select your files again.';
-
-            return;
-        }
-
-        this.uploadSources = [...files];
-        this.uploadJobs = createUploadJobs(files);
-        await this.runUploads(files);
+        await this.uploads.upload(files);
     }
 
     async retryUpload(id: number) {
-        if (this.busy || this.fileAction || this.library.loading || !this.selectedEmail) return;
-
-        const job = this.uploadJobs.find((current) => current.id === id);
-        const file = this.uploadSources[id];
-        if (!job || job.status !== UploadJobStatus.Error || !file) return;
-
-        const fresh = createUploadJobs([file])[0];
-        this.uploadJobs = this.uploadJobs.map((current) =>
-            current.id === id ? { ...fresh, id } : current
-        );
-
-        await this.runUploads([file], id);
-    }
-
-    private async runUploads(files: readonly File[], retryId?: number) {
-        const email = this.selectedEmail;
-        const token = this.accounts[email];
-        if (!token) return;
-
-        const folder = this.library.folder;
-        const uploadedChunks: UploadedChunk[] = [];
-
-        this.uploadPanelOpen = true;
-        this.feedbackMessage = '';
-        this.busy = true;
-
-        const uploaded = await uploadFiles(
-            files,
-            email,
-            token,
-            this.settings.concurrentWorkers,
-            (job) => {
-                const id = retryId ?? job.id;
-                this.uploadJobs = this.uploadJobs.map((current) =>
-                    current.id === id ? { ...job, id } : current
-                );
-
-                if (job.status === UploadJobStatus.Error) {
-                    this.feedbackMessage = job.message;
-                }
-            },
-            (saved) => {
-                uploadedChunks.push(saved);
-
-                if (this.selectedEmail !== email) return;
-
-                this.library.chunks = [
-                    saved,
-                    ...this.library.chunks.filter(
-                        (item) =>
-                            fileKey(item) !== fileKey(saved) || item.chunkIndex !== saved.chunkIndex
-                    )
-                ];
-            },
-            { folder }
-        );
-
-        uploaded.inspectErr((error) => {
-            this.feedbackMessage = error.message;
-            this.uploadJobs = this.uploadJobs.map((job) =>
-                (retryId !== undefined && job.id !== retryId) ||
-                job.status === UploadJobStatus.Complete ||
-                job.status === UploadJobStatus.Error
-                    ? job
-                    : { ...job, status: UploadJobStatus.Error, message: error.message }
-            );
-        });
-
-        await this.addToFolderAlbums(email, token, uploadedChunks);
-        this.library.deferRefresh();
-
-        this.busy = false;
-        this.reloadChangedAccount(email, token);
-    }
-
-    private async addToFolderAlbums(
-        email: string,
-        token: string,
-        chunks: readonly UploadedChunk[]
-    ): Promise<void> {
-        const preferences = this.preferences;
-        if (!preferences) return;
-
-        const folders = new Map<string, string[]>();
-        for (const file of groupChunks([...chunks])) {
-            if (!file.folder || !file.complete) continue;
-
-            const mediaKeys = folders.get(file.folder) ?? [];
-            for (const chunk of file.chunks) mediaKeys.push(chunk.mediaKey);
-            folders.set(file.folder, mediaKeys);
-        }
-
-        for (const [folder, mediaKeys] of folders) {
-            for (let index = 0; index < mediaKeys.length; index += MAX_ALBUM_BATCH_SIZE) {
-                const batch = mediaKeys.slice(index, index + MAX_ALBUM_BATCH_SIZE);
-                const knownKey = preferences.albumKey(email, folder);
-                let assigned = await assignFolderAlbum(email, token, folder, knownKey, batch);
-
-                // A cached album can disappear after a manual delete, so recreate it once.
-                if (assigned.isErr() && knownKey !== undefined)
-                    assigned = await assignFolderAlbum(email, token, folder, undefined, batch);
-
-                assigned.match({
-                    Ok: (albumKey) => {
-                        preferences.saveAlbumKey(email, folder, albumKey).inspectErr((error) => {
-                            this.feedbackMessage = error.message;
-                        });
-                    },
-                    Err: (error) => {
-                        this.feedbackMessage = `Files uploaded. Could not add them to the ${folder} album. ${error.message}`;
-                    }
-                });
-            }
-        }
+        await this.uploads.retry(id);
     }
 }
