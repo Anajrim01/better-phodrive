@@ -95,7 +95,8 @@ export function downloadFile(item: FileGroup, token: string): AsyncResult<Blob, 
             } catch {
                 return Err({
                     code: 'DOWNLOAD_RECEIVE_FAILED',
-                    message: 'Download interrupted by Google Photos limiting requests. Try again.'
+                    message:
+                        'Download was interrupted, possibly because Google Photos is limiting requests. Try again.'
                 } as const);
             }
         });
