@@ -117,7 +117,7 @@ test.each([false, true])(
                 }
             ]);
             expect(libraryCalls).toBe(4);
-            expect(prefixCalls).toBe(3);
+            expect(prefixCalls).toBe(2);
         }
 
         failPrefix = true;

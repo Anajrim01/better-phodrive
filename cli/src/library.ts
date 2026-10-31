@@ -6,6 +6,7 @@ import type { Session } from './accounts';
 import type { CliContext, CliError } from './context';
 import { activity, fileSize, shortId, status } from './output';
 import { askChoice } from './prompts';
+import { flushProbeCache } from '@madkarmaa/phodrive-core/server/photos/library';
 import { retryThrottled } from './throttle';
 
 const ID_PREFIX_PATTERN = /^[a-f0-9]{4,64}$/;
@@ -20,6 +21,7 @@ export function loadFiles(
         const files = await retryThrottled(context, () =>
             readLibrary(session.email, session.token)
         );
+        files.inspect(() => flushProbeCache());
 
         files.match({
             Ok: (found) => indicator.stop(`Found ${found.length} files`),

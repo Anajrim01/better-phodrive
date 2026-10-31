@@ -3,7 +3,7 @@ import { formatDuration } from '@madkarmaa/phodrive-core/browser/upload/eta';
 import type { CliContext } from './context';
 import { status } from './output';
 
-const THROTTLE_RETRY_LIMIT = 3;
+const THROTTLE_RETRY_LIMIT = 8;
 
 export type Throttled = { code: string; message: string; retryAfterSeconds?: number };
 

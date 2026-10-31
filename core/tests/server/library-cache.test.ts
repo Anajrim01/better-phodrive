@@ -16,13 +16,14 @@ const DOWNLOAD_HOST = 'https://lh3.googleusercontent.com';
 type ProbeCounts = { prepare: number; range: number };
 
 function libraryPage(
-    items: { mediaKey: string; sha1: string; size: number; at: number }[]
+    items: { mediaKey: string; sha1: string; size: number; at: number; fileName?: string }[]
 ): Buffer {
     const entries = items.map((item) => {
         const details = message(
             numberField(9, item.at),
             numberField(10, item.size),
-            bytesField(13, message(bytesField(1, Buffer.from(item.sha1, 'hex'))))
+            bytesField(13, message(bytesField(1, Buffer.from(item.sha1, 'hex')))),
+            ...(item.fileName ? [bytesField(4, item.fileName)] : [])
         );
 
         return bytesField(2, message(bytesField(1, item.mediaKey), bytesField(2, details)));
@@ -235,4 +236,43 @@ test('a video without a download URL is not cached as a miss', async () => {
 
     expect((await listBmps(EMAIL, TOKEN, '', fetcher)).unwrap().items).toEqual([]);
     expect(counts).toEqual({ prepare: 2, range: 0 });
+});
+
+test('a name without the Phodrive marker skips the probe', async () => {
+    const photo = {
+        mediaKey: 'ordinary-photo',
+        sha1: 'a'.repeat(40),
+        size: 1_000,
+        at: 1,
+        fileName: 'IMG_0001.jpg'
+    };
+    const counts: ProbeCounts = { prepare: 0, range: 0 };
+    const fetcher = fetcherFor(
+        libraryPage([photo]),
+        { mediaKey: photo.mediaKey, sha1: photo.sha1, url: `${DOWNLOAD_HOST}/unused` },
+        new Response('unused'),
+        counts
+    );
+
+    expect((await listBmps(EMAIL, TOKEN, '', fetcher)).unwrap().items).toEqual([]);
+    expect(counts).toEqual({ prepare: 0, range: 0 });
+
+    expect((await listBmps(EMAIL, TOKEN, '', fetcher)).unwrap().items).toEqual([]);
+    expect(counts).toEqual({ prepare: 0, range: 0 });
+});
+
+test('a name with the Phodrive marker still probes', async () => {
+    const file = fixture('note.txt', 'named probe content');
+    const counts: ProbeCounts = { prepare: 0, range: 0 };
+    const fetcher = fetcherFor(
+        libraryPage([{ ...file, fileName: 'note.txt.phodrive-' + file.sha1 + '-0-of-1.bmp' }]),
+        { mediaKey: file.mediaKey, sha1: file.sha1, url: `${DOWNLOAD_HOST}/photo` },
+        () => new Response(file.bmp),
+        counts
+    );
+
+    const items = (await listBmps(EMAIL, TOKEN, '', fetcher)).unwrap().items;
+
+    expect(items).toHaveLength(1);
+    expect(counts).toEqual({ prepare: 1, range: 1 });
 });

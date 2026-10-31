@@ -85,15 +85,17 @@ export function libraryFixture() {
 
         return libraryItem(key, remoteName, data, trashed);
     };
+    const phodriveName = (name: string, chunkIndex: number) =>
+        `${name}.phodrive-${fileHash}-${chunkIndex}-of-2.bmp`;
     const firstPage = libraryPage(
         bytes(1, 'empty-page'),
-        item('renamed-first', 'vacation.jpg'),
+        item('renamed-first', phodriveName('vacation.jpg', 0)),
         item('ordinary-video', 'clip.mp4'),
         item('ordinary-photo', 'family.jpg')
     );
     const continuationPage = libraryPage(
-        item('renamed-first', 'deleted-copy.bmp', true),
-        item('renamed-last', 'untitled')
+        item('renamed-first', phodriveName('deleted-copy.bmp', 0), true),
+        item('renamed-last', phodriveName('untitled', 1))
     );
     const syncPage = libraryPage(bytes(6, 'next-sync'));
 

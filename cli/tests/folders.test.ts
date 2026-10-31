@@ -263,3 +263,26 @@ test('a throttled listing prints the pause and retries', async () => {
     expect(JSON.parse(listed.stdout)).toHaveLength(1);
     expect(attempts).toBe(2);
 });
+
+test('a throttled listing keeps retrying beyond three attempts', async () => {
+    let attempts = 0;
+    vi.mocked(readLibrary).mockImplementation(() =>
+        Ok(undefined).andThenAsync(async () => {
+            attempts++;
+            if (attempts <= 4)
+                return Err({
+                    code: 'THROTTLED',
+                    message: 'Google is throttling requests.',
+                    retryAfterSeconds: 1
+                } as const);
+
+            return Ok([remoteFile('one.txt', 1, 1024, 'photos')]);
+        })
+    );
+
+    const listed = await runCli(['file', 'list', '--json'], { folder: folder.path });
+
+    expect(listed.exitCode).toBe(0);
+    expect(attempts).toBe(5);
+    expect(JSON.parse(listed.stdout)).toHaveLength(1);
+});

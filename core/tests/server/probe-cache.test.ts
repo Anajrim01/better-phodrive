@@ -1,0 +1,75 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, beforeEach, expect, test } from 'vitest';
+import type { RemoteBmp } from '@madkarmaa/phodrive-core/models';
+import type { LibraryCandidate } from '@madkarmaa/phodrive-core/server/photos/library/metadata';
+import {
+    clearProbeCache,
+    configureProbeCache,
+    flushProbeCache,
+    readProbe,
+    writeProbe
+} from '@madkarmaa/phodrive-core/server/photos/library/probe-cache';
+
+const EMAIL = 'cache@example.com';
+const CANDIDATE: LibraryCandidate = {
+    size: 1_000,
+    at: 1,
+    mediaKey: 'media-key',
+    sha1: 'a'.repeat(40)
+};
+const ITEM: RemoteBmp = {
+    fileHash: 'b'.repeat(64),
+    fileId: 'c'.repeat(64),
+    chunkIndex: 0,
+    isLast: true,
+    originalName: 'cached.bin',
+    size: 12,
+    at: 1,
+    mediaKey: 'media-key',
+    sha1: 'a'.repeat(40)
+};
+
+let folder = '';
+
+beforeEach(async () => {
+    folder = await mkdtemp(join(tmpdir(), 'phodrive-probe-'));
+    clearProbeCache();
+    configureProbeCache(join(folder, 'probe-cache.json'));
+});
+
+afterEach(async () => {
+    configureProbeCache(null);
+    clearProbeCache();
+    await rm(folder, { recursive: true, force: true });
+});
+
+test('a cold process reuses persisted probes', () => {
+    writeProbe(EMAIL, CANDIDATE, ITEM);
+    flushProbeCache();
+
+    clearProbeCache();
+    configureProbeCache(join(folder, 'probe-cache.json'));
+
+    expect(readProbe(EMAIL, CANDIDATE)).toEqual(ITEM);
+});
+
+test('a corrupt cache file is ignored', async () => {
+    await writeFile(join(folder, 'probe-cache.json'), '{ broken');
+
+    configureProbeCache(join(folder, 'probe-cache.json'));
+
+    expect(readProbe(EMAIL, CANDIDATE)).toBeUndefined();
+});
+
+test('a cache file from another version is ignored', async () => {
+    await writeFile(
+        join(folder, 'probe-cache.json'),
+        JSON.stringify({ version: 99, entries: [{ key: 'x', at: 1, item: ITEM }] })
+    );
+
+    configureProbeCache(join(folder, 'probe-cache.json'));
+
+    expect(readProbe(EMAIL, CANDIDATE)).toBeUndefined();
+});
