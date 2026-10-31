@@ -207,6 +207,11 @@
         --np-icon-size: 20px;
     }
 
+    :global(:root .upload-button.np-extended-fab:disabled),
+    :global(:root .upload-fab.np-fab:disabled) {
+        box-shadow: inset 0 0 0 1px var(--app-border-strong);
+    }
+
     :global(:root .upload-button.np-extended-fab) {
         height: 56px;
         min-width: 110px;
