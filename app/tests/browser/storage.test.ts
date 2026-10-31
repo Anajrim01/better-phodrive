@@ -245,6 +245,7 @@ test('compression defaults off and round-trips through browser storage', () => {
     const preferences = new BrowserPreferences();
 
     expect(preferences.compression).toBe(false);
+    expect(storage.getItem(COMPRESSION_KEY)).toBeNull();
     expect(preferences.saveCompression(true).isOk()).toBe(true);
     expect(new BrowserPreferences().compression).toBe(true);
     expect(storage.getItem(COMPRESSION_KEY)).toBe('true');

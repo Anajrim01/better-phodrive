@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { availableParallelism } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
@@ -67,6 +67,19 @@ test('saved settings take precedence over deployment and built-in defaults', asy
         value: false,
         source: 'default'
     });
+});
+
+test('a fresh config prints compression off and writes off when chosen', async () => {
+    const shown = await runCli(['setting', 'show'], { folder: folder.path });
+    expect(shown.exitCode).toBe(0);
+    expect(shown.stdout).toMatch(/compression\s+off/);
+
+    const set = await runCli(['setting', 'set', 'compression', 'off'], { folder: folder.path });
+    expect(set.exitCode).toBe(0);
+    expect(set.stderr).toContain('off');
+
+    const saved = JSON.parse(await readFile(join(folder.path, 'config', 'config.json'), 'utf8'));
+    expect(saved.settings.compression).toBe(false);
 });
 
 test('invalid settings are rejected without saving', async () => {

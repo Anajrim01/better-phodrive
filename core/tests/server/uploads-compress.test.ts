@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { expect, test } from 'vitest';
-import { receiveUpload } from '@madkarmaa/phodrive-core/server/upload/input';
+import { receiveUpload, receiveChunk } from '@madkarmaa/phodrive-core/server/upload/input';
 import { encodeUploadBmp } from '@madkarmaa/phodrive-core/server/upload/bmp';
 import { uploadFiles } from '@madkarmaa/phodrive-core/server/upload';
 import { UploadEventType, UploadStatus, type UploadEvent } from '@madkarmaa/phodrive-core/models';
@@ -96,5 +96,34 @@ test('encoder compresses repetitive chunks and hashes the bytes it uploads', asy
     expect(source.sha1).not.toBe(fixture.metadata.sha1);
     const verified = await source.verified;
     expect(verified.isOk()).toBe(true);
+    await input.cancel();
+});
+
+test('compress off does not probe or read the payload before the body starts', async () => {
+    const payload = new Uint8Array(64 * 1024).fill(5);
+    const fixture = uploadForm(payload);
+    let pulls = 0;
+    let offset = 0;
+    const stream = new ReadableStream<Uint8Array>(
+        {
+            pull(controller) {
+                pulls++;
+                if (offset >= payload.length) {
+                    controller.close();
+                    return;
+                }
+                controller.enqueue(payload.subarray(offset, offset + 1024));
+                offset += 1024;
+            }
+        },
+        { highWaterMark: 0 }
+    );
+    const input = receiveChunk(fixture.metadata, stream, new AbortController().signal).unwrap();
+    const source = (await encodeUploadBmp(input)).unwrap();
+
+    expect(pulls).toBe(0);
+    expect(source.compressed).toBe(false);
+    expect(source.length).toBe(input.bmp.totalSize);
+    expect(source.sha1).toBe(input.sha1);
     await input.cancel();
 });
