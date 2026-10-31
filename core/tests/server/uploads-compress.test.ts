@@ -7,6 +7,15 @@ import { UploadEventType, UploadStatus, type UploadEvent } from '@madkarmaa/phod
 import { decodeSplitBmp } from '../helpers/bmp';
 import { uploadForm, photosUploadHarness } from '../helpers/upload';
 
+function deferred() {
+    let resolve: () => void = () => {};
+    const promise = new Promise<void>((settle) => {
+        resolve = settle;
+    });
+
+    return { promise, resolve };
+}
+
 test('compressed uploads report stored and original sizes and commit the uploaded hash', async () => {
     const original = Buffer.alloc(2_000_000, 24);
     const fixture = uploadForm(original, 'proof.bin', { compress: true });
@@ -131,7 +140,7 @@ test('compress off does not probe or read the payload before the body starts', a
     await input.cancel();
 });
 
-test.each([85 * 1024 - 1, 85 * 1024, 85 * 1024 + 1])(
+test.each([85 * 1024 - 1, 85 * 1024, 85 * 1024 + 1, 512 * 1024, 1024 * 1024])(
     'compress true keeps an incompressible %i-byte chunk raw with bounded read-ahead',
     async (size) => {
         const payload = new Uint8Array(randomBytes(size));
@@ -168,3 +177,59 @@ test.each([85 * 1024 - 1, 85 * 1024, 85 * 1024 + 1])(
         await input.cancel();
     }
 );
+
+test('three buffered chunks queue the third and never exceed two', async () => {
+    const payload = new Uint8Array(512 * 1024).fill(42);
+    const fixture = uploadForm(payload, 'queued.bin', { compress: true });
+    const gates = [deferred(), deferred(), deferred()];
+    const secondReads = [0, 0, 0];
+    const inputs = secondReads.map((_, index) => {
+        let offset = 0;
+        let reads = 0;
+        const stream = new ReadableStream<Uint8Array>(
+            {
+                async pull(controller) {
+                    if (reads === 0) {
+                        reads++;
+                        controller.enqueue(payload.subarray(0, 85 * 1024));
+                        offset = 85 * 1024;
+
+                        return;
+                    }
+                    if (reads === 1) {
+                        reads++;
+                        secondReads[index] = 1;
+                        await gates[index].promise;
+                    }
+                    if (offset >= payload.length) {
+                        controller.close();
+
+                        return;
+                    }
+
+                    const end = Math.min(offset + 64 * 1024, payload.length);
+                    controller.enqueue(payload.subarray(offset, end));
+                    offset = end;
+                }
+            },
+            { highWaterMark: 0 }
+        );
+
+        return receiveChunk(fixture.metadata, stream, new AbortController().signal).unwrap();
+    });
+
+    const encodes = inputs.map((input) => encodeUploadBmp(input));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(secondReads.filter(Boolean)).toHaveLength(2);
+
+    gates[0].resolve();
+    gates[1].resolve();
+    await Promise.all(encodes.slice(0, 2));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(secondReads[2]).toBe(1);
+
+    gates[2].resolve();
+    const third = await encodes[2];
+    expect(third.isOk()).toBe(true);
+    for (const input of inputs) await input.cancel();
+});

@@ -99,11 +99,11 @@ export const SERVER_ERRORS = {
     },
     COMPRESSION_FAILED: {
         code: 'COMPRESSION_FAILED',
-        message: 'Could not compress the uploaded chunk'
+        message: 'Could not compress the uploaded chunk.'
     },
     DECOMPRESSION_FAILED: {
         code: 'DECOMPRESSION_FAILED',
-        message: 'Could not decompress the downloaded chunk'
+        message: 'Could not decompress the downloaded chunk.'
     },
     INVALID_DOWNLOADED_BMP: {
         code: 'INVALID_DOWNLOADED_BMP',
