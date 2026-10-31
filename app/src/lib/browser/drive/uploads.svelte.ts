@@ -73,6 +73,7 @@ export class DriveUploads {
         const { email, token } = this.deps.account();
         if (!token) return;
         const uploadedChunks: UploadedChunk[] = [];
+        const preferences = this.deps.preferences();
 
         this.panelOpen = true;
         this.deps.feedback('');
@@ -98,7 +99,7 @@ export class DriveUploads {
 
                 this.deps.onChunk(saved);
             },
-            { folder }
+            { folder, compress: preferences?.compression ?? false }
         );
 
         uploaded.inspectErr((error) => {
@@ -112,7 +113,6 @@ export class DriveUploads {
             );
         });
 
-        const preferences = this.deps.preferences();
         if (preferences)
             await addFilesToFolderAlbums(
                 preferences,

@@ -301,7 +301,8 @@ export const UploadFileSchema = z.object({
 export const UploadRequestSchema = AccountSchema.extend({
     file: UploadFileSchema,
     chunkIndex: z.int().nonnegative(),
-    sha1: Sha1HexSchema
+    sha1: Sha1HexSchema,
+    compress: z.boolean().default(false)
 });
 export const MAX_ALBUM_BATCH_SIZE = 500;
 export const AlbumAssignRequestSchema = AccountRequestSchema.extend({

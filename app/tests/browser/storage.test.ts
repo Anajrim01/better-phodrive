@@ -18,6 +18,8 @@ import {
     BrowserPreferences,
     CONCURRENT_WORKERS_KEY,
     CONCURRENT_WORKERS_SERIALIZER,
+    COMPRESSION_KEY,
+    BOOLEAN_SERIALIZER,
     FILE_SORT_SERIALIZER,
     FILE_SORT_KEY,
     FILE_LAYOUT_KEY,
@@ -237,6 +239,22 @@ test('invalid stored choices use deployment defaults without rewriting the store
     expect(storage.getItem(FILE_SORT_KEY)).toBe('invalid');
     expect(storage.getItem(REFRESH_INTERVAL_KEY)).toBe('"60"');
     expect(storage.getItem(CONCURRENT_WORKERS_KEY)).toBe('33');
+});
+
+test('compression defaults off and round-trips through browser storage', () => {
+    const preferences = new BrowserPreferences();
+
+    expect(preferences.compression).toBe(false);
+    expect(preferences.saveCompression(true).isOk()).toBe(true);
+    expect(new BrowserPreferences().compression).toBe(true);
+    expect(storage.getItem(COMPRESSION_KEY)).toBe('true');
+
+    preferences.resetCompression().unwrap();
+    expect(new BrowserPreferences().compression).toBe(false);
+
+    storage.setItem(COMPRESSION_KEY, '"yes"');
+    expect(new BrowserPreferences().compression).toBe(false);
+    expect(BOOLEAN_SERIALIZER.deserialize('"yes"')).toBeUndefined();
 });
 
 test('invalid refresh and worker saves return errors while retaining the current preference', () => {

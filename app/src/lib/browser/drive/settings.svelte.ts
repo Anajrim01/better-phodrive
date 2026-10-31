@@ -63,6 +63,22 @@ export class DriveSettings {
         return this.preferences()?.refreshIntervalSeconds ?? this.defaults.refreshIntervalSeconds;
     }
 
+    get compression(): boolean {
+        return this.preferences()?.compression ?? false;
+    }
+
+    chooseCompression(enabled: boolean) {
+        this.persist('Could not save preferences in this browser.', (preferences) =>
+            preferences.saveCompression(enabled)
+        );
+    }
+
+    resetCompression() {
+        this.persist('Could not reset preferences in this browser.', (preferences) =>
+            preferences.resetCompression()
+        );
+    }
+
     chooseRefreshInterval(seconds: number) {
         this.persist('Could not save preferences in this browser.', (preferences) =>
             preferences.saveRefreshInterval(seconds)

@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { Button, TextField } from 'noph-ui';
+    import { Button, Switch, TextField } from 'noph-ui';
     import { untrack } from 'svelte';
     import { watch } from 'runed';
     import { fade } from 'svelte/transition';
@@ -17,27 +17,34 @@
     interface Props {
         refreshIntervalSeconds: number;
         concurrentWorkers: number;
+        compression: boolean;
         defaults: PreferencesDefaults;
         theme: ThemeMode;
         onrefreshinterval: (seconds: number) => void;
         onworkers: (workers: number) => void;
+        oncompression: (enabled: boolean) => void;
         onresetrefreshinterval: () => void;
         onresetworkers: () => void;
+        onresetcompression: () => void;
     }
 
     let {
         refreshIntervalSeconds,
         concurrentWorkers,
+        compression,
         defaults,
         theme,
         onrefreshinterval,
         onworkers,
+        oncompression,
         onresetrefreshinterval,
-        onresetworkers
+        onresetworkers,
+        onresetcompression
     }: Props = $props();
 
     let refreshDraft = $state<string | number | null>(untrack(() => refreshIntervalSeconds));
     let workersDraft = $state<string | number | null>(untrack(() => concurrentWorkers));
+    let compressionDraft = $state(untrack(() => compression));
     let refreshTouched = $state(false);
     let workersTouched = $state(false);
     let refreshInput = $state<HTMLInputElement | HTMLTextAreaElement>();
@@ -86,6 +93,13 @@
         (workers) => {
             workersDraft = workers;
             workersTouched = false;
+        }
+    );
+
+    watch(
+        () => compression,
+        (enabled) => {
+            compressionDraft = enabled;
         }
     );
 </script>
@@ -221,6 +235,51 @@
                 >
                     Reset
                 </Button>
+            </div>
+        </form>
+
+        <form
+            class="grid gap-3"
+            onsubmit={(event) => {
+                event.preventDefault();
+                if (compressionDraft === compression) return;
+
+                oncompression(compressionDraft);
+            }}
+        >
+            <div>
+                <h2 class="text-base font-medium">Compress uploads</h2>
+                <p id="compression-description" class="mt-1 text-sm leading-relaxed text-muted">
+                    Compress chunks when that saves at least 5%. This trades CPU and memory for
+                    fewer bytes sent to Google. JPEG, ZIP and video usually do not benefit.
+                </p>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-3 max-[520px]:gap-2">
+                <label class="flex items-center gap-3" for="compression">
+                    <Switch
+                        id="compression"
+                        bind:selected={compressionDraft}
+                        aria-describedby="compression-description"
+                    />
+                    <span class="text-sm">{compressionDraft ? 'On' : 'Off'}</span>
+                </label>
+                <Button
+                    type="submit"
+                    variant="tonal"
+                    aria-label="Save compression"
+                    disabled={compressionDraft === compression}>Save</Button
+                >
+                <Button
+                    type="button"
+                    variant="outlined"
+                    aria-label="Reset compression"
+                    disabled={!compression}
+                    onclick={() => {
+                        onresetcompression();
+                        compressionDraft = false;
+                    }}>Reset</Button
+                >
             </div>
         </form>
     </div>

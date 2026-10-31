@@ -166,7 +166,9 @@ async function workload(): Promise<{ run: () => Promise<void> | void; bytes: num
         };
     }
     if (name === 'bmp-stream') {
-        const fixture = uploadForm(new Uint8Array(CHUNK).fill(42));
+        const fixture = uploadForm(new Uint8Array(CHUNK).fill(42), 'fixture.bin', {
+            compress: true
+        });
         return {
             bytes: CHUNK,
             run: async () => {
@@ -267,7 +269,9 @@ async function workload(): Promise<{ run: () => Promise<void> | void; bytes: num
         };
     }
     if (name === 'failure-paths') {
-        const fixture = uploadForm(new Uint8Array(MIB).fill(42));
+        const fixture = uploadForm(new Uint8Array(MIB).fill(42), 'fixture.bin', {
+            compress: true
+        });
         return {
             bytes: 0,
             run: async () => {

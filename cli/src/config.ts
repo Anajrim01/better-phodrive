@@ -25,7 +25,8 @@ const CONFIG_FOLDER_MODE = 0o700;
 const StoredSettingsSchema = z.object({
     sort: FileSortSchema.optional().catch(undefined),
     // Counts above this machine's processors are kept and limited when used.
-    workers: WorkerCountSchema.optional().catch(undefined)
+    workers: WorkerCountSchema.optional().catch(undefined),
+    compression: z.boolean().optional().catch(undefined)
 });
 
 const StoredConfigSchema = z.object({

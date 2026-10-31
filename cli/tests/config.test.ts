@@ -50,6 +50,18 @@ test('invalid accounts and settings are dropped while valid entries remain', asy
     });
 });
 
+test('the compression setting round-trips through the config file', async () => {
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, JSON.stringify({ settings: { compression: true } }));
+
+    const loaded = await readConfig(path);
+    expect(loaded.unwrap().settings).toEqual({ compression: true });
+
+    const saved = await writeConfig(path, loaded.unwrap());
+    expect(saved.isOk()).toBe(true);
+    expect((await readConfig(path)).unwrap().settings).toEqual({ compression: true });
+});
+
 test('malformed JSON is reported instead of being overwritten', async () => {
     await mkdir(dirname(path), { recursive: true });
     await writeFile(path, '{ broken');

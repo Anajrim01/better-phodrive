@@ -8,6 +8,7 @@ import {
 import { DriveController } from '#browser/drive/index.svelte';
 import {
     BrowserPreferences,
+    COMPRESSION_KEY,
     CONCURRENT_WORKERS_KEY,
     REFRESH_INTERVAL_KEY,
     THEME_KEY
@@ -136,6 +137,21 @@ test('reset returns settings to live deployment defaults and preserves other cho
     controller.settings.resetConcurrentWorkers();
     expect(controller.settings.concurrentWorkers).toBe(3);
     expect(storage.getItem(CONCURRENT_WORKERS_KEY)).toBeNull();
+    expect(controller.feedbackMessage).toBe('');
+});
+
+test('compression defaults off and persists when chosen', () => {
+    const controller = new DriveController();
+    controller.initialize();
+
+    expect(controller.settings.compression).toBe(false);
+    controller.settings.chooseCompression(true);
+    expect(controller.settings.compression).toBe(true);
+    expect(storage.getItem(COMPRESSION_KEY)).toBe('true');
+
+    controller.settings.resetCompression();
+    expect(controller.settings.compression).toBe(false);
+    expect(storage.getItem(COMPRESSION_KEY)).toBeNull();
     expect(controller.feedbackMessage).toBe('');
 });
 

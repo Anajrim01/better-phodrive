@@ -31,7 +31,8 @@ export function uploadChunk(
     onProgress: (sent: number, reused: number, retryAfterSeconds?: number) => void,
     onChunk: (
         chunk: UploadEvent & { type: UploadEventType.Chunk }
-    ) => Result<void, ApplicationError>
+    ) => Result<void, ApplicationError>,
+    compress = false
 ): AsyncResult<UploadResponse, ApplicationError> {
     const start = header.chunkIndex * MAX_CHUNK_PAYLOAD_BYTES;
     const payload = file.slice(start, start + header.payloadSize);
@@ -47,7 +48,8 @@ export function uploadChunk(
                 fileHash: header.fileHash
             },
             chunkIndex: header.chunkIndex,
-            sha1
+            sha1,
+            compress
         };
         let emitted = 0;
 

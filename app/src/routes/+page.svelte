@@ -112,11 +112,14 @@
                 defaults={data.preferencesDefaults}
                 refreshIntervalSeconds={drive.settings.refreshIntervalSeconds}
                 concurrentWorkers={drive.settings.concurrentWorkers}
+                compression={drive.settings.compression}
                 theme={drive.settings.themeMode}
                 onrefreshinterval={(seconds) => drive.settings.chooseRefreshInterval(seconds)}
                 onworkers={(workers) => drive.settings.chooseConcurrentWorkers(workers)}
+                oncompression={(enabled) => drive.settings.chooseCompression(enabled)}
                 onresetrefreshinterval={() => drive.settings.resetRefreshInterval()}
                 onresetworkers={() => drive.settings.resetConcurrentWorkers()}
+                onresetcompression={() => drive.settings.resetCompression()}
             />
         {:else if drive.ready && (!drive.selectedEmail || drive.adding)}
             <div in:fade={{ duration: prefersReducedMotion.current ? 0 : 160 }}>

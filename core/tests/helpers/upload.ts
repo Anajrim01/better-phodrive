@@ -16,7 +16,12 @@ import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
 export function uploadForm(
     payload: Uint8Array = Buffer.from([0, 255, 13, 10, 42]),
     name = 'proof.bin',
-    options: { fileSize?: number; fileHash?: string; chunkIndex?: number } = {}
+    options: {
+        fileSize?: number;
+        fileHash?: string;
+        chunkIndex?: number;
+        compress?: boolean;
+    } = {}
 ) {
     const file = {
         name,
@@ -47,7 +52,8 @@ export function uploadForm(
         token: 'aas_et/test',
         file,
         chunkIndex,
-        sha1: hash.digest('hex')
+        sha1: hash.digest('hex'),
+        compress: options.compress ?? false
     };
     const form = new FormData();
     form.set('metadata', JSON.stringify(metadata));

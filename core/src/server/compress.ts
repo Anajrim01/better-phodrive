@@ -8,16 +8,7 @@ export const COMPRESSION_MIN_SAVING = 0.05;
 export const COMPRESSION_MIN_BYTES = 4 * 1024;
 /** One slice from the start decides whether to stream raw or buffer to compress. */
 export const COMPRESSION_PROBE_BYTES = 85 * 1024;
-/** Server and CLI both read this; set it before starting the process. */
-export const COMPRESSION_ENV = 'PHODRIVE_COMPRESSION';
 const COMPRESSION_QUALITY = 1;
-
-/** Compression defaults on. `off`, `0`, `false`, and `no` keep the streaming raw path. */
-export function compressionEnabled(): boolean {
-    const value = process.env[COMPRESSION_ENV]?.trim().toLowerCase();
-
-    return value !== 'off' && value !== '0' && value !== 'false' && value !== 'no';
-}
 
 export interface EncodedPayload {
     data: Uint8Array;
@@ -91,8 +82,7 @@ export function probeCompressible(bytes: Uint8Array): boolean {
 export function compressPayload(payload: Uint8Array): AsyncResult<EncodedPayload, ServerError> {
     return Ok(undefined).andThenAsync(async () => {
         const originalSize = payload.length;
-        if (!compressionEnabled() || originalSize < COMPRESSION_MIN_BYTES)
-            return Ok(rawPayload(payload));
+        if (originalSize < COMPRESSION_MIN_BYTES) return Ok(rawPayload(payload));
         if (!probeSlices(payload).some(probeCompressible)) return Ok(rawPayload(payload));
 
         let compressed: Buffer;

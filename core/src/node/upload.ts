@@ -18,6 +18,7 @@ export type TransferOptions = {
     signal?: AbortSignal;
     fetcher?: Fetcher;
     folders?: ReadonlyMap<File, string>;
+    compress?: boolean;
 };
 export type LocalFile = { path: string; folder: string; file: File };
 
@@ -210,7 +211,7 @@ export function uploadFiles(
             onJob,
             onChunk,
             localChunkTransport(options),
-            { folders: options.folders }
+            { folders: options.folders, compress: options.compress }
         )
     );
 }

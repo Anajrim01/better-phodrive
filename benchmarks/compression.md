@@ -1,7 +1,8 @@
 # Chunk compression measurements
 
-The server compresses a chunk before BMP encoding and stores it only when the
-result saves at least 5% of the original bytes. Brotli quality 1 is the codec.
+The server compresses a chunk before BMP encoding only when the upload asks
+for it, and stores it only when the result saves at least 5% of the original
+bytes. Brotli quality 1 is the codec. The setting is off by default.
 Measured with Node v24.11.1 on a 16-core Intel Core Ultra 7 255H running
 Windows 11, using Node's built-in `zlib`. Each sample was compressed three times
 after a warm-up; the table reports the median.
@@ -55,34 +56,32 @@ CPU.
 
 ## End-to-end
 
-The repository performance suite is the end-to-end check. Its upload fixtures
-are highly compressible (repeated bytes), so they measure the compression path
-rather than typical media. Baseline and phase 1 runs used the same machine,
-Node v24.11.1, two warm-ups and five samples. The raw run is kept with the
-session artifacts.
+The repository performance suite is the end-to-end check. `bmp-stream` enables
+compression, so it measures that path. The upload cases keep the default off, so
+they measure the raw streaming path. The fixtures are repeated bytes; use the
+per-type table above for realistic media. Baseline and phase 1 runs used the
+same machine, Node v24.11.1, two warm-ups and five samples. The raw run is kept
+with the session artifacts.
 
 | Case                | Baseline ms | Phase 1 ms | Change | Phase 1 throughput |
 | ------------------- | ----------: | ---------: | -----: | -----------------: |
-| `bmp-stream`        |      217.12 |     307.98 | +41.8% |          604 MiB/s |
-| `upload-many`       |      333.41 |     317.42 |  -4.8% |           59 MiB/s |
-| `upload-large`      |     2721.87 |    2806.25 |  +3.1% |          133 MiB/s |
-| `upload-boundaries` |     7250.13 |    6629.83 |  -8.6% |          140 MiB/s |
-| `upload-mixed-1`    |     1974.62 |    1875.35 |  -5.0% |          119 MiB/s |
-| `upload-mixed-4`    |     1681.87 |    1911.22 | +13.6% |          117 MiB/s |
-| `upload-mixed-8`    |     1721.68 |    1661.20 |  -3.5% |          134 MiB/s |
-| `upload-mixed-32`   |     1719.26 |    1646.84 |  -4.2% |          135 MiB/s |
-| `upload-tiny`       |        3.59 |       3.79 |  +5.5% |          0.3 MiB/s |
+| `bmp-stream`        |      217.12 |     214.62 |  -1.2% |          866 MiB/s |
+| `upload-many`       |      333.41 |     310.13 |  -7.0% |           60 MiB/s |
+| `upload-large`      |     2721.87 |    2645.61 |  -2.8% |          141 MiB/s |
+| `upload-boundaries` |     7250.13 |    6984.61 |  -3.7% |          133 MiB/s |
+| `upload-mixed-1`    |     1974.62 |    1684.66 | -14.7% |          132 MiB/s |
+| `upload-mixed-4`    |     1681.87 |    1684.97 |  +0.2% |          133 MiB/s |
+| `upload-mixed-8`    |     1721.68 |    1705.48 |  -1.0% |          131 MiB/s |
+| `upload-mixed-32`   |     1719.26 |    1711.71 |  -0.4% |          130 MiB/s |
+| `upload-tiny`       |        3.59 |       3.76 |  +4.7% |          0.3 MiB/s |
 
+`bmp-stream` runs with `compress: true` so it measures the compression path.
+The upload cases run with the default off and stay close to the baseline.
 Throughput counts original input bytes, so a compressing upload moves fewer
-bytes over the network than the number suggests. `bmp-stream` isolates the cost:
-encoding a 195 MB repetitive chunk now takes 308 ms instead of 217 ms, because
-the server compresses and then hashes the stored bytes. With
-`PHODRIVE_COMPRESSION=off`, the same case takes 222 ms and peaks at 1012 MiB
-instead of 1193 MiB, which is the streaming raw path.
+bytes over the network than the number suggests.
 
-Peak process RSS rises where 195 MB chunks are buffered for compression:
-`upload-large` 1271.9 to 1760.5 MiB, `upload-boundaries` 2585.0 to 3293.0 MiB,
-and the mixed cases by roughly 170 to 220 MiB. The server reads one chunk before
-choosing raw or compressed, which the streaming encoder did not do. In exchange
-the stored item is smaller and the Google commit uses the stored bytes' SHA-1.
-Small and unchanged cases stay within normal run-to-run variation.
+Peak process RSS for `bmp-stream` is 1193.5 MiB with compression and 1011.9 MiB
+on the raw streaming path, a 181.6 MiB increase for one 195 MB chunk. Raw
+uploads keep the baseline profile: `upload-large` 1272.6 MiB and
+`upload-boundaries` 2574.7 MiB. The increase applies only to chunks that are
+actually buffered for compression.
