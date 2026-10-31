@@ -95,7 +95,7 @@ export function uploadChunk(
                         chunk.size !== header.payloadSize ||
                         chunk.originalName !== header.fileName ||
                         chunk.folder !== header.folder ||
-                        !chunk.sha1
+                        (chunk.compressed ? !chunk.sha1 : chunk.sha1 !== sha1)
                     )
                         return invalidResponse();
 

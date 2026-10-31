@@ -135,15 +135,6 @@ test('a compressible prefix with a random tail still compresses', async () => {
     await input.cancel();
 });
 
-test('the buffered codec sees a compressible tail after a random prefix', async () => {
-    const payload = new Uint8Array(4 * 1024 * 1024);
-    payload.set(randomBytes(payload.length / 2), 0);
-    payload.fill(1, payload.length / 2);
-    const result = await compressPayload(payload);
-
-    expect(result.unwrap().compressed).toBe(true);
-});
-
 test('a request without compress keeps the raw streaming path', async () => {
     const payload = new Uint8Array(64 * 1024).fill(7);
     const fixture = uploadForm(payload);

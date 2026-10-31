@@ -3,6 +3,7 @@ import { availableParallelism } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { runCli, temporaryFolder } from './helpers/cli';
+import { chooseCompression } from '../src/settings';
 
 let folder: Awaited<ReturnType<typeof temporaryFolder>>;
 
@@ -80,6 +81,19 @@ test('a fresh config prints compression off and writes off when chosen', async (
 
     const saved = JSON.parse(await readFile(join(folder.path, 'config', 'config.json'), 'utf8'));
     expect(saved.settings.compression).toBe(false);
+});
+
+test('a one-run flag overrides the saved compression default', () => {
+    const config = {
+        accounts: {},
+        selected: '',
+        albums: {},
+        settings: { compression: true }
+    };
+
+    expect(chooseCompression(config, false)).toBe(false);
+    expect(chooseCompression(config, true)).toBe(true);
+    expect(chooseCompression({ ...config, settings: {} }, undefined)).toBe(false);
 });
 
 test('invalid settings are rejected without saving', async () => {

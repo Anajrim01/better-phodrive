@@ -155,7 +155,9 @@ export function streamDownload(
                         if (!active) return;
 
                         if (splitHeaderIsCompressed(active.header.flags)) {
-                            const stored: Uint8Array[] = [];
+                            const storedSize = active.header.payloadSize;
+                            const stored = new Uint8Array(storedSize);
+                            let received = 0;
 
                             while (true) {
                                 const next = await active.readPayload();
@@ -169,17 +171,29 @@ export function streamDownload(
 
                                 const part = next.unwrap();
                                 if (part === null) break;
-                                stored.push(part);
+                                if (received + part.length > storedSize) {
+                                    controller.error(SERVER_ERRORS.INVALID_DOWNLOADED_BMP);
+                                    await cleanup();
+
+                                    return;
+                                }
+
+                                stored.set(part, received);
+                                received += part.length;
+                            }
+
+                            if (received !== storedSize) {
+                                controller.error(SERVER_ERRORS.INVALID_DOWNLOADED_BMP);
+                                await cleanup();
+
+                                return;
                             }
 
                             const originalSize = active.header.originalSize!;
                             active = null;
                             index++;
 
-                            const decompressed = await decompressPayload(
-                                Buffer.concat(stored),
-                                originalSize
-                            );
+                            const decompressed = await decompressPayload(stored, originalSize);
                             if (closed) return;
                             if (decompressed.isErr()) {
                                 decompressed.inspectErr((error) => controller.error(error));

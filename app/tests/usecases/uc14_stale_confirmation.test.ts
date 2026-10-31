@@ -99,6 +99,7 @@ test('confirming a file after switching accounts refuses the old account target'
         folder: '',
         chunkCount: 1,
         chunks: [chunk(HASH_A, FIRST, 0, 'alpha-chunk')],
+        duplicates: [],
         complete: true
     };
     drive.library.chunks = [
@@ -151,6 +152,7 @@ test('refresh removing a chunk invalidates the stale file confirmation', async (
             folder: '',
             chunkCount: 2,
             chunks: [chunkZero, chunkOne],
+            duplicates: [],
             complete: true
         }
     };

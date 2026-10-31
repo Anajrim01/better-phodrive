@@ -251,7 +251,7 @@
                 <h2 class="text-base font-medium">Compress uploads</h2>
                 <p id="compression-description" class="mt-1 text-sm leading-relaxed text-muted">
                     Compression costs CPU and memory to send fewer bytes to Google. JPEG, ZIP and
-                    video usually do not benefit.
+                    encoded video usually do not benefit.
                 </p>
             </div>
 

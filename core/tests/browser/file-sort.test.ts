@@ -12,6 +12,7 @@ function file(name: string, at: number): FileGroup {
         folder: '',
         chunkCount: null,
         chunks: [],
+        duplicates: [],
         complete: false
     };
 }

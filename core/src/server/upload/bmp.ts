@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import pLimit from 'p-limit';
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import { encodeSplitPrefix } from '../../bmp/format';
 import {
@@ -15,6 +16,9 @@ import { rawUploadSource } from './raw';
 import { TRANSFER_BLOCK_BYTES, type UploadBmpSource } from './source';
 
 export type { UploadBmpSource } from './source';
+
+const BUFFERED_UPLOAD_LIMIT = 2;
+const bufferedUploads = pLimit(BUFFERED_UPLOAD_LIMIT);
 
 function hashZeros(hash: ReturnType<typeof createHash>, size: number): void {
     if (!size) return;
@@ -151,63 +155,64 @@ export function encodeUploadBmp(input: ReceivedUpload): AsyncResult<UploadBmpSou
         if (!probeCompressible(probe.bytes))
             return Ok(rawUploadSource(input, prependPayload(probe)));
 
-        const received = await readCompressPayload(input, probe);
-        return received.andThenAsync(async (payload) => {
-            let buffer = payload;
-            const rawSha1Value = rawSha1(input, buffer);
-            if (rawSha1Value !== input.sha1) return Err(SERVER_ERRORS.UPLOAD_INTEGRITY_FAILED);
+        return bufferedUploads(() =>
+            readCompressPayload(input, probe).andThenAsync(async (payload) => {
+                let buffer = payload;
+                const rawSha1Value = rawSha1(input, buffer);
+                if (rawSha1Value !== input.sha1) return Err(SERVER_ERRORS.UPLOAD_INTEGRITY_FAILED);
 
-            const finished = await input.finished();
-            if (finished.isErr()) return finished;
+                const finished = await input.finished();
+                if (finished.isErr()) return finished;
 
-            const encodedResult = await encodeUpload(input, buffer, rawSha1Value);
-            // Compression copies what it needs; drop the only reference to the raw chunk.
-            buffer = new Uint8Array(0);
-            if (encodedResult.isErr()) return encodedResult;
+                const encodedResult = await encodeUpload(input, buffer, rawSha1Value);
+                // Compression copies what it needs; drop the only reference to the raw chunk.
+                buffer = new Uint8Array(0);
+                if (encodedResult.isErr()) return encodedResult;
 
-            return encodedResult.map((encoded) => {
-                let settle: (result: Result<void, ServerError>) => void = () => {};
-                const verification = new Promise<Result<void, ServerError>>((resolve) => {
-                    settle = resolve;
-                });
-                const body = uploadBody(
-                    encoded,
-                    input.signal,
-                    () => settle(Err(SERVER_ERRORS.FILE_RECEIVE_FAILED)),
-                    () => settle(Ok(undefined))
-                );
+                return encodedResult.map((encoded) => {
+                    let settle: (result: Result<void, ServerError>) => void = () => {};
+                    const verification = new Promise<Result<void, ServerError>>((resolve) => {
+                        settle = resolve;
+                    });
+                    const body = uploadBody(
+                        encoded,
+                        input.signal,
+                        () => settle(Err(SERVER_ERRORS.FILE_RECEIVE_FAILED)),
+                        () => settle(Ok(undefined))
+                    );
 
-                return {
-                    body,
-                    length: encoded.totalSize,
-                    sha1: encoded.sha1,
-                    originalSize: input.header.payloadSize,
-                    storedSize: encoded.header.payloadSize,
-                    compressed: splitHeaderIsCompressed(encoded.header.flags),
-                    last: (encoded.header.flags & SPLIT_FLAG_LAST) !== 0,
-                    verified: Ok(undefined).and(verification),
-                    drain: () =>
-                        Ok(undefined).andThenAsync(async () => {
-                            const bmpReader = body.getReader();
+                    return {
+                        body,
+                        length: encoded.totalSize,
+                        sha1: encoded.sha1,
+                        originalSize: input.header.payloadSize,
+                        storedSize: encoded.header.payloadSize,
+                        compressed: splitHeaderIsCompressed(encoded.header.flags),
+                        last: (encoded.header.flags & SPLIT_FLAG_LAST) !== 0,
+                        verified: Ok(undefined).and(verification),
+                        drain: () =>
+                            Ok(undefined).andThenAsync(async () => {
+                                const bmpReader = body.getReader();
 
-                            try {
-                                while (true) {
-                                    const next = await bmpReader.read();
-                                    if (next.done) {
-                                        settle(Ok(undefined));
-                                        break;
+                                try {
+                                    while (true) {
+                                        const next = await bmpReader.read();
+                                        if (next.done) {
+                                            settle(Ok(undefined));
+                                            break;
+                                        }
                                     }
+                                } catch {
+                                    return await verification;
+                                } finally {
+                                    bmpReader.releaseLock();
                                 }
-                            } catch {
-                                return await verification;
-                            } finally {
-                                bmpReader.releaseLock();
-                            }
 
-                            return await verification;
-                        })
-                };
-            });
-        });
+                                return await verification;
+                            })
+                    };
+                });
+            })
+        );
     });
 }

@@ -23,6 +23,7 @@ export type FileGroup = {
     at: number;
     chunkCount: number | null;
     chunks: UploadedChunk[];
+    duplicates: UploadedChunk[];
     complete: boolean;
 };
 
@@ -111,6 +112,7 @@ export function groupChunks(items: UploadedChunk[]): FileGroup[] {
                 at: chunk.at,
                 chunkCount: null,
                 chunks: [chunk],
+                duplicates: [],
                 complete: false
             };
             groups.set(key, { file });
@@ -128,7 +130,13 @@ export function groupChunks(items: UploadedChunk[]): FileGroup[] {
 
         const current = position === undefined ? undefined : group.chunks[position];
         group.at = Math.max(group.at, chunk.at);
-        if (current && current.at > chunk.at) continue;
+        if (current) {
+            if (current.at > chunk.at) {
+                group.duplicates.push(chunk);
+                continue;
+            }
+            group.duplicates.push(current);
+        }
 
         if (position === undefined) {
             // Single-chunk files need no map. Positions stay valid until the final sort.

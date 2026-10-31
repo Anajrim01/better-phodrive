@@ -49,20 +49,7 @@ export function compressionSavesEnough(originalSize: number, storedSize: number)
     return storedSize <= originalSize * (1 - COMPRESSION_MIN_SAVING);
 }
 
-/** Start, middle and end, so a compressible tail can outweigh a raw prefix. */
-function probeSlices(payload: Uint8Array): Uint8Array[] {
-    if (payload.length <= COMPRESSION_PROBE_BYTES * 3) return [payload];
-    const size = COMPRESSION_PROBE_BYTES;
-    const middle = Math.floor((payload.length - size) / 2);
-
-    return [
-        payload.subarray(0, size),
-        payload.subarray(middle, middle + size),
-        payload.subarray(payload.length - size)
-    ];
-}
-
-/** True when a probe sample clears the saving threshold. */
+/** Start, middle and end are not sampled; the start probe decides buffering. */
 export function probeCompressible(bytes: Uint8Array): boolean {
     if (bytes.length < COMPRESSION_MIN_BYTES) return false;
 
@@ -77,13 +64,12 @@ export function probeCompressible(bytes: Uint8Array): boolean {
 
 /**
  * Compress a chunk before BMP encoding, or keep it raw when the codec does not
- * pay. Three slices decide before the full payload is compressed.
+ * pay. The caller probes the start; this function verifies the full result.
  */
 export function compressPayload(payload: Uint8Array): AsyncResult<EncodedPayload, ServerError> {
     return Ok(undefined).andThenAsync(async () => {
         const originalSize = payload.length;
         if (originalSize < COMPRESSION_MIN_BYTES) return Ok(rawPayload(payload));
-        if (!probeSlices(payload).some(probeCompressible)) return Ok(rawPayload(payload));
 
         let compressed: Buffer;
 

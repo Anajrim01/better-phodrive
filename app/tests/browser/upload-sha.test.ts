@@ -39,7 +39,10 @@ test('a server-selected uploaded SHA-1 can differ from the raw browser BMP hash'
         browserUploadResponse(init, false, (events) =>
             events.map((event) => {
                 if (event.type === UploadEventType.Chunk)
-                    return { ...event, chunk: { ...event.chunk, sha1: uploadedSha1 } };
+                    return {
+                        ...event,
+                        chunk: { ...event.chunk, sha1: uploadedSha1, compressed: true }
+                    };
                 if (event.type === UploadEventType.FileComplete)
                     return { ...event, result: { ...event.result, sha1: uploadedSha1 } };
 
@@ -60,4 +63,32 @@ test('a server-selected uploaded SHA-1 can differ from the raw browser BMP hash'
     expect(uploaded.isOk()).toBe(true);
     expect(saved).toHaveLength(1);
     expect(saved[0].sha1).toBe(uploadedSha1);
+});
+
+test('a raw chunk must keep the browser BMP hash', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) =>
+        browserUploadResponse(init, false, (events) =>
+            events.map((event) =>
+                event.type === UploadEventType.Chunk
+                    ? {
+                          ...event,
+                          chunk: { ...event.chunk, sha1: 'b'.repeat(40), compressed: false }
+                      }
+                    : event
+            )
+        )
+    );
+    const jobs: UploadJob[] = [];
+    const saved: UploadedChunk[] = [];
+    await uploadFiles(
+        [new File([PAYLOAD], 'proof.bin')],
+        'test@example.com',
+        'aas_et/test',
+        1,
+        (job) => jobs.push(job),
+        (chunk) => saved.push(chunk)
+    );
+
+    expect(jobs.at(-1)?.status).toBe(UploadJobStatus.Error);
+    expect(saved).toHaveLength(0);
 });

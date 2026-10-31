@@ -38,9 +38,9 @@ identifier to carry or migrate.
 Higher brotli qualities saved little more on these samples and cost two to four
 times the CPU, so the server stays at quality 1. Chunks under 4 KiB stay raw
 because the saved bytes are negligible next to the codec call. An 85 KiB start
-probe decides whether to stream raw or buffer for compression. The buffered path
-checks 85 KiB at the start, middle and end before compressing the full 195 MB,
-and falls back to raw when the full result misses 5%.
+probe decides whether to stream raw or buffer for compression. Only a chunk that
+clears the probe is buffered and compressed; the full result must still save 5%
+or it is stored raw.
 
 Brotli output is deterministic for a fixed Node and brotli version. A Node or
 brotli upgrade can change the stored bytes and SHA-1, so the same raw chunk may
@@ -81,7 +81,8 @@ Throughput counts original input bytes, so a compressing upload moves fewer
 bytes over the network than the number suggests.
 
 Peak process RSS for `bmp-stream` is 1193.5 MiB with compression and 1011.9 MiB
-on the raw streaming path, a 181.6 MiB increase for one 195 MB chunk. Raw
-uploads keep the baseline profile: `upload-large` 1272.6 MiB and
-`upload-boundaries` 2574.7 MiB. The increase applies only to chunks that are
-actually buffered for compression.
+on the raw streaming path, a 181.6 MiB increase for one 195 MB chunk. This is a
+floor from a constant-fill fixture; mixed content can use more. Raw uploads keep
+the baseline profile: `upload-large` 1272.6 MiB and `upload-boundaries`
+2574.7 MiB. The increase applies only to chunks that are actually buffered for
+compression.

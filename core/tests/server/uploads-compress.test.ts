@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { expect, test } from 'vitest';
 import { receiveUpload, receiveChunk } from '@madkarmaa/phodrive-core/server/upload/input';
 import { encodeUploadBmp } from '@madkarmaa/phodrive-core/server/upload/bmp';
@@ -104,6 +104,7 @@ test('compress off does not probe or read the payload before the body starts', a
     const fixture = uploadForm(payload);
     let pulls = 0;
     let offset = 0;
+    let readAhead = 0;
     const stream = new ReadableStream<Uint8Array>(
         {
             pull(controller) {
@@ -114,6 +115,7 @@ test('compress off does not probe or read the payload before the body starts', a
                 }
                 controller.enqueue(payload.subarray(offset, offset + 1024));
                 offset += 1024;
+                readAhead = Math.max(readAhead, offset);
             }
         },
         { highWaterMark: 0 }
@@ -122,8 +124,47 @@ test('compress off does not probe or read the payload before the body starts', a
     const source = (await encodeUploadBmp(input)).unwrap();
 
     expect(pulls).toBe(0);
+    expect(readAhead).toBe(0);
     expect(source.compressed).toBe(false);
     expect(source.length).toBe(input.bmp.totalSize);
     expect(source.sha1).toBe(input.sha1);
     await input.cancel();
 });
+
+test.each([85 * 1024 - 1, 85 * 1024, 85 * 1024 + 1])(
+    'compress true keeps an incompressible %i-byte chunk raw with bounded read-ahead',
+    async (size) => {
+        const payload = new Uint8Array(randomBytes(size));
+        const fixture = uploadForm(payload, 'probe.bin', { compress: true });
+        const pattern = [7 * 1024, 13 * 1024, 64 * 1024, 1, 31 * 1024];
+        let index = 0;
+        let offset = 0;
+        let readAhead = 0;
+        const stream = new ReadableStream<Uint8Array>(
+            {
+                pull(controller) {
+                    if (offset >= payload.length) {
+                        controller.close();
+                        return;
+                    }
+
+                    const block = pattern[index % pattern.length];
+                    index++;
+                    const end = Math.min(offset + block, payload.length);
+                    controller.enqueue(payload.subarray(offset, end));
+                    offset = end;
+                    readAhead = Math.max(readAhead, offset);
+                }
+            },
+            { highWaterMark: 0 }
+        );
+        const input = receiveChunk(fixture.metadata, stream, new AbortController().signal).unwrap();
+        const source = (await encodeUploadBmp(input)).unwrap();
+
+        expect(readAhead).toBeLessThan(256 * 1024);
+        expect(source.compressed).toBe(false);
+        expect(source.sha1).toBe(fixture.metadata.sha1);
+        expect((await source.drain()).isOk()).toBe(true);
+        await input.cancel();
+    }
+);
