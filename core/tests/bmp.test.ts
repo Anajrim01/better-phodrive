@@ -170,12 +170,12 @@ test('prefix encoding preserves original protocol bytes for Unicode and multibyt
         fileName: 'photos-📷.bin'
     }).unwrap();
     expect(Buffer.from(first.prefix).toString('hex')).toBe(
-        '424d360c000000000000360000002800000020000000200000000100180000000000000c000000000000000000000000000000000000424d53504c495401' +
+        '424d36000300000000003600000028000000000100000001000001001800000000000000030000000000000000000000000000000000424d53504c495401' +
             'ab'.repeat(32) +
             'cd'.repeat(32) +
             '000180080f70686f746f732df09f93b72e62696e'
     );
-    expect([first.totalSize, first.paddingSize]).toEqual([3126, 1956]);
+    expect([first.totalSize, first.paddingSize]).toEqual([196662, 195492]);
     const later = encodeSplitPrefix({
         ...common,
         chunkIndex: 128,
