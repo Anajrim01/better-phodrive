@@ -63,7 +63,7 @@
         {#if selected}
             <Item class="current-account" supportingText="Current account">
                 {#snippet start()}<Avatar email={selected} />{/snippet}
-                <strong class="block truncate text-base font-medium">{selected}</strong>
+                <span class="block truncate text-base font-medium">{selected}</span>
             </Item>
         {/if}
 

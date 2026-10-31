@@ -69,7 +69,7 @@
         }
 
         h3 {
-            font-size: 22px;
+            font-size: 20px;
             line-height: 28px;
         }
 

@@ -31,7 +31,7 @@
         <div class="relative size-22 text-muted">
             <IconDescriptionOutline class="size-22" />
             <span
-                class="absolute top-13 left-3 w-16 truncate rounded bg-preview text-center text-xs font-bold"
+                class="absolute top-13 left-3 w-16 truncate rounded bg-preview text-center text-xs font-medium"
                 >{fileType(item.name)}</span
             >
         </div>

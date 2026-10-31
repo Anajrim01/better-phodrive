@@ -34,7 +34,7 @@
     <p class="truncate text-sm" title={job.name}>{job.name}</p>
     {#snippet supportingText()}
         <p
-            class="text-xs"
+            class="text-xs tabular-nums"
             class:text-error={job.status === UploadJobStatus.Error}
             class:text-muted={job.status !== UploadJobStatus.Error}
             role={job.status === UploadJobStatus.Error ? 'alert' : 'status'}

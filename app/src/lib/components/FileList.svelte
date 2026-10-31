@@ -149,7 +149,7 @@
     th,
     td {
         height: 48px;
-        border-bottom: 1px solid var(--np-color-outline-variant);
+        border-bottom: 1px solid var(--app-border);
         padding: 4px 12px;
         text-align: start;
         vertical-align: middle;
@@ -159,8 +159,13 @@
         font-weight: 500;
     }
 
+    .mobile-date {
+        font-variant-numeric: tabular-nums;
+    }
+
     td:not(:first-child) {
-        color: var(--np-color-on-surface-variant);
+        color: var(--app-muted);
+        font-variant-numeric: tabular-nums;
     }
 
     tbody tr:hover,
