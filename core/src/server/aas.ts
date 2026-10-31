@@ -76,7 +76,10 @@ export function exchangeOAuth2ForAas(
                 // Preserve the exchange failure when cancelling its response body also fails.
             }
 
-            return Err(EXCHANGE_FAILED);
+            return Err({
+                code: 'OAUTH_EXCHANGE_FAILED',
+                message: `OAuth2 exchange failed (HTTP ${response.status})`
+            } as const);
         }
 
         let body: string;
