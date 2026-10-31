@@ -13,8 +13,15 @@
     let loadedAt = $state(Date.now());
     const paused = $derived(accounts.filter((account) => account.status === 'paused'));
     const failed = $derived(accounts.filter((account) => account.status === 'error'));
+    const missing = $derived(
+        failed.filter((account) => account.message?.includes('is not connected'))
+    );
+    const errored = $derived(
+        failed.filter((account) => !account.message?.includes('is not connected'))
+    );
     const allPaused = $derived(accounts.length > 0 && paused.length === accounts.length);
-    const failedNames = $derived(failed.map((account) => account.email).join(', '));
+    const failedNames = $derived(errored.map((account) => account.email).join(', '));
+    const missingNames = $derived(missing.map((account) => account.email).join(', '));
 
     $effect(() => {
         void accounts;
@@ -71,9 +78,14 @@
             Paused: {pausedNames}. Files from paused accounts stay hidden until they answer.
         </span>
     {/if}
-    {#if failed.length}
+    {#if errored.length}
         <span class="text-muted">
             Could not load {failedNames}. The list is partial.
+        </span>
+    {/if}
+    {#if missing.length}
+        <span class="text-muted">
+            Not connected: {missingNames}. Their files stay hidden until they are added back.
         </span>
     {/if}
 </div>

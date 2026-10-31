@@ -14,7 +14,7 @@ export function uploadJobDetail(job: UploadJob, now = Date.now()): string {
         progress.completed + (progress.phase === UploadPhase.Uploading ? progress.reused : 0);
     const percent = progress.total ? Math.round((processed / progress.total) * 100) : 0;
 
-    if (job.status === UploadJobStatus.Queued) return 'Waiting';
+    if (job.status === UploadJobStatus.Queued) return job.message || 'Waiting for an account';
     if (job.status === UploadJobStatus.Error) return job.message;
     if (job.status === UploadJobStatus.Complete)
         return job.result?.status === UploadStatus.AlreadyExists

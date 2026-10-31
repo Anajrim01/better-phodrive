@@ -4,7 +4,8 @@ import type { DriveGroups } from '#browser/drive/groups.svelte';
 
 export function groupLibraryAccess(mode: DriveGroupMode, groups: DriveGroups) {
     return {
-        members: () => mode.target?.members ?? null,
+        members: () =>
+            mode.target ? { members: mode.target.members, missing: mode.target.missing } : null,
         onAccounts: (accounts: GroupAccountState[]) => groups.applyAccountStates(accounts)
     };
 }

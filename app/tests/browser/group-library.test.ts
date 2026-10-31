@@ -33,14 +33,18 @@ function chunk(email: string, mediaKey: string): UploadedChunk {
 
 afterEach(() => vi.clearAllMocks());
 
-test('a group target needs two connected members and carries pause state', () => {
+test('a group target keeps connected members and reports missing accounts', () => {
     const group = {
         id: 'family',
         name: 'Family',
         accounts: [FIRST, SECOND, 'missing@example.com']
     };
 
-    expect(resolveGroupTarget([group], 'family', { [FIRST]: 'aas_et/first' }, () => 0)).toBeNull();
+    expect(resolveGroupTarget([group], 'family', { [FIRST]: 'aas_et/first' }, () => 0)).toEqual({
+        group,
+        members: [{ email: FIRST, token: 'aas_et/first', paused: false, pausedUntil: 0 }],
+        missing: [SECOND, 'missing@example.com']
+    });
 
     const until = Date.now() + 30_000;
 
@@ -56,8 +60,18 @@ test('a group target needs two connected members and carries pause state', () =>
         members: [
             { email: FIRST, token: 'aas_et/first', paused: false, pausedUntil: 0 },
             { email: SECOND, token: 'aas_et/second', paused: true, pausedUntil: until }
-        ]
+        ],
+        missing: ['missing@example.com']
     });
+
+    expect(
+        resolveGroupTarget(
+            [{ id: 'solo', name: 'Solo', accounts: [FIRST] }],
+            'solo',
+            { [FIRST]: 'aas_et/first' },
+            () => 0
+        )
+    ).toBeNull();
 });
 
 test('a group library merges owners, dedupes, and reports paused members', async () => {
@@ -80,19 +94,25 @@ test('a group library merges owners, dedupes, and reports paused members', async
         () => false,
         () => FileSort.NameAscending,
         () => {},
-        () => [
-            { email: FIRST, token: 'aas_et/first' },
-            { email: SECOND, token: 'aas_et/second' }
-        ],
+        () => ({
+            members: [
+                { email: FIRST, token: 'aas_et/first' },
+                { email: SECOND, token: 'aas_et/second' }
+            ],
+            missing: []
+        }),
         onAccounts
     );
 
     await library.load();
 
-    expect(readGroupLibrary).toHaveBeenCalledWith([
-        { email: FIRST, token: 'aas_et/first' },
-        { email: SECOND, token: 'aas_et/second' }
-    ]);
+    expect(readGroupLibrary).toHaveBeenCalledWith(
+        [
+            { email: FIRST, token: 'aas_et/first' },
+            { email: SECOND, token: 'aas_et/second' }
+        ],
+        []
+    );
     expect(library.partial).toBe(true);
     expect(library.accounts).toEqual(accounts);
     expect(library.retryAt).toBeGreaterThan(Date.now());

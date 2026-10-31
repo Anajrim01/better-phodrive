@@ -105,6 +105,29 @@ test('a partial group listing names paused members and their wait', () => {
     ).toBeTruthy();
 });
 
+test('a partial bar names disconnected members separately', () => {
+    render(GroupListingStatus, {
+        props: {
+            groupName: 'Family',
+            total: 3,
+            accounts: [
+                { email: FIRST, status: 'ok' },
+                {
+                    email: SECOND,
+                    status: 'error',
+                    message: `${SECOND} is not connected.`
+                }
+            ]
+        }
+    });
+
+    expect(
+        screen.getByText(
+            `Not connected: ${SECOND}. Their files stay hidden until they are added back.`
+        )
+    ).toBeTruthy();
+});
+
 test('a partial bar names failed members alongside paused ones', () => {
     render(GroupListingStatus, {
         props: {

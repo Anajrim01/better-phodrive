@@ -7,6 +7,7 @@ export type GroupTargetMember = GroupUploadMember & { pausedUntil: number };
 export type GroupTarget = {
     group: Group;
     members: GroupTargetMember[];
+    missing: string[];
 };
 
 export function accountToken(accounts: Record<string, string>, email: string): string | undefined {
@@ -35,15 +36,20 @@ export function resolveGroupTarget(
     pausedUntil: (email: string) => number
 ): GroupTarget | null {
     const group = groups.find((current) => current.id === selectedId);
-    if (!group) return null;
+    if (!group || group.accounts.length < 2) return null;
 
     const now = Date.now();
     const members: GroupTargetMember[] = [];
+    const missing: string[] = [];
     for (const email of group.accounts) {
         const saved = Object.keys(accounts).find(
             (account) => account.toLowerCase() === email.toLowerCase()
         );
-        if (!saved) continue;
+        if (!saved) {
+            missing.push(email);
+
+            continue;
+        }
 
         const until = pausedUntil(saved);
         members.push({
@@ -53,7 +59,7 @@ export function resolveGroupTarget(
             pausedUntil: until
         });
     }
-    if (members.length < 2) return null;
+    if (!members.length) return null;
 
-    return { group, members };
+    return { group, members, missing };
 }

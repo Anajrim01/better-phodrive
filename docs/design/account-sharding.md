@@ -50,6 +50,8 @@ and keeps that owner for the whole upload.
   downloaded as one object.
 - A file is never split across accounts, and a half-uploaded file never resumes
   on another account.
+- A retry stays on the recorded owner. If that owner is paused, the file waits
+  with a visible message instead of being reassigned.
 
 The owner is the account that holds the chunks. Local state records it next to
 the `fileId`, so a retry does not depend on reading the first chunk again. The
@@ -92,6 +94,8 @@ The client lists each group member and merges the pages into one result.
   carries a deadline. A listing that returns ok clears the pause only after
   that deadline, and automatic refresh skips members inside their window
   instead of querying them again.
+- A group account with no saved token is reported as not connected, and the
+  group still lists the connected members.
 - The merged list sorts newest first, then by owner email, file id, chunk index,
   and media key, so the order does not depend on which request finished first.
   The view's chosen sort re-sorts the merged list.

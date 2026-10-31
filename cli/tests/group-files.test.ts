@@ -191,8 +191,27 @@ test('a member already paused by the breaker starts paused', async () => {
     await writeFile(join(folder.path, 'proof.bin'), 'proof');
     let members: { email: string; paused: boolean }[] = [];
 
-    vi.mocked(uploadGroupFiles).mockImplementation((files, uploadMembers) => {
+    vi.mocked(uploadGroupFiles).mockImplementation((files, uploadMembers, _workers, onJob) => {
         members = uploadMembers.map(({ email, paused }) => ({ email, paused }));
+
+        for (const [id, file] of files.entries()) {
+            const job: UploadJob = {
+                id,
+                name: file.name,
+                status: UploadJobStatus.Queued,
+                progress: {
+                    phase: UploadPhase.Receiving,
+                    completed: 0,
+                    total: file.size
+                },
+                message: 'Waiting for an available account.',
+                result: null,
+                bytesPerSecond: 0,
+                etaSeconds: null,
+                retryAt: null
+            };
+            onJob(job);
+        }
 
         return Ok(undefined).andThenAsync(async () => Ok({ waiting: files.length }));
     });
@@ -201,7 +220,9 @@ test('a member already paused by the breaker starts paused', async () => {
         folder: folder.path
     });
 
-    expect(uploaded.failures).toEqual([]);
+    expect(uploaded.failures).toHaveLength(1);
+    expect(uploaded.failures[0]).toMatchObject({ code: 'UPLOAD_INCOMPLETE' });
+    expect(uploaded.failures[0]?.message).toContain('no account was available');
     expect(members).toEqual([
         { email: FIRST, paused: false },
         { email: SECOND, paused: true }

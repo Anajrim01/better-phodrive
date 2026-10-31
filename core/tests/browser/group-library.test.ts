@@ -34,6 +34,20 @@ function pageFor(email: string): Response {
     });
 }
 
+test('a missing group member is reported without a request', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch');
+
+    const loaded = await readGroupLibrary([], ['missing@example.com']);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(loaded.unwrap().accounts).toContainEqual({
+        email: 'missing@example.com',
+        status: 'error',
+        message: 'missing@example.com is not connected.'
+    });
+    expect(loaded.unwrap().partial).toBe(true);
+});
+
 test('a member with a future pause is not fetched', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch');
     fetchMock.mockImplementation(async () =>

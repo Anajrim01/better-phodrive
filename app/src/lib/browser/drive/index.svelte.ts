@@ -146,13 +146,6 @@ export class DriveController extends DriveView {
             }
         );
 
-        watch(
-            () => this.groupMode.target?.group.id ?? '',
-            (id, previous) => {
-                if (previous !== undefined && previous !== id) this.groupSettings.clearPauses();
-            }
-        );
-
         useAutomaticRefresh(
             () => this.settings.refreshIntervalSeconds,
             () =>

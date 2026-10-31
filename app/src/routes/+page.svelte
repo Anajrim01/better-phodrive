@@ -179,7 +179,7 @@
                     {@const target = drive.groupMode.target}
                     <GroupListingStatus
                         groupName={target.group.name}
-                        total={target.members.length}
+                        total={target.group.accounts.length}
                         accounts={drive.library.accounts}
                     />
                 {/if}

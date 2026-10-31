@@ -38,7 +38,6 @@ export class DriveGroupMode {
         if (id && !this.groups().groups.some((group) => group.id === id)) return;
         if (id === this.settings().uploadTarget) return;
 
-        this.groups().clearPauses();
         this.groups().clearError();
         this.settings().chooseUploadTarget(id);
         this.reset();

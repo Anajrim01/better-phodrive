@@ -49,9 +49,7 @@ export function sendGroupFiles(
             (job) =>
                 job.status !== UploadJobStatus.Complete && job.status !== UploadJobStatus.Queued
         ).length;
-        if (uploaded.isErr() || failed) bar.fail();
-        else if (waiting)
-            bar.stop(`${waiting} of ${files.length} files are waiting for an account`);
+        if (uploaded.isErr() || failed || waiting) bar.fail();
         else bar.stop(`Uploaded ${files.length} files across ${members.length} accounts`);
 
         if (context.interactive) for (const job of results) reportJob(context, job);
@@ -62,12 +60,18 @@ export function sendGroupFiles(
         for (const member of members) await mirrorOwnerAlbums(context, config, member, chunks);
 
         if (uploaded.isErr()) return uploaded;
-        if (!failed) return Ok(undefined);
+        if (failed || waiting) {
+            const parts: string[] = [];
+            if (failed) parts.push(`${failed} of ${files.length} files failed to upload.`);
+            if (waiting)
+                parts.push(
+                    `${waiting} of ${files.length} files were not uploaded because no account was available.`
+                );
 
-        return Err({
-            code: 'UPLOAD_INCOMPLETE',
-            message: `${failed} of ${files.length} files failed to upload.`
-        } as const);
+            return Err({ code: 'UPLOAD_INCOMPLETE', message: parts.join(' ') } as const);
+        }
+
+        return Ok(undefined);
     });
 }
 

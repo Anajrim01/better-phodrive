@@ -61,20 +61,65 @@ export class DriveUploads {
     async retry(id: number): Promise<void> {
         const job = this.jobs.find((current) => current.id === id);
         const file = this.sources[id];
-        if (!job || job.status !== UploadJobStatus.Error || !file) return;
+        if (
+            !job ||
+            (job.status !== UploadJobStatus.Error && job.status !== UploadJobStatus.Queued) ||
+            !file
+        )
+            return;
         if (this.busy || this.deps.blocked() || this.deps.loading()) return;
+
+        const group = this.deps.group();
+        if (job.account && !group) {
+            this.deps.feedback(
+                'The group for this file is no longer available. Select a new target.'
+            );
+
+            return;
+        }
+        let forced: GroupUploadMember[] | undefined;
+        if (group) {
+            const owner = job.account?.toLowerCase();
+            if (owner) {
+                const member = group.members.find(
+                    (current) => current.email.toLowerCase() === owner
+                );
+                if (!member)
+                    return this.deps.feedback(
+                        `The account that owns ${file.name} is no longer in this group.`
+                    );
+                if (member.paused) {
+                    this.jobs = this.jobs.map((current) =>
+                        current.id === id
+                            ? {
+                                  ...current,
+                                  status: UploadJobStatus.Queued,
+                                  message: `Waiting for ${member.email} to recover.`
+                              }
+                            : current
+                    );
+
+                    return;
+                }
+
+                forced = [member];
+            }
+        }
 
         const fresh = createUploadJobs([file])[0];
         if (!fresh) return;
 
-        this.jobs = this.jobs.map((current) => (current.id === id ? { ...fresh, id } : current));
-        await this.run([file], id, this.folders.get(id) ?? this.deps.folder());
+        this.jobs = this.jobs.map((current) =>
+            current.id === id ? { ...fresh, id, account: job.account } : current
+        );
+        await this.run([file], id, this.folders.get(id) ?? this.deps.folder(), forced);
     }
 
     private async run(
         files: readonly File[],
         retryId?: number,
-        folder = this.deps.folder()
+        folder = this.deps.folder(),
+        forced?: readonly GroupUploadMember[]
     ): Promise<void> {
         const { email, token } = this.deps.account();
         const group = this.deps.group();
@@ -108,7 +153,7 @@ export class DriveUploads {
         if (group) {
             const uploaded = await uploadGroupFiles(
                 files,
-                group.members,
+                forced ?? group.members,
                 this.deps.workers(),
                 onJob,
                 onChunk,

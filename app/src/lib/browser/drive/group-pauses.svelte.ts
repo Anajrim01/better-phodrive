@@ -38,6 +38,9 @@ export class GroupPauses {
         const deadline = Math.max(this.pausedUntil.get(key) ?? 0, until);
 
         this.pausedUntil = new Map(this.pausedUntil).set(key, deadline);
+        const observed = new Set(this.observed);
+        observed.delete(key);
+        this.observed = observed;
         this.now = Date.now();
         this.startTimer();
     }
@@ -55,6 +58,7 @@ export class GroupPauses {
                     Math.floor(account.retryAfterSeconds ?? DEFAULT_PAUSE_SECONDS)
                 );
                 paused.set(key, Math.max(paused.get(key) ?? 0, now + seconds * 1_000));
+                observed.delete(key);
             } else if (account.status === 'ok') {
                 if ((paused.get(key) ?? 0) <= now) paused.delete(key);
                 observed.add(key);

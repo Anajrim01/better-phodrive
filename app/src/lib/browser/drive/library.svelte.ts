@@ -18,7 +18,10 @@ import { nextRetryAt } from '#browser/drive/group-target';
 
 const POST_UPLOAD_COOLDOWN_MS = 2 * 60 * 1_000;
 
-export type LibraryGroup = readonly { email: string; token: string; pausedUntil?: number }[] | null;
+export type LibraryGroup = {
+    members: readonly { email: string; token: string; pausedUntil?: number }[];
+    missing: readonly string[];
+} | null;
 
 export class DriveLibrary {
     chunks = $state<UploadedChunk[]>([]);
@@ -160,10 +163,7 @@ export class DriveLibrary {
         this.loading = false;
     }
 
-    private async loadGroup(
-        members: readonly { email: string; token: string; pausedUntil?: number }[],
-        reset: boolean
-    ) {
+    private async loadGroup(group: NonNullable<LibraryGroup>, reset: boolean) {
         if (this.actionsDisabled() || (!reset && this.loading)) return;
 
         const request = ++this.libraryRequest;
@@ -180,7 +180,7 @@ export class DriveLibrary {
         this.loading = true;
         this.feedback('');
 
-        const loaded = await readGroupLibrary(members);
+        const loaded = await readGroupLibrary(group.members, group.missing);
         if (request !== this.libraryRequest) return;
 
         loaded.match({

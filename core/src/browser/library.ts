@@ -100,11 +100,18 @@ async function readMemberPages(email: string, token: string): Promise<GroupPage>
 
 /** Query every member, merge their items, and report a paused member instead of failing. */
 export function readGroupLibrary(
-    members: readonly { email: string; token: string; pausedUntil?: number }[]
+    members: readonly { email: string; token: string; pausedUntil?: number }[],
+    missing: readonly string[] = []
 ): AsyncResult<GroupLibrarySnapshot, ApplicationError> {
     return Ok(undefined).andThenAsync(async () => {
         const pages: GroupPage[] = [];
         const now = Date.now();
+
+        for (const email of missing)
+            pages.push({
+                email,
+                error: { code: 'ACCOUNT_NOT_FOUND', message: `${email} is not connected.` }
+            });
 
         for (const member of members) {
             if (member.pausedUntil && member.pausedUntil > now) {

@@ -75,13 +75,14 @@ test('a successful upload observes the account without clearing a pause', () => 
     expect(store.memberStatus(FIRST, until + 1)).toBe('ready');
 });
 
-test('changing the upload target clears pauses and the stale group error', () => {
+test('changing the upload target keeps pauses and clears the stale group error', () => {
     const { store, mode } = setup();
-    store.markPaused(FIRST, Date.now() + 30_000);
+    const until = Date.now() + 30_000;
+    store.markPaused(FIRST, until);
     store.error = 'Old error';
 
     mode.choose('');
 
-    expect(store.pausedUntilFor(FIRST)).toBe(0);
+    expect(store.pausedUntilFor(FIRST)).toBe(until);
     expect(store.error).toBe('');
 });

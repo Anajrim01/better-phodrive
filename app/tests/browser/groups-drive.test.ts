@@ -140,7 +140,7 @@ test('member status is unknown until an observation and pauses expire', () => {
     const until = now + 30_000;
     store.markPaused(FIRST.toUpperCase(), until);
     expect(store.memberStatus(FIRST)).toBe('paused');
-    expect(store.memberStatus(FIRST, until + 1)).toBe('ready');
+    expect(store.memberStatus(FIRST, until + 1)).toBe('unknown');
     expect(store.pausedUntilFor(FIRST)).toBe(until);
 
     store.markPaused(FIRST, now + 10_000);
