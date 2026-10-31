@@ -47,7 +47,11 @@ export function showFolders(
     if (json) {
         printJson(
             context,
-            entries.map((entry) => ({ folder: entry.path, files: entry.files }))
+            entries.map((entry) => ({
+                folder: entry.path,
+                files: entry.files,
+                subfolders: entry.subfolders
+            }))
         );
 
         return;
@@ -61,6 +65,6 @@ export function showFolders(
     printTable(
         context,
         FOLDER_TABLE_HEAD,
-        entries.map((entry) => [entry.path, String(entry.files)])
+        entries.map((entry) => [entry.path, String(entry.files), String(entry.subfolders)])
     );
 }

@@ -7,7 +7,7 @@ import type { CliContext, CliError } from './context';
 
 export const SHORT_ID_LENGTH = 12;
 export const FILE_TABLE_HEAD = ['ID', 'Name', 'Folder', 'Type', 'Size', 'Modified', ''];
-export const FOLDER_TABLE_HEAD = ['Folder', 'Files'];
+export const FOLDER_TABLE_HEAD = ['Folder', 'Files', 'Subfolders'];
 const PROGRESS_STEPS = 1000;
 const DATE_FORMAT = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 // Google rejects expired or revoked tokens while authenticating each request.

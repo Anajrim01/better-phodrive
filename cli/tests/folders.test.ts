@@ -124,15 +124,17 @@ test('listing can show every folder and the files in one folder', async () => {
     });
     const shown = JSON.parse(folders.stdout);
     expect(shown).toEqual([
-        { folder: 'photos', files: 1 },
-        { folder: 'photos/2024', files: 1 },
-        { folder: 'trips', files: 1 }
+        { folder: 'photos', files: 1, subfolders: 1 },
+        { folder: 'photos/2024', files: 1, subfolders: 0 },
+        { folder: 'trips', files: 1, subfolders: 0 }
     ]);
 
     const children = await runCli(['file', 'list', '--folders', '--folder', 'photos', '--json'], {
         folder: folder.path
     });
-    expect(JSON.parse(children.stdout)).toEqual([{ folder: 'photos/2024', files: 1 }]);
+    expect(JSON.parse(children.stdout)).toEqual([
+        { folder: 'photos/2024', files: 1, subfolders: 0 }
+    ]);
 
     const inside = await runCli(['file', 'list', '--folder', 'photos', '--json'], {
         folder: folder.path

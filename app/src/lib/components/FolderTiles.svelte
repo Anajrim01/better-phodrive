@@ -1,5 +1,6 @@
 <script lang="ts">
     import type { FolderEntry } from '@madkarmaa/phodrive-core/files';
+    import { folderCount } from '#lib/folders';
     import IconFolder from '~icons/material-symbols/folder';
 
     interface Props {
@@ -31,8 +32,7 @@
                         <span class="folder-text">
                             <span class="folder-name" title={folder.name}>{folder.name}</span>
                             <span class="folder-count">
-                                {folder.files}
-                                {folder.files === 1 ? 'file' : 'files'}
+                                {folderCount(folder.files, folder.subfolders)}
                             </span>
                         </span>
                     </button>
