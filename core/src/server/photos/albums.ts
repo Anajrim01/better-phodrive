@@ -3,7 +3,7 @@ import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import { AlbumKeySchema, FolderPathSchema, MAX_ALBUM_BATCH_SIZE } from '../../models';
 import { authenticatedHeaders } from './auth';
 import { photosFetch, type Fetcher } from '../fetcher';
-import { send, readBody } from './transport';
+import { guardedSend, readBody } from './transport';
 import { message, numberField, bytesField, bodyBytes, nested, utf8 } from '../protobuf';
 
 const CREATE_ALBUM_URL =
@@ -26,9 +26,10 @@ export function assignFolderAlbum(
     return validateAssignment(folder, albumKey, mediaKeys)
         .andThenAsync(() => authenticatedHeaders(email, token, fetcher))
         .andThenAsync(({ rpcHeaders }) => {
-            if (albumKey === undefined) return createAlbum(folder, mediaKeys, rpcHeaders, fetcher);
+            if (albumKey === undefined)
+                return createAlbum(email, folder, mediaKeys, rpcHeaders, fetcher);
 
-            return addMediaToAlbum(albumKey, mediaKeys, rpcHeaders, fetcher);
+            return addMediaToAlbum(email, albumKey, mediaKeys, rpcHeaders, fetcher);
         });
 }
 
@@ -53,6 +54,7 @@ function validateAssignment(
 }
 
 function createAlbum(
+    email: string,
     folder: string,
     mediaKeys: readonly string[],
     rpcHeaders: Record<string, string>,
@@ -70,7 +72,8 @@ function createAlbum(
         bytesField(8, DEVICE)
     );
 
-    return send(
+    return guardedSend(
+        email,
         fetcher,
         CREATE_ALBUM_URL,
         {
@@ -84,6 +87,7 @@ function createAlbum(
 }
 
 function addMediaToAlbum(
+    email: string,
     albumKey: string,
     mediaKeys: readonly string[],
     rpcHeaders: Record<string, string>,
@@ -97,7 +101,8 @@ function addMediaToAlbum(
         numberField(7, unixSeconds())
     );
 
-    return send(
+    return guardedSend(
+        email,
         fetcher,
         ADD_MEDIA_TO_ALBUM_URL,
         {

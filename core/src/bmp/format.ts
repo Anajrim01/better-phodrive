@@ -11,7 +11,6 @@ export const MAX_SPLIT_HEADER_BYTES = 65_536;
 export const BMP_HEADER_BYTES = 54;
 export const SPLIT_MAGIC_PREFIX = new TextEncoder().encode('BMSPLIT');
 export const SPLIT_MAGIC = new TextEncoder().encode('BMSPLIT\x01');
-/** Version 2 appends a folder path after the first chunk's file name. */
 export const SPLIT_MAGIC_WITH_FOLDER = new TextEncoder().encode('BMSPLIT\x02');
 export const SPLIT_FOLDER_VERSION = 2;
 export const FILE_HASH_BYTES = 32;

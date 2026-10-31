@@ -43,7 +43,6 @@ test('transfer rate reports steady bytes per second', () => {
 });
 
 test('transfer rate ignores samples older than the sample window', () => {
-    // The rate over the window is 700000 bytes in 7 s; the full history would add a slower 2 s.
     const samples = [
         { at: 0, bytes: 0 },
         { at: 2_000, bytes: 1_000 },

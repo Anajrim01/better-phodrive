@@ -11,6 +11,7 @@ import {
     uploadBmp,
     validateAasAccount
 } from '@madkarmaa/phodrive-core/server/photos';
+import { clearProbeCache } from '@madkarmaa/phodrive-core/server/photos/library';
 import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
 import { nested } from '@madkarmaa/phodrive-core/server/protobuf';
 
@@ -367,11 +368,12 @@ test.each([false, true])(
                 }
             ]);
             expect(libraryCalls).toBe(4);
-            expect(prefixCalls).toBe(4);
+            expect(prefixCalls).toBe(3);
         }
 
         failPrefix = true;
         libraryCalls = 0;
+        clearProbeCache();
 
         const failedRefresh = await listBmps('test@example.com', 'aas_et/test', '', fakeFetch);
         expect(failedRefresh.unwrapErr().message).toBe('Could not inspect photo header');

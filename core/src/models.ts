@@ -107,7 +107,6 @@ export const FileNameSchema = z
     .refine((name) => !/[\\/\r\n\0]/.test(name));
 export const MAX_FOLDER_PATH_LENGTH = 512;
 export const MAX_FOLDER_SEGMENT_LENGTH = 255;
-/** Folder paths stay relative, slash-separated, and unable to escape the library root. */
 export const FolderPathSchema = z
     .string()
     .min(1)
@@ -124,7 +123,6 @@ export const FolderPathSchema = z
                     !/[\\\r\n\0]/.test(segment)
             )
     );
-/** Album media keys identify a Google Photos album and are safe to keep in browser storage. */
 export const AlbumKeySchema = z
     .string()
     .min(1)
@@ -173,7 +171,10 @@ export const UploadResponseSchema = z.object({
 });
 
 export const DeleteResponseSchema = z.object({ deleted: z.literal(true) });
-export const ErrorResponseSchema = z.object({ error: z.string() });
+export const ErrorResponseSchema = z.object({
+    error: z.string(),
+    retryAfterSeconds: z.int().nonnegative().optional()
+});
 export const UploadProgressSchema = z
     .discriminatedUnion('phase', [
         z.object({

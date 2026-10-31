@@ -19,9 +19,7 @@ export interface UploadJob {
     progress: UploadProgress;
     message: string;
     result: UploadResponse | null;
-    /** Recent transfer speed in bytes per second; zero while unknown. */
     bytesPerSecond: number;
-    /** Estimated seconds until this job finishes; null while unknown. */
     etaSeconds: number | null;
 }
 

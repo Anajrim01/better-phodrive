@@ -1,11 +1,8 @@
-/** Estimates how much longer a transfer needs from recent progress samples. */
-
 export const RATE_SAMPLE_WINDOW_MS = 8_000;
 export const MIN_RATE_SAMPLE_MS = 500;
 
 export type RateSample = { at: number; bytes: number };
 
-/** Bytes per second over the newest samples, or null until the rate is meaningful. */
 export function transferRate(
     samples: readonly RateSample[],
     windowMs = RATE_SAMPLE_WINDOW_MS
@@ -21,7 +18,6 @@ export function transferRate(
     return (bytes / elapsed) * 1_000;
 }
 
-/** Seconds needed for the remaining bytes, or null when the rate is unusable. */
 export function remainingSeconds(remainingBytes: number, bytesPerSecond: number): number | null {
     if (!Number.isFinite(bytesPerSecond) || bytesPerSecond <= 0) return null;
     if (!Number.isFinite(remainingBytes) || remainingBytes <= 0) return null;
@@ -29,7 +25,6 @@ export function remainingSeconds(remainingBytes: number, bytesPerSecond: number)
     return remainingBytes / bytesPerSecond;
 }
 
-/** Compact, rounded duration such as "8 s", "1 min 20 s", or "2 h 5 min". */
 export function formatDuration(seconds: number): string {
     const total = Math.max(0, Math.round(seconds));
     if (total < 60) return `${total} s`;

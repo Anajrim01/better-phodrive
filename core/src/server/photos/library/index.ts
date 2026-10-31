@@ -1,22 +1,30 @@
-import { SERVER_ERRORS, type ServerError } from '../../errors';
+import { SERVER_ERRORS, throttleError, type ServerError } from '../../errors';
 import { Err, Ok, type AsyncResult } from 'results-ts';
 import type { RemoteBmp } from '../../../models';
 import pLimit from 'p-limit';
 import { authenticatedHeaders, type PhotosHeaders } from '../auth';
 import { photosFetch, type Fetcher } from '../../fetcher';
-import { send, readBody } from '../transport';
+import { guardedSend, readBody } from '../transport';
+import {
+    parseRetryAfter,
+    recordServerFailure,
+    recordSuccess,
+    recordThrottle,
+    throttleWaitSeconds
+} from '../throttle';
 import { bodyBytes } from '../../protobuf';
 import { pageRequest, parseLibraryPage, type LibraryCandidate } from './metadata';
 import { decodeSplitHeader, MAX_SPLIT_HEADER_BYTES } from '../../bmp/index';
 import { LIBRARY_STATE_REQUEST } from './requests';
 import { preparedDownloadUrl } from '../download';
+import { readProbe, writeProbe } from './probe-cache';
+
+export { clearProbeCache } from './probe-cache';
 
 const LIBRARY_URL = 'https://photosdata-pa.googleapis.com/6439526531001121323/18047484249733410717';
 const HEADER_PROBE_BYTES = MAX_SPLIT_HEADER_BYTES;
 const LIBRARY_PROBE_CONCURRENCY = 4;
 const MAX_PAGE_TOKEN_LENGTH = 8192;
-
-/** A page of files with a continuation only when another file page exists. */
 export function listBmps(
     email: string,
     token: string,
@@ -34,22 +42,29 @@ export function listBmps(
         .andThenAsync((headers) => {
             const visited = new Set<string>();
 
-            return findFilePage(pageToken, headers, fetcher, visited).andThenAsync(async (page) => {
-                if (!page.nextPageToken) return Ok({ items: page.items, nextPageToken: '' });
+            return findFilePage(email, pageToken, headers, fetcher, visited).andThenAsync(
+                async (page) => {
+                    if (!page.nextPageToken) return Ok({ items: page.items, nextPageToken: '' });
 
-                // Google Photos can return a resume token followed only by an empty sync page.
-                // Look ahead so the UI offers Load more only for confirmed Phodrive files.
-                return await findFilePage(page.nextPageToken, headers, fetcher, visited).map(
-                    (next) => ({
+                    // Google Photos can return a resume token followed only by an empty sync page.
+                    // Look ahead so the UI offers Load more only for confirmed Phodrive files.
+                    return await findFilePage(
+                        email,
+                        page.nextPageToken,
+                        headers,
+                        fetcher,
+                        visited
+                    ).map((next) => ({
                         items: page.items,
                         nextPageToken: next.items.length ? next.requestToken : ''
-                    })
-                );
-            });
+                    }));
+                }
+            );
         });
 }
 
 function findFilePage(
+    email: string,
     pageToken: string,
     headers: PhotosHeaders,
     fetcher: Fetcher,
@@ -68,7 +83,8 @@ function findFilePage(
                 ? pageRequest(Buffer.from(requestToken, 'base64url'))
                 : Ok(Buffer.from(LIBRARY_STATE_REQUEST, 'base64'));
             const received = await request.andThenAsync((body) =>
-                send(
+                guardedSend(
+                    email,
                     fetcher,
                     LIBRARY_URL,
                     {
@@ -81,7 +97,7 @@ function findFilePage(
                 )
                     .andThenAsync((response) => readBody(response, 'Library list'))
                     .andThen(parseLibraryPage)
-                    .andThenAsync((page) => scanLibraryPage(page, headers, fetcher))
+                    .andThenAsync((page) => scanLibraryPage(email, page, headers, fetcher))
                     .map((page) => {
                         nextPageToken = page.nextPageToken;
 
@@ -99,6 +115,7 @@ function findFilePage(
 }
 
 function scanLibraryPage(
+    email: string,
     page: { items: LibraryCandidate[]; nextPageToken: string },
     headers: PhotosHeaders,
     fetcher: Fetcher
@@ -106,7 +123,7 @@ function scanLibraryPage(
     return Ok(undefined).andThenAsync(async () => {
         const limit = pLimit(LIBRARY_PROBE_CONCURRENCY);
         const scanned = await limit.map(page.items, (candidate) =>
-            probeLibraryItem(candidate, headers.commonHeaders, headers.rpcHeaders, fetcher)
+            probeLibraryItem(email, candidate, headers.commonHeaders, headers.rpcHeaders, fetcher)
         );
 
         const items: RemoteBmp[] = [];
@@ -158,11 +175,15 @@ function readPrefix(response: Response): AsyncResult<Buffer, ServerError> {
 }
 
 function fetchPrefix(
+    email: string,
     url: URL,
     commonHeaders: Record<string, string>,
     fetcher: Fetcher
 ): AsyncResult<Buffer, ServerError> {
     return Ok(undefined).andThenAsync(async () => {
+        const wait = throttleWaitSeconds(email);
+        if (wait !== null) return Err(throttleError(wait));
+
         let response: Response;
 
         try {
@@ -178,24 +199,46 @@ function fetchPrefix(
             return Err(SERVER_ERRORS.COULD_NOT_INSPECT_PHOTO_HEADER);
         }
 
+        const paused =
+            response.status === 429
+                ? recordThrottle(email, parseRetryAfter(response.headers.get('retry-after')))
+                : response.status >= 500
+                  ? recordServerFailure(email)
+                  : null;
+        if (paused !== null) {
+            try {
+                await response.body?.cancel();
+            } catch {
+                // The pause still applies when the body cannot be cancelled.
+            }
+
+            return Err(throttleError(paused));
+        }
+
         if (response.status !== 200 && response.status !== 206)
             return Err(SERVER_ERRORS.COULD_NOT_INSPECT_PHOTO_HEADER);
+
+        recordSuccess(email);
 
         return readPrefix(response);
     });
 }
 
 function probeLibraryItem(
+    email: string,
     candidate: LibraryCandidate,
     commonHeaders: Record<string, string>,
     rpcHeaders: Record<string, string>,
     fetcher: Fetcher
 ): AsyncResult<RemoteBmp | null, ServerError> {
-    return preparedDownloadUrl(candidate.mediaKey, candidate.sha1, rpcHeaders, fetcher)
+    const cached = readProbe(email, candidate);
+    if (cached !== undefined) return Ok(cached).andThenAsync(async (item) => Ok(item));
+
+    return preparedDownloadUrl(email, candidate.mediaKey, candidate.sha1, rpcHeaders, fetcher)
         .andThenAsync(async (url) => {
             if (url === null) return Ok(null);
 
-            return await fetchPrefix(url, commonHeaders, fetcher);
+            return await fetchPrefix(email, url, commonHeaders, fetcher);
         })
         .map((prefix) => {
             if (prefix === null) return null;
@@ -213,5 +256,10 @@ function probeLibraryItem(
                 }),
                 Err: () => null
             });
+        })
+        .map((item) => {
+            writeProbe(email, candidate, item);
+
+            return item;
         });
 }

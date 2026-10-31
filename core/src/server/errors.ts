@@ -152,6 +152,48 @@ export const SERVER_ERRORS = {
     }
 } as const;
 
+export const THROTTLE_ERROR: {
+    code: 'THROTTLED';
+    message: string;
+    retryAfterSeconds: number;
+} = {
+    code: 'THROTTLED',
+    message: 'Google is throttling requests.',
+    retryAfterSeconds: 1
+};
+
+export function throttleError(seconds: number): ServerError {
+    const wait = Math.max(1, Math.round(seconds));
+
+    return {
+        code: 'THROTTLED',
+        message: `${THROTTLE_ERROR.message} Retrying in about ${formatWait(wait)}.`,
+        retryAfterSeconds: wait
+    };
+}
+
+export function isThrottleError(error: ServerError): boolean {
+    return error.code === 'THROTTLED';
+}
+
+function formatWait(seconds: number): string {
+    if (seconds < 60) return `${seconds} s`;
+
+    const totalMinutes = Math.round(seconds / 60);
+    if (totalMinutes < 60) return `${totalMinutes} min`;
+
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+
+    return minutes === 0 ? `${hours} h` : `${hours} h ${minutes} min`;
+}
+
 export type ServerError =
     | (typeof SERVER_ERRORS)[keyof typeof SERVER_ERRORS]
-    | { readonly code: 'REQUEST_FAILED'; readonly message: string };
+    | {
+          readonly code: 'REQUEST_FAILED';
+          readonly message: string;
+          readonly status?: number;
+          readonly retryAfterSeconds?: number;
+      }
+    | { readonly code: 'THROTTLED'; readonly message: string; readonly retryAfterSeconds: number };

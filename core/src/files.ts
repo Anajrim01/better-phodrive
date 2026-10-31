@@ -18,7 +18,6 @@ export function fileKey(file: { email: string; fileId: string }): string {
     return `${file.email}:${file.fileId}`;
 }
 
-/** Drop empty or malformed folder paths so every caller sends the same shape. */
 export function normalizedFolder(folder?: string): string {
     if (!folder) return '';
     if (!FolderPathSchema.safeParse(folder).success) return '';
@@ -39,7 +38,6 @@ export function folderFromFile(file: File, fallback = ''): string {
 
 export type FolderEntry = { path: string; name: string; files: number };
 
-/** Immediate child folders of a path, counting only the files directly inside each. */
 export function childFolders(files: readonly FileGroup[], path: string): FolderEntry[] {
     const prefix = path ? `${path}/` : '';
     const entries = new Map<string, FolderEntry>();
@@ -63,7 +61,6 @@ export function childFolders(files: readonly FileGroup[], path: string): FolderE
 
 export type FolderCrumb = { name: string; path: string };
 
-/** Breadcrumb steps from the library root to a folder path. */
 export function folderTrail(path: string): FolderCrumb[] {
     if (!path) return [];
 

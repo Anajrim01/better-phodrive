@@ -93,7 +93,6 @@ function readSplitName(
     });
 }
 
-/** Only the first chunk of a version 2 file carries a folder, after its file name. */
 function readSplitFolder(
     prefix: Uint8Array,
     offset: number,
