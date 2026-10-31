@@ -10,6 +10,7 @@ import {
 import type { Group, RemoteBmp } from '@madkarmaa/phodrive-core/models';
 import { listBmps } from '@madkarmaa/phodrive-core/server/photos';
 import { SERVER_ERRORS, type ServerError } from '@madkarmaa/phodrive-core/server/errors';
+import { throttleWaitSeconds } from '@madkarmaa/phodrive-core/server/photos/throttle';
 import type { CliConfig } from './config';
 import type { CliError } from './context';
 
@@ -70,7 +71,11 @@ export function groupUploadAccounts(
                 message: `${email} is in this group but is not connected. Run \`phodrive account add\`.`
             } as const);
 
-        members.push({ email: saved.email, token: saved.token, paused: false });
+        members.push({
+            email: saved.email,
+            token: saved.token,
+            paused: throttleWaitSeconds(saved.email) !== null
+        });
     }
 
     return Ok(members);

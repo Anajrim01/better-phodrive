@@ -189,6 +189,22 @@ test('a throttled account stops taking new files while the other continues', asy
     expect(attempts.some((entry) => entry.startsWith(`${FIRST}:c.bin`))).toBe(false);
 });
 
+test('a member paused before the batch takes no files', async () => {
+    const attempts: string[] = [];
+    const { result, jobs } = await runGroup(
+        fakeTransport(() => false, attempts),
+        [
+            { email: FIRST, token: 'aas_et/first', paused: true },
+            { email: SECOND, token: 'aas_et/second', paused: false }
+        ]
+    );
+
+    expect(result.unwrap()).toEqual({ waiting: 0 });
+    expect(attempts).toHaveLength(3);
+    expect(attempts.every((entry) => entry.startsWith(`${SECOND}:`))).toBe(true);
+    expect([...jobs.values()].every((job) => job.status === UploadJobStatus.Complete)).toBe(true);
+});
+
 test('every member paused reports waiting without touching the transport', async () => {
     const attempts: string[] = [];
     const { result, jobs } = await runGroup(

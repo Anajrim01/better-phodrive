@@ -2,7 +2,6 @@ import pLimit from 'p-limit';
 import { Ok, type AsyncResult } from 'results-ts';
 import type { ApplicationError } from '../../errors';
 import type { UploadedChunk } from '../../files';
-import { folderFromFile } from '../../files';
 import type { GroupMember } from '../../groups';
 import { assignOwners } from '../../groups';
 import {
@@ -10,18 +9,13 @@ import {
     FileNameSchema,
     FileSizeSchema,
     UploadEventType,
-    UploadJobStatus,
-    UploadPhase
+    UploadJobStatus
 } from '../../models';
-import { planChunks } from '../../upload';
 import { schemaResult } from '../../validation';
 import type { UploadOptions } from './index';
-import { uploadPlannedFile } from './file';
-import { hashFile, uploadIdentity } from './hash';
+import { uploadSource } from './file';
 import { createUploadEventHandler, createUploadJobs, type UploadJob } from './jobs';
 import { httpChunkTransport, type ChunkTransport } from './request';
-
-const PROGRESS_INTERVAL_MS = 100;
 
 export type GroupUploadMember = GroupMember & { token: string };
 
@@ -138,75 +132,13 @@ export function transferGroupFiles(
                     );
                     handle({ type: UploadEventType.Queued, id: index });
 
-                    const folder =
-                        options.folders?.get(file) ?? folderFromFile(file, options.folder);
-                    let lastProgress = 0;
-                    const prepared = await hashFile(file, (completed) => {
-                        const now = performance.now();
-                        if (completed !== file.size && now - lastProgress < PROGRESS_INTERVAL_MS)
-                            return;
-
-                        lastProgress = now;
-                        handle({
-                            type: UploadEventType.Progress,
-                            id: index,
-                            progress: {
-                                phase: UploadPhase.Preparing,
-                                completed,
-                                total: file.size
-                            }
-                        });
-                    }).andThenAsync((fileHash) =>
-                        uploadIdentity(file.name, fileHash, folder).map((fileId) => ({
-                            fileHash,
-                            fileId
-                        }))
-                    );
-                    if (prepared.isErr()) {
-                        prepared.inspectErr((error) =>
-                            handle({
-                                type: UploadEventType.FileError,
-                                id: index,
-                                error: error.message
-                            })
-                        );
-
-                        return;
-                    }
-
-                    const planned = prepared.andThen(({ fileHash, fileId }) =>
-                        planChunks(
-                            {
-                                name: file.name,
-                                folder: folder || undefined,
-                                size: file.size,
-                                fileHash
-                            },
-                            fileId
-                        )
-                    );
-                    if (planned.isErr()) {
-                        planned.inspectErr((error) =>
-                            handle({
-                                type: UploadEventType.FileError,
-                                id: index,
-                                error: error.message
-                            })
-                        );
-
-                        return;
-                    }
-
-                    await planned.andThenAsync((plan) =>
-                        uploadPlannedFile(
-                            { file, id: index },
-                            plan,
-                            { email: member.email, token: member.token },
-                            transport,
-                            chunkLimit,
-                            handle,
-                            options.compress === true
-                        )
+                    await uploadSource(
+                        { file, id: index },
+                        { email: member.email, token: member.token },
+                        transport,
+                        chunkLimit,
+                        handle,
+                        options
                     );
                 });
             })

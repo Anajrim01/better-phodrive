@@ -12,10 +12,15 @@ import {
 import {
     deleteFile,
     downloadFile,
+    readLibrary,
     uploadGroupFiles,
     type UploadJob
 } from '@madkarmaa/phodrive-core/node';
 import { listBmps } from '@madkarmaa/phodrive-core/server/photos';
+import {
+    clearThrottleState,
+    recordThrottle
+} from '@madkarmaa/phodrive-core/server/photos/throttle';
 import { writeConfig } from '../src/config';
 import { runCli, temporaryFolder } from './helpers/cli';
 
@@ -26,7 +31,8 @@ vi.mock('@madkarmaa/phodrive-core/node', async (importOriginal) => {
         ...actual,
         uploadGroupFiles: vi.fn(),
         downloadFile: vi.fn(),
-        deleteFile: vi.fn()
+        deleteFile: vi.fn(),
+        readLibrary: vi.fn()
     };
 });
 
@@ -88,6 +94,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
     vi.clearAllMocks();
+    clearThrottleState();
     await folder.remove();
 });
 
@@ -179,6 +186,28 @@ test('a group upload sends the group members and their tokens', async () => {
     ]);
 });
 
+test('a member already paused by the breaker starts paused', async () => {
+    recordThrottle(SECOND, 60);
+    await writeFile(join(folder.path, 'proof.bin'), 'proof');
+    let members: { email: string; paused: boolean }[] = [];
+
+    vi.mocked(uploadGroupFiles).mockImplementation((files, uploadMembers) => {
+        members = uploadMembers.map(({ email, paused }) => ({ email, paused }));
+
+        return Ok(undefined).andThenAsync(async () => Ok({ waiting: files.length }));
+    });
+
+    const uploaded = await runCli(['file', 'upload', 'proof.bin', '--group', 'Family'], {
+        folder: folder.path
+    });
+
+    expect(uploaded.failures).toEqual([]);
+    expect(members).toEqual([
+        { email: FIRST, paused: false },
+        { email: SECOND, paused: true }
+    ]);
+});
+
 test('download and delete route a group file to its owner', async () => {
     const downloaded = await runCli(
         ['file', 'download', 'second.bin', '--group', 'Family', '--output', 'second.bin'],
@@ -198,4 +227,29 @@ test('download and delete route a group file to its owner', async () => {
     const [deletedFile, deletedToken] = vi.mocked(deleteFile).mock.calls[0] ?? [];
     expect(deletedFile?.email).toBe(SECOND);
     expect(deletedToken).toBe('aas_et/second');
+});
+
+test('file commands reject an unknown group', async () => {
+    await writeFile(join(folder.path, 'proof.bin'), 'proof');
+
+    for (const args of [
+        ['file', 'list', '--group', 'Missing'],
+        ['file', 'upload', 'proof.bin', '--group', 'Missing'],
+        ['file', 'download', 'proof.bin', '--group', 'Missing'],
+        ['file', 'delete', 'proof.bin', '--group', 'Missing', '--yes']
+    ]) {
+        const result = await runCli(args, { folder: folder.path });
+
+        expect(result.failures[0]).toMatchObject({ code: 'GROUP_NOT_FOUND' });
+    }
+});
+
+test('a listing without a group never queries group members', async () => {
+    vi.mocked(readLibrary).mockImplementation(() => Ok(undefined).andThenAsync(async () => Ok([])));
+
+    const listed = await runCli(['file', 'list'], { folder: folder.path });
+
+    expect(listed.failures).toEqual([]);
+    expect(vi.mocked(readLibrary)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(listBmps)).not.toHaveBeenCalled();
 });

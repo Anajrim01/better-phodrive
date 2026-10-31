@@ -5,26 +5,16 @@ import {
     FileNameSchema,
     FileSizeSchema,
     UploadEventType,
-    UploadPhase,
     UploadJobStatus
 } from '../../models';
 import type { ApplicationError } from '../../errors';
 import type { UploadedChunk } from '../../files';
-import { folderFromFile } from '../../files';
 import { schemaResult } from '../../validation';
-import { planChunks } from '../../upload';
 import { httpChunkTransport, type ChunkTransport } from './request';
-import { hashFile, uploadIdentity } from './hash';
 import { createUploadJobs, createUploadEventHandler, type UploadJob } from './jobs';
-import { uploadPlannedFile } from './file';
+import { uploadSource, type UploadSourceOptions } from './file';
 
-const PROGRESS_INTERVAL_MS = 100;
-
-export type UploadOptions = {
-    folder?: string;
-    folders?: ReadonlyMap<File, string>;
-    compress?: boolean;
-};
+export type UploadOptions = UploadSourceOptions;
 
 export function uploadFiles(
     files: readonly File[],
@@ -82,62 +72,13 @@ export function transferFiles(
         await fileLimit.map(sources, async ({ file }, id) => {
             handle({ type: UploadEventType.Queued, id });
 
-            const folder = options.folders?.get(file) ?? folderFromFile(file, options.folder);
-            let lastProgress = 0;
-            const prepared = await hashFile(file, (completed) => {
-                const now = performance.now();
-                if (completed !== file.size && now - lastProgress < PROGRESS_INTERVAL_MS) return;
-
-                lastProgress = now;
-                handle({
-                    type: UploadEventType.Progress,
-                    id,
-                    progress: { phase: UploadPhase.Preparing, completed, total: file.size }
-                });
-            }).andThenAsync((fileHash) =>
-                uploadIdentity(file.name, fileHash, folder).map((fileId) => ({
-                    fileHash,
-                    fileId
-                }))
-            );
-            if (prepared.isErr()) {
-                prepared.inspectErr((error) =>
-                    handle({ type: UploadEventType.FileError, id, error: error.message })
-                );
-
-                return;
-            }
-
-            const planned = prepared.andThen(({ fileHash, fileId }) =>
-                planChunks(
-                    {
-                        name: file.name,
-                        folder: folder || undefined,
-                        size: file.size,
-                        fileHash
-                    },
-                    fileId
-                )
-            );
-
-            if (planned.isErr()) {
-                planned.inspectErr((error) =>
-                    handle({ type: UploadEventType.FileError, id, error: error.message })
-                );
-
-                return;
-            }
-
-            await planned.andThenAsync((plan) =>
-                uploadPlannedFile(
-                    { file, id },
-                    plan,
-                    { email, token },
-                    transport,
-                    chunkLimit,
-                    handle,
-                    options.compress === true
-                )
+            await uploadSource(
+                { file, id },
+                { email, token },
+                transport,
+                chunkLimit,
+                handle,
+                options
             );
         });
 

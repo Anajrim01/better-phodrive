@@ -82,9 +82,10 @@ The client lists each group member and merges the pages into one result.
   and lists every owner that holds the file. That grouping belongs to the group
   view, not to the phase 1 merge helper.
 - A member that answers contributes its items. A member that is paused or
-  skipped contributes a per-account state with its retry window, and the result
-  is marked partial. Partial results are never presented as the complete
-  library, because files missing from a paused account would look deleted.
+  skipped contributes no items and a per-account state with its retry window,
+  and the result is marked partial. Its files stay hidden until that member
+  answers. The partial state tells the view why, so the files are not reported
+  as deleted.
 - The merged list sorts newest first, then by owner email, file id, chunk index,
   and media key, so the order does not depend on which request finished first.
   The view's chosen sort re-sorts the merged list.
@@ -99,8 +100,10 @@ source of truth and stays deferred.
 The owner routes every file request: prepare-download, the ranged header probe,
 the real download, and the delete.
 
-- A paused owner makes the file temporarily unavailable. There is no fallback
-  account.
+- When the client already knows a file's owner, routing reports
+  `OWNER_PAUSED` for a paused owner and never falls back to another account.
+  A merged listing alone cannot target a paused owner's files because that
+  member contributed no items; the partial state covers that case.
 - A delete removes only the owner's chunks.
 - A file held by two owners is deleted from each owner in turn. A delete never
   removes a chunk from an account that does not own it.
@@ -129,8 +132,10 @@ change album assignment.
 - One member is paused during a listing: the result is partial, other members
   still list, and the paused member carries a retry window.
 - Two accounts return the same media key: it merges once per chunk index.
-- The owner is paused: download and delete report `OWNER_PAUSED` and name that
-  account, with no request to another member.
+- The owner is paused and its route is already known: download and delete
+  report `OWNER_PAUSED` and name that account, with no request to another
+  member. A paused member in a merged listing hides its files and reports a
+  partial state instead.
 - Every member is paused: the assignment leaves files unassigned.
 - File sizes are very uneven: byte totals stay close without splitting a file.
 - The owner was removed from the group: routing reports `OWNER_NOT_IN_GROUP`.
