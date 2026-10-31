@@ -5,6 +5,8 @@
     import { fade } from 'svelte/transition';
     import { prefersReducedMotion } from 'svelte/motion';
     import AppFooter from '#components/AppFooter.svelte';
+    import GroupsSettings from '#components/GroupsSettings.svelte';
+    import type { DriveGroups } from '#browser/drive/groups.svelte';
     import {
         MAX_REFRESH_INTERVAL_SECONDS,
         MAX_CONCURRENT_WORKERS,
@@ -26,6 +28,7 @@
         onresetrefreshinterval: () => void;
         onresetworkers: () => void;
         onresetcompression: () => void;
+        groupSettings: DriveGroups;
     }
 
     let {
@@ -39,7 +42,8 @@
         oncompression,
         onresetrefreshinterval,
         onresetworkers,
-        onresetcompression
+        onresetcompression,
+        groupSettings
     }: Props = $props();
 
     let refreshDraft = $state<string | number | null>(untrack(() => refreshIntervalSeconds));
@@ -282,6 +286,8 @@
                 >
             </div>
         </form>
+
+        <GroupsSettings store={groupSettings} />
     </div>
 
     <AppFooter {theme} />

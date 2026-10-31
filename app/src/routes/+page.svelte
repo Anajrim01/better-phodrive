@@ -120,6 +120,7 @@
                 onresetrefreshinterval={() => drive.settings.resetRefreshInterval()}
                 onresetworkers={() => drive.settings.resetConcurrentWorkers()}
                 onresetcompression={() => drive.settings.resetCompression()}
+                groupSettings={drive.groupSettings}
             />
         {:else if drive.ready && (!drive.selectedEmail || drive.adding)}
             <div in:fade={{ duration: prefersReducedMotion.current ? 0 : 160 }}>

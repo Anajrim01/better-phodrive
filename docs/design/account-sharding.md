@@ -162,9 +162,15 @@ Phase 2a added:
   delete, with an owner column and owner in JSON;
 - owner routing from the merged listing for every file action.
 
+Phase 2b part one added:
+
+- group management in Settings: list, create, rename, delete, add and remove
+  members, member status, and warnings for removals;
+- empty states for no groups, a single-member group, and a fully paused group.
+
 Not contained yet:
 
-- any UI for creating groups or picking one for an upload;
+- selecting a group in the upload UI, and the merged listing UI with owners;
 - the group view's cross-account grouping by file id and chunk index;
 - an owner field in the split header;
 - album migration, rebalancing, or moving existing files.

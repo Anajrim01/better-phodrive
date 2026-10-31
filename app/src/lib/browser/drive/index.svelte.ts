@@ -12,6 +12,7 @@ import type { UploadJob } from '#browser/files';
 import { DriveLibrary } from '#browser/drive/library.svelte';
 import { DriveSettings } from '#browser/drive/settings.svelte';
 import { DriveAccounts } from '#browser/drive/accounts.svelte';
+import { DriveGroups } from '#browser/drive/groups.svelte';
 import { DriveUploads } from '#browser/drive/uploads.svelte';
 import { DriveFiles, type ConfirmTarget } from '#browser/drive/files.svelte';
 import { DriveSession } from '#browser/drive/session.svelte';
@@ -26,6 +27,7 @@ export class DriveController extends DriveView {
 
     readonly library: DriveLibrary;
     readonly settings: DriveSettings;
+    readonly groupSettings: DriveGroups;
     private readonly accountsState: DriveAccounts;
     protected readonly uploads: DriveUploads;
     protected readonly files: DriveFiles;
@@ -44,6 +46,11 @@ export class DriveController extends DriveView {
             blocked: () => this.busy || !!this.fileAction,
             feedback
         });
+        this.groupSettings = new DriveGroups(
+            () => this.preferences,
+            () => this.accounts,
+            feedback
+        );
         this.library = new DriveLibrary(
             () => this.account(),
             () => this.busy || !!this.fileAction,
