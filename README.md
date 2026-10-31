@@ -142,7 +142,7 @@ Then install it with `npm install --global @madkarmaa/phodrive-cli`, or run it o
 ```sh
 phodrive account add you@gmail.com   # asks for the oauth2_4/ token from the steps above
 phodrive file list                   # add a search term, --type pdf, --days 30, or --sort name-asc
-phodrive file list --folders          # folder paths and file counts
+phodrive file list --folders          # folder paths, file and subfolder counts
 phodrive file list --folder photos/2024  # files in one folder
 phodrive file upload ./photos        # files and whole folders
 phodrive file download report.pdf    # by name or by the ID that file list shows

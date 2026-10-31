@@ -1,5 +1,6 @@
 <script lang="ts">
     import type { FolderEntry } from '@madkarmaa/phodrive-core/files';
+    import { folderCount } from '#lib/folders';
     import IconFolder from '~icons/material-symbols/folder';
 
     interface Props {
@@ -9,15 +10,6 @@
     }
 
     let { folders, disabled, onopen }: Props = $props();
-
-    function folderCount(files: number, subfolders: number): string {
-        const parts: string[] = [];
-        if (files > 0) parts.push(`${files} ${files === 1 ? 'file' : 'files'}`);
-        if (subfolders > 0)
-            parts.push(`${subfolders} ${subfolders === 1 ? 'subfolder' : 'subfolders'}`);
-
-        return parts.join(', ');
-    }
 </script>
 
 {#if folders.length}
