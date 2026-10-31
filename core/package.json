@@ -202,8 +202,16 @@
             "default": "./dist/server/photos/trash.js"
         },
         "./server/photos/upload": {
-            "@madkarmaa/phodrive-core": "./src/server/photos/upload.ts",
-            "default": "./dist/server/photos/upload.js"
+            "@madkarmaa/phodrive-core": "./src/server/photos/upload/index.ts",
+            "default": "./dist/server/photos/upload/index.js"
+        },
+        "./server/photos/upload/lookup": {
+            "@madkarmaa/phodrive-core": "./src/server/photos/upload/lookup.ts",
+            "default": "./dist/server/photos/upload/lookup.js"
+        },
+        "./server/photos/upload/transfer": {
+            "@madkarmaa/phodrive-core": "./src/server/photos/upload/transfer.ts",
+            "default": "./dist/server/photos/upload/transfer.js"
         },
         "./server/protobuf": {
             "@madkarmaa/phodrive-core": "./src/server/protobuf.ts",
@@ -320,7 +328,9 @@
             "./server/photos/throttle": "./dist/server/photos/throttle.js",
             "./server/photos/transport": "./dist/server/photos/transport.js",
             "./server/photos/trash": "./dist/server/photos/trash.js",
-            "./server/photos/upload": "./dist/server/photos/upload.js",
+            "./server/photos/upload": "./dist/server/photos/upload/index.js",
+            "./server/photos/upload/lookup": "./dist/server/photos/upload/lookup.js",
+            "./server/photos/upload/transfer": "./dist/server/photos/upload/transfer.js",
             "./server/protobuf": "./dist/server/protobuf.js",
             "./server/request": "./dist/server/request.js",
             "./server/upload": "./dist/server/upload/index.js",

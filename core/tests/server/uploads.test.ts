@@ -11,6 +11,9 @@ import {
     UploadPhase,
     type UploadEvent
 } from '@madkarmaa/phodrive-core/models';
+import { clearThrottleState } from '@madkarmaa/phodrive-core/server/photos/throttle';
+import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
+import { transferBmp } from '../../src/server/photos/upload/transfer';
 import { uploadForm, photosUploadHarness } from '../helpers/upload';
 import * as fs from 'node:fs/promises';
 
@@ -19,7 +22,10 @@ vi.mock('node:fs/promises', async (importOriginal) => {
     return { ...actual, open: vi.fn(actual.open), mkdtemp: vi.fn(actual.mkdtemp) };
 });
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+    vi.restoreAllMocks();
+    clearThrottleState();
+});
 
 test('multipart ingestion and BMP transfer stream without allocating files on disk', async () => {
     const fixture = uploadForm();
@@ -219,4 +225,49 @@ test('request cancellation closes unfinished multipart ingress and produces no c
     const verified = await source.verified;
     expect(verified.isErr()).toBe(true);
     await received.unwrap().cancel();
+});
+
+const THROTTLED_EMAIL = 'throttled@example.com';
+
+test('a throttled chunk transfer pauses the account and later calls fail before fetch', async () => {
+    let calls = 0;
+    const fetcher: Fetcher = async () => {
+        calls++;
+
+        return new Response(null, { status: 429, headers: { 'retry-after': '120' } });
+    };
+
+    const first = await transferBmp(
+        THROTTLED_EMAIL,
+        Buffer.from('chunk'),
+        'upload-id',
+        {},
+        fetcher
+    );
+    expect(first.unwrapErr()).toMatchObject({ code: 'THROTTLED', retryAfterSeconds: 120 });
+
+    const blocked = await transferBmp(
+        THROTTLED_EMAIL,
+        Buffer.from('chunk'),
+        'upload-id',
+        {},
+        fetcher
+    );
+    expect(blocked.unwrapErr()).toMatchObject({ code: 'THROTTLED', retryAfterSeconds: 120 });
+    expect(calls).toBe(1);
+});
+
+test('a 429 without Retry-After uses the 60 s base pause', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    const fetcher: Fetcher = async () => new Response(null, { status: 429 });
+
+    const result = await transferBmp(
+        THROTTLED_EMAIL,
+        Buffer.from('chunk'),
+        'upload-id',
+        {},
+        fetcher
+    );
+
+    expect(result.unwrapErr()).toMatchObject({ code: 'THROTTLED', retryAfterSeconds: 60 });
 });
