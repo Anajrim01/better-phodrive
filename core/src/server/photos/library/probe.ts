@@ -139,8 +139,7 @@ export function probeLibraryItem(
         return Ok(undefined).andThenAsync<RemoteBmp | null, ServerError>(async () => Ok(cached));
 
     if (namedAsNonPhodrive(candidate, pageHasPhodriveName)) {
-        writeProbe(email, candidate, null);
-
+        // Name-based skips stay out of the cache; a renamed chunk must be rechecked.
         return Ok(undefined).andThenAsync<RemoteBmp | null, ServerError>(async () => Ok(null));
     }
 

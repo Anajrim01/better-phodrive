@@ -19,7 +19,7 @@ test('a manual download keeps try again on a later chunk', async () => {
         calls++;
         if (calls === 2) {
             return Ok(undefined).andThenAsync<Response, ServerError>(async () =>
-                Err(throttleError(120, 'manual'))
+                Err(throttleError(120))
             );
         }
 

@@ -280,3 +280,29 @@ test('a paused delete retries the remaining chunks', async () => {
     expect(vi.mocked(deleteFile).mock.calls[1][0].chunks).toHaveLength(1);
     expect(deleted.stderr).toContain('Google Photos is limiting requests, retrying in about 1 s');
 });
+
+test('a delete that stays paused fails without a final wait', async () => {
+    const report = remoteFile('report.pdf');
+    library([report]);
+    vi.mocked(deleteFile).mockImplementation(() =>
+        Ok(undefined).andThenAsync(async () => Ok({ deleted: [], retryAfterSeconds: 1 }))
+    );
+    const timer = vi.spyOn(globalThis, 'setTimeout').mockImplementation((handler) => {
+        if (typeof handler === 'function') handler();
+
+        return 0 as unknown as ReturnType<typeof setTimeout>;
+    });
+
+    const deleted = await runCli(['file', 'delete', 'report.pdf', '--yes'], {
+        folder: folder.path
+    });
+
+    timer.mockRestore();
+
+    expect(deleteFile).toHaveBeenCalledTimes(8);
+    expect(
+        (deleted.stderr.match(/Google Photos is limiting requests, retrying/g) ?? []).length
+    ).toBe(7);
+    expect(deleted.stderr).toContain('try again');
+    expect(deleted.failures).toMatchObject([{ code: 'DELETE_INCOMPLETE' }]);
+});

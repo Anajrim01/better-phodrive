@@ -31,3 +31,21 @@ test('a pause during delete returns confirmed chunks and the wait', async () => 
         'Google Photos is limiting requests, retrying in about 2 min'
     );
 });
+
+test('a manual delete reports try again', async () => {
+    const { input } = downloadFixture();
+    vi.mocked(moveToTrash).mockImplementation(() =>
+        Ok(undefined).andThenAsync(async () => Err(throttleError(120)))
+    );
+
+    const result = await deleteFile(
+        { ...input, action: FileActionKind.Delete, workers: 1 },
+        'manual'
+    );
+
+    expect(result.unwrap().deleted).toHaveLength(0);
+    expect(result.unwrap().retryAfterSeconds).toBe(120);
+    expect(result.unwrap().error).toBe(
+        'Google Photos is limiting requests, try again in about 2 min'
+    );
+});

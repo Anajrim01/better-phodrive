@@ -239,7 +239,6 @@
         flex-wrap: wrap;
         align-items: baseline;
         gap: 0;
-        margin-inline-start: calc(-1 * var(--crumb-pad));
     }
 
     .crumb {
@@ -252,6 +251,10 @@
         font: inherit;
         text-overflow: ellipsis;
         white-space: nowrap;
+    }
+
+    .crumb:first-child {
+        padding-inline-start: 0;
     }
 
     .crumb:hover {
@@ -269,7 +272,6 @@
     }
 
     .crumb-separator {
-        margin-inline: -4px;
         padding-inline: 4px;
         color: var(--app-subtle);
     }

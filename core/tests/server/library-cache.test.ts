@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { listBmps } from '@madkarmaa/phodrive-core/server/photos';
 import { clearProbeCache } from '@madkarmaa/phodrive-core/server/photos/library';
+import { readProbe } from '@madkarmaa/phodrive-core/server/photos/library/probe-cache';
 import {
     hasPhodriveNames,
     namedAsNonPhodrive
@@ -272,6 +273,7 @@ test('a page with a Phodrive name skips the ordinary item', async () => {
     expect(items).toHaveLength(1);
     expect(items[0]?.originalName).toBe('note.txt');
     expect(counts).toEqual({ prepare: 1, range: 1 });
+    expect(readProbe(EMAIL, ordinary)).toBeUndefined();
 });
 
 test('a page without a Phodrive name probes every item', async () => {
