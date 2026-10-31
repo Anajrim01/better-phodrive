@@ -25,6 +25,10 @@
             "@madkarmaa/phodrive-core": "./src/index.ts",
             "default": "./dist/index.js"
         },
+        "./albums": {
+            "@madkarmaa/phodrive-core": "./src/albums.ts",
+            "default": "./dist/albums.js"
+        },
         "./bmp/errors": {
             "@madkarmaa/phodrive-core": "./src/bmp/errors.ts",
             "default": "./dist/bmp/errors.js"
@@ -284,6 +288,7 @@
         "registry": "https://npm.pkg.github.com",
         "exports": {
             ".": "./dist/index.js",
+            "./albums": "./dist/albums.js",
             "./bmp/errors": "./dist/bmp/errors.js",
             "./bmp/format": "./dist/bmp/format.js",
             "./browser": "./dist/browser/index.js",

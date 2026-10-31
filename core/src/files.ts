@@ -36,6 +36,12 @@ export function folderFromFile(file: File, fallback = ''): string {
     return normalizedFolder(candidate);
 }
 
+export function folderFromPath(path: string): string {
+    const segments = path.split(/[\\/]/).slice(0, -1);
+
+    return normalizedFolder(segments.join('/'));
+}
+
 export type FolderEntry = { path: string; name: string; files: number };
 
 export function childFolders(files: readonly FileGroup[], path: string): FolderEntry[] {

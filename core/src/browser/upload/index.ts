@@ -20,7 +20,7 @@ import { uploadPlannedFile } from './file';
 
 const PROGRESS_INTERVAL_MS = 100;
 
-export type UploadOptions = { folder?: string };
+export type UploadOptions = { folder?: string; folders?: ReadonlyMap<File, string> };
 
 export function uploadFiles(
     files: readonly File[],
@@ -104,7 +104,9 @@ export function transferFiles(
                 planChunks(
                     {
                         name: file.name,
-                        folder: folderFromFile(file, options.folder) || undefined,
+                        folder:
+                            (options.folders?.get(file) ?? folderFromFile(file, options.folder)) ||
+                            undefined,
                         size: file.size,
                         fileHash
                     },

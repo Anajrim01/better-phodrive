@@ -130,6 +130,7 @@ export const AlbumKeySchema = z
     .refine((key) => !/[\s\0]/.test(key));
 export const StoredAlbumsSchema = z.record(EmailSchema, z.record(FolderPathSchema, AlbumKeySchema));
 export const FileSizeSchema = z.int().nonnegative();
+export type StoredAlbums = z.infer<typeof StoredAlbumsSchema>;
 export const Sha1HexSchema = z.string().regex(/^[a-f0-9]{40}$/);
 export const Sha256HexSchema = z.string().regex(/^[a-f0-9]{64}$/);
 

@@ -2,6 +2,7 @@ import { expect, test } from 'vitest';
 import {
     childFolders,
     folderFromFile,
+    folderFromPath,
     folderTrail,
     groupChunks,
     normalizedFolder,
@@ -145,4 +146,10 @@ test('folder paths normalize dropped values to an empty root folder', () => {
     expect(normalizedFolder('trip//2024')).toBe('');
     expect(normalizedFolder('.')).toBe('');
     expect(normalizedFolder('a'.repeat(256))).toBe('');
+});
+
+test('folderFromPath takes the parent of a relative path', () => {
+    expect(folderFromPath('photos/2024/a.jpg')).toBe('photos/2024');
+    expect(folderFromPath('photos\\2024\\a.jpg')).toBe('photos/2024');
+    expect(folderFromPath('a.jpg')).toBe('');
 });
