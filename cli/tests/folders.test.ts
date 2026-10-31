@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { Err, Ok } from 'results-ts';
@@ -163,6 +163,24 @@ test('downloads keep the folder path and resolve same names in different folders
         join(folder.path, 'photos', 'a', 'same.txt'),
         join(folder.path, 'photos', 'b', 'same.txt')
     ]);
+});
+
+test('nested downloads create their parent folders', async () => {
+    library([remoteFile('same.txt', 1, 1024, 'photos/a')]);
+    vi.mocked(downloadFile).mockImplementation((_file, _token, destination) =>
+        Ok(undefined).andThenAsync(async () => {
+            await writeFile(destination, 'content');
+
+            return Ok(undefined);
+        })
+    );
+
+    const downloaded = await runCli(['file', 'download', 'photos/a/same.txt'], {
+        folder: folder.path
+    });
+
+    expect(downloaded.exitCode).toBe(0);
+    expect(await readFile(join(folder.path, 'photos', 'a', 'same.txt'), 'utf8')).toBe('content');
 });
 
 test('a plain name that exists in two folders asks for the full path', async () => {

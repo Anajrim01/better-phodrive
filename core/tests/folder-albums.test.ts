@@ -77,22 +77,22 @@ test('an album failure reports the folder and leaves other folders untouched', a
     expect(saved).toEqual([['trips', 'album-trips']]);
 });
 
-test('a stale album key is retried once without the key', async () => {
+test('a transient album failure is not retried', async () => {
     const calls: (string | undefined)[] = [];
     const saved: [string, string][] = [];
 
     await addFolderAlbums(
         [chunk('a', 'photos', 'one')],
-        () => 'stale-key',
+        () => 'known-key',
         (folder, key) => saved.push([folder, key]),
         (_folder, key) => {
             calls.push(key);
 
-            return key === 'stale-key' ? failed('Album not found.') : assigned('fresh-key');
+            return failed('Google timed out.');
         },
         () => {}
     );
 
-    expect(calls).toEqual(['stale-key', undefined]);
-    expect(saved).toEqual([['photos', 'fresh-key']]);
+    expect(calls).toEqual(['known-key']);
+    expect(saved).toEqual([]);
 });

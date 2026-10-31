@@ -1,4 +1,6 @@
 import { expect, test } from 'vitest';
+import { planUpload } from '@madkarmaa/phodrive-core/server/upload';
+import { fileIdentity } from '@madkarmaa/phodrive-core/server/chunks';
 import {
     childFolders,
     folderFromFile,
@@ -152,4 +154,40 @@ test('folderFromPath takes the parent of a relative path', () => {
     expect(folderFromPath('photos/2024/a.jpg')).toBe('photos/2024');
     expect(folderFromPath('photos\\2024\\a.jpg')).toBe('photos/2024');
     expect(folderFromPath('a.jpg')).toBe('');
+});
+
+test('identical files in different folders keep separate identities', () => {
+    const file = { name: 'same.txt', size: 3, fileHash: 'ab'.repeat(32) };
+    const first = planUpload({ ...file, folder: 'photos/a' }).unwrap().headers[0];
+    const second = planUpload({ ...file, folder: 'photos/b' }).unwrap().headers[0];
+    const root = planUpload(file).unwrap().headers[0];
+
+    expect(first?.fileId).not.toBe(second?.fileId);
+    expect(root?.fileId).toBe(fileIdentity(file.name, file.fileHash));
+
+    const chunk = (
+        header: NonNullable<typeof first>,
+        folder: string,
+        mediaKey: string
+    ): UploadedChunk => ({
+        email: EMAIL,
+        folder,
+        fileHash: header.fileHash,
+        fileId: header.fileId,
+        chunkIndex: 0,
+        isLast: true,
+        originalName: 'same.txt',
+        size: 3,
+        at: 1,
+        mediaKey,
+        sha1: 'cd'.repeat(20)
+    });
+
+    const groups = groupChunks([
+        chunk(first, 'photos/a', 'key-a'),
+        chunk(second, 'photos/b', 'key-b')
+    ]);
+
+    expect(groups).toHaveLength(2);
+    expect(groups.map((group) => group.folder).sort()).toEqual(['photos/a', 'photos/b']);
 });

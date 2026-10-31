@@ -4,6 +4,7 @@ import type { Fetcher } from '../fetcher';
 import {
     parseRetryAfter,
     recordServerFailure,
+    recordServerSuccess,
     recordSuccess,
     recordThrottle,
     throttleWaitSeconds
@@ -60,6 +61,7 @@ export function guardedSend(
     init: RequestInit,
     stage: string
 ): AsyncResult<Response, ServerError> {
+    const startedAt = Date.now();
     const wait = throttleWaitSeconds(email);
     if (wait !== null)
         return Ok(undefined).andThenAsync<Response, ServerError>(async () =>
@@ -68,7 +70,7 @@ export function guardedSend(
 
     return send(fetcher, url, init, stage)
         .map((response) => {
-            recordSuccess(email);
+            recordSuccess(email, startedAt);
 
             return response;
         })
@@ -78,7 +80,11 @@ export function guardedSend(
             if (error.status === TOO_MANY_REQUESTS)
                 return throttleError(recordThrottle(email, error.retryAfterSeconds));
 
-            if (error.status < SERVER_ERROR_MIN_STATUS) return error;
+            if (error.status < SERVER_ERROR_MIN_STATUS) {
+                recordServerSuccess(email);
+
+                return error;
+            }
 
             const pause = recordServerFailure(email);
 

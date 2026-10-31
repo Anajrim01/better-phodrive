@@ -132,6 +132,8 @@ export class DriveLibrary {
             },
             Err: (error) => {
                 this.loadFailed = true;
+                if (error.code === 'THROTTLED')
+                    this.retryAt = Date.now() + error.retryAfterSeconds * 1_000;
                 this.feedback(error.message);
             }
         });

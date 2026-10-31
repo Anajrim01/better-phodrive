@@ -5,6 +5,7 @@ import {
     clearThrottleState,
     parseRetryAfter,
     recordServerFailure,
+    recordServerSuccess,
     recordSuccess,
     recordThrottle,
     throttleWaitSeconds
@@ -31,8 +32,16 @@ afterEach(() => {
     clearThrottleState();
 });
 
+function nextThrottle(): number {
+    const wait = recordThrottle(EMAIL, undefined, NO_JITTER);
+    now += wait * 1_000;
+
+    return wait;
+}
+
 test('Retry-After parses delta seconds, HTTP dates, and rejects junk', () => {
     expect(parseRetryAfter('120', START)).toBe(120);
+    expect(parseRetryAfter('1.5', START)).toBe(2);
     expect(parseRetryAfter(new Date(START + 90_000).toUTCString(), START)).toBe(90);
     expect(parseRetryAfter('soon', START)).toBeUndefined();
     expect(parseRetryAfter('', START)).toBeUndefined();
@@ -54,21 +63,59 @@ test('a 429 pauses only the throttled account and counts down with time', () => 
     expect(throttleWaitSeconds(OTHER_EMAIL, now)).toBeNull();
 });
 
-test('a Retry-After header wins and the backoff grows without one', () => {
+test('a Retry-After header wins and the backoff grows across separate pauses', () => {
     expect(recordThrottle(EMAIL, 42, () => 0)).toBe(42);
     expect(throttleWaitSeconds(EMAIL, now)).toBe(42);
 
     recordSuccess(EMAIL);
 
-    const waits = [60, 120, 240, 480, 960, 1800, 1800].map(() =>
-        recordThrottle(EMAIL, undefined, NO_JITTER)
-    );
+    const waits = [
+        nextThrottle(),
+        nextThrottle(),
+        nextThrottle(),
+        nextThrottle(),
+        nextThrottle(),
+        nextThrottle(),
+        nextThrottle()
+    ];
 
     expect(waits).toEqual([60, 120, 240, 480, 960, 1800, 1800]);
 
     recordSuccess(EMAIL);
     expect(recordThrottle(EMAIL, 10_000)).toBe(THROTTLE_MAX_SECONDS);
+    recordSuccess(EMAIL);
     expect(recordThrottle(EMAIL, 0)).toBe(1);
+});
+
+test('concurrent 429s keep one pause instead of multiplying it', () => {
+    const waits = [recordThrottle(EMAIL, undefined, NO_JITTER)];
+
+    for (const _ of [1, 2, 3]) waits.push(recordThrottle(EMAIL, undefined, NO_JITTER));
+
+    expect(waits).toEqual([60, 60, 60, 60]);
+    expect(throttleWaitSeconds(EMAIL, now)).toBe(60);
+});
+
+test('a late short Retry-After cannot shorten a longer pause', () => {
+    expect(recordThrottle(EMAIL, 1_800)).toBe(1_800);
+
+    now += 60_000;
+
+    expect(recordThrottle(EMAIL, 5)).toBe(1_740);
+    expect(throttleWaitSeconds(EMAIL, now)).toBe(1_740);
+});
+
+test('a success from a request that started before the pause does not clear it', () => {
+    const startedAt = now - 1;
+    recordThrottle(EMAIL, 60);
+
+    recordSuccess(EMAIL, startedAt);
+
+    expect(throttleWaitSeconds(EMAIL, now)).toBe(60);
+
+    recordSuccess(EMAIL, now);
+
+    expect(throttleWaitSeconds(EMAIL, now)).toBeNull();
 });
 
 test('success clears the pause and the failure count', () => {
@@ -81,25 +128,36 @@ test('success clears the pause and the failure count', () => {
     expect(recordThrottle(EMAIL, undefined, NO_JITTER)).toBe(60);
 });
 
-test('a 5xx burst pauses only at the failure limit', () => {
+test('a 5xx burst starts at the base wait and counts separately from throttles', () => {
     for (let failure = 1; failure < THROTTLE_FAILURE_LIMIT; failure++)
         expect(recordServerFailure(EMAIL, NO_JITTER)).toBeNull();
 
     expect(throttleWaitSeconds(EMAIL, now)).toBeNull();
 
     const wait = recordServerFailure(EMAIL, NO_JITTER);
+    if (wait === null) throw new Error('Expected a pause.');
 
-    expect(wait).toBe(240);
+    expect(wait).toBe(60);
     expect(throttleWaitSeconds(EMAIL, now)).toBe(wait);
 
-    recordSuccess(EMAIL);
+    now += wait * 1_000;
+    recordServerSuccess(EMAIL);
 
     for (let failure = 1; failure < THROTTLE_FAILURE_LIMIT; failure++)
         expect(recordServerFailure(EMAIL, NO_JITTER)).toBeNull();
 
-    const retried = recordServerFailure(EMAIL, NO_JITTER);
+    expect(recordServerFailure(EMAIL, NO_JITTER)).toBe(60);
+});
 
-    expect(retried).toBe(240);
+test('a non-5xx response breaks the 5xx streak', () => {
+    recordServerFailure(EMAIL, NO_JITTER);
+    recordServerFailure(EMAIL, NO_JITTER);
+    recordServerSuccess(EMAIL);
+    recordServerFailure(EMAIL, NO_JITTER);
+    recordServerFailure(EMAIL, NO_JITTER);
+
+    expect(throttleWaitSeconds(EMAIL, now)).toBeNull();
+    expect(recordServerFailure(EMAIL, NO_JITTER)).toBe(60);
 });
 
 test('guardedSend blocks Google calls while paused and reports the wait', async () => {
@@ -187,7 +245,7 @@ test('the third consecutive 5xx through guardedSend pauses the account', async (
 
     expect(first.unwrapErr().code).toBe('REQUEST_FAILED');
     expect(second.unwrapErr().code).toBe('REQUEST_FAILED');
-    expect(third.unwrapErr()).toMatchObject({ code: 'THROTTLED', retryAfterSeconds: 240 });
+    expect(third.unwrapErr()).toMatchObject({ code: 'THROTTLED', retryAfterSeconds: 60 });
     expect(calls).toBe(3);
 
     const blocked = await guardedSend(EMAIL, fetcher, 'https://example.com/data', {}, 'Test');

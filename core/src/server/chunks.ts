@@ -1,18 +1,16 @@
 import { createHash } from 'node:crypto';
+import { identityInput } from '../files';
 import { MAX_CHUNK_PAYLOAD_BYTES } from './bmp/index';
 
 /** Stable across retries; names and split layouts keep independent chunk groups. */
 export function fileIdentity(
     name: string,
     fileHash: string,
-    chunkPayloadBytes = MAX_CHUNK_PAYLOAD_BYTES
+    chunkPayloadBytes = MAX_CHUNK_PAYLOAD_BYTES,
+    folder = ''
 ): string {
     return createHash('sha256')
-        .update(fileHash)
-        .update('\0')
-        .update(name)
-        .update('\0')
-        .update(String(chunkPayloadBytes))
+        .update(identityInput(name, fileHash, chunkPayloadBytes, folder))
         .digest('hex');
 }
 

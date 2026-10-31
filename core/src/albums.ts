@@ -27,11 +27,7 @@ export async function addFolderAlbums<E extends FolderAlbumError>(
     for (const [folder, mediaKeys] of folders) {
         for (let index = 0; index < mediaKeys.length; index += MAX_ALBUM_BATCH_SIZE) {
             const batch = mediaKeys.slice(index, index + MAX_ALBUM_BATCH_SIZE);
-            const knownKey = albumKey(folder);
-            let assigned = await assign(folder, knownKey, batch);
-
-            if (assigned.isErr() && knownKey !== undefined)
-                assigned = await assign(folder, undefined, batch);
+            const assigned = await assign(folder, albumKey(folder), batch);
 
             assigned.match({
                 Ok: (key) => saveAlbumKey(folder, key),

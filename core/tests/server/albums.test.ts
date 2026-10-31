@@ -175,3 +175,52 @@ test('album requests carry epoch millisecond timestamps', async () => {
         expect(time).toBeLessThanOrEqual(after);
     }
 });
+
+test('a missing album is created again, while a server error is not retried', async () => {
+    const requests: string[] = [];
+    const fetcher: Fetcher = async (input) => {
+        const url = String(input);
+        requests.push(url);
+
+        if (url.includes('android.googleapis.com/auth')) return new Response(AUTH_RESPONSE);
+        if (url === ADD_MEDIA_TO_ALBUM_URL) return new Response(null, { status: 404 });
+
+        return new Response(Uint8Array.from(createdAlbum('new-album-key')));
+    };
+
+    const recreated = await assignFolderAlbum(
+        'test@example.com',
+        'aas_et/test',
+        'Trips',
+        'missing-album',
+        ['media-one'],
+        fetcher
+    );
+
+    expect(recreated.unwrap()).toBe('new-album-key');
+    expect(requests).toEqual([
+        'https://android.googleapis.com/auth',
+        ADD_MEDIA_TO_ALBUM_URL,
+        CREATE_ALBUM_URL
+    ]);
+
+    const failing: Fetcher = async (input) => {
+        const url = String(input);
+
+        if (url.includes('android.googleapis.com/auth')) return new Response(AUTH_RESPONSE);
+        if (url === ADD_MEDIA_TO_ALBUM_URL) return new Response(null, { status: 500 });
+
+        return new Response(Uint8Array.from(createdAlbum('new-album-key')));
+    };
+
+    const failed = await assignFolderAlbum(
+        'test@example.com',
+        'aas_et/test',
+        'Trips',
+        'known-album',
+        ['media-one'],
+        failing
+    );
+
+    expect(failed.isErr()).toBe(true);
+});

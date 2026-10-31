@@ -1,6 +1,18 @@
 import { FileSort, FileActionKind, FolderPathSchema, type RemoteBmp } from './models';
+import { MAX_CHUNK_PAYLOAD_BYTES } from './bmp/format';
 
 export type UploadedChunk = RemoteBmp & { email: string };
+
+export function identityInput(
+    name: string,
+    fileHash: string,
+    chunkPayloadBytes = MAX_CHUNK_PAYLOAD_BYTES,
+    folder = ''
+): string {
+    const base = `${fileHash}\u0000${name}\u0000${chunkPayloadBytes}`;
+
+    return folder ? `${base}\u0000${folder}` : base;
+}
 
 export type FileGroup = {
     email: string;
@@ -25,7 +37,6 @@ export function normalizedFolder(folder?: string): string {
     return folder;
 }
 
-/** A browser directory selection stores its relative path on the file itself. */
 export function folderFromFile(file: File, fallback = ''): string {
     const relative = 'webkitRelativePath' in file ? file.webkitRelativePath : '';
     const segments = typeof relative === 'string' ? relative.split('/').slice(0, -1) : [];

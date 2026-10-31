@@ -8,7 +8,6 @@ export type LibraryStats = {
     incompleteFiles: number;
     folders: number;
     bytes: number;
-    /** Largest file types first. */
     types: FileTypeStat[];
 };
 

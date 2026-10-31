@@ -148,3 +148,35 @@ test('a failed album assignment keeps the upload and reports the folder', async 
     expect(drive.uploadJobs[0]?.status).toBe(UploadJobStatus.Complete);
     expect(drive.feedbackMessage).toContain(FOLDER);
 });
+
+test('retrying an upload keeps its original folder', async () => {
+    vi.spyOn(libraryApi, 'readLibraryPage').mockReturnValue(
+        Ok({ items: [], nextPageToken: '' }).andThenAsync(async (page) => Ok(page))
+    );
+    const folders: (string | undefined)[] = [];
+    vi.spyOn(filesApi, 'uploadFiles').mockImplementation(
+        (files, _email, _token, _workers, onJob, _onChunk, options) => {
+            folders.push(options?.folder);
+
+            return Ok(undefined).andThenAsync(async () => {
+                for (const job of filesApi.createUploadJobs(files))
+                    onJob({
+                        ...job,
+                        status: UploadJobStatus.Error,
+                        message: 'Upload failed.'
+                    });
+
+                return Ok(undefined);
+            });
+        }
+    );
+    const drive = new DriveController();
+    drive.initialize();
+    drive.library.folder = 'photos';
+
+    await drive.upload([new File(['retry'], 'retry.txt')]);
+    drive.library.folder = 'other';
+    await drive.retryUpload(0);
+
+    expect(folders).toEqual(['photos', 'photos']);
+});

@@ -42,7 +42,7 @@ function chunkMetadata(input: ChunkUploadRequest) {
 
     const header = chunkHeader(
         input.file,
-        fileIdentity(input.file.name, input.file.fileHash),
+        fileIdentity(input.file.name, input.file.fileHash, undefined, input.file.folder ?? ''),
         input.chunkIndex
     );
 

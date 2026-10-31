@@ -78,6 +78,7 @@ export function transferFiles(
         await fileLimit.map(sources, async ({ file }, id) => {
             handle({ type: UploadEventType.Queued, id });
 
+            const folder = options.folders?.get(file) ?? folderFromFile(file, options.folder);
             let lastProgress = 0;
             const prepared = await hashFile(file, (completed) => {
                 const now = performance.now();
@@ -90,7 +91,10 @@ export function transferFiles(
                     progress: { phase: UploadPhase.Preparing, completed, total: file.size }
                 });
             }).andThenAsync((fileHash) =>
-                uploadIdentity(file.name, fileHash).map((fileId) => ({ fileHash, fileId }))
+                uploadIdentity(file.name, fileHash, folder).map((fileId) => ({
+                    fileHash,
+                    fileId
+                }))
             );
             if (prepared.isErr()) {
                 prepared.inspectErr((error) =>

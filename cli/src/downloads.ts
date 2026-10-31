@@ -72,6 +72,16 @@ export function saveFiles(
         for (const { file, destination } of planned) {
             if (context.signal.aborted) break;
 
+            const parent = await createFolder(dirname(destination));
+            if (parent.isErr()) {
+                parent.inspectErr((error) => {
+                    status(context).error(`${file.name}: ${error.message}`);
+                    failures.push(error);
+                });
+
+                continue;
+            }
+
             const size = fileSize(file);
             const bar = transferProgress(context, `Downloading ${file.name}`, size);
 

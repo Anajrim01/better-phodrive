@@ -3,6 +3,7 @@ import type { LibraryCandidate } from './metadata';
 
 const PROBE_CACHE_LIMIT = 100_000;
 const PROBE_CACHE_TTL_MS = 24 * 60 * 60 * 1_000;
+const PROBE_CACHE_NEGATIVE_TTL_MS = 60 * 60 * 1_000;
 
 type CachedProbe = { item: RemoteBmp | null; at: number };
 
@@ -22,7 +23,8 @@ export function readProbe(
     if (!cached) return undefined;
 
     PROBE_CACHE.delete(key);
-    if (now - cached.at > PROBE_CACHE_TTL_MS) return undefined;
+    const ttl = cached.item === null ? PROBE_CACHE_NEGATIVE_TTL_MS : PROBE_CACHE_TTL_MS;
+    if (now - cached.at > ttl) return undefined;
 
     PROBE_CACHE.set(key, cached);
 

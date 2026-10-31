@@ -8,6 +8,7 @@ import { guardedSend, readBody } from '../transport';
 import {
     parseRetryAfter,
     recordServerFailure,
+    recordServerSuccess,
     recordSuccess,
     recordThrottle,
     throttleWaitSeconds
@@ -15,6 +16,7 @@ import {
 import { bodyBytes } from '../../protobuf';
 import { pageRequest, parseLibraryPage, type LibraryCandidate } from './metadata';
 import { decodeSplitHeader, MAX_SPLIT_HEADER_BYTES } from '../../bmp/index';
+import { BMP_HEADER_BYTES, SPLIT_MAGIC_PREFIX } from '../../../bmp/format';
 import { LIBRARY_STATE_REQUEST } from './requests';
 import { preparedDownloadUrl } from '../download';
 import { readProbe, writeProbe } from './probe-cache';
@@ -181,6 +183,7 @@ function fetchPrefix(
     fetcher: Fetcher
 ): AsyncResult<Buffer, ServerError> {
     return Ok(undefined).andThenAsync(async () => {
+        const startedAt = Date.now();
         const wait = throttleWaitSeconds(email);
         if (wait !== null) return Err(throttleError(wait));
 
@@ -215,13 +218,24 @@ function fetchPrefix(
             return Err(throttleError(paused));
         }
 
-        if (response.status !== 200 && response.status !== 206)
-            return Err(SERVER_ERRORS.COULD_NOT_INSPECT_PHOTO_HEADER);
+        if (response.status !== 200 && response.status !== 206) {
+            recordServerSuccess(email);
 
-        recordSuccess(email);
+            return Err(SERVER_ERRORS.COULD_NOT_INSPECT_PHOTO_HEADER);
+        }
+
+        recordSuccess(email, startedAt);
 
         return readPrefix(response);
     });
+}
+
+function definitelyNotPhodrive(prefix: Uint8Array): boolean {
+    if (prefix.length < 2) return false;
+    if (prefix[0] !== 66 || prefix[1] !== 77) return true;
+    if (prefix.length < BMP_HEADER_BYTES + SPLIT_MAGIC_PREFIX.length) return false;
+
+    return !SPLIT_MAGIC_PREFIX.every((byte, index) => prefix[BMP_HEADER_BYTES + index] === byte);
 }
 
 function probeLibraryItem(
@@ -232,7 +246,8 @@ function probeLibraryItem(
     fetcher: Fetcher
 ): AsyncResult<RemoteBmp | null, ServerError> {
     const cached = readProbe(email, candidate);
-    if (cached !== undefined) return Ok(cached).andThenAsync(async (item) => Ok(item));
+    if (cached !== undefined)
+        return Ok(undefined).andThenAsync<RemoteBmp | null, ServerError>(async () => Ok(cached));
 
     return preparedDownloadUrl(email, candidate.mediaKey, candidate.sha1, rpcHeaders, fetcher)
         .andThenAsync(async (url) => {
@@ -241,9 +256,13 @@ function probeLibraryItem(
             return await fetchPrefix(email, url, commonHeaders, fetcher);
         })
         .map((prefix) => {
-            if (prefix === null) return null;
+            if (prefix === null) {
+                writeProbe(email, candidate, null);
 
-            return decodeSplitHeader(prefix, candidate.size).match({
+                return null;
+            }
+
+            const item = decodeSplitHeader(prefix, candidate.size).match({
                 Ok: ({ header }) => ({
                     ...candidate,
                     fileHash: header.fileHash,
@@ -256,10 +275,13 @@ function probeLibraryItem(
                 }),
                 Err: () => null
             });
-        })
-        .map((item) => {
-            writeProbe(email, candidate, item);
+            if (item !== null) {
+                writeProbe(email, candidate, item);
 
-            return item;
+                return item;
+            }
+            if (definitelyNotPhodrive(prefix)) writeProbe(email, candidate, null);
+
+            return null;
         });
 }

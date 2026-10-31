@@ -22,12 +22,14 @@ export class DriveUploads {
     panelOpen = $state(false);
     jobs = $state<UploadJob[]>([]);
     private sources: readonly File[] = [];
+    private folders = new Map<number, string>();
 
     constructor(private readonly deps: UploadDeps) {}
 
     reset(): void {
         this.jobs = [];
         this.sources = [];
+        this.folders.clear();
         this.panelOpen = false;
         this.busy = false;
     }
@@ -46,6 +48,7 @@ export class DriveUploads {
 
         this.sources = [...files];
         this.jobs = createUploadJobs(files);
+        this.folders = new Map(files.map((_, index) => [index, this.deps.folder()]));
         await this.run(files);
     }
 
@@ -59,14 +62,16 @@ export class DriveUploads {
         if (!fresh) return;
 
         this.jobs = this.jobs.map((current) => (current.id === id ? { ...fresh, id } : current));
-        await this.run([file], id);
+        await this.run([file], id, this.folders.get(id) ?? this.deps.folder());
     }
 
-    private async run(files: readonly File[], retryId?: number): Promise<void> {
+    private async run(
+        files: readonly File[],
+        retryId?: number,
+        folder = this.deps.folder()
+    ): Promise<void> {
         const { email, token } = this.deps.account();
         if (!token) return;
-
-        const folder = this.deps.folder();
         const uploadedChunks: UploadedChunk[] = [];
 
         this.panelOpen = true;

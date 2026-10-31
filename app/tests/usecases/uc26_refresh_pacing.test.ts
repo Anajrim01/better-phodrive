@@ -80,3 +80,19 @@ test('the upload cooldown defers automatic refresh but keeps the button responsi
     await drive.library.refresh(true);
     expect(read).toHaveBeenCalledTimes(1);
 });
+
+test('loading a throttled page arms the retry timer', async () => {
+    vi.spyOn(libraryApi, 'readLibraryPage').mockReturnValue(
+        Err({
+            code: 'THROTTLED',
+            message: 'Google is throttling requests. Retrying in about 2 min.',
+            retryAfterSeconds: 120
+        } as const).andThenAsync(async () => Ok({ items: [], nextPageToken: '' }))
+    );
+    const drive = new DriveController();
+    drive.initialize();
+
+    await drive.library.load();
+
+    expect(drive.library.retryAt).toBeGreaterThan(Date.now());
+});

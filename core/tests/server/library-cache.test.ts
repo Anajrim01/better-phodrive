@@ -72,7 +72,7 @@ function fixture(name: string, payload: string) {
 function fetcherFor(
     page: Buffer,
     prepared: { mediaKey: string; sha1: string; url: string },
-    body: Response,
+    body: Response | (() => Response),
     counts: ProbeCounts
 ): Fetcher {
     return async (input) => {
@@ -91,7 +91,7 @@ function fetcherFor(
 
         if (url.startsWith(DOWNLOAD_HOST)) {
             counts.range++;
-            return body;
+            return typeof body === 'function' ? body() : body;
         }
 
         throw new Error(`Unexpected request ${url}`);
@@ -176,4 +176,22 @@ test('items that are not Phodrive files are cached as misses', async () => {
 
     expect((await listBmps(EMAIL, TOKEN, '', fetcher)).unwrap().items).toEqual([]);
     expect(counts).toEqual({ prepare: 1, range: 1 });
+});
+
+test('a truncated Phodrive header is not cached as a miss', async () => {
+    const file = fixture('note.txt', 'partial header content');
+    const counts: ProbeCounts = { prepare: 0, range: 0 };
+    const url = `${DOWNLOAD_HOST}/photo`;
+    const fetcher = fetcherFor(
+        libraryPage([file]),
+        { mediaKey: file.mediaKey, sha1: file.sha1, url },
+        () => new Response(file.bmp.subarray(0, 30)),
+        counts
+    );
+
+    expect((await listBmps(EMAIL, TOKEN, '', fetcher)).unwrap().items).toEqual([]);
+    expect(counts).toEqual({ prepare: 1, range: 1 });
+
+    expect((await listBmps(EMAIL, TOKEN, '', fetcher)).unwrap().items).toEqual([]);
+    expect(counts).toEqual({ prepare: 2, range: 2 });
 });

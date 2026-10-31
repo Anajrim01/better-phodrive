@@ -25,11 +25,18 @@ export function assignFolderAlbum(
 ): AsyncResult<string, ServerError> {
     return validateAssignment(folder, albumKey, mediaKeys)
         .andThenAsync(() => authenticatedHeaders(email, token, fetcher))
-        .andThenAsync(({ rpcHeaders }) => {
+        .andThenAsync(async ({ rpcHeaders }) => {
             if (albumKey === undefined)
-                return createAlbum(email, folder, mediaKeys, rpcHeaders, fetcher);
+                return await createAlbum(email, folder, mediaKeys, rpcHeaders, fetcher);
 
-            return addMediaToAlbum(email, albumKey, mediaKeys, rpcHeaders, fetcher);
+            const added = await addMediaToAlbum(email, albumKey, mediaKeys, rpcHeaders, fetcher);
+            const failure = added.match<ServerError | null>({
+                Ok: () => null,
+                Err: (error) => error
+            });
+            if (!failure || !missingAlbum(failure)) return added;
+
+            return await createAlbum(email, folder, mediaKeys, rpcHeaders, fetcher);
         });
 }
 
@@ -84,6 +91,10 @@ function createAlbum(
         },
         'Create album'
     ).andThenAsync((response) => readBody(response, 'Create album').andThen(albumKeyFromCreate));
+}
+
+function missingAlbum(error: ServerError): boolean {
+    return error.code === 'REQUEST_FAILED' && (error.status === 404 || error.status === 410);
 }
 
 function addMediaToAlbum(

@@ -128,9 +128,31 @@ export const AlbumKeySchema = z
     .min(1)
     .max(512)
     .refine((key) => !/[\s\0]/.test(key));
-export const StoredAlbumsSchema = z.record(EmailSchema, z.record(FolderPathSchema, AlbumKeySchema));
+export type StoredAlbums = Record<string, Record<string, string>>;
+
+export function parseStoredAlbums(value: unknown): StoredAlbums {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+
+    const albums: StoredAlbums = {};
+    for (const [email, folders] of Object.entries(value)) {
+        if (!EmailSchema.safeParse(email).success) continue;
+        if (!folders || typeof folders !== 'object' || Array.isArray(folders)) continue;
+
+        const valid: Record<string, string> = {};
+        for (const [folder, key] of Object.entries(folders)) {
+            const parsedFolder = FolderPathSchema.safeParse(folder);
+            const parsedKey = AlbumKeySchema.safeParse(key);
+            if (parsedFolder.success && parsedKey.success)
+                valid[parsedFolder.data] = parsedKey.data;
+        }
+        if (Object.keys(valid).length) albums[email] = valid;
+    }
+
+    return albums;
+}
+
+export const StoredAlbumsSchema = z.unknown().transform(parseStoredAlbums);
 export const FileSizeSchema = z.int().nonnegative();
-export type StoredAlbums = z.infer<typeof StoredAlbumsSchema>;
 export const Sha1HexSchema = z.string().regex(/^[a-f0-9]{40}$/);
 export const Sha256HexSchema = z.string().regex(/^[a-f0-9]{64}$/);
 

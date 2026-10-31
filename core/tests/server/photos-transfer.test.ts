@@ -22,7 +22,7 @@ test('download opens the original response stream and trash targets its dedup ke
         const url = String(input);
         expect(init?.signal).toBeUndefined();
         step++;
-        if (step === 1 || step === 4) return authResponse();
+        if (step === 1) return authResponse();
         if (step === 2) {
             expect(url).toContain('PhotosPrepareDownload');
             return new Response(Uint8Array.from(downloadMetadata));
@@ -55,7 +55,7 @@ test('download opens the original response stream and trash targets its dedup ke
         fakeFetch
     );
     expect(deleted.isOk()).toBe(true);
-    expect(step).toBe(5);
+    expect(step).toBe(4);
 });
 
 test.each(['stream', 'content-type', 'http'] as const)(
