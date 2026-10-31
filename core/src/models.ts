@@ -105,6 +105,32 @@ export const FileNameSchema = z
     .string()
     .min(1)
     .refine((name) => !/[\\/\r\n\0]/.test(name));
+export const MAX_FOLDER_PATH_LENGTH = 512;
+export const MAX_FOLDER_SEGMENT_LENGTH = 255;
+/** Folder paths stay relative, slash-separated, and unable to escape the library root. */
+export const FolderPathSchema = z
+    .string()
+    .min(1)
+    .max(MAX_FOLDER_PATH_LENGTH)
+    .refine((path) =>
+        path
+            .split('/')
+            .every(
+                (segment) =>
+                    segment.length > 0 &&
+                    segment.length <= MAX_FOLDER_SEGMENT_LENGTH &&
+                    segment !== '.' &&
+                    segment !== '..' &&
+                    !/[\\\r\n\0]/.test(segment)
+            )
+    );
+/** Album media keys identify a Google Photos album and are safe to keep in browser storage. */
+export const AlbumKeySchema = z
+    .string()
+    .min(1)
+    .max(512)
+    .refine((key) => !/[\s\0]/.test(key));
+export const StoredAlbumsSchema = z.record(EmailSchema, z.record(FolderPathSchema, AlbumKeySchema));
 export const FileSizeSchema = z.int().nonnegative();
 export const Sha1HexSchema = z.string().regex(/^[a-f0-9]{40}$/);
 export const Sha256HexSchema = z.string().regex(/^[a-f0-9]{64}$/);
@@ -116,9 +142,11 @@ export const SplitHeaderSchema = z
         chunkIndex: z.int().nonnegative(),
         flags: z.union([z.literal(0), z.literal(1)]),
         payloadSize: z.int().nonnegative(),
-        fileName: z.string().min(1).optional()
+        fileName: z.string().min(1).optional(),
+        folder: FolderPathSchema.optional()
     })
-    .refine((header) => header.chunkIndex !== 0 || header.fileName !== undefined);
+    .refine((header) => header.chunkIndex !== 0 || header.fileName !== undefined)
+    .refine((header) => header.chunkIndex === 0 || header.folder === undefined);
 
 export const RemoteBmpSchema = z.object({
     fileHash: Sha256HexSchema,
@@ -126,6 +154,7 @@ export const RemoteBmpSchema = z.object({
     chunkIndex: z.int().nonnegative(),
     isLast: z.boolean(),
     originalName: z.string().min(1).optional(),
+    folder: FolderPathSchema.optional(),
     size: z.number().nonnegative(),
     at: z.int().nonnegative(),
     mediaKey: z.string().min(1),
@@ -211,6 +240,7 @@ export const FileDeleteResponseSchema = z.object({
 });
 export const UploadFileSchema = z.object({
     name: FileNameSchema,
+    folder: FolderPathSchema.optional(),
     size: FileSizeSchema,
     fileHash: Sha256HexSchema
 });
@@ -219,8 +249,17 @@ export const UploadRequestSchema = AccountSchema.extend({
     chunkIndex: z.int().nonnegative(),
     sha1: Sha1HexSchema
 });
+export const MAX_ALBUM_BATCH_SIZE = 500;
+export const AlbumAssignRequestSchema = AccountRequestSchema.extend({
+    folder: FolderPathSchema,
+    albumKey: AlbumKeySchema.optional(),
+    mediaKeys: z.array(z.string().min(1).max(2048)).min(1).max(MAX_ALBUM_BATCH_SIZE)
+});
+export const AlbumAssignResponseSchema = z.object({ albumKey: AlbumKeySchema });
 export type UploadFile = z.infer<typeof UploadFileSchema>;
 export type ChunkUploadRequest = z.infer<typeof UploadRequestSchema>;
+export type AlbumAssignRequest = z.infer<typeof AlbumAssignRequestSchema>;
+export type AlbumAssignResponse = z.infer<typeof AlbumAssignResponseSchema>;
 
 export type RemoteBmp = z.infer<typeof RemoteBmpSchema>;
 export type LibraryResponse = z.infer<typeof LibraryResponseSchema>;

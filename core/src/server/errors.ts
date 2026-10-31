@@ -36,6 +36,16 @@ export const SERVER_ERRORS = {
         message: 'Google Photos repeated a library page. Refresh to try again.'
     },
     MISSING_MEDIA_KEY: { code: 'MISSING_MEDIA_KEY', message: 'Missing media key' },
+    INVALID_FOLDER_PATH: { code: 'INVALID_FOLDER_PATH', message: 'Invalid folder path' },
+    INVALID_ALBUM_KEY: { code: 'INVALID_ALBUM_KEY', message: 'Invalid album key' },
+    INVALID_ALBUM_MEDIA_KEYS: {
+        code: 'INVALID_ALBUM_MEDIA_KEYS',
+        message: 'Invalid album media keys'
+    },
+    ALBUM_CREATE_RESPONSE_FAILED: {
+        code: 'ALBUM_CREATE_RESPONSE_FAILED',
+        message: 'Create album response failed'
+    },
     HASH_LOOKUP_MISMATCH: { code: 'HASH_LOOKUP_MISMATCH', message: 'Hash lookup mismatch' },
     COMMIT_TOKEN_MISMATCH: { code: 'COMMIT_TOKEN_MISMATCH', message: 'Commit token mismatch' },
     COMMIT_REJECTED: { code: 'COMMIT_REJECTED', message: 'Commit rejected' },

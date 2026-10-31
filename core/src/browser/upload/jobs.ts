@@ -10,6 +10,7 @@ import {
 import type { UploadedChunk } from '../../files';
 import { Err, Ok, type Result } from 'results-ts';
 import { INVALID_UPLOAD_PROGRESS } from './request';
+import { remainingSeconds, transferRate, type RateSample } from './eta';
 
 export interface UploadJob {
     id: number;
@@ -18,6 +19,10 @@ export interface UploadJob {
     progress: UploadProgress;
     message: string;
     result: UploadResponse | null;
+    /** Recent transfer speed in bytes per second; zero while unknown. */
+    bytesPerSecond: number;
+    /** Estimated seconds until this job finishes; null while unknown. */
+    etaSeconds: number | null;
 }
 
 export interface UploadSource {
@@ -32,7 +37,9 @@ export function createUploadJobs(files: readonly File[]): UploadJob[] {
         status: UploadJobStatus.Queued,
         progress: { phase: UploadPhase.Receiving, completed: 0, total: file.size },
         message: '',
-        result: null
+        result: null,
+        bytesPerSecond: 0,
+        etaSeconds: null
     }));
 }
 
@@ -93,13 +100,38 @@ export function createUploadEventHandler(
     jobs: UploadJob[],
     email: string,
     onJob: (job: UploadJob) => void,
-    onChunk: (chunk: UploadedChunk) => void
+    onChunk: (chunk: UploadedChunk) => void,
+    now: () => number = () => performance.now()
 ): (event: UploadEvent) => Result<void, ApplicationError> {
     const confirmed = jobs.map(() => new Map<number, UploadedChunk>());
+    const samples = jobs.map((): RateSample[] => []);
+
+    function estimate(job: UploadJob): UploadJob {
+        const jobSamples = samples[job.id];
+
+        if (job.status !== UploadJobStatus.Active || job.progress.phase !== UploadPhase.Uploading) {
+            jobSamples.length = 0;
+
+            return { ...job, bytesPerSecond: 0, etaSeconds: null };
+        }
+
+        const { completed, reused, total } = job.progress;
+        jobSamples.push({ at: now(), bytes: completed });
+
+        const rate = transferRate(jobSamples);
+        if (rate === null) return { ...job, bytesPerSecond: 0, etaSeconds: null };
+
+        return {
+            ...job,
+            bytesPerSecond: rate,
+            etaSeconds: remainingSeconds(total - completed - reused, rate)
+        };
+    }
 
     function publish(job: UploadJob): void {
-        jobs[job.id] = job;
-        onJob(job);
+        const estimated = estimate(job);
+        jobs[job.id] = estimated;
+        onJob(estimated);
     }
 
     return (event) => {

@@ -9,7 +9,11 @@ export const MAX_CHUNK_PAYLOAD_BYTES = 195_000_000;
 export const MAX_SPLIT_HEADER_BYTES = 65_536;
 
 export const BMP_HEADER_BYTES = 54;
+export const SPLIT_MAGIC_PREFIX = new TextEncoder().encode('BMSPLIT');
 export const SPLIT_MAGIC = new TextEncoder().encode('BMSPLIT\x01');
+/** Version 2 appends a folder path after the first chunk's file name. */
+export const SPLIT_MAGIC_WITH_FOLDER = new TextEncoder().encode('BMSPLIT\x02');
+export const SPLIT_FOLDER_VERSION = 2;
 export const FILE_HASH_BYTES = 32;
 
 function writeHashBytes(target: Uint8Array, offset: number, hash: string): void {
@@ -38,14 +42,16 @@ function bmpLayout(
 
 function splitHeaderLayout(
     input: SplitHeader
-): Result<{ prefixSize: number; nameBytes: Uint8Array }, BmpError> {
+): Result<{ prefixSize: number; nameBytes: Uint8Array; folderBytes: Uint8Array }, BmpError> {
     const parsed = SplitHeaderSchema.safeParse(input);
     if (!parsed.success) return Err(BMP_ERRORS.INVALID_CHUNK_METADATA);
 
     const header = parsed.data;
-    const nameBytes = header.fileName
-        ? new TextEncoder().encode(header.fileName)
-        : new Uint8Array();
+    const first = header.chunkIndex === 0;
+    const nameBytes =
+        first && header.fileName ? new TextEncoder().encode(header.fileName) : new Uint8Array();
+    const folderBytes =
+        first && header.folder ? new TextEncoder().encode(header.folder) : new Uint8Array();
     const prefixSize =
         BMP_HEADER_BYTES +
         SPLIT_MAGIC.length +
@@ -54,9 +60,10 @@ function splitHeaderLayout(
         Varint.encodingLength(header.chunkIndex) +
         1 +
         Varint.encodingLength(header.payloadSize) +
-        (header.chunkIndex === 0 ? Varint.encodingLength(nameBytes.length) + nameBytes.length : 0);
+        (first ? Varint.encodingLength(nameBytes.length) + nameBytes.length : 0) +
+        (folderBytes.length ? Varint.encodingLength(folderBytes.length) + folderBytes.length : 0);
 
-    return Ok({ prefixSize, nameBytes });
+    return Ok({ prefixSize, nameBytes, folderBytes });
 }
 
 /** Exact prefix size, including the BMP header, before the payload begins. */
@@ -80,7 +87,7 @@ export function encodeSplitPrefix(input: SplitHeader): Result<
     },
     BmpError
 > {
-    return splitHeaderLayout(input).andThen(({ prefixSize, nameBytes }) => {
+    return splitHeaderLayout(input).andThen(({ prefixSize, nameBytes, folderBytes }) => {
         if (prefixSize > MAX_SPLIT_HEADER_BYTES) return Err(BMP_ERRORS.INVALID_CHUNK_METADATA);
 
         return bmpLayout(prefixSize - BMP_HEADER_BYTES + input.payloadSize).map(
@@ -98,7 +105,7 @@ export function encodeSplitPrefix(input: SplitHeader): Result<
                 view.setUint32(34, total - BMP_HEADER_BYTES, true);
 
                 let offset = BMP_HEADER_BYTES;
-                prefix.set(SPLIT_MAGIC, offset);
+                prefix.set(folderBytes.length ? SPLIT_MAGIC_WITH_FOLDER : SPLIT_MAGIC, offset);
                 offset += SPLIT_MAGIC.length;
                 writeHashBytes(prefix, offset, input.fileHash);
                 offset += FILE_HASH_BYTES;
@@ -116,6 +123,13 @@ export function encodeSplitPrefix(input: SplitHeader): Result<
                     Varint.encode(nameBytes.length, prefix, offset);
                     offset += Varint.encodingLength(nameBytes.length);
                     prefix.set(nameBytes, offset);
+                    offset += nameBytes.length;
+                }
+
+                if (folderBytes.length) {
+                    Varint.encode(folderBytes.length, prefix, offset);
+                    offset += Varint.encodingLength(folderBytes.length);
+                    prefix.set(folderBytes, offset);
                 }
 
                 return {

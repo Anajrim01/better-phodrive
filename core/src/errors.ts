@@ -6,6 +6,7 @@ export type ApplicationError = {
         | 'DOWNLOAD_RECEIVE_FAILED'
         | 'DOWNLOAD_SAVE_FAILED'
         | 'INCOMPLETE_DOWNLOAD_CHUNKS'
+        | 'INVALID_ALBUM_KEY'
         | 'INVALID_CONCURRENT_WORKERS'
         | 'INVALID_DELETE_RESPONSE'
         | 'INVALID_JSON_REQUEST'

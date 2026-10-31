@@ -14,6 +14,7 @@ import {
 } from '../../models';
 import type { ApplicationError } from '../../errors';
 import type { UploadedChunk } from '../../files';
+import { folderFromFile } from '../../files';
 import { schemaResult } from '../../validation';
 import { MAX_CHUNK_PAYLOAD_BYTES } from '../../bmp/format';
 import { planChunks, type UploadPlan } from '../../upload';
@@ -44,7 +45,12 @@ function uploadChunk(
         const metadata = {
             email,
             token,
-            file: { name: file.name, size: file.size, fileHash: header.fileHash },
+            file: {
+                name: file.name,
+                folder: header.folder,
+                size: file.size,
+                fileHash: header.fileHash
+            },
             chunkIndex: header.chunkIndex,
             sha1
         };
@@ -85,6 +91,7 @@ function uploadChunk(
                     chunk.isLast !== Boolean(header.flags) ||
                     chunk.size !== header.payloadSize ||
                     chunk.originalName !== header.fileName ||
+                    chunk.folder !== header.folder ||
                     chunk.sha1 !== sha1
                 )
                     return invalidResponse();
@@ -213,16 +220,20 @@ export function uploadFiles(
     token: string,
     workers: number,
     onJob: (job: UploadJob) => void,
-    onChunk: (chunk: UploadedChunk) => void
+    onChunk: (chunk: UploadedChunk) => void,
+    options: UploadOptions = {}
 ): AsyncResult<void, ApplicationError> {
     return schemaResult(
         ConcurrentWorkersSchema,
         workers,
         'Invalid concurrent worker count.'
     ).andThenAsync((concurrency) =>
-        transferFiles(files, email, token, concurrency, onJob, onChunk, httpChunkTransport)
+        transferFiles(files, email, token, concurrency, onJob, onChunk, httpChunkTransport, options)
     );
 }
+
+/** Folder for files a browser did not select from a directory. */
+export type UploadOptions = { folder?: string };
 
 /** The shared pool behind every uploader; callers validate the worker count for their runtime. */
 export function transferFiles(
@@ -232,7 +243,8 @@ export function transferFiles(
     concurrency: number,
     onJob: (job: UploadJob) => void,
     onChunk: (chunk: UploadedChunk) => void,
-    transport: ChunkTransport
+    transport: ChunkTransport,
+    options: UploadOptions = {}
 ): AsyncResult<void, ApplicationError> {
     return Ok(undefined).andThenAsync(async () => {
         const jobs = createUploadJobs(files);
@@ -284,7 +296,15 @@ export function transferFiles(
             }
 
             const planned = prepared.andThen(({ fileHash, fileId }) =>
-                planChunks({ name: file.name, size: file.size, fileHash }, fileId)
+                planChunks(
+                    {
+                        name: file.name,
+                        folder: folderFromFile(file, options.folder) || undefined,
+                        size: file.size,
+                        fileHash
+                    },
+                    fileId
+                )
             );
 
             if (planned.isErr()) {

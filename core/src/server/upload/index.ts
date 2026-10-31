@@ -79,6 +79,7 @@ export function uploadFiles(
                     chunkIndex: input.header.chunkIndex,
                     isLast: input.header.flags === 1,
                     originalName: input.header.fileName,
+                    folder: input.header.folder,
                     size: input.header.payloadSize,
                     at: Date.now(),
                     mediaKey: result.mediaKey,

@@ -1,4 +1,4 @@
-import { FileSort, FileActionKind, type RemoteBmp } from './models';
+import { FileSort, FileActionKind, FolderPathSchema, type RemoteBmp } from './models';
 
 export type UploadedChunk = RemoteBmp & { email: string };
 
@@ -7,6 +7,7 @@ export type FileGroup = {
     fileHash: string;
     fileId: string;
     name: string;
+    folder: string;
     at: number;
     chunkCount: number | null;
     chunks: UploadedChunk[];
@@ -15,6 +16,63 @@ export type FileGroup = {
 
 export function fileKey(file: { email: string; fileId: string }): string {
     return `${file.email}:${file.fileId}`;
+}
+
+/** Drop empty or malformed folder paths so every caller sends the same shape. */
+export function normalizedFolder(folder?: string): string {
+    if (!folder) return '';
+    if (!FolderPathSchema.safeParse(folder).success) return '';
+
+    return folder;
+}
+
+/** A browser directory selection stores its relative path on the file itself. */
+export function folderFromFile(file: File, fallback = ''): string {
+    const relative = 'webkitRelativePath' in file ? file.webkitRelativePath : '';
+    const segments = typeof relative === 'string' ? relative.split('/').slice(0, -1) : [];
+    const path = segments.filter(Boolean).join('/');
+    const root = normalizedFolder(fallback);
+    const candidate = path ? [root, path].filter(Boolean).join('/') : root;
+
+    return normalizedFolder(candidate);
+}
+
+export type FolderEntry = { path: string; name: string; files: number };
+
+/** Immediate child folders of a path, counting only the files directly inside each. */
+export function childFolders(files: readonly FileGroup[], path: string): FolderEntry[] {
+    const prefix = path ? `${path}/` : '';
+    const entries = new Map<string, FolderEntry>();
+
+    for (const file of files) {
+        if (!file.folder.startsWith(prefix)) continue;
+
+        const rest = file.folder.slice(prefix.length);
+        if (!rest) continue;
+
+        const name = rest.split('/')[0];
+        const childPath = `${prefix}${name}`;
+        const entry = entries.get(childPath) ?? { path: childPath, name, files: 0 };
+        if (rest === name) entry.files++;
+
+        entries.set(childPath, entry);
+    }
+
+    return [...entries.values()].sort((first, second) => first.name.localeCompare(second.name));
+}
+
+export type FolderCrumb = { name: string; path: string };
+
+/** Breadcrumb steps from the library root to a folder path. */
+export function folderTrail(path: string): FolderCrumb[] {
+    if (!path) return [];
+
+    const segments = path.split('/');
+
+    return segments.map((name, index) => ({
+        name,
+        path: segments.slice(0, index + 1).join('/')
+    }));
 }
 
 type IndexedFileGroup = {
@@ -35,6 +93,7 @@ export function groupChunks(items: UploadedChunk[]): FileGroup[] {
                 fileHash: chunk.fileHash,
                 fileId: chunk.fileId,
                 name: chunk.originalName ?? `File ${chunk.fileHash.slice(0, 12)}`,
+                folder: chunk.folder ?? '',
                 at: chunk.at,
                 chunkCount: null,
                 chunks: [chunk],
@@ -66,7 +125,10 @@ export function groupChunks(items: UploadedChunk[]): FileGroup[] {
             group.chunks[position] = chunk;
         }
 
-        if (chunk.chunkIndex === 0 && chunk.originalName) group.name = chunk.originalName;
+        if (chunk.chunkIndex === 0) {
+            if (chunk.originalName) group.name = chunk.originalName;
+            group.folder = chunk.folder ?? '';
+        }
     }
 
     return [...groups.values()].map(({ file: group }) => {

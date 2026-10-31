@@ -41,6 +41,10 @@
             "@madkarmaa/phodrive-core": "./src/browser/accounts.ts",
             "default": "./dist/browser/accounts.js"
         },
+        "./browser/albums": {
+            "@madkarmaa/phodrive-core": "./src/browser/albums.ts",
+            "default": "./dist/browser/albums.js"
+        },
         "./browser/api": {
             "@madkarmaa/phodrive-core": "./src/browser/api.ts",
             "default": "./dist/browser/api.js"
@@ -56,6 +60,10 @@
         "./browser/upload": {
             "@madkarmaa/phodrive-core": "./src/browser/upload/index.ts",
             "default": "./dist/browser/upload/index.js"
+        },
+        "./browser/upload/eta": {
+            "@madkarmaa/phodrive-core": "./src/browser/upload/eta.ts",
+            "default": "./dist/browser/upload/eta.js"
         },
         "./browser/upload/hash": {
             "@madkarmaa/phodrive-core": "./src/browser/upload/hash.ts",
@@ -145,6 +153,10 @@
             "@madkarmaa/phodrive-core": "./src/server/photos/index.ts",
             "default": "./dist/server/photos/index.js"
         },
+        "./server/photos/albums": {
+            "@madkarmaa/phodrive-core": "./src/server/photos/albums.ts",
+            "default": "./dist/server/photos/albums.js"
+        },
         "./server/photos/auth": {
             "@madkarmaa/phodrive-core": "./src/server/photos/auth.ts",
             "default": "./dist/server/photos/auth.js"
@@ -205,6 +217,10 @@
             "@madkarmaa/phodrive-core": "./src/server/workers.ts",
             "default": "./dist/server/workers.js"
         },
+        "./stats": {
+            "@madkarmaa/phodrive-core": "./src/stats.ts",
+            "default": "./dist/stats.js"
+        },
         "./upload": {
             "@madkarmaa/phodrive-core": "./src/upload.ts",
             "default": "./dist/upload.js"
@@ -248,10 +264,12 @@
             "./bmp/format": "./dist/bmp/format.js",
             "./browser": "./dist/browser/index.js",
             "./browser/accounts": "./dist/browser/accounts.js",
+            "./browser/albums": "./dist/browser/albums.js",
             "./browser/api": "./dist/browser/api.js",
             "./browser/files": "./dist/browser/files.js",
             "./browser/library": "./dist/browser/library.js",
             "./browser/upload": "./dist/browser/upload/index.js",
+            "./browser/upload/eta": "./dist/browser/upload/eta.js",
             "./browser/upload/hash": "./dist/browser/upload/hash.js",
             "./browser/upload/jobs": "./dist/browser/upload/jobs.js",
             "./browser/upload/request": "./dist/browser/upload/request.js",
@@ -274,6 +292,7 @@
             "./server/fetcher": "./dist/server/fetcher.js",
             "./server/files": "./dist/server/files.js",
             "./server/photos": "./dist/server/photos/index.js",
+            "./server/photos/albums": "./dist/server/photos/albums.js",
             "./server/photos/auth": "./dist/server/photos/auth.js",
             "./server/photos/download": "./dist/server/photos/download.js",
             "./server/photos/library": "./dist/server/photos/library/index.js",
@@ -289,6 +308,7 @@
             "./server/upload/input": "./dist/server/upload/input.js",
             "./server/upload/stream": "./dist/server/upload/stream.js",
             "./server/workers": "./dist/server/workers.js",
+            "./stats": "./dist/stats.js",
             "./upload": "./dist/upload.js",
             "./validation": "./dist/validation.js",
             "./package.json": "./package.json"

@@ -11,6 +11,8 @@ export function chunkCount(size: number): number {
 
 /** Callers validate the file and index before constructing its deterministic split metadata. */
 export function chunkHeader(file: UploadFile, fileId: string, chunkIndex: number): SplitHeader {
+    const first = chunkIndex === 0;
+
     return {
         fileHash: file.fileHash,
         fileId,
@@ -20,7 +22,8 @@ export function chunkHeader(file: UploadFile, fileId: string, chunkIndex: number
             MAX_CHUNK_PAYLOAD_BYTES,
             file.size - chunkIndex * MAX_CHUNK_PAYLOAD_BYTES
         ),
-        fileName: chunkIndex === 0 ? file.name : undefined
+        fileName: first ? file.name : undefined,
+        folder: first ? file.folder || undefined : undefined
     };
 }
 

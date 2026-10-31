@@ -59,6 +59,26 @@ test('split BMPs store the Zod-validated metadata and reconstruct the original b
     expect(createHash('sha256').update(reconstructed).digest('hex')).toBe(FILE_HASH);
 });
 
+test('version 2 first chunks carry the folder and later chunks still decode', () => {
+    const firstHeader: SplitHeader = { ...header(0, 500, false), folder: 'photos/2024' };
+    const first = encodeSplitBmp(ORIGINAL.subarray(0, 500), firstHeader).unwrap();
+    expect(new TextDecoder().decode(first.subarray(54, 62))).toBe('BMSPLIT\x02');
+    expect(first.length).toBe(splitBmpByteLength(firstHeader).unwrap());
+
+    const decodedFirst = decodeSplitBmp(first).unwrap();
+    expect(decodedFirst.header).toEqual(firstHeader);
+    expect(decodedFirst.header.folder).toBe('photos/2024');
+    expect(Buffer.from(decodedFirst.payload)).toEqual(Buffer.from(ORIGINAL.subarray(0, 500)));
+
+    const laterHeader = header(1, ORIGINAL.length - 500, true);
+    expect(laterHeader.folder).toBeUndefined();
+    const later = encodeSplitBmp(ORIGINAL.subarray(500), laterHeader).unwrap();
+    const decodedLater = decodeSplitBmp(later).unwrap();
+    expect(decodedLater.header).toEqual(laterHeader);
+    expect(decodedLater.header.folder).toBeUndefined();
+    expect(Buffer.from(decodedLater.payload)).toEqual(Buffer.from(ORIGINAL.subarray(500)));
+});
+
 test('chunk indexes use canonical varints, including indexes above 127', () => {
     for (const [index, expected] of [
         [127, [0x7f]],
@@ -83,6 +103,20 @@ test('split metadata requires file identity and rejects unsupported format versi
         bmp[61] = version;
         expect(decodeSplitBmp(bmp).isErr()).toBe(true);
     }
+
+    // Version 2 expects a folder after the first chunk's file name; a patched v1 header has none.
+    const patched = encodeSplitBmp(Uint8Array.of(0), metadata).unwrap();
+    patched[61] = 2;
+    expect(decodeSplitBmp(patched).isErr()).toBe(true);
+
+    const folderHeader = { ...metadata, folder: 'photos/2024' };
+    expect(SplitHeaderSchema.safeParse(folderHeader).success).toBe(true);
+    expect(SplitHeaderSchema.safeParse({ ...folderHeader, chunkIndex: 1, flags: 1 }).success).toBe(
+        false
+    );
+
+    for (const folder of ['/photos', 'photos/../2024', 'photos\\2024', 'photos//2024'])
+        expect(SplitHeaderSchema.safeParse({ ...folderHeader, folder }).success).toBe(false);
 });
 
 test('projected chunks fit the photo limit and reject damaged padding', () => {
