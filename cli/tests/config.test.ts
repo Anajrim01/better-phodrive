@@ -22,7 +22,7 @@ test('a missing config file is empty', async () => {
 
 test('the config path can be overridden', () => {
     expect(defaultConfigPath({ PHODRIVE_CONFIG: path })).toBe(path);
-    expect(defaultConfigPath({})).toMatch(/phodrive[\\/]config\.json$/);
+    expect(defaultConfigPath({})).toMatch(/phodrive[\\/](?:Config[\\/])?config\.json$/i);
 });
 
 test('invalid accounts and settings are dropped while valid entries remain', async () => {
