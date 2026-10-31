@@ -4,7 +4,7 @@
     import type { Snippet } from 'svelte';
     import { MediaQuery } from 'svelte/reactivity';
     import { droppedFiles } from '#browser/files/drop';
-    import IconUpload from '~icons/material-symbols/cloud-upload';
+    import IconUpload from '~icons/material-symbols/cloud-upload-outline';
     import IconFolder from '~icons/material-symbols/folder-outline';
 
     interface Props {

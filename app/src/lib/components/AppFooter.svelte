@@ -33,7 +33,7 @@
 
         <div class="grid gap-1">
             <p class="flex items-center gap-2">
-                <span class="font-medium text-subtle">{APP_NAME}</span>
+                <span class="font-medium text-text">{APP_NAME}</span>
                 <span aria-hidden="true">·</span>
                 <span>v{APP_VERSION}</span>
             </p>
@@ -60,7 +60,7 @@
         padding-block: 4px;
         font: inherit;
         --np-button-padding: 8px;
-        --np-button-gap: 6px;
-        --np-button-icon-size: 16px;
+        --np-button-gap: 4px;
+        --np-text-button-label-text-color: var(--app-muted);
     }
 </style>

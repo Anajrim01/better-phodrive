@@ -128,7 +128,7 @@
         anchor-scope: --filter-chip;
         --np-button-shape: 8px;
         --np-button-gap: 8px;
-        --np-button-icon-size: 24px;
+        --np-button-icon-size: 20px;
         --np-outlined-button-outline-color: var(--np-color-outline);
         --np-outlined-button-label-text-color: var(--np-color-on-surface-variant);
         --np-tonal-button-container-color: var(--app-selected);

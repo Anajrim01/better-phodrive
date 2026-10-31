@@ -47,6 +47,7 @@
         flex-shrink: 0;
         overflow: visible;
         isolation: isolate;
+        border-radius: 8px;
         --np-color-secondary-container: var(--app-selected);
         --np-color-on-secondary-container: var(--app-selected-text);
     }
@@ -80,17 +81,12 @@
         flex-shrink: 0;
     }
 
-    :global(:root .layout-toggle .np-segmented-button-icon-label svg),
-    :global(:root .layout-toggle .check-icon svg) {
-        width: 18px;
-        height: 18px;
+    :global(:root .layout-toggle .np-segmented-button-icon-label svg) {
+        width: 20px;
+        height: 20px;
     }
 
-    :global(:root .layout-toggle .np-segmented-button:has(input:checked) .check-icon-wrapper) {
-        width: 22px;
-    }
-
-    :global(:root .layout-toggle .np-segmented-button:has(input:checked) .check-icon) {
-        width: 18px;
+    :global(:root .layout-toggle .check-icon-wrapper) {
+        display: none;
     }
 </style>

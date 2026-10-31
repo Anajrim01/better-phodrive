@@ -7,7 +7,7 @@
     --app-panel: var(--np-color-surface-container-low);
     --app-text: var(--np-color-on-surface);
     --app-muted: var(--np-color-on-surface-variant);
-    --app-subtle: var(--np-color-on-surface-variant);
+    --app-subtle: var(--np-color-outline);
     --app-search: var(--np-color-surface-container);
     --app-menu: var(--np-color-surface-container);
     --app-card: var(--np-color-surface-container);
@@ -17,10 +17,12 @@
     --app-selected-text: var(--np-color-on-primary-container);
     --app-border: var(--np-color-outline-variant);
     --app-primary: var(--np-color-primary);
-    --app-avatar: var(--np-color-primary);
-    --app-avatar-text: var(--np-color-on-primary);
+    --app-avatar: var(--np-color-surface-container-highest);
+    --app-avatar-text: var(--np-color-on-surface);
     --app-success: light-dark(#146c2e, #a6e3a1);
     --app-feedback: var(--np-color-secondary-container);
+    --np-icon-button-icon-size: 20px;
+    --np-button-icon-size: 20px;
 }
 
 :root[theme='light'] {

@@ -5,7 +5,7 @@
     import { fileKey, type FileGroup, type FileAction } from '@madkarmaa/phodrive-core/files';
     import LocalizedDate from '#components/LocalizedDate.svelte';
     import FileActions from '#components/FileActions.svelte';
-    import IconDescription from '~icons/material-symbols/description';
+    import IconDescription from '~icons/material-symbols/description-outline';
     import IconArrowUp from '~icons/material-symbols/arrow-upward';
     import IconArrowDown from '~icons/material-symbols/arrow-downward';
 
@@ -95,7 +95,7 @@
             <tr>
                 <td>
                     <div class="file-name">
-                        <IconDescription aria-hidden="true" class="size-5 shrink-0 text-primary" />
+                        <IconDescription aria-hidden="true" class="size-5 shrink-0 text-muted" />
                         <div class="min-w-0">
                             <span class="block truncate font-medium" title={item.name}
                                 >{item.name}</span
@@ -197,7 +197,6 @@
     .file-list :global(.column-sort) {
         --np-button-padding: 12px;
         --np-button-gap: 4px;
-        --np-button-icon-size: 18px;
         --np-text-button-label-text-color: var(--np-color-on-surface);
         margin-inline: -12px;
         font-size: 14px;

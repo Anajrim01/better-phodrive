@@ -71,7 +71,7 @@
         {disabled}
         onclick={() => (connected ? picker.click() : onconnect())}
     >
-        {#snippet icon()}<IconAdd aria-hidden="true" class="size-6" />{/snippet}
+        {#snippet icon()}<IconAdd aria-hidden="true" class="size-5" />{/snippet}
     </ExtendedFab>
 
     <input
@@ -158,13 +158,14 @@
 
     <div class="mobile-upload">
         <Fab
+            class="upload-fab"
             label="Upload"
             variant="secondary-container"
             shape="square"
             {disabled}
             onclick={() => (connected ? picker.click() : onconnect())}
         >
-            {#snippet icon()}<IconAdd aria-hidden="true" class="size-6" />{/snippet}
+            {#snippet icon()}<IconAdd aria-hidden="true" class="size-5" />{/snippet}
         </Fab>
     </div>
 </aside>
@@ -180,6 +181,8 @@
 
     .folder-upload :global(.np-button) {
         --np-button-padding: 16px;
+        --np-button-gap: 12px;
+        --np-text-button-label-text-color: var(--app-muted);
     }
 
     :global(.mobile-navigation) {
@@ -195,6 +198,15 @@
         gap: 12px;
     }
 
+    :global(:root .upload-fab.np-fab) {
+        border: 1px solid var(--app-border);
+        --np-fab-container-color: var(--app-panel);
+        --np-fab-icon-color: var(--app-text);
+        --np-fab-shape: 16px;
+        --np-fab-elevation: none;
+        --np-icon-size: 20px;
+    }
+
     :global(:root .upload-button.np-extended-fab) {
         height: 56px;
         min-width: 110px;
@@ -202,8 +214,9 @@
         border: 1px solid var(--app-border);
         --np-fab-container-color: var(--app-panel);
         --np-fab-icon-color: var(--app-text);
-        --np-fab-shape: 18px;
-        --np-fab-elevation: var(--np-elevation-1);
+        --np-fab-shape: 16px;
+        --np-fab-elevation: none;
+        --np-icon-size: 20px;
     }
 
     :global(:root .drive-navigation.np-navigation-drawer-container) {

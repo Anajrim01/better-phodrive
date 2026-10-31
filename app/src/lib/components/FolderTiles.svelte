@@ -1,7 +1,7 @@
 <script lang="ts">
     import type { FolderEntry } from '@madkarmaa/phodrive-core/files';
     import { folderCount } from '#lib/folders';
-    import IconFolder from '~icons/material-symbols/folder';
+    import IconFolder from '~icons/material-symbols/folder-outline';
 
     interface Props {
         folders: FolderEntry[];
@@ -28,7 +28,7 @@
                         {disabled}
                         onclick={() => onopen(folder.path)}
                     >
-                        <IconFolder aria-hidden="true" class="size-5 shrink-0 text-primary" />
+                        <IconFolder aria-hidden="true" class="size-5 shrink-0 text-muted" />
                         <span class="folder-text">
                             <span class="folder-name" title={folder.name}>{folder.name}</span>
                             <span class="folder-count">

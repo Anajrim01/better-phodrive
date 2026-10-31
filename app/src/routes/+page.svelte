@@ -176,7 +176,9 @@
                                 </button>
                             {/each}
                         </span>
-                        <span class="text-subtle">({drive.library.visibleFiles.length})</span>
+                        <span class="text-subtle tabular-nums"
+                            >({drive.library.visibleFiles.length})</span
+                        >
                     </h1>
                     <LayoutToggle bind:layout={drive.settings.fileLayout} />
                 </div>
@@ -250,7 +252,7 @@
         padding: 4px 0;
         overflow: hidden;
         border-radius: 8px;
-        color: var(--app-subtle);
+        color: var(--app-muted);
         font: inherit;
         text-overflow: ellipsis;
         white-space: nowrap;

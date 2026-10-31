@@ -64,8 +64,8 @@
 <style>
     .file-actions :global(.np-button) {
         font-size: 12px;
-        --np-button-padding: 7px;
+        --np-button-padding: 8px;
         --np-button-gap: 4px;
-        --np-button-icon-size: 16px;
+        --np-text-button-label-text-color: var(--app-muted);
     }
 </style>
