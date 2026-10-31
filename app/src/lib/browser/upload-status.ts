@@ -14,12 +14,12 @@ export function uploadJobDetail(job: UploadJob): string {
         return job.result?.status === UploadStatus.AlreadyExists
             ? 'Already in Google Photos'
             : 'Uploaded';
+    if (progress.phase === UploadPhase.Receiving) return 'Sending files to server';
     if (job.retryAfterSeconds !== null) {
         const place = percent > 0 ? ` at ${percent}%` : '';
 
         return `Paused${place}, retrying in about ${formatDuration(job.retryAfterSeconds)}`;
     }
-    if (progress.phase === UploadPhase.Receiving) return 'Sending files to server';
     if (progress.phase === UploadPhase.Preparing) return `Preparing ${percent}%`;
     if (processed === progress.total) return 'Finishing upload';
 

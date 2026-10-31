@@ -8,7 +8,7 @@ const THROTTLE_RETRY_LIMIT = 8;
 export type Throttled = { code: string; message: string; retryAfterSeconds?: number };
 
 export function throttleMessage(seconds: number): string {
-    return `Google is throttling requests. Retrying in about ${formatDuration(Math.max(1, seconds))}.`;
+    return `Paused, retrying in about ${formatDuration(Math.max(1, seconds))}`;
 }
 
 export async function waitForThrottle(context: CliContext, seconds: number): Promise<void> {

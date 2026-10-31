@@ -26,7 +26,7 @@ test('a throttled chunk waits and retries without committing twice', async () =>
             if (attempts.length === 1) {
                 const failure = Err({
                     code: 'THROTTLED',
-                    message: 'Google is throttling requests. Retrying in about 1 s.',
+                    message: 'Paused, retrying in about 1 s',
                     retryAfterSeconds: 1
                 } as const);
 
@@ -114,7 +114,7 @@ test('a chunk that stays throttled fails the file after the retry limit', async 
 
         return Err({
             code: 'THROTTLED',
-            message: 'Google is throttling requests. Retrying in about 1 s.',
+            message: 'Paused, retrying in about 1 s',
             retryAfterSeconds: 1
         } as const).andThenAsync(async () => Ok(undefined));
     };
@@ -133,5 +133,5 @@ test('a chunk that stays throttled fails the file after the retry limit', async 
     );
 
     expect(attempts).toBe(4);
-    expect(failure).toContain('throttling');
+    expect(failure).toContain('retrying');
 });

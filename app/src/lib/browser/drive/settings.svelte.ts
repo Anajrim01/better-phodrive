@@ -10,7 +10,6 @@ import type { ApplicationError } from '@madkarmaa/phodrive-core/errors';
 import type { Result } from 'results-ts';
 import type { BrowserPreferences } from '#browser/storage';
 
-/** User-facing preference changes and their immediate theme preview. */
 export class DriveSettings {
     themeMode = $state<ThemeMode>(ThemeMode.Auto);
 

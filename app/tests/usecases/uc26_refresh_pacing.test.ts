@@ -50,7 +50,7 @@ test('automatic refresh waits for a throttling window while a manual refresh doe
     const read = vi.spyOn(libraryApi, 'readLibrarySnapshot').mockReturnValue(
         Err({
             code: 'THROTTLED',
-            message: 'Google is throttling requests. Retrying in about 2 min.',
+            message: 'Paused, retrying in about 2 min',
             retryAfterSeconds: 120
         } as const).andThenAsync(async () => Ok({ items: [], nextPageToken: '', pages: 0 }))
     );
@@ -85,7 +85,7 @@ test('loading a throttled page arms the retry timer', async () => {
     vi.spyOn(libraryApi, 'readLibraryPage').mockReturnValue(
         Err({
             code: 'THROTTLED',
-            message: 'Google is throttling requests. Retrying in about 2 min.',
+            message: 'Paused, retrying in about 2 min',
             retryAfterSeconds: 120
         } as const).andThenAsync(async () => Ok({ items: [], nextPageToken: '' }))
     );

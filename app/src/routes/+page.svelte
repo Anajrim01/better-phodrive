@@ -238,6 +238,7 @@
         flex-wrap: wrap;
         align-items: baseline;
         gap: 0;
+        margin-inline-start: -8px;
     }
 
     .crumb {

@@ -3,7 +3,6 @@ import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import type { CliError } from '../context';
 import type { Runner } from '../program';
 
-/** Follow a command path such as `file upload` from the root command. */
 function findCommand(
     program: CommandUnknownOpts,
     path: readonly string[]

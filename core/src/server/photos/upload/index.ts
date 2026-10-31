@@ -126,7 +126,6 @@ function uploadAuthenticatedStream(
                 transferBmp(email, source.body, uploadId, commonHeaders, fetcher, source.length)
             );
 
-            // The full input must pass length and hash checks before committing remote media.
             return transferred
                 .andThenAsync((transfer) => source.verified.map(() => transfer))
                 .andThenAsync((transfer) =>

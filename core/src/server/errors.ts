@@ -158,7 +158,7 @@ export const THROTTLE_ERROR: {
     retryAfterSeconds: number;
 } = {
     code: 'THROTTLED',
-    message: 'Google is throttling requests.',
+    message: 'Paused',
     retryAfterSeconds: 1
 };
 
@@ -167,7 +167,7 @@ export function throttleError(seconds: number): ServerError {
 
     return {
         code: 'THROTTLED',
-        message: `${THROTTLE_ERROR.message} Retrying in about ${formatWait(wait)}.`,
+        message: `${THROTTLE_ERROR.message}, retrying in about ${formatWait(wait)}`,
         retryAfterSeconds: wait
     };
 }

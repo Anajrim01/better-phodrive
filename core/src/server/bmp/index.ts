@@ -195,7 +195,6 @@ export function decodeSplitHeader(
         );
 }
 
-/** A damaged payload bound or nonzero padding must fail the chunk. */
 export function decodeSplitBmp(
     bmp: Uint8Array
 ): Result<{ header: SplitHeader; payload: Uint8Array }, ServerError> {

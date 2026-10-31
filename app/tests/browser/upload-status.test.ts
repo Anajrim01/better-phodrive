@@ -22,18 +22,6 @@ test('a paused upload shows the throttle state and the remaining wait', () => {
     expect(detail).toBe('Paused at 50%, retrying in about 2 min');
 });
 
-test('a paused receiving upload shows the pause before the phase', () => {
-    const detail = uploadJobDetail(
-        job({
-            status: UploadJobStatus.Active,
-            retryAfterSeconds: 60,
-            progress: { phase: UploadPhase.Receiving, completed: 0, total: 10 }
-        })
-    );
-
-    expect(detail).toBe('Paused, retrying in about 1 min');
-});
-
 test('an active upload appends the estimate only when one exists', () => {
     const withEstimate = uploadJobDetail(
         job({

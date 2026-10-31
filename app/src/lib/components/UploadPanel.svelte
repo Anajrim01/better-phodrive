@@ -60,7 +60,7 @@
     const heading = $derived.by(() => {
         if (busy) {
             if (paused.length)
-                return `Paused by Google, retrying in about ${formatDuration(Math.max(...paused))}`;
+                return `${remaining} ${remaining === 1 ? 'item' : 'items'} waiting, retrying in about ${formatDuration(Math.max(...paused))}`;
 
             const label = `Uploading ${remaining} ${remaining === 1 ? 'item' : 'items'}`;
             if (eta === null) return label;
