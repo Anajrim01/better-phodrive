@@ -100,6 +100,21 @@ export const NewAccountSchema = z.object({
 });
 
 export const StoredAccountsSchema = z.record(z.string(), z.unknown());
+
+export const MAX_GROUP_NAME_LENGTH = 80;
+export const GroupIdSchema = z.string().min(1).max(64);
+export const GroupNameSchema = z.string().trim().min(1).max(MAX_GROUP_NAME_LENGTH);
+export const GroupSchema = z
+    .object({
+        id: GroupIdSchema,
+        name: GroupNameSchema,
+        accounts: z.array(EmailSchema.transform((email) => email.toLowerCase())).min(1)
+    })
+    .refine((group) => new Set(group.accounts).size === group.accounts.length, {
+        error: 'A group cannot list the same account twice.'
+    });
+export type Group = z.infer<typeof GroupSchema>;
+
 /** Names become path segments and multipart filenames, so separators and controls are unsafe. */
 export const FileNameSchema = z
     .string()

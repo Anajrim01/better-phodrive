@@ -17,7 +17,13 @@ afterEach(() => folder.remove());
 test('a missing config file is empty', async () => {
     const config = await readConfig(path);
 
-    expect(config.unwrap()).toEqual({ accounts: {}, selected: '', settings: {}, albums: {} });
+    expect(config.unwrap()).toEqual({
+        accounts: {},
+        selected: '',
+        settings: {},
+        albums: {},
+        groups: []
+    });
 });
 
 test('the config path can be overridden', () => {
@@ -46,7 +52,8 @@ test('invalid accounts and settings are dropped while valid entries remain', asy
         accounts: { [EMAIL]: AAS_TOKEN },
         selected: '',
         settings: { workers: 4 },
-        albums: {}
+        albums: {},
+        groups: []
     });
 });
 
@@ -62,6 +69,31 @@ test('the compression setting round-trips through the config file', async () => 
     expect((await readConfig(path)).unwrap().settings).toEqual({ compression: true });
 });
 
+test('groups migrate from an absent field and round-trip through the config file', async () => {
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, JSON.stringify({ accounts: { [EMAIL]: AAS_TOKEN } }));
+
+    const loaded = await readConfig(path);
+    expect(loaded.unwrap().groups).toEqual([]);
+
+    const groups = [{ id: 'home', name: 'Home', accounts: [EMAIL, 'second@example.com'] }];
+    const saved = await writeConfig(path, { ...loaded.unwrap(), groups });
+    expect(saved.isOk()).toBe(true);
+    expect((await readConfig(path)).unwrap().groups).toEqual(groups);
+
+    await writeFile(
+        path,
+        JSON.stringify({
+            groups: [
+                ...groups,
+                { id: 'home', name: 'Duplicate id', accounts: [EMAIL] },
+                { id: 'bad', name: 'Bad', accounts: ['not-an-email'] }
+            ]
+        })
+    );
+    expect((await readConfig(path)).unwrap().groups).toEqual(groups);
+});
+
 test('malformed JSON is reported instead of being overwritten', async () => {
     await mkdir(dirname(path), { recursive: true });
     await writeFile(path, '{ broken');
@@ -73,7 +105,13 @@ test('malformed JSON is reported instead of being overwritten', async () => {
 });
 
 test('saved configs are private to the current user', async () => {
-    const saved = await writeConfig(path, { accounts: {}, selected: '', settings: {}, albums: {} });
+    const saved = await writeConfig(path, {
+        accounts: {},
+        selected: '',
+        settings: {},
+        albums: {},
+        groups: []
+    });
 
     expect(saved.isOk()).toBe(true);
     if (process.platform === 'win32') return;

@@ -97,6 +97,10 @@
             "@madkarmaa/phodrive-core": "./src/files.ts",
             "default": "./dist/files.js"
         },
+        "./groups": {
+            "@madkarmaa/phodrive-core": "./src/groups.ts",
+            "default": "./dist/groups.js"
+        },
         "./models": {
             "@madkarmaa/phodrive-core": "./src/models.ts",
             "default": "./dist/models.js"
@@ -330,6 +334,7 @@
             "./browser/upload/request": "./dist/browser/upload/request.js",
             "./errors": "./dist/errors.js",
             "./files": "./dist/files.js",
+            "./groups": "./dist/groups.js",
             "./models": "./dist/models.js",
             "./node": "./dist/node/index.js",
             "./node/files": "./dist/node/files.js",

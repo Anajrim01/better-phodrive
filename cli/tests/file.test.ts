@@ -28,7 +28,8 @@ beforeEach(async () => {
         accounts: { [EMAIL]: AAS_TOKEN },
         selected: EMAIL,
         settings: {},
-        albums: {}
+        albums: {},
+        groups: []
     });
     vi.mocked(downloadFile).mockImplementation(() =>
         Ok(undefined).andThenAsync(async () => Ok(undefined))

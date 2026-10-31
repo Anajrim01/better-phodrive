@@ -88,6 +88,7 @@ test('a one-run flag overrides the saved compression default', () => {
         accounts: {},
         selected: '',
         albums: {},
+        groups: [],
         settings: { compression: true }
     };
 

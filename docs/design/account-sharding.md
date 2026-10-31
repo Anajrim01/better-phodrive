@@ -1,4 +1,4 @@
-# Account sharding
+# Account groups
 
 ## Why
 
@@ -16,184 +16,145 @@ request rate and the aggregate upload byte budget until a much higher shared
 ceiling or the client's own CPU and bandwidth becomes the limit. Sharding by
 caller identity would not help and would put the accounts at risk.
 
-Phase 1 compression is the other lever: it reduces the bytes that count against
-an account's upload budget. The two changes are complementary, not
-alternatives.
+Compression is the other lever: it reduces the bytes that count against an
+account's upload budget. The two changes are complementary, not alternatives.
 
-## Ownership
+## What a group is
 
-The server assigns each file to one account when it accepts the file for upload. Every chunk
-of that file uses the same account for its hash lookup, upload start, transfer,
-commit, retries, downloads, and deletes. Chunks are never split across accounts
-and a half-uploaded file is never resumed on another account.
+A group is a named list of accounts the person has already connected. Groups are
+local to the machine: the browser keeps them with the other preferences, and the
+CLI keeps them in `config.json`.
 
-The client stores the owner in two places:
+A group stores account emails only. Tokens stay in the existing account store,
+so replacing a token does not rewrite every group, and a group never becomes a
+second credential store. The group schema holds an id, a name, and a nonempty
+list of unique emails. Stored data that is absent, malformed, or duplicated is
+dropped on read, so an older config without groups loads as an empty list.
 
-- The first chunk's split header carries the owner account. Later chunks point
-  at the same owner through their `fileId` group, so the header does not need to
-  repeat the address in every chunk.
-- Local state records the owner alongside the `fileId`, so a retry does not
-  depend on reading the first chunk again.
+Groups are optional and off by default. With no group selected, every path
+behaves as it does today: one selected account, one queue, one listing.
 
-The owner is an immutable account identifier, not a mutable display name. Use
-the account's email if the stored account list is the source of truth; the
-design should not invent a second identity that can drift. A chunk whose header
-owner does not match the account it was found under is corrupt and should be
-hidden, not guessed.
+## Assignment
 
-The split header already carries a flags bitfield and an optional original-size
-varint. Owner metadata belongs after the folder field on the first chunk, as a
-length-prefixed UTF-8 email or as a short stable id from local state. It must
-stay inside the existing 64 KiB header limit. Version 1 chunks have no owner and
-remain owned by whichever account currently lists them; they must keep
-decoding, so the owner field is optional.
+When an upload starts with a group, the client assigns each file to one member
+and keeps that owner for the whole upload.
 
-## Scheduling
+- The owner covers the file and all of its chunks: hash lookup, upload start,
+  transfer, commit, retries, downloads, and deletes.
+- Assignment is weighted by bytes. Files are placed largest first, each on the
+  member with the fewest assigned bytes. File order does not change the result.
+- A paused member takes no new files. The remaining members continue.
+- If every member is paused, files wait. They are never moved to an account
+  outside the group, because a split file on two accounts cannot be listed or
+  downloaded as one object.
+- A file is never split across accounts, and a half-uploaded file never resumes
+  on another account.
 
-Each account gets its own:
+The owner is the account that holds the chunks. Local state records it next to
+the `fileId`, so a retry does not depend on reading the first chunk again. The
+split header needs no owner field: listing already reports which account returned
+each chunk, and that account is the owner.
+
+## Per-account scheduling
+
+Each account keeps its own:
 
 - upload queue, so a paused account blocks only its own files;
 - request token bucket and byte budget, because the research suggests separate
   request and volume budgets;
-- circuit breaker, replacing the current email-keyed breaker only in the sense
-  that it already is per email; the change is to stop treating one account's
-  pause as a global pause;
-- auth cache entry, keyed by email and token, which the current cache already
-  supports;
+- circuit breaker, so one account's pause is not a global pause;
+- auth cache entry, keyed by email and token;
 - probe cache namespace, which already includes the email.
 
-The pool assigns whole files. It picks the account with capacity and does not
-round-robin individual chunks. With one account the behaviour is unchanged.
-With several, a file waits for its owner rather than moving to another
-account. That wait is a correctness rule, not a preference: a split file on two
-accounts cannot be listed or downloaded as one object.
-
-The browser still sends one upload request per chunk. The server decides which
-account receives it, or the browser attaches the chosen owner to the request.
-Either way the owner decision must be idempotent for retries: the same `fileId`
-and chunk index always resolve to the same account.
+The queue assigns whole files. With one account, behavior is unchanged. With
+several, a file waits for its owner instead of moving to another account.
 
 ## Listing
 
-Listing queries every account and merges the results. Each account has its own
-pagination token, its own probe cache, and its own concurrency limit. The merge
-key is the existing `(email, fileId)` pair, with chunk index completing the
-group. Because the owner is part of the key, two accounts that deduplicate the
-same SHA-1 remain separate files until a deliberate cross-account policy says
-otherwise.
+The client lists each group member and merges the pages into one result.
 
-If one account is throttled, the refresh returns the chunks from the accounts
-that answered plus a per-account status. It must not fail the whole refresh
-because one account paused. The response carries, per account, either `ok` or
-`retryAfterSeconds`, so the next refresh can retry only the paused account.
-Partial results must be labelled as partial; silently presenting them as the
-complete library would make files appear deleted.
+- Every item carries its owner's email.
+- The merge key is media key plus chunk index, so a repeated item within one
+  account or across accounts appears once.
+- Two accounts that hold the same file return different media keys, so the merge
+  keeps both rows. The group view groups those rows by file id and chunk index
+  and lists every owner that holds the file. That grouping belongs to the group
+  view, not to the phase 1 merge helper.
+- A member that answers contributes its items. A member that is paused or
+  skipped contributes a per-account state with its retry window, and the result
+  is marked partial. Partial results are never presented as the complete
+  library, because files missing from a paused account would look deleted.
+- The merged list sorts newest first, then by owner email, file id, chunk index,
+  and media key, so the order does not depend on which request finished first.
+  The view's chosen sort re-sorts the merged list.
 
 The cost is one listing pass per account. That multiplies the probe traffic this
-workstream is trying to reduce, so sharding should land after the probe cache
-and metadata work, not before. A manifest item would reduce the cost but is a
-second source of truth and stays deferred.
+workstream is trying to reduce, so groups should land after the probe cache and
+metadata work, not before. A manifest item would reduce the cost but is a second
+source of truth and stays deferred.
 
 ## Downloads and deletes
 
-The merged record carries the owner. Prepare-download, the ranged header probe,
-and the real download all go to that account. A throttled owner means the file
-is temporarily unavailable; there is no fallback account. A delete follows the
-same route and removes only the owned chunks.
+The owner routes every file request: prepare-download, the ranged header probe,
+the real download, and the delete.
 
-Routing is visible to the client: the file request needs the owner account's
-token. That is a wire-format change to `FileRequest`, and the browser must store
-the owner with each chunk it accepts from an upload.
+- A paused owner makes the file temporarily unavailable. There is no fallback
+  account.
+- A delete removes only the owner's chunks.
+- A file held by two owners is deleted from each owner in turn. A delete never
+  removes a chunk from an account that does not own it.
+- A file whose owner left the group stays unavailable until that account is added
+  back. The client never guesses an owner.
+- Routing resolves the owner's token from the account store. A route that cannot
+  find the owner reports which account is missing.
 
-## Upload retries and deduplication
+## Removing an account
 
-- Retry a throttled chunk on its owner after that account's advertised or
-  backoff window.
-- Do not migrate the chunk.
-- When a commit outcome is uncertain, re-check by SHA-1 on the owner only.
-- Deduplicate within the owner first. The same SHA-1 may legitimately exist on
-  two accounts. Cross-account deduplication is a policy choice, not an
-  invariant.
+Removing an account from a group that holds files warns and migrates nothing.
+The files stay on that account. Removing the account from the machine leaves
+those files unavailable. A re-upload is a new upload, not a move: it writes new
+chunks and does not touch the originals. A group always names at least one
+account, so removing the last one deletes the group.
 
-The phase 1 change still applies: the SHA-1 that is looked up and committed is
-the hash of the bytes actually uploaded, after compression. A retry of the same
-raw chunk compresses deterministically, so the owner's lookup still finds the
-earlier transfer.
+## Albums and folders
 
-## Albums, folders, and account removal
-
-A Google album cannot span accounts. Folder albums therefore become one album
-per owning account plus a local virtual folder, or the UI accepts that one
-folder maps to several albums. The existing `albums[email][folder]` shape
-already models this.
-
-Removing an account that owns files must not silently orphan them. Block the
-removal, or offer an explicit re-upload or migration, which is a new upload and
-not a move. Files owned by the removed account must remain visible as
-unavailable until the user resolves them.
-
-## API and UI impact
-
-This design reaches the UI, so implementation stops for review before code.
-
-- The library response needs per-account status, not one global 429.
-- The browser needs the owner on each file group and in each file request.
-- A paused account needs a visible state: the account chip or upload panel must
-  say which account is paused and for how long. A single global banner would
-  misreport a partial library.
-- File actions need to explain "owned by a paused account" without pretending
-  the file is missing.
-- Folder albums may show one folder with several backing albums.
-
-None of that should ship as a hidden server-only change, because the current UI
-cannot represent a partial library or a file that is temporarily unaddressable.
+A Google album cannot span accounts. A folder therefore maps to one album per
+owning account plus the local folder entry, and the existing
+`albums[email][folder]` shape already models that. Group membership does not
+change album assignment.
 
 ## Failure cases to test
 
-- One account 429s mid-refresh: the response is partial, other accounts still
-  list, and the paused account carries a retry window.
-- One account is removed: owned files stay addressable or the UI refuses the
-  removal.
-- A commit fails uncertainly: no duplicate is written to another account, the
-  retry stays on the owner, and the SHA-1 lookup resolves it.
-- A file is uploaded while its owner is paused: it waits, and its chunks never
-  appear on another account.
-- Two accounts share one IP and one receives heavy traffic: the other stays clean. This is
-  the independence test under an active throttle, which the research could not
-  run.
-- A first chunk has a missing or mismatched owner field: the group is hidden or
-  flagged, never reassigned.
+- One member is paused during a listing: the result is partial, other members
+  still list, and the paused member carries a retry window.
+- Two accounts return the same media key: it merges once per chunk index.
+- The owner is paused: download and delete report `OWNER_PAUSED` and name that
+  account, with no request to another member.
+- Every member is paused: the assignment leaves files unassigned.
+- File sizes are very uneven: byte totals stay close without splitting a file.
+- The owner was removed from the group: routing reports `OWNER_NOT_IN_GROUP`.
+- Two accounts share one IP and one receives heavy traffic: the other stays
+  clean. This is the independence test under an active throttle, which the
+  research could not run.
 
-## Scope decision
+## Phase 1 scope
 
-Contained parts, if this is approved:
+Contained:
 
-- server-side owner assignment and routing;
-- per-account queue, breaker, auth cache, and probe cache;
-- owner field in the split header and in local state;
-- merged listing with partial results.
+- the group schema and its stored-data migration;
+- deterministic, size-weighted file assignment with per-member availability;
+- the merged listing helper with per-account state and deduplication;
+- owner routing helpers for download and delete;
+- this design.
 
-Not contained:
+Not contained here:
 
-- per-account UI, account chips, pause copy, and file-request wire changes;
-- album migration or account removal policy;
-- rebalancing existing files.
+- any UI for creating groups or picking one for an upload;
+- the group view's cross-account grouping by file id and chunk index;
+- CLI commands for groups;
+- wiring the group into upload, refresh, download, and delete;
+- an owner field in the split header;
+- album migration, rebalancing, or moving existing files.
 
-Because the UI and the file-request format change, this phase is a design
-deliverable only until the owner reviews it.
-
-## Usage insights (phase 3 proposal)
-
-A quota bar stays out: storage is unlimited for the spoofed Pixel, so a bar
-would invent a limit. Two cheap alternatives fall out of the existing stats:
-
-- **Stored versus logical bytes.** Phase 1 makes the two differ. The library
-  already reports each chunk's original size; the probe also knows its stored
-  size. Showing "2.4 GB stored, 8.1 GB logical" is honest and needs no new
-  history.
-- **Largest files.** Already derivable from grouped chunks and useful for
-  finding what dominates an account's budget.
-
-Growth over time needs retained snapshots that the current client does not
-keep. It would be a new local time series and should not be built until the
-largest-files view proves insufficient.
+Phase 1 changes no single-account behavior. Every new field defaults to empty,
+and the existing paths keep using the selected account.
