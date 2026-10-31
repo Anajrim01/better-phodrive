@@ -72,7 +72,7 @@
     :global(:root .upload-status-row.np-item) {
         --np-item-container-height: 64px;
         padding: 12px 16px;
-        gap: 16px;
+        gap: 12px;
     }
     :global(:root .upload-status-row.np-item .np-item-text) {
         min-width: 0;

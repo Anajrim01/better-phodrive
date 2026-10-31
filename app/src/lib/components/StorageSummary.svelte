@@ -105,8 +105,9 @@
 
 <style>
     .storage-summary {
+        margin-top: 16px;
         border-top: 1px solid var(--app-border);
-        padding: 12px 24px 0;
+        padding: 16px 16px 0;
         font-size: 14px;
     }
 
@@ -119,22 +120,24 @@
 
     .storage-total {
         margin: 0;
-        font-size: 22px;
+        font-size: 28px;
         font-weight: 500;
         font-variant-numeric: tabular-nums;
-        line-height: 1.2;
+        line-height: 32px;
     }
 
     .storage-count {
         margin: 4px 0 0;
+        color: var(--app-muted);
         font-size: 14px;
+        line-height: 20px;
     }
 
     .storage-note {
         margin: 4px 0 0;
         color: var(--app-muted);
         font-size: 12px;
-        line-height: 1.35;
+        line-height: 16px;
     }
 
     .storage-loading {
@@ -147,19 +150,19 @@
         display: flex;
         gap: 2px;
         height: 8px;
-        margin-top: 12px;
+        margin-top: 16px;
     }
 
     .storage-segment {
         flex-basis: 0;
         min-width: 4px;
-        border-radius: 2px;
+        border-radius: 4px;
     }
 
     .storage-legend {
         display: grid;
-        gap: 8px;
-        margin: 12px 0 0;
+        gap: 4px;
+        margin: 16px 0 0;
         padding: 0;
         list-style: none;
     }
@@ -168,6 +171,7 @@
         display: grid;
         grid-template-columns: 8px minmax(0, 1fr) auto;
         align-items: center;
+        min-height: 24px;
         gap: 8px;
         min-width: 0;
     }
@@ -188,12 +192,7 @@
     .legend-meta {
         color: var(--app-muted);
         font-size: 12px;
+        font-variant-numeric: tabular-nums;
         white-space: nowrap;
-    }
-
-    @media (width < 800px) {
-        .storage-summary {
-            padding-inline: 12px;
-        }
     }
 </style>

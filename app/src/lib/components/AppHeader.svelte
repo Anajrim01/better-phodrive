@@ -154,9 +154,9 @@
 
     :global(:root .shell-header.np-app-bar .np-app-bar-row) {
         display: grid;
-        grid-template-columns: 256px minmax(240px, 720px) 1fr;
-        gap: 16px;
-        padding-inline: 24px;
+        grid-template-columns: 240px minmax(240px, 720px) 1fr;
+        gap: 24px;
+        padding-inline: 16px;
     }
 
     :global(:root .shell-header.np-app-bar .np-app-bar-leading),
@@ -164,6 +164,7 @@
         min-width: 0;
         width: 100%;
         margin: 0;
+        padding-inline: 0;
     }
 
     :global(:root .shell-header.np-app-bar .np-app-bar-trailing) {

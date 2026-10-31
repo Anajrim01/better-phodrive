@@ -151,11 +151,9 @@
             {#snippet icon()}<IconSettings aria-hidden="true" class="size-5 shrink-0" />{/snippet}
         </NavigationDrawerItem>
 
-        <div class="storage-section">
-            {#if connected}
-                <StorageSummary {stats} hasMore={statsPartial} />
-            {/if}
-        </div>
+        {#if connected}
+            <StorageSummary {stats} hasMore={statsPartial} />
+        {/if}
     </NavigationDrawer>
 
     <div class="mobile-upload">
@@ -180,21 +178,27 @@
         margin-bottom: 16px;
     }
 
-    .storage-section {
-        padding-top: 8px;
+    .folder-upload :global(.np-button) {
+        --np-button-padding: 16px;
     }
 
     :global(.mobile-navigation) {
         --np-navigation-drawer-width: min(320px, calc(100vw - 56px));
-        --np-navigation-drawer-padding: max(16px, env(safe-area-inset-top, 0px)) 12px 24px;
+        --np-navigation-drawer-padding: max(16px, env(safe-area-inset-top, 0px)) 16px 24px;
         --np-color-secondary-container: var(--app-selected);
         --np-color-on-secondary-container: var(--app-selected-text);
+    }
+
+    :global(.mobile-navigation .np-navigation-drawer-item) {
+        height: 48px;
+        padding: 0 16px;
+        gap: 12px;
     }
 
     :global(:root .upload-button.np-extended-fab) {
         height: 56px;
         min-width: 110px;
-        margin-bottom: 12px;
+        margin-bottom: 8px;
         border: 1px solid var(--app-border);
         --np-fab-container-color: var(--app-panel);
         --np-fab-icon-color: var(--app-text);
@@ -218,8 +222,8 @@
     :global(:root .drive-navigation.np-navigation-drawer-container .np-navigation-drawer-item) {
         height: 40px;
         width: 100%;
-        padding: 0 18px 0 24px;
-        gap: 16px;
+        padding: 0 16px;
+        gap: 12px;
     }
 
     @media (width <= 800px), (hover: none), (pointer: coarse) {

@@ -39,7 +39,7 @@
     ];
 </script>
 
-<div class="flex min-h-13.5 flex-wrap items-start gap-2 pt-1 pb-3" aria-label="File filters">
+<div class="mt-4 flex min-h-8 flex-wrap items-center gap-2" aria-label="File filters">
     <FilterChip
         label="Type"
         ariaLabel="Filter by file type"

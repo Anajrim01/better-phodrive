@@ -118,7 +118,7 @@
             >
                 <span>Drop files to upload them to</span>
                 <span class="flex items-center gap-2">
-                    <IconFolder aria-hidden="true" class="size-4.5" />
+                    <IconFolder aria-hidden="true" class="size-5" />
                     My files
                 </span>
             </div>
@@ -160,8 +160,8 @@
 
     @media (width > 800px) and (hover: hover) and (pointer: fine) {
         .file-drop {
-            margin: 0 -28px -48px;
-            padding: 0 28px 48px;
+            margin: 0 -24px -48px;
+            padding: 0 24px 48px;
         }
     }
 </style>

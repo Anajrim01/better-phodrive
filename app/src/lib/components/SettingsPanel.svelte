@@ -113,9 +113,9 @@
         <h1 id="settings-heading">Settings</h1>
     </div>
 
-    <div class="mt-4 grid max-w-180 gap-8 pb-16">
+    <div class="mt-6 grid max-w-180 gap-8 pb-16">
         <form
-            class="grid gap-3"
+            class="grid gap-4"
             novalidate
             onsubmit={(event) => {
                 event.preventDefault();
@@ -138,7 +138,7 @@
                 </p>
             </div>
 
-            <div class="flex flex-wrap items-end gap-3 max-[520px]:gap-2">
+            <div class="settings-row flex flex-wrap items-start gap-3 max-[520px]:gap-2">
                 <div class="settings-field max-w-52 min-w-0 flex-1">
                     <TextField
                         label="Refresh interval (seconds)"
@@ -176,7 +176,7 @@
         </form>
 
         <form
-            class="grid gap-3"
+            class="grid gap-4"
             novalidate
             onsubmit={(event) => {
                 event.preventDefault();
@@ -199,7 +199,7 @@
                 </p>
             </div>
 
-            <div class="flex flex-wrap items-end gap-3 max-[520px]:gap-2">
+            <div class="settings-row flex flex-wrap items-start gap-3 max-[520px]:gap-2">
                 <div class="settings-field max-w-52 min-w-0 flex-1">
                     <TextField
                         label="Concurrent workers"
@@ -239,7 +239,7 @@
         </form>
 
         <form
-            class="grid gap-3"
+            class="grid gap-4"
             onsubmit={(event) => {
                 event.preventDefault();
                 if (compressionDraft === compression) return;
@@ -255,8 +255,8 @@
                 </p>
             </div>
 
-            <div class="flex flex-wrap items-center gap-3 max-[520px]:gap-2">
-                <label class="flex items-center gap-3" for="compression">
+            <div class="flex min-h-14 flex-wrap items-center gap-3 max-[520px]:gap-2">
+                <label class="-ml-1 flex items-center gap-3" for="compression">
                     <Switch
                         id="compression"
                         bind:selected={compressionDraft}
@@ -288,6 +288,9 @@
 </section>
 
 <style>
+    .settings-row > :global(.np-button) {
+        margin-top: 8px;
+    }
     .settings-field :global(.np-text-field) {
         width: 100%;
         min-width: 0;

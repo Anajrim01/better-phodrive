@@ -59,7 +59,7 @@
         <IconClose aria-hidden="true" />
     </IconButton>
 
-    <div class="account-list overflow-hidden rounded-[28px] bg-panel">
+    <div class="account-list overflow-hidden rounded-xl bg-panel">
         {#if selected}
             <Item class="current-account" supportingText="Current account">
                 {#snippet start()}<Avatar email={selected} />{/snippet}
@@ -89,7 +89,7 @@
                 closeMenu();
             }}
         >
-            {#snippet start()}<IconAdd class="size-5.5 text-primary" aria-hidden="true" />{/snippet}
+            {#snippet start()}<IconAdd class="size-5" aria-hidden="true" />{/snippet}
             Add another account
         </MenuItem>
 
@@ -103,7 +103,7 @@
                 }}
             >
                 {#snippet start()}
-                    <IconLogout class="size-5.5 text-primary" aria-hidden="true" />
+                    <IconLogout class="size-5" aria-hidden="true" />
                 {/snippet}
                 Sign out
             </MenuItem>
@@ -143,13 +143,13 @@
         min-width: 0;
     }
     :global(:root .account-list .current-account) {
-        --np-item-container-height: 82px;
-        padding: 10px 18px;
+        --np-item-container-height: 80px;
+        padding: 12px 16px;
     }
     :global(:root .account-list .account-row) {
-        --np-item-container-height: 58px;
+        --np-item-container-height: 56px;
         border-top: 2px solid var(--app-menu);
-        padding: 10px 18px;
+        padding: 8px 16px;
     }
 
     @media (max-width: 800px) {

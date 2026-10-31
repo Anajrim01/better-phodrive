@@ -145,7 +145,6 @@
         width: 100%;
         table-layout: fixed;
         border-collapse: collapse;
-        margin-top: 16px;
         font-size: 14px;
     }
 
@@ -183,6 +182,8 @@
     }
     .size-column {
         width: 100px;
+        font-variant-numeric: tabular-nums;
+        text-align: end;
         white-space: nowrap;
     }
     .actions-column {

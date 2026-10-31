@@ -26,7 +26,7 @@
     .cat-illustration {
         width: 200px;
         max-width: 100%;
-        margin-bottom: 28px;
+        margin-bottom: 24px;
     }
 
     .cat-illustration img {
