@@ -84,9 +84,9 @@
             {#if loading}
                 <LoadingIndicator aria-label="Loading Google Photos files" />
             {:else if loadFailed}
-                <p>Use Refresh to try loading your files again.</p>
+                <p>Use Refresh to load your files again</p>
             {:else if filtered && hasFiles}
-                <p>No files match your search or filters.</p>
+                <p>No files match your search or filters</p>
             {:else}
                 <EmptyFiles />
             {/if}

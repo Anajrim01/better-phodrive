@@ -21,9 +21,7 @@ test('a paused upload shows the throttle state and the remaining wait', () => {
         now
     );
 
-    expect(detail).toBe(
-        'Paused at 50%. Google Photos is limiting requests, retrying in about 2 min'
-    );
+    expect(detail).toBe('Paused at 50%, retrying in about 2 min');
 });
 
 test('an active upload appends the estimate only when one exists', () => {

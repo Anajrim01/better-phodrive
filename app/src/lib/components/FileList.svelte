@@ -121,9 +121,7 @@
                 <td class="size-column">
                     {#if item.complete}
                         {prettyBytes(item.chunks.reduce((sum, chunk) => sum + chunk.size, 0))}
-                    {:else}<span aria-label="File size unavailable until all chunks are loaded"
-                            >—</span
-                        >{/if}
+                    {:else}<span title="Available once all chunks are loaded">Unknown</span>{/if}
                 </td>
                 <td class="actions-column">
                     <FileActions

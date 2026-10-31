@@ -130,12 +130,12 @@
                 > and sign in.
             </li>
             <li>
-                In developer tools, open Application → Cookies →
-                <code>https://accounts.google.com</code> and copy the cookie value starting with
-                <code>oauth2_4/…</code>.
+                In developer tools, open Application, then Cookies, then
+                <code>https://accounts.google.com</code>. Copy the cookie value that starts with
+                <code>oauth2_4/</code>.
             </li>
             <li>
-                Paste it above with your email. An existing <code>aas_et/…</code> token also works.
+                Paste it above with your email. A token that starts with <code>aas_et/</code> also works.
             </li>
         </ol>
     </div>

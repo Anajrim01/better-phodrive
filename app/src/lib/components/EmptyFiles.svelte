@@ -9,8 +9,8 @@
     </div>
     <h3>{APP_MOTTO}</h3>
     <p>
-        <span class="desktop-hint">Drag your files here or use Upload to add your first file.</span>
-        <span class="mobile-hint">Use Upload to add your first file.</span>
+        <span class="desktop-hint">Drag files here or use Upload to add your first file</span>
+        <span class="mobile-hint">Use Upload to add your first file</span>
     </p>
 </div>
 

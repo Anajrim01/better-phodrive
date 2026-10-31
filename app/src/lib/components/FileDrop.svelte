@@ -116,7 +116,7 @@
             <div
                 class="grid min-w-60 justify-items-center gap-2 text-sm text-(--np-color-on-primary)"
             >
-                <span>Drop files to upload them to</span>
+                <span>Drop files to upload to</span>
                 <span class="flex items-center gap-2">
                     <IconFolder aria-hidden="true" class="size-5" />
                     My files

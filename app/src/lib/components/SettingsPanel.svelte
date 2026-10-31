@@ -52,13 +52,13 @@
     const refreshValidation = $derived(
         RefreshIntervalSchema.safeParse(
             refreshDraft === '' || refreshDraft === null ? undefined : Number(refreshDraft),
-            { error: () => `Enter a whole number from 0 to ${MAX_REFRESH_INTERVAL_SECONDS}.` }
+            { error: () => `Enter a whole number from 0 to ${MAX_REFRESH_INTERVAL_SECONDS}` }
         )
     );
     const workersValidation = $derived(
         ConcurrentWorkersSchema.safeParse(
             workersDraft === '' || workersDraft === null ? undefined : Number(workersDraft),
-            { error: () => `Enter a whole number from 1 to ${MAX_CONCURRENT_WORKERS}.` }
+            { error: () => `Enter a whole number from 1 to ${MAX_CONCURRENT_WORKERS}` }
         )
     );
     const refreshIssues = $derived(

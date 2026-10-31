@@ -1,5 +1,5 @@
 import { UploadJobStatus, UploadPhase, UploadStatus } from '@madkarmaa/phodrive-core/models';
-import { formatDuration, throttleMessage } from '@madkarmaa/phodrive-core/browser/upload/eta';
+import { formatDuration } from '@madkarmaa/phodrive-core/browser/upload/eta';
 import type { UploadJob } from '#browser/files';
 
 export function retryRemainingSeconds(job: UploadJob, now = Date.now()): number | null {
@@ -26,7 +26,7 @@ export function uploadJobDetail(job: UploadJob, now = Date.now()): string {
     if (pause !== null) {
         const place = percent > 0 ? ` at ${percent}%` : '';
 
-        return `Paused${place}. ${throttleMessage(pause)}`;
+        return `Paused${place}, retrying in about ${formatDuration(Math.max(1, pause))}`;
     }
     if (progress.phase === UploadPhase.Preparing) return `Preparing ${percent}%`;
     if (processed === progress.total) return 'Finishing upload';

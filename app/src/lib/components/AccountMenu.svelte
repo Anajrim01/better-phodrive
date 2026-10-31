@@ -111,7 +111,7 @@
     </div>
 
     <p class="mx-2 mt-4 text-center text-xs text-muted">
-        Only saved accounts in this browser are shown here.
+        Only accounts saved in this browser appear here
     </p>
 </Menu>
 

@@ -1,17 +1,12 @@
 <script lang="ts">
     import { IconButton, List, Sheet } from 'noph-ui';
-    import {
-        formatDuration,
-        remainingSeconds,
-        throttleMessage
-    } from '@madkarmaa/phodrive-core/browser/upload/eta';
+    import { formatDuration, remainingSeconds } from '@madkarmaa/phodrive-core/browser/upload/eta';
     import { UploadJobStatus, UploadPhase } from '@madkarmaa/phodrive-core/models';
 
     import { slide } from 'svelte/transition';
     import { prefersReducedMotion } from 'svelte/motion';
     import type { UploadJob } from '#browser/files';
     import UploadStatusRow from '#components/UploadStatusRow.svelte';
-    import { retryRemainingSeconds } from '#browser/upload-status';
     import IconClose from '~icons/material-symbols/close';
     import IconExpandMore from '~icons/material-symbols/expand-more';
 
@@ -68,16 +63,10 @@
         return () => clearInterval(timer);
     });
 
-    const pausedSeconds = $derived(
-        paused
-            .map((job) => retryRemainingSeconds(job, now))
-            .filter((seconds): seconds is number => seconds !== null)
-    );
     const failures = $derived(jobs.filter((job) => job.status === UploadJobStatus.Error).length);
     const heading = $derived.by(() => {
         if (busy) {
-            if (pausedSeconds.length)
-                return `${remaining} ${remaining === 1 ? 'item' : 'items'} waiting. ${throttleMessage(Math.max(...pausedSeconds))}`;
+            if (paused.length) return `${remaining} ${remaining === 1 ? 'item' : 'items'} waiting`;
 
             const label = `Uploading ${remaining} ${remaining === 1 ? 'item' : 'items'}`;
             if (eta === null) return label;
@@ -99,7 +88,12 @@
     class="upload-sheet"
 >
     <header class="flex min-h-14 items-center gap-1 bg-surface py-1 pr-2 pl-4">
-        <h2 class="mr-auto text-base font-medium" aria-live="polite">{heading}</h2>
+        <div class="mr-auto min-w-0" aria-live="polite">
+            <h2 class="text-base font-medium">{heading}</h2>
+            {#if busy && paused.length}
+                <p class="text-xs text-muted">Google Photos is limiting requests</p>
+            {/if}
+        </div>
         <IconButton
             size="s"
             aria-label={collapsed ? 'Expand upload status' : 'Minimise upload status'}

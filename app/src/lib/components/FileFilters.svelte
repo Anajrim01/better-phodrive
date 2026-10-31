@@ -32,8 +32,8 @@
     ];
 
     const SORT_OPTIONS: readonly { value: FileSort; label: string }[] = [
-        { value: FileSort.NameAscending, label: 'Name A–Z' },
-        { value: FileSort.NameDescending, label: 'Name Z–A' },
+        { value: FileSort.NameAscending, label: 'Name A to Z' },
+        { value: FileSort.NameDescending, label: 'Name Z to A' },
         { value: FileSort.ModifiedDescending, label: 'Newest first' },
         { value: FileSort.ModifiedAscending, label: 'Oldest first' }
     ];
