@@ -234,27 +234,23 @@
 
 <style>
     .crumbs {
-        --crumb-pad: 8px;
         display: inline-flex;
         flex-wrap: wrap;
         align-items: baseline;
-        gap: 0;
+        column-gap: 8px;
+        row-gap: 0;
     }
 
     .crumb {
         max-width: 100%;
         min-width: 0;
-        padding: 4px var(--crumb-pad);
+        padding: 4px 0;
         overflow: hidden;
         border-radius: 8px;
         color: var(--app-subtle);
         font: inherit;
         text-overflow: ellipsis;
         white-space: nowrap;
-    }
-
-    .crumb:first-child {
-        padding-inline-start: 0;
     }
 
     .crumb:hover {
@@ -272,7 +268,6 @@
     }
 
     .crumb-separator {
-        padding-inline: 4px;
         color: var(--app-subtle);
     }
 </style>

@@ -222,16 +222,18 @@
         gap: 16px;
     }
 
+    @media (width <= 800px), (hover: none), (pointer: coarse) {
+        .folder-upload {
+            display: none;
+        }
+    }
+
     @media (width < 800px) {
         .upload-sidebar {
             display: contents;
         }
 
         :global(:root .upload-button.np-extended-fab) {
-            display: none;
-        }
-
-        .folder-upload {
             display: none;
         }
 
