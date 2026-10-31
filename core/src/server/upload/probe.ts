@@ -11,6 +11,40 @@ export interface PayloadProbe {
     done: boolean;
 }
 
+const IDLE_TIMEOUT_MS = 30_000;
+
+function readPart(
+    reader: ReadableStreamDefaultReader<Uint8Array>,
+    signal: AbortSignal
+): Promise<ReadableStreamReadResult<Uint8Array>> {
+    return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+            cleanup();
+            reject(new Error('idle'));
+        }, IDLE_TIMEOUT_MS);
+        const onAbort = () => {
+            cleanup();
+            reject(new Error('aborted'));
+        };
+        const cleanup = () => {
+            clearTimeout(timer);
+            signal.removeEventListener('abort', onAbort);
+        };
+
+        signal.addEventListener('abort', onAbort, { once: true });
+        reader.read().then(
+            (next) => {
+                cleanup();
+                resolve(next);
+            },
+            (error: unknown) => {
+                cleanup();
+                reject(error);
+            }
+        );
+    });
+}
+
 async function cancelReader(reader: ReadableStreamDefaultReader<Uint8Array>): Promise<void> {
     try {
         await reader.cancel();
@@ -118,7 +152,7 @@ export function readCompressPayload(
             }
 
             while (!probe.done) {
-                const next = await probe.reader.read();
+                const next = await readPart(probe.reader, input.signal);
                 if (next.done) {
                     probe.done = true;
                     break;

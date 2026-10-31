@@ -1,4 +1,10 @@
-import { constants, brotliCompress, brotliCompressSync, brotliDecompress } from 'node:zlib';
+import {
+    constants,
+    brotliCompress,
+    brotliCompressSync,
+    brotliDecompress,
+    createBrotliDecompress
+} from 'node:zlib';
 import { Err, Ok, type AsyncResult } from 'results-ts';
 import { SERVER_ERRORS, type ServerError } from './errors';
 
@@ -120,4 +126,50 @@ export function decompressPayload(
 
         return Ok(payload);
     });
+}
+
+/** Feed stored parts to brotli and hand each output block back without buffering the chunk. */
+export class BrotliStreamDecoder {
+    private readonly decoder;
+    private readonly outputs: Uint8Array[] = [];
+    private failure: ServerError | null = null;
+    private rejectPending: ((reason: unknown) => void) | null = null;
+
+    constructor(originalSize: number) {
+        this.decoder = createBrotliDecompress({ maxOutputLength: originalSize });
+        this.decoder.on('data', (chunk: Buffer) => this.outputs.push(chunk));
+        this.decoder.on('error', () => {
+            this.failure = SERVER_ERRORS.DECOMPRESSION_FAILED;
+            this.rejectPending?.(this.failure);
+            this.rejectPending = null;
+        });
+    }
+
+    async push(part: Uint8Array): Promise<Uint8Array[]> {
+        if (this.failure) throw this.failure;
+        await new Promise<void>((resolve, reject) => {
+            this.rejectPending = reject;
+            this.decoder.write(part, (error: Error | null | undefined) => {
+                this.rejectPending = null;
+                error ? reject(SERVER_ERRORS.DECOMPRESSION_FAILED) : resolve();
+            });
+        });
+        if (this.failure) throw this.failure;
+
+        return this.outputs.splice(0);
+    }
+
+    async end(): Promise<Uint8Array[]> {
+        if (this.failure) throw this.failure;
+        await new Promise<void>((resolve, reject) => {
+            this.rejectPending = reject;
+            this.decoder.end((error: Error | null | undefined) => {
+                this.rejectPending = null;
+                error ? reject(SERVER_ERRORS.DECOMPRESSION_FAILED) : resolve();
+            });
+        });
+        if (this.failure) throw this.failure;
+
+        return this.outputs.splice(0);
+    }
 }

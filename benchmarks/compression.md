@@ -82,7 +82,8 @@ bytes over the network than the number suggests.
 
 Peak process RSS for `bmp-stream` is 1193.5 MiB with compression and 1011.9 MiB
 on the raw streaming path, a 181.6 MiB increase for one 195 MB chunk. This is a
-floor from a constant-fill fixture; mixed content can use more. Raw uploads keep
-the baseline profile: `upload-large` 1272.6 MiB and `upload-boundaries`
-2574.7 MiB. The increase applies only to chunks that are actually buffered for
-compression.
+floor from a constant-fill fixture; mixed content can use more. Worst case per
+buffered slot: a chunk that only clears 5% holds about 186 MiB of raw bytes plus
+roughly twice its compressed output. Raw uploads keep the baseline profile:
+`upload-large` 1272.6 MiB and `upload-boundaries` 2574.7 MiB. The increase
+applies only to chunks that are actually buffered for compression.

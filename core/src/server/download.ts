@@ -4,7 +4,7 @@ import type { FileRequest, RemoteBmp, SplitHeader } from '../models';
 import { SPLIT_FLAG_COMPRESSED, SPLIT_FLAG_LAST, splitHeaderIsCompressed } from '../models';
 import { SplitBmpReader } from './bmp/stream';
 import { MAX_SPLIT_HEADER_BYTES, splitHeaderByteLength } from './bmp/index';
-import { decompressPayload } from './compress';
+import { BrotliStreamDecoder } from './compress';
 import { SERVER_ERRORS, throttleError, type ServerError, type ThrottleMode } from './errors';
 import { downloadBmp } from './photos/index';
 
@@ -155,56 +155,67 @@ export function streamDownload(
                         if (!active) return;
 
                         if (splitHeaderIsCompressed(active.header.flags)) {
-                            const storedSize = active.header.payloadSize;
-                            const stored = new Uint8Array(storedSize);
-                            let received = 0;
+                            const originalSize = active.header.originalSize!;
+                            const decoder = new BrotliStreamDecoder(originalSize);
+                            let produced = 0;
 
-                            while (true) {
-                                const next = await active.readPayload();
-                                if (closed) return;
-                                if (next.isErr()) {
-                                    next.inspectErr((error) => controller.error(error));
+                            const emit = (parts: Uint8Array[]): boolean => {
+                                for (const part of parts) {
+                                    produced += part.length;
+                                    if (produced > originalSize) {
+                                        controller.error(SERVER_ERRORS.DECOMPRESSION_FAILED);
+
+                                        return false;
+                                    }
+
+                                    hash.update(part);
+                                    controller.enqueue(part);
+                                }
+
+                                return true;
+                            };
+
+                            try {
+                                while (true) {
+                                    const next = await active.readPayload();
+                                    if (closed) return;
+                                    if (next.isErr()) {
+                                        next.inspectErr((error) => controller.error(error));
+                                        await cleanup();
+
+                                        return;
+                                    }
+
+                                    const part = next.unwrap();
+                                    if (part === null) break;
+                                    if (!emit(await decoder.push(part))) {
+                                        await cleanup();
+
+                                        return;
+                                    }
+                                }
+
+                                if (!emit(await decoder.end())) {
                                     await cleanup();
 
                                     return;
                                 }
-
-                                const part = next.unwrap();
-                                if (part === null) break;
-                                if (received + part.length > storedSize) {
-                                    controller.error(SERVER_ERRORS.INVALID_DOWNLOADED_BMP);
-                                    await cleanup();
-
-                                    return;
-                                }
-
-                                stored.set(part, received);
-                                received += part.length;
-                            }
-
-                            if (received !== storedSize) {
-                                controller.error(SERVER_ERRORS.INVALID_DOWNLOADED_BMP);
+                            } catch (error) {
+                                controller.error(error);
                                 await cleanup();
 
                                 return;
                             }
 
-                            const originalSize = active.header.originalSize!;
+                            if (produced !== originalSize) {
+                                controller.error(SERVER_ERRORS.DECOMPRESSION_FAILED);
+                                await cleanup();
+
+                                return;
+                            }
+
                             active = null;
                             index++;
-
-                            const decompressed = await decompressPayload(stored, originalSize);
-                            if (closed) return;
-                            if (decompressed.isErr()) {
-                                decompressed.inspectErr((error) => controller.error(error));
-                                await cleanup();
-
-                                return;
-                            }
-
-                            const payload = decompressed.unwrap();
-                            hash.update(payload);
-                            controller.enqueue(payload);
 
                             return;
                         }

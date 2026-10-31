@@ -6,7 +6,7 @@ import {
     type PreferencesDefaults
 } from '@madkarmaa/phodrive-core/models';
 import { watch } from 'runed';
-import { fileKey, type FileGroup, type FileAction } from '@madkarmaa/phodrive-core/files';
+import type { FileGroup, FileAction } from '@madkarmaa/phodrive-core/files';
 import { useAutomaticRefresh } from '#browser/drive/refresh.svelte';
 import type { UploadJob } from '#browser/files';
 import { DriveLibrary } from '#browser/drive/library.svelte';
@@ -63,7 +63,10 @@ export class DriveController extends DriveView {
                     saved,
                     ...this.library.chunks.filter(
                         (item) =>
-                            fileKey(item) !== fileKey(saved) || item.chunkIndex !== saved.chunkIndex
+                            item.email !== saved.email ||
+                            item.mediaKey !== saved.mediaKey ||
+                            item.fileId !== saved.fileId ||
+                            item.chunkIndex !== saved.chunkIndex
                     )
                 ];
             },

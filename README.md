@@ -107,7 +107,7 @@ Changing the setting and uploading the same file again stores a second copy with
 
 When it is on, the server compresses each chunk with brotli quality 1 if that saves at least 5% of the payload, and stores it raw otherwise. Chunks under 4 KiB stay raw. Text, JSON, logs and source shrink by roughly 75% to 88%. Raw video can shrink by about 88%. JPEG saves about 4% and ZIP about 1%, so both stay raw and the setting is not worth enabling for a library of those.
 
-The single-chunk 195 MB benchmark peaks at about 1,194 MiB with compression and 1,012 MiB with it off, in about 215 ms and 222 ms respectively. The difference is the buffered chunk, which is needed because the BMP header declares the final size before the payload is written. Concurrent chunks multiply that difference. The 182 MiB gap is a floor from a constant-fill fixture; mixed content can use more.
+The single-chunk 195 MB benchmark peaks at about 1,194 MiB with compression and 1,012 MiB with it off, in about 215 ms and 217 ms respectively. The difference is the buffered chunk, which is needed because the BMP header declares the final size before the payload is written. Concurrent chunks multiply that difference. The 182 MiB gap is a floor from a constant-fill fixture; mixed content can use more. Worst case per buffered slot: a chunk that only clears 5% holds about 186 MiB of raw bytes plus roughly twice its compressed output.
 
 Brotli output is deterministic for a fixed Node and brotli version. A Node or brotli upgrade can change the stored bytes and SHA-1, so the same raw chunk may be stored again instead of deduplicating after an upgrade.
 

@@ -2,6 +2,7 @@ import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import {
     UploadEventType,
     UploadPhase,
+    Sha1HexSchema,
     type SplitHeader,
     type UploadEvent,
     type UploadResponse
@@ -95,7 +96,9 @@ export function uploadChunk(
                         chunk.size !== header.payloadSize ||
                         chunk.originalName !== header.fileName ||
                         chunk.folder !== header.folder ||
-                        (chunk.compressed ? !chunk.sha1 : chunk.sha1 !== sha1)
+                        (chunk.compressed
+                            ? !Sha1HexSchema.safeParse(chunk.sha1).success
+                            : chunk.sha1 !== sha1)
                     )
                         return invalidResponse();
 

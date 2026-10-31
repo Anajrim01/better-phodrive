@@ -224,7 +224,12 @@ test('three buffered chunks queue the third and never exceed two', async () => {
 
     gates[0].resolve();
     gates[1].resolve();
-    await Promise.all(encodes.slice(0, 2));
+    const firstSources = await Promise.all(encodes.slice(0, 2));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(secondReads[2]).toBe(0);
+
+    await firstSources[0].unwrap().body.cancel();
+    await firstSources[1].unwrap().body.cancel();
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(secondReads[2]).toBe(1);
 
