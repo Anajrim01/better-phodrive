@@ -256,11 +256,7 @@ function probeLibraryItem(
             return await fetchPrefix(email, url, commonHeaders, fetcher);
         })
         .map((prefix) => {
-            if (prefix === null) {
-                writeProbe(email, candidate, null);
-
-                return null;
-            }
+            if (prefix === null) return null;
 
             const item = decodeSplitHeader(prefix, candidate.size).match({
                 Ok: ({ header }) => ({

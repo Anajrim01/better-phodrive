@@ -1,4 +1,5 @@
 import { throttleError, type ServerError } from '../errors';
+import { invalidateAuth } from './auth-cache';
 import { Err, Ok, type AsyncResult } from 'results-ts';
 import type { Fetcher } from '../fetcher';
 import {
@@ -81,6 +82,7 @@ export function guardedSend(
                 return throttleError(recordThrottle(email, error.retryAfterSeconds));
 
             if (error.status < SERVER_ERROR_MIN_STATUS) {
+                if (error.status === 401 || error.status === 403) invalidateAuth(email);
                 recordServerSuccess(email);
 
                 return error;

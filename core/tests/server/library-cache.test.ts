@@ -48,6 +48,22 @@ function preparedDownload(mediaKey: string, sha1: string, url: string): Buffer {
     );
 }
 
+function videoDownload(mediaKey: string, sha1: string): Buffer {
+    const download = message(numberField(1, 2), bytesField(3, message()));
+
+    return bytesField(
+        1,
+        message(
+            bytesField(1, mediaKey),
+            bytesField(
+                2,
+                message(bytesField(13, message(bytesField(1, Buffer.from(sha1, 'hex')))))
+            ),
+            bytesField(5, download)
+        )
+    );
+}
+
 function fixture(name: string, payload: string) {
     const bytes = Buffer.from(payload);
     const fileHash = createHash('sha256').update(bytes).digest('hex');
@@ -194,4 +210,29 @@ test('a truncated Phodrive header is not cached as a miss', async () => {
 
     expect((await listBmps(EMAIL, TOKEN, '', fetcher)).unwrap().items).toEqual([]);
     expect(counts).toEqual({ prepare: 2, range: 2 });
+});
+
+test('a video without a download URL is not cached as a miss', async () => {
+    const file = fixture('clip.mp4', 'video bytes');
+    const counts: ProbeCounts = { prepare: 0, range: 0 };
+    const fetcher: Fetcher = async (input) => {
+        const url = String(input);
+
+        if (url === 'https://android.googleapis.com/auth')
+            return new Response(`Auth=bearer\nExpiry=${Math.floor(Date.now() / 1000) + 3600}`);
+        if (url.includes(PAGE_URL)) return new Response(new Uint8Array(libraryPage([file])));
+        if (url.includes(PREPARE_URL)) {
+            counts.prepare++;
+
+            return new Response(new Uint8Array(videoDownload(file.mediaKey, file.sha1)));
+        }
+
+        throw new Error(`Unexpected request ${url}`);
+    };
+
+    expect((await listBmps(EMAIL, TOKEN, '', fetcher)).unwrap().items).toEqual([]);
+    expect(counts).toEqual({ prepare: 1, range: 0 });
+
+    expect((await listBmps(EMAIL, TOKEN, '', fetcher)).unwrap().items).toEqual([]);
+    expect(counts).toEqual({ prepare: 2, range: 0 });
 });

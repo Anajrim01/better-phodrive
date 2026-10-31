@@ -108,9 +108,7 @@ export function transferFiles(
                 planChunks(
                     {
                         name: file.name,
-                        folder:
-                            (options.folders?.get(file) ?? folderFromFile(file, options.folder)) ||
-                            undefined,
+                        folder: folder || undefined,
                         size: file.size,
                         fileHash
                     },

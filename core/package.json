@@ -173,6 +173,10 @@
             "@madkarmaa/phodrive-core": "./src/server/photos/auth.ts",
             "default": "./dist/server/photos/auth.js"
         },
+        "./server/photos/auth-cache": {
+            "@madkarmaa/phodrive-core": "./src/server/photos/auth-cache.ts",
+            "default": "./dist/server/photos/auth-cache.js"
+        },
         "./server/photos/download": {
             "@madkarmaa/phodrive-core": "./src/server/photos/download.ts",
             "default": "./dist/server/photos/download.js"
@@ -325,6 +329,7 @@
             "./server/photos": "./dist/server/photos/index.js",
             "./server/photos/albums": "./dist/server/photos/albums.js",
             "./server/photos/auth": "./dist/server/photos/auth.js",
+            "./server/photos/auth-cache": "./dist/server/photos/auth-cache.js",
             "./server/photos/download": "./dist/server/photos/download.js",
             "./server/photos/library": "./dist/server/photos/library/index.js",
             "./server/photos/library/metadata": "./dist/server/photos/library/metadata.js",

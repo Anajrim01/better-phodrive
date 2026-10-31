@@ -5,6 +5,7 @@ import {
     recordThrottle,
     throttleWaitSeconds
 } from '@madkarmaa/phodrive-core/server/photos/throttle';
+import { guardedSend } from '@madkarmaa/phodrive-core/server/photos/transport';
 import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
 
 const EMAIL = 'auth@example.com';
@@ -65,4 +66,57 @@ test('account validation always asks Google again', async () => {
 
     expect(validated.isOk()).toBe(true);
     expect(calls).toBe(2);
+});
+
+test('a rejected bearer clears the cached headers', async () => {
+    let authCalls = 0;
+    const authFetcher: Fetcher = async () => {
+        authCalls++;
+
+        return new Response(AUTH_RESPONSE);
+    };
+
+    await authenticatedHeaders(EMAIL, TOKEN, authFetcher);
+
+    const rejected: Fetcher = async () => new Response(null, { status: 401 });
+    const result = await guardedSend(EMAIL, rejected, 'https://photos.example/data', {}, 'Photos');
+
+    expect(result.unwrapErr()).toMatchObject({ code: 'REQUEST_FAILED', status: 401 });
+
+    const refreshed = await authenticatedHeaders(EMAIL, TOKEN, authFetcher);
+
+    expect(refreshed.isOk()).toBe(true);
+    expect(authCalls).toBe(2);
+});
+
+test('headers inside the expiry margin are not reused', async () => {
+    let calls = 0;
+    const shortExpiry = `Auth=bearer\nExpiry=${Math.floor(Date.now() / 1000) + 20}`;
+    const fetcher: Fetcher = async () => {
+        calls++;
+
+        return new Response(shortExpiry);
+    };
+
+    await authenticatedHeaders(EMAIL, TOKEN, fetcher);
+    await authenticatedHeaders(EMAIL, TOKEN, fetcher);
+
+    expect(calls).toBe(2);
+});
+
+test('accounts do not share cached headers', async () => {
+    const tokens: string[] = [];
+    const fetcher: Fetcher = async (_input, init) => {
+        const form = new URLSearchParams(String(init?.body));
+        tokens.push(form.get('Token') ?? '');
+
+        return new Response(AUTH_RESPONSE);
+    };
+
+    await authenticatedHeaders('a@example.com', 'aas_et/a', fetcher);
+    await authenticatedHeaders('b@example.com', 'aas_et/b', fetcher);
+    await authenticatedHeaders('a@example.com', 'aas_et/a', fetcher);
+    await authenticatedHeaders('b@example.com', 'aas_et/b', fetcher);
+
+    expect(tokens).toEqual(['aas_et/a', 'aas_et/b']);
 });
