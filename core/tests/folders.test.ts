@@ -43,15 +43,21 @@ test('child folders list immediate children with their direct file counts', () =
         group('zeta.txt', 'a/z')
     ];
 
-    expect(childFolders(files, '')).toEqual([{ path: 'a', name: 'a', files: 1 }]);
+    expect(childFolders(files, '')).toEqual([{ path: 'a', name: 'a', files: 1, subfolders: 3 }]);
     expect(childFolders(files, 'a')).toEqual([
-        { path: 'a/b', name: 'b', files: 2 },
-        { path: 'a/bc', name: 'bc', files: 1 },
-        { path: 'a/z', name: 'z', files: 1 }
+        { path: 'a/b', name: 'b', files: 2, subfolders: 1 },
+        { path: 'a/bc', name: 'bc', files: 1, subfolders: 1 },
+        { path: 'a/z', name: 'z', files: 1, subfolders: 0 }
     ]);
-    expect(childFolders(files, 'a/b')).toEqual([{ path: 'a/b/c', name: 'c', files: 1 }]);
-    expect(childFolders(files, 'a/b/c')).toEqual([{ path: 'a/b/c/d', name: 'd', files: 1 }]);
-    expect(childFolders(files, 'a/bc')).toEqual([{ path: 'a/bc/deep', name: 'deep', files: 1 }]);
+    expect(childFolders(files, 'a/b')).toEqual([
+        { path: 'a/b/c', name: 'c', files: 1, subfolders: 1 }
+    ]);
+    expect(childFolders(files, 'a/b/c')).toEqual([
+        { path: 'a/b/c/d', name: 'd', files: 1, subfolders: 0 }
+    ]);
+    expect(childFolders(files, 'a/bc')).toEqual([
+        { path: 'a/bc/deep', name: 'deep', files: 1, subfolders: 0 }
+    ]);
     expect(childFolders(files, 'missing')).toEqual([]);
 });
 
@@ -190,4 +196,27 @@ test('identical files in different folders keep separate identities', () => {
 
     expect(groups).toHaveLength(2);
     expect(groups.map((group) => group.folder).sort()).toEqual(['photos/a', 'photos/b']);
+});
+
+test('folder entries count direct files and immediate subfolders separately', () => {
+    const filesOnly = [group('one.txt', 'photos'), group('two.txt', 'photos')];
+    const subfoldersOnly = [group('one.txt', 'photos/2024'), group('two.txt', 'photos/2025')];
+    const both = [group('one.txt', 'photos'), group('two.txt', 'photos/2024')];
+    const deep = [group('one.txt', 'photos/2024/a/b/c')];
+
+    expect(childFolders(filesOnly, '')).toEqual([
+        { path: 'photos', name: 'photos', files: 2, subfolders: 0 }
+    ]);
+    expect(childFolders(subfoldersOnly, '')).toEqual([
+        { path: 'photos', name: 'photos', files: 0, subfolders: 2 }
+    ]);
+    expect(childFolders(both, '')).toEqual([
+        { path: 'photos', name: 'photos', files: 1, subfolders: 1 }
+    ]);
+    expect(childFolders(deep, '')).toEqual([
+        { path: 'photos', name: 'photos', files: 0, subfolders: 1 }
+    ]);
+    expect(childFolders(deep, 'photos')).toEqual([
+        { path: 'photos/2024', name: '2024', files: 0, subfolders: 1 }
+    ]);
 });

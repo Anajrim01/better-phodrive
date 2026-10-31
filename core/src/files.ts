@@ -53,11 +53,17 @@ export function folderFromPath(path: string): string {
     return normalizedFolder(segments.join('/'));
 }
 
-export type FolderEntry = { path: string; name: string; files: number };
+export type FolderEntry = {
+    path: string;
+    name: string;
+    files: number;
+    subfolders: number;
+};
 
 export function childFolders(files: readonly FileGroup[], path: string): FolderEntry[] {
     const prefix = path ? `${path}/` : '';
     const entries = new Map<string, FolderEntry>();
+    const subfolders = new Map<string, Set<string>>();
 
     for (const file of files) {
         if (!file.folder.startsWith(prefix)) continue;
@@ -67,10 +73,29 @@ export function childFolders(files: readonly FileGroup[], path: string): FolderE
 
         const name = rest.split('/')[0];
         const childPath = `${prefix}${name}`;
-        const entry = entries.get(childPath) ?? { path: childPath, name, files: 0 };
-        if (rest === name) entry.files++;
+        const entry = entries.get(childPath) ?? {
+            path: childPath,
+            name,
+            files: 0,
+            subfolders: 0
+        };
+        if (rest === name) {
+            entry.files++;
+        } else {
+            const subfolder = rest.slice(name.length + 1).split('/')[0];
+            if (subfolder) {
+                const children = subfolders.get(childPath) ?? new Set<string>();
+                children.add(`${childPath}/${subfolder}`);
+                subfolders.set(childPath, children);
+            }
+        }
 
         entries.set(childPath, entry);
+    }
+
+    for (const [childPath, children] of subfolders) {
+        const entry = entries.get(childPath);
+        if (entry) entry.subfolders = children.size;
     }
 
     return [...entries.values()].sort((first, second) => first.name.localeCompare(second.name));

@@ -9,6 +9,15 @@
     }
 
     let { folders, disabled, onopen }: Props = $props();
+
+    function folderCount(files: number, subfolders: number): string {
+        const parts: string[] = [];
+        if (files > 0) parts.push(`${files} ${files === 1 ? 'file' : 'files'}`);
+        if (subfolders > 0)
+            parts.push(`${subfolders} ${subfolders === 1 ? 'subfolder' : 'subfolders'}`);
+
+        return parts.join(', ');
+    }
 </script>
 
 {#if folders.length}
@@ -31,8 +40,7 @@
                         <span class="folder-text">
                             <span class="folder-name" title={folder.name}>{folder.name}</span>
                             <span class="folder-count">
-                                {folder.files}
-                                {folder.files === 1 ? 'file' : 'files'}
+                                {folderCount(folder.files, folder.subfolders)}
                             </span>
                         </span>
                     </button>
