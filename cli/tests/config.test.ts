@@ -17,7 +17,7 @@ afterEach(() => folder.remove());
 test('a missing config file is empty', async () => {
     const config = await readConfig(path);
 
-    expect(config.unwrap()).toEqual({ accounts: {}, selected: '', settings: {} });
+    expect(config.unwrap()).toEqual({ accounts: {}, selected: '', settings: {}, albums: {} });
 });
 
 test('the config path can be overridden', () => {
@@ -45,7 +45,8 @@ test('invalid accounts and settings are dropped while valid entries remain', asy
     expect(config.unwrap()).toEqual({
         accounts: { [EMAIL]: AAS_TOKEN },
         selected: '',
-        settings: { workers: 4 }
+        settings: { workers: 4 },
+        albums: {}
     });
 });
 
@@ -60,7 +61,7 @@ test('malformed JSON is reported instead of being overwritten', async () => {
 });
 
 test('saved configs are private to the current user', async () => {
-    const saved = await writeConfig(path, { accounts: {}, selected: '', settings: {} });
+    const saved = await writeConfig(path, { accounts: {}, selected: '', settings: {}, albums: {} });
 
     expect(saved.isOk()).toBe(true);
     if (process.platform === 'win32') return;

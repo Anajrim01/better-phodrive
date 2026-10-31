@@ -6,6 +6,7 @@ import type { Session } from './accounts';
 import type { CliContext, CliError } from './context';
 import { activity, fileSize, shortId, status } from './output';
 import { askChoice } from './prompts';
+import { retryThrottled } from './throttle';
 
 const ID_PREFIX_PATTERN = /^[a-f0-9]{4,64}$/;
 
@@ -16,7 +17,9 @@ export function loadFiles(
     return Ok(undefined).andThenAsync(async () => {
         const indicator = activity(context, `Loading files for ${session.email}`);
 
-        const files = await readLibrary(session.email, session.token);
+        const files = await retryThrottled(context, () =>
+            readLibrary(session.email, session.token)
+        );
 
         files.match({
             Ok: (found) => indicator.stop(`Found ${found.length} files`),
@@ -27,8 +30,12 @@ export function loadFiles(
     });
 }
 
+export function filePath(file: FileGroup): string {
+    return file.folder ? `${file.folder}/${file.name}` : file.name;
+}
+
 function describe(file: FileGroup): string {
-    return `${file.name} (${shortId(file)})`;
+    return `${filePath(file)} (${shortId(file)})`;
 }
 
 /** A target is a file ID prefix or an exact file name. */
@@ -36,7 +43,12 @@ function matchTarget(files: readonly FileGroup[], target: string): FileGroup[] {
     const prefix = target.toLowerCase();
     const byId = ID_PREFIX_PATTERN.test(prefix);
 
-    return files.filter((file) => file.name === target || (byId && file.fileId.startsWith(prefix)));
+    return files.filter(
+        (file) =>
+            file.name === target ||
+            filePath(file) === target ||
+            (byId && file.fileId.startsWith(prefix))
+    );
 }
 
 /** At a terminal the person picks one match; scripts are told to use an ID instead. */
@@ -136,7 +148,9 @@ export function deleteFiles(
         let failed = 0;
 
         for (const file of files) {
-            const deleted = await deleteFile(file, session.token, workers);
+            const deleted = await retryThrottled(context, () =>
+                deleteFile(file, session.token, workers)
+            );
 
             const failure = deleted.match({
                 Ok: (result) => deleteFailure(file, result),

@@ -140,13 +140,15 @@ Then install it with `npm install --global @madkarmaa/phodrive-cli`, or run it o
 ```sh
 phodrive account add you@gmail.com   # asks for the oauth2_4/ token from the steps above
 phodrive file list                   # add a search term, --type pdf, --days 30, or --sort name-asc
+phodrive file list --folders          # folder paths and file counts
+phodrive file list --folder photos/2024  # files in one folder
 phodrive file upload ./photos        # files and whole folders
 phodrive file download report.pdf    # by name or by the ID that file list shows
 phodrive file delete report.pdf
 phodrive setting set workers 4
 ```
 
-`phodrive help` lists every command. `phodrive help file upload`, `phodrive file upload --help`, and `phodrive file upload -h` all show the options of one command.
+Uploading a folder keeps its relative paths, and each folder becomes a same-named Google Photos album, the same as the web app. `phodrive help` lists every command. `phodrive help file upload`, `phodrive file upload --help`, and `phodrive file upload -h` all show the options of one command.
 
 `phodrive` saves accounts and settings in `config.json` in your user configuration folder. On macOS and Linux, only your user can read that file. Set `PHODRIVE_CONFIG` to use another file.
 

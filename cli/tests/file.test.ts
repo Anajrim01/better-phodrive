@@ -27,7 +27,8 @@ beforeEach(async () => {
     await writeConfig(join(folder.path, 'config', 'config.json'), {
         accounts: { [EMAIL]: AAS_TOKEN },
         selected: EMAIL,
-        settings: {}
+        settings: {},
+        albums: {}
     });
     vi.mocked(downloadFile).mockImplementation(() =>
         Ok(undefined).andThenAsync(async () => Ok(undefined))

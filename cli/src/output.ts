@@ -7,7 +7,8 @@ import type { CliContext, CliError } from './context';
 
 /** Files are identified by this many leading characters of their ID in tables and arguments. */
 export const SHORT_ID_LENGTH = 12;
-export const FILE_TABLE_HEAD = ['ID', 'Name', 'Type', 'Size', 'Modified', ''];
+export const FILE_TABLE_HEAD = ['ID', 'Name', 'Folder', 'Type', 'Size', 'Modified', ''];
+export const FOLDER_TABLE_HEAD = ['Folder', 'Files'];
 const PROGRESS_STEPS = 1000;
 const DATE_FORMAT = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 // Google rejects expired or revoked tokens while authenticating each request.
@@ -131,6 +132,7 @@ export function fileRow(file: FileGroup): string[] {
     return [
         shortId(file),
         file.name,
+        file.folder,
         fileType(file.name),
         prettyBytes(fileSize(file)),
         DATE_FORMAT.format(file.at),
@@ -143,6 +145,7 @@ export function fileJson(file: FileGroup) {
     return {
         id: file.fileId,
         name: file.name,
+        folder: file.folder,
         type: fileType(file.name),
         size: fileSize(file),
         modified: new Date(file.at).toISOString(),

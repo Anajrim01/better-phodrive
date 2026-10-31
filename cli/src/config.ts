@@ -9,7 +9,9 @@ import {
     FileSortSchema,
     SelectedAccountSchema,
     StoredAccountsSchema,
-    WorkerCountSchema
+    StoredAlbumsSchema,
+    WorkerCountSchema,
+    type StoredAlbums
 } from '@madkarmaa/phodrive-core/models';
 import type { CliError } from './context';
 import { isMissingPath } from './filesystem';
@@ -29,7 +31,8 @@ const StoredSettingsSchema = z.object({
 const StoredConfigSchema = z.object({
     accounts: StoredAccountsSchema.catch({}),
     selected: SelectedAccountSchema.catch(''),
-    settings: StoredSettingsSchema.catch({})
+    settings: StoredSettingsSchema.catch({}),
+    albums: StoredAlbumsSchema.catch({})
 });
 
 export type StoredSettings = z.infer<typeof StoredSettingsSchema>;
@@ -37,9 +40,10 @@ export type CliConfig = {
     accounts: Record<string, string>;
     selected: string;
     settings: StoredSettings;
+    albums: StoredAlbums;
 };
 
-const EMPTY_CONFIG: CliConfig = { accounts: {}, selected: '', settings: {} };
+const EMPTY_CONFIG: CliConfig = { accounts: {}, selected: '', settings: {}, albums: {} };
 
 export function defaultConfigPath(environment: Record<string, string | undefined>): string {
     const override = environment[CONFIG_PATH_VARIABLE]?.trim();
@@ -60,7 +64,12 @@ function parseConfig(value: unknown): CliConfig {
         accounts[account.data.email] = account.data.token;
     }
 
-    return { accounts, selected: parsed.selected, settings: parsed.settings };
+    return {
+        accounts,
+        selected: parsed.selected,
+        settings: parsed.settings,
+        albums: parsed.albums
+    };
 }
 
 function parseJson(text: string, path: string): Result<unknown, CliError> {
