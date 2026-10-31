@@ -254,8 +254,8 @@
     }
 
     .crumb:hover {
-        background: var(--app-hover);
         color: var(--app-text);
+        box-shadow: 0 0 0 4px var(--app-hover);
     }
 
     .crumb.current {
