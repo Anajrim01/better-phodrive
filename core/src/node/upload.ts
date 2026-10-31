@@ -7,6 +7,11 @@ import type { ApplicationError } from '../errors';
 import { folderFromPath, type UploadedChunk } from '../files';
 import { UploadEventType, type UploadEvent } from '../models';
 import { transferFiles } from '../browser/upload/index';
+import {
+    transferGroupFiles,
+    type GroupUploadMember,
+    type GroupUploadResult
+} from '../browser/upload/group';
 import type { ChunkTransport } from '../browser/upload/request';
 import type { UploadJob } from '../browser/upload/jobs';
 import type { Fetcher } from '../server/fetcher';
@@ -207,6 +212,27 @@ export function uploadFiles(
             files,
             email,
             token,
+            concurrency,
+            onJob,
+            onChunk,
+            localChunkTransport(options),
+            { folders: options.folders, compress: options.compress }
+        )
+    );
+}
+
+export function uploadGroupFiles(
+    files: readonly File[],
+    members: readonly GroupUploadMember[],
+    workers: number,
+    onJob: (job: UploadJob) => void,
+    onChunk: (chunk: UploadedChunk) => void,
+    options: TransferOptions = {}
+): AsyncResult<GroupUploadResult, ApplicationError> {
+    return validateWorkers(workers).andThenAsync((concurrency) =>
+        transferGroupFiles(
+            files,
+            members,
             concurrency,
             onJob,
             onChunk,

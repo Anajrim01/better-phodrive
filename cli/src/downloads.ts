@@ -1,7 +1,8 @@
 import { dirname, join, resolve } from 'node:path';
 import prettyBytes from 'pretty-bytes';
-import { Err, Ok, type AsyncResult } from 'results-ts';
+import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import type { FileGroup } from '@madkarmaa/phodrive-core/files';
+import { downloadRoute, type RouteMember } from '@madkarmaa/phodrive-core/groups';
 import { downloadFile } from '@madkarmaa/phodrive-core/node';
 import type { Session } from './accounts';
 import type { CliContext, CliError } from './context';
@@ -60,17 +61,25 @@ export function planDownloads(
     });
 }
 
-export function saveFiles(
+function savePlanned(
     context: CliContext,
-    session: Session,
     planned: readonly PlannedDownload[],
-    force: boolean
+    force: boolean,
+    tokenForFile: (file: FileGroup) => Result<string, CliError>
 ): AsyncResult<void, CliError> {
     return Ok(undefined).andThenAsync(async () => {
         const failures: CliError[] = [];
 
         for (const { file, destination } of planned) {
             if (context.signal.aborted) break;
+
+            const routed = tokenForFile(file);
+            if (routed.isErr()) {
+                status(context).error(`${file.name}: ${routed.unwrapErr().message}`);
+                failures.push(routed.unwrapErr());
+
+                continue;
+            }
 
             const parent = await createFolder(dirname(destination));
             if (parent.isErr()) {
@@ -86,7 +95,7 @@ export function saveFiles(
             const bar = transferProgress(context, `Downloading ${file.name}`, size);
 
             const saved = await retryThrottled(context, () =>
-                downloadFile(file, session.token, destination, {
+                downloadFile(file, routed.unwrap(), destination, {
                     force,
                     signal: context.signal,
                     onProgress: (written) =>
@@ -117,4 +126,24 @@ export function saveFiles(
             message: `${failures.length} of ${planned.length} files failed to download.`
         } as const);
     });
+}
+
+export function saveFiles(
+    context: CliContext,
+    session: Session,
+    planned: readonly PlannedDownload[],
+    force: boolean
+): AsyncResult<void, CliError> {
+    return savePlanned(context, planned, force, () => Ok(session.token));
+}
+
+export function saveGroupFiles(
+    context: CliContext,
+    planned: readonly PlannedDownload[],
+    members: readonly RouteMember[],
+    force: boolean
+): AsyncResult<void, CliError> {
+    return savePlanned(context, planned, force, (file) =>
+        downloadRoute(file, members).map((route) => route.token)
+    );
 }

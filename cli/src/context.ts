@@ -17,6 +17,7 @@ export type CliError =
               | 'DELETE_INCOMPLETE'
               | 'DOWNLOAD_INCOMPLETE'
               | 'FILE_NOT_FOUND'
+              | 'GROUP_NOT_FOUND'
               | 'INPUT_REQUIRED'
               | 'INVALID_OPTION'
               | 'NO_FILES_SELECTED'

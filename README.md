@@ -160,9 +160,16 @@ phodrive file upload ./photos        # files and whole folders
 phodrive file upload ./photos --compress  # compress this run
 phodrive file download report.pdf    # by name or by the ID that file list shows
 phodrive file delete report.pdf
+phodrive group create Family --account you@gmail.com --account other@gmail.com
+phodrive file upload ./photos --group Family  # spread whole files across the group
+phodrive file list --group Family            # merged listing with an owner column
 phodrive setting set workers 4
 phodrive setting set compression on  # default for later uploads
 ```
+
+A group spreads whole files across its accounts by size. Each file and all of its
+chunks stay on one owner, and downloads and deletes go back to that owner. A
+paused account stops taking new files while the others continue.
 
 Uploading a folder keeps its relative paths, and each folder becomes a same-named Google Photos album, the same as the web app. `phodrive help` lists every command. `phodrive help file upload`, `phodrive file upload --help`, and `phodrive file upload -h` all show the options of one command.
 

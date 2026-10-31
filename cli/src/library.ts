@@ -1,6 +1,7 @@
 import prettyBytes from 'pretty-bytes';
-import { Err, Ok, type AsyncResult } from 'results-ts';
+import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import type { FileGroup } from '@madkarmaa/phodrive-core/files';
+import { deleteRoute, type RouteMember } from '@madkarmaa/phodrive-core/groups';
 import { deleteFile, readLibrary, type DeleteResult } from '@madkarmaa/phodrive-core/node';
 import type { Session } from './accounts';
 import type { CliContext, CliError } from './context';
@@ -139,27 +140,32 @@ function deleteFailure(file: FileGroup, { deleted, error }: DeleteResult): strin
     return `${file.name}: deleted ${deleted.length} of ${total} chunks.${reason}`;
 }
 
-export function deleteFiles(
+function deletePlanned(
     context: CliContext,
-    session: Session,
     files: readonly FileGroup[],
-    workers: number
+    workers: number,
+    tokenForFile: (file: FileGroup) => Result<string, CliError>
 ): AsyncResult<void, CliError> {
     return Ok(undefined).andThenAsync(async () => {
         let failed = 0;
 
         for (const file of files) {
+            const routed = tokenForFile(file);
+            if (routed.isErr()) {
+                failed++;
+                status(context).error(`${file.name}: ${routed.unwrapErr().message}`);
+
+                continue;
+            }
+            const token = routed.unwrap();
+
             let remaining = [...file.chunks, ...file.duplicates];
             const deleted: DeleteResult['deleted'] = [];
             let error: string | undefined;
             let lastThrottle: number | undefined;
 
             for (let attempt = 1; attempt <= THROTTLE_RETRY_LIMIT; attempt++) {
-                const result = await deleteFile(
-                    { ...file, chunks: remaining },
-                    session.token,
-                    workers
-                );
+                const result = await deleteFile({ ...file, chunks: remaining }, token, workers);
                 if (result.isErr()) {
                     error = result.unwrapErr().message;
                     lastThrottle = undefined;
@@ -210,4 +216,24 @@ export function deleteFiles(
             message: `${failed} of ${files.length} files were not fully deleted. Run the command again to retry.`
         } as const);
     });
+}
+
+export function deleteFiles(
+    context: CliContext,
+    session: Session,
+    files: readonly FileGroup[],
+    workers: number
+): AsyncResult<void, CliError> {
+    return deletePlanned(context, files, workers, () => Ok(session.token));
+}
+
+export function deleteGroupFiles(
+    context: CliContext,
+    files: readonly FileGroup[],
+    members: readonly RouteMember[],
+    workers: number
+): AsyncResult<void, CliError> {
+    return deletePlanned(context, files, workers, (file) =>
+        deleteRoute(file, members).map((route) => route.token)
+    );
 }

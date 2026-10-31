@@ -78,11 +78,17 @@ export type GroupAccountState = {
     message?: string;
 };
 
+export type GroupPageError = {
+    code: string;
+    message: string;
+    retryAfterSeconds?: number;
+};
+
 export type GroupPage = {
     email: string;
     items?: readonly RemoteBmp[];
     paused?: boolean;
-    error?: ApplicationError;
+    error?: GroupPageError;
 };
 
 export type GroupLibrary = {

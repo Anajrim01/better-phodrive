@@ -144,3 +144,10 @@ export function transferFiles(
         return handle({ type: UploadEventType.Complete });
     });
 }
+
+export {
+    uploadGroupFiles,
+    transferGroupFiles,
+    type GroupUploadMember,
+    type GroupUploadResult
+} from './group';

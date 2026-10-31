@@ -3,6 +3,7 @@ import type { AsyncResult } from 'results-ts';
 import { version } from '../package.json';
 import { registerAccountCommands } from './commands/account';
 import { registerFileCommands } from './commands/file';
+import { registerGroupCommands } from './commands/group';
 import { registerHelpCommand } from './commands/help';
 import { registerSettingCommands } from './commands/setting';
 import { registerUpdateCommand } from './commands/update';
@@ -35,6 +36,7 @@ export function createProgram(context: CliContext, onError: (error: CliError) =>
 
     registerAccountCommands(program, context, run);
     registerFileCommands(program, context, run);
+    registerGroupCommands(program, context, run);
     registerSettingCommands(program, context, run);
     registerUpdateCommand(program, context, run);
     registerHelpCommand(program, run);

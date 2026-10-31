@@ -138,9 +138,9 @@ change album assignment.
   clean. This is the independence test under an active throttle, which the
   research could not run.
 
-## Phase 1 scope
+## Phase 1 and phase 2a scope
 
-Contained:
+Phase 1 contained:
 
 - the group schema and its stored-data migration;
 - deterministic, size-weighted file assignment with per-member availability;
@@ -148,14 +148,22 @@ Contained:
 - owner routing helpers for download and delete;
 - this design.
 
-Not contained here:
+Phase 2a added:
+
+- group upload orchestration, with one concurrency pool and breaker per
+  account, waiting files when every member is paused, and per-owner album
+  mirroring;
+- the `group` CLI commands and `--group` on file list, upload, download, and
+  delete, with an owner column and owner in JSON;
+- owner routing from the merged listing for every file action.
+
+Not contained yet:
 
 - any UI for creating groups or picking one for an upload;
 - the group view's cross-account grouping by file id and chunk index;
-- CLI commands for groups;
-- wiring the group into upload, refresh, download, and delete;
 - an owner field in the split header;
 - album migration, rebalancing, or moving existing files.
 
-Phase 1 changes no single-account behavior. Every new field defaults to empty,
-and the existing paths keep using the selected account.
+Without a group, every path keeps using the selected account: no extra
+listing calls or config reads, and the upload, download, and delete flows are
+unchanged.
