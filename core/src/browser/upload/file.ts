@@ -34,7 +34,7 @@ export function uploadPlannedFile(
                 header,
                 account,
                 transport,
-                (completed, existing) => {
+                (completed, existing, retryAfterSeconds) => {
                     sent[header.chunkIndex] = completed;
                     reused[header.chunkIndex] = existing;
                     handle({
@@ -44,7 +44,8 @@ export function uploadPlannedFile(
                             phase: UploadPhase.Uploading,
                             completed: sent.reduce((sum, size) => sum + size, 0),
                             reused: reused.reduce((sum, size) => sum + size, 0),
-                            total
+                            total,
+                            ...(retryAfterSeconds === undefined ? {} : { retryAfterSeconds })
                         }
                     });
                 },

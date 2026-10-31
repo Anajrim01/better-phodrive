@@ -43,7 +43,14 @@ export function uploadStream(input: ReceivedUpload): Response {
                     .andThen(() => cancelled)
                     .match({
                         Ok: () => emit({ type: UploadEventType.Complete }),
-                        Err: (error) => emit({ type: UploadEventType.Error, error: error.message })
+                        Err: (error) =>
+                            emit({
+                                type: UploadEventType.Error,
+                                error: error.message,
+                                ...(error.code === 'THROTTLED'
+                                    ? { retryAfterSeconds: error.retryAfterSeconds }
+                                    : {})
+                            })
                     });
                 finished = true;
                 flush(controller);

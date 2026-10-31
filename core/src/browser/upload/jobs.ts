@@ -21,6 +21,7 @@ export interface UploadJob {
     result: UploadResponse | null;
     bytesPerSecond: number;
     etaSeconds: number | null;
+    retryAfterSeconds: number | null;
 }
 
 export interface UploadSource {
@@ -37,12 +38,19 @@ export function createUploadJobs(files: readonly File[]): UploadJob[] {
         message: '',
         result: null,
         bytesPerSecond: 0,
-        etaSeconds: null
+        etaSeconds: null,
+        retryAfterSeconds: null
     }));
 }
 
 function invalidProgress(): Result<never, ApplicationError> {
     return Err(INVALID_UPLOAD_PROGRESS);
+}
+
+function processedBytes(progress: UploadProgress): number {
+    return progress.phase === UploadPhase.Uploading
+        ? progress.completed + progress.reused
+        : progress.completed;
 }
 
 function updateProgress(
@@ -57,16 +65,19 @@ function updateProgress(
         (progress.total !== file.size || previous.phase === UploadPhase.Uploading)
     )
         return invalidProgress();
+    const processed = processedBytes(progress);
+    const previousProcessed = processedBytes(previous);
     if (
         progress.phase === UploadPhase.Uploading &&
         previous.phase === UploadPhase.Uploading &&
-        (progress.total !== previous.total ||
-            progress.completed < previous.completed ||
-            progress.reused < previous.reused)
+        (progress.total !== previous.total || processed < previousProcessed)
     )
         return invalidProgress();
 
-    return Ok({ ...job, status: UploadJobStatus.Active, progress });
+    const retryAfterSeconds =
+        progress.phase === UploadPhase.Uploading ? (progress.retryAfterSeconds ?? null) : null;
+
+    return Ok({ ...job, status: UploadJobStatus.Active, progress, retryAfterSeconds });
 }
 
 function completeJob(
@@ -89,7 +100,7 @@ function completeJob(
     )
         return invalidProgress();
 
-    return Ok({ ...job, status: UploadJobStatus.Complete, result });
+    return Ok({ ...job, status: UploadJobStatus.Complete, result, retryAfterSeconds: null });
 }
 
 /** Server IDs index submitted files; local job IDs also include rejected selections. */

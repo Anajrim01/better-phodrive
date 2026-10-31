@@ -186,7 +186,8 @@ export const UploadProgressSchema = z
             phase: z.literal(UploadPhase.Uploading),
             completed: z.int().nonnegative(),
             total: z.int().positive(),
-            reused: z.int().nonnegative()
+            reused: z.int().nonnegative(),
+            retryAfterSeconds: z.int().positive().optional()
         })
     ])
     .refine(
@@ -217,7 +218,11 @@ export const UploadEventSchema = z.discriminatedUnion('type', [
         error: z.string()
     }),
     z.object({ type: z.literal(UploadEventType.Complete) }),
-    z.object({ type: z.literal(UploadEventType.Error), error: z.string() })
+    z.object({
+        type: z.literal(UploadEventType.Error),
+        error: z.string(),
+        retryAfterSeconds: z.int().positive().optional()
+    })
 ]);
 export const AccountConnectionSchema = z.union([
     z.object({ token: AasTokenSchema }),

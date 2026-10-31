@@ -1,9 +1,9 @@
 <script lang="ts">
-    import { formatDuration } from '@madkarmaa/phodrive-core/browser/upload/eta';
-    import { UploadJobStatus, UploadPhase, UploadStatus } from '@madkarmaa/phodrive-core/models';
+    import { UploadJobStatus, UploadPhase } from '@madkarmaa/phodrive-core/models';
 
     import { CircularProgress, IconButton, ListItem } from 'noph-ui';
     import type { UploadJob } from '#browser/files';
+    import { uploadJobDetail } from '#browser/upload-status';
     import IconDescription from '~icons/material-symbols/description';
     import IconCheckCircle from '~icons/material-symbols/check-circle';
     import IconError from '~icons/material-symbols/error-outline';
@@ -23,26 +23,7 @@
     );
     const percent = $derived(progress.total ? Math.round((processed / progress.total) * 100) : 0);
     const indeterminate = $derived(progress.phase === UploadPhase.Receiving || !progress.total);
-    const eta = $derived.by(() => {
-        if (job.status !== UploadJobStatus.Active) return '';
-        if (progress.phase !== UploadPhase.Uploading) return '';
-        if (job.etaSeconds === null || processed >= progress.total) return '';
-
-        return ` · about ${formatDuration(job.etaSeconds)} left`;
-    });
-    const detail = $derived.by(() => {
-        if (job.status === UploadJobStatus.Queued) return 'Waiting…';
-        if (job.status === UploadJobStatus.Error) return job.message;
-        if (job.status === UploadJobStatus.Complete)
-            return job.result?.status === UploadStatus.AlreadyExists
-                ? 'Already in Google Photos'
-                : 'Uploaded successfully';
-        if (progress.phase === UploadPhase.Receiving) return 'Sending files to server…';
-        if (progress.phase === UploadPhase.Preparing) return `Preparing file… ${percent}%`;
-        if (processed === progress.total) return 'Finishing upload…';
-
-        return `Uploading… ${percent}%${eta}`;
-    });
+    const detail = $derived(uploadJobDetail(job));
 </script>
 
 <ListItem class="upload-status-row" variant="text" aria-label={job.name}>

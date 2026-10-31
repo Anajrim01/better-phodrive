@@ -51,10 +51,17 @@
         )
     );
     const eta = $derived(busy ? remainingSeconds(remainingBytes, aggregateRate) : null);
+    const paused = $derived(
+        pending
+            .filter((job) => job.retryAfterSeconds !== null)
+            .map((job) => job.retryAfterSeconds ?? 0)
+    );
     const failures = $derived(jobs.filter((job) => job.status === UploadJobStatus.Error).length);
     const heading = $derived.by(() => {
         if (busy) {
             const label = `Uploading ${remaining} ${remaining === 1 ? 'item' : 'items'}`;
+            if (paused.length)
+                return `${label} · paused by Google, retrying in about ${formatDuration(Math.max(...paused))}`;
             if (eta === null) return label;
 
             return `${label} · about ${formatDuration(eta)} left`;

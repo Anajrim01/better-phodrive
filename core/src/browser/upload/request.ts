@@ -86,6 +86,15 @@ function readUploadResponse(
                 const received = await readEvent(reader);
 
                 const handled = received.andThen((event) => {
+                    if (
+                        event.type === UploadEventType.Error &&
+                        event.retryAfterSeconds !== undefined
+                    )
+                        return Err({
+                            code: 'THROTTLED',
+                            message: event.error,
+                            retryAfterSeconds: event.retryAfterSeconds
+                        } as const);
                     if (event.type === UploadEventType.Error)
                         return Err({ code: 'UPLOAD_FAILED', message: event.error } as const);
 

@@ -210,3 +210,13 @@ test('send reports a 429 status and Retry-After without changing the message', a
         retryAfterSeconds: 12
     });
 });
+
+test('jitter stays within twenty percent of the base backoff', () => {
+    clearThrottleState();
+    const low = recordThrottle(EMAIL, undefined, () => 0);
+    clearThrottleState();
+    const high = recordThrottle(EMAIL, undefined, () => 1);
+
+    expect(low).toBe(48);
+    expect(high).toBe(72);
+});

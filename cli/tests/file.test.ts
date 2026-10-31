@@ -165,6 +165,7 @@ test('uploads expand folders and fail when any file fails', async () => {
                     message: id === 0 ? '' : 'Commit rejected',
                     bytesPerSecond: 0,
                     etaSeconds: null,
+                    retryAfterSeconds: null,
                     result:
                         id === 0
                             ? {
