@@ -18,7 +18,7 @@ export function header(size: number): SplitHeader {
         chunkIndex: 0,
         flags: 1,
         payloadSize: size,
-        fileName: 'photos-??.bin'
+        fileName: 'photos-📷.bin'
     };
 }
 

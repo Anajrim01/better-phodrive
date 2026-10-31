@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { encodeSplitPrefix } from '@madkarmaa/phodrive-core/bmp/format';
 import { planChunks } from '@madkarmaa/phodrive-core/upload';
 import { encodeSplitBmp } from '@madkarmaa/phodrive-core/server/bmp';
-import { header, type Workload } from '../fixtures';
+import { header, MIB, type Workload } from '../fixtures';
 
 export function metadataWorkload(name: string): Workload | undefined {
     if (name === 'planning')
@@ -37,7 +37,7 @@ export function metadataWorkload(name: string): Workload | undefined {
 
     if (name !== 'bmp-encode') return undefined;
 
-    const data = new Uint8Array(64 * 1024 * 1024).fill(42);
+    const data = new Uint8Array(64 * MIB).fill(42);
 
     return {
         bytes: data.length,
