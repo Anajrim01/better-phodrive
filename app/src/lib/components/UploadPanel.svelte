@@ -57,7 +57,7 @@
             const label = `Uploading ${remaining} ${remaining === 1 ? 'item' : 'items'}`;
             if (eta === null) return label;
 
-            return `${label} · ≈ ${formatDuration(eta)} left`;
+            return `${label} · about ${formatDuration(eta)} left`;
         }
         if (failures) return `${failures} ${failures === 1 ? 'upload' : 'uploads'} failed`;
 

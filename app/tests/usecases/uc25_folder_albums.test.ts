@@ -63,7 +63,6 @@ function chunk(fileId: string, name: string): UploadedChunk {
     };
 }
 
-/** Emit one complete chunk per selected file, as the transfer pool does after a commit. */
 function uploadWithChunks(): void {
     vi.spyOn(filesApi, 'uploadFiles').mockImplementation(
         (files, _email, _token, _workers, onJob, onChunk) =>

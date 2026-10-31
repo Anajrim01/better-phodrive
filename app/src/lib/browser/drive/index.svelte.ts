@@ -397,12 +397,12 @@ export class DriveController {
         });
 
         await this.addToFolderAlbums(email, token, uploadedChunks);
+        this.library.deferRefresh();
 
         this.busy = false;
         this.reloadChangedAccount(email, token);
     }
 
-    /** Mirror uploaded folders as Google Photos albums, remembering each album key. */
     private async addToFolderAlbums(
         email: string,
         token: string,
@@ -437,7 +437,7 @@ export class DriveController {
                         });
                     },
                     Err: (error) => {
-                        this.feedbackMessage = `Uploaded, but could not add files to the ${folder} album. ${error.message}`;
+                        this.feedbackMessage = `Files uploaded. Could not add them to the ${folder} album. ${error.message}`;
                     }
                 });
             }

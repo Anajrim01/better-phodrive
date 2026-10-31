@@ -4,25 +4,32 @@ import { Err, Ok, type Result } from 'results-ts';
 import type { z } from 'zod';
 import {
     AccountSchema,
-    AlbumKeySchema,
     ConcurrentWorkersSchema,
-    DEFAULT_PREFERENCES_DEFAULTS,
-    FileSortSchema,
-    FileLayoutSchema,
-    FileLayout,
-    FolderPathSchema,
     DEFAULT_FILE_LAYOUT,
+    DEFAULT_PREFERENCES_DEFAULTS,
+    FileLayout,
+    FileLayoutSchema,
+    FileSort,
+    FileSortSchema,
     MAX_CONCURRENT_WORKERS,
     MAX_REFRESH_INTERVAL_SECONDS,
     RefreshIntervalSchema,
     SelectedAccountSchema,
     StoredAccountsSchema,
-    StoredAlbumsSchema,
+    ThemeMode,
     ThemeSchema,
-    FileSort,
-    type PreferencesDefaults,
-    ThemeMode
+    type PreferencesDefaults
 } from '@madkarmaa/phodrive-core/models';
+import { AlbumKeys, ALBUMS_KEY } from '#browser/albums';
+import {
+    readState,
+    readStoredJson,
+    resetState,
+    STORAGE_UNAVAILABLE,
+    writeState
+} from '#browser/persisted';
+
+export { ALBUMS_KEY };
 
 export const ACCOUNTS_KEY = 'accounts';
 export const SELECTED_KEY = 'selectedAccount';
@@ -31,7 +38,6 @@ export const FILE_SORT_KEY = 'phodrive-sort';
 export const FILE_LAYOUT_KEY = 'phodrive-layout';
 export const REFRESH_INTERVAL_KEY = 'phodrive-refresh-interval';
 export const CONCURRENT_WORKERS_KEY = 'phodrive-concurrent-workers';
-export const ALBUMS_KEY = 'phodrive-albums';
 export const NEXT_THEME: Record<ThemeMode, ThemeMode> = {
     [ThemeMode.Auto]: ThemeMode.Light,
     [ThemeMode.Light]: ThemeMode.Dark,
@@ -39,29 +45,6 @@ export const NEXT_THEME: Record<ThemeMode, ThemeMode> = {
 };
 
 type Accounts = Record<string, string>;
-type StoredAlbums = Record<string, Record<string, string>>;
-const STORAGE_UNAVAILABLE = {
-    code: 'STORAGE_UNAVAILABLE',
-    message: 'Browser storage is unavailable. Enable it to save your preferences.'
-} as const satisfies ApplicationError;
-
-/** Runed's default parser logs raw values on malformed JSON, which could expose credentials. */
-function parseStoredJson(raw: string): Result<unknown, ApplicationError> {
-    try {
-        const value: unknown = JSON.parse(raw);
-
-        return Ok(value);
-    } catch {
-        return Err({
-            code: 'INVALID_STORED_JSON',
-            message: 'Browser storage contains invalid JSON.'
-        } as const);
-    }
-}
-
-function readStoredJson(raw: string): unknown {
-    return parseStoredJson(raw).unwrapOr(undefined);
-}
 
 /** Enum choices are stored as their raw values; an invalid value falls back to the default. */
 function enumSerializer<T extends string>(schema: z.ZodType<T>) {
@@ -106,15 +89,6 @@ export const ACCOUNTS_SERIALIZER = {
     }
 };
 
-export const ALBUMS_SERIALIZER = {
-    serialize: (albums: StoredAlbums) => JSON.stringify(albums),
-    deserialize: (raw: string): StoredAlbums => {
-        const parsed = StoredAlbumsSchema.safeParse(readStoredJson(raw));
-
-        return parsed.success ? parsed.data : {};
-    }
-};
-
 export const THEME_SERIALIZER = enumSerializer(ThemeSchema);
 export const FILE_SORT_SERIALIZER = enumSerializer(FileSortSchema);
 export const FILE_LAYOUT_SERIALIZER = enumSerializer(FileLayoutSchema);
@@ -130,52 +104,6 @@ export const SELECTED_ACCOUNT_SERIALIZER = {
         return parsed.success ? parsed.data : '';
     }
 };
-
-function readState<T>(state: PersistedState<T>): Result<T, ApplicationError> {
-    try {
-        return Ok(state.current);
-    } catch {
-        return Err(STORAGE_UNAVAILABLE);
-    }
-}
-
-/** Runed catches write failures internally, so verify persistence before reporting success. */
-function writeState<T>(state: PersistedState<T>, value: T): Result<void, ApplicationError> {
-    try {
-        state.current = value;
-    } catch {
-        return Err(STORAGE_UNAVAILABLE);
-    }
-
-    return readState(state).andThen((saved) =>
-        JSON.stringify(saved) === JSON.stringify(value) ? Ok(undefined) : Err(STORAGE_UNAVAILABLE)
-    );
-}
-
-function resetState<T>(
-    state: PersistedState<T | null | undefined>
-): Result<void, ApplicationError> {
-    return readState(state).andThen((previous) => {
-        // Runed ignores removal events. Publish an unset marker so other tabs update too.
-        const unset = writeState(state, null);
-        if (unset.isErr()) return unset;
-
-        try {
-            try {
-                state.disconnect();
-                state.current = undefined;
-            } finally {
-                state.connect();
-            }
-        } catch {
-            return writeState(state, previous).andThen(() => Err(STORAGE_UNAVAILABLE));
-        }
-
-        return readState(state).andThen((saved) =>
-            saved === undefined ? Ok(undefined) : Err(STORAGE_UNAVAILABLE)
-        );
-    });
-}
 
 /** Per-page reactive preferences, with validated data and synchronization across tabs. */
 export class BrowserPreferences {
@@ -217,13 +145,7 @@ export class BrowserPreferences {
         undefined,
         { serializer: CONCURRENT_WORKERS_SERIALIZER }
     );
-    private readonly albumsState = new PersistedState<StoredAlbums>(
-        ALBUMS_KEY,
-        {},
-        {
-            serializer: ALBUMS_SERIALIZER
-        }
-    );
+    private readonly albumKeys = new AlbumKeys();
 
     get accounts(): Accounts {
         return readState(this.accountsState).unwrapOr({});
@@ -262,32 +184,12 @@ export class BrowserPreferences {
         );
     }
 
-    /** Album media keys are per Google account and per folder path. */
     albumKey(email: string, folder: string): string | undefined {
-        const albums: StoredAlbums = readState(this.albumsState).unwrapOr({});
-        const folderKey = FolderPathSchema.safeParse(folder);
-        if (!folderKey.success) return undefined;
-
-        const key = albums[email]?.[folderKey.data];
-
-        return AlbumKeySchema.safeParse(key).success ? key : undefined;
+        return this.albumKeys.get(email, folder);
     }
 
     saveAlbumKey(email: string, folder: string, albumKey: string): Result<void, ApplicationError> {
-        const parsedFolder = FolderPathSchema.safeParse(folder);
-        const parsedKey = AlbumKeySchema.safeParse(albumKey);
-        if (!parsedFolder.success || !parsedKey.success) {
-            return Err({
-                code: 'INVALID_ALBUM_KEY',
-                message: 'Could not remember the folder album.'
-            } as const);
-        }
-
-        const albums: StoredAlbums = readState(this.albumsState).unwrapOr({});
-        const account = { ...albums[email], [parsedFolder.data]: parsedKey.data };
-        const updated: StoredAlbums = { ...albums, [email]: account };
-
-        return writeState(this.albumsState, updated);
+        return this.albumKeys.save(email, folder, albumKey);
     }
 
     saveAccounts(accounts: Accounts, selected: string): Result<void, ApplicationError> {

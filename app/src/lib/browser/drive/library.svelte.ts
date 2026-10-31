@@ -10,6 +10,8 @@ import {
 import { FileSort } from '@madkarmaa/phodrive-core/models';
 import { readLibraryPage, readLibrarySnapshot } from '@madkarmaa/phodrive-core/browser/library';
 
+const POST_UPLOAD_COOLDOWN_MS = 2 * 60 * 1_000;
+
 /** Library pagination, filtering, and stale-request protection for the selected account. */
 export class DriveLibrary {
     chunks = $state<UploadedChunk[]>([]);
@@ -25,6 +27,8 @@ export class DriveLibrary {
     modifiedDays = $state('');
     folder = $state('');
     loadFailed = $state(false);
+    retryAt = $state(0);
+    cooldownUntil = $state(0);
 
     files = $derived(groupChunks(this.chunks));
     availableTypes = $derived([...new Set(this.files.map((item) => fileType(item.name)))].sort());
@@ -63,7 +67,6 @@ export class DriveLibrary {
         this.loadFailed = false;
     }
 
-    /** Open a folder the loaded library already contains; any other path is ignored. */
     openFolder(path: string) {
         if (path && !this.hasFolder(path)) return;
 
@@ -135,8 +138,9 @@ export class DriveLibrary {
         this.loading = false;
     }
 
-    async refresh() {
+    async refresh(manual = false) {
         if (this.actionsDisabled() || this.loading || document.hidden) return;
+        if (!manual && (Date.now() < this.retryAt || Date.now() < this.cooldownUntil)) return;
 
         const { email, token } = this.account();
         if (!email || !token) return;
@@ -150,6 +154,7 @@ export class DriveLibrary {
         refreshed.match({
             Ok: (snapshot) => {
                 this.loadFailed = false;
+                this.retryAt = 0;
                 this.chunks = snapshot.items.map((item) => ({ ...item, email }));
                 if (this.folder && !this.hasFolder(this.folder)) this.folder = '';
                 this.nextPageToken = snapshot.nextPageToken;
@@ -159,10 +164,16 @@ export class DriveLibrary {
             },
             Err: (error) => {
                 this.loadFailed = true;
+                if (error.code === 'THROTTLED')
+                    this.retryAt = Date.now() + error.retryAfterSeconds * 1_000;
                 this.feedback(error.message);
             }
         });
 
         this.loading = false;
+    }
+
+    deferRefresh(): void {
+        this.cooldownUntil = Date.now() + POST_UPLOAD_COOLDOWN_MS;
     }
 }

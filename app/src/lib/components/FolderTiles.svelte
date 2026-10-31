@@ -27,7 +27,7 @@
                         {disabled}
                         onclick={() => onopen(folder.path)}
                     >
-                        <IconFolder aria-hidden="true" class="size-6 shrink-0 text-primary" />
+                        <IconFolder aria-hidden="true" class="size-5 shrink-0 text-primary" />
                         <span class="folder-text">
                             <span class="folder-name" title={folder.name}>{folder.name}</span>
                             <span class="folder-count">

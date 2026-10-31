@@ -28,7 +28,7 @@
         if (progress.phase !== UploadPhase.Uploading) return '';
         if (job.etaSeconds === null || processed >= progress.total) return '';
 
-        return ` · ≈ ${formatDuration(job.etaSeconds)} left`;
+        return ` · about ${formatDuration(job.etaSeconds)} left`;
     });
     const detail = $derived.by(() => {
         if (job.status === UploadJobStatus.Queued) return 'Waiting…';

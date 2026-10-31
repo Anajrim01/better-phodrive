@@ -13,9 +13,10 @@
     type Segment = { type: string; files: number; bytes: number; color: string };
 
     const PRIMARY_COLOR = 'var(--np-color-primary)';
-    const SECONDARY_COLOR = 'var(--np-color-secondary)';
-    const TERTIARY_COLOR = 'var(--np-color-tertiary)';
-    const OTHER_COLOR = 'var(--np-color-surface-variant)';
+    const SECONDARY_COLOR = 'var(--np-color-on-surface-variant)';
+    const TERTIARY_COLOR =
+        'color-mix(in srgb, var(--np-color-on-surface-variant) 45%, transparent)';
+    const OTHER_COLOR = 'color-mix(in srgb, var(--np-color-on-surface-variant) 20%, transparent)';
     const TYPE_COLORS = [PRIMARY_COLOR, SECONDARY_COLOR, TERTIARY_COLOR];
 
     const segments = $derived.by((): Segment[] => {
@@ -62,7 +63,7 @@
         {/if}
 
         {#if hasMore}
-            <p class="storage-note">Load more files for a full total</p>
+            <p class="storage-note">Load more for the full total</p>
         {/if}
 
         {#if segments.length}
@@ -104,11 +105,11 @@
     .storage-summary {
         border-top: 1px solid var(--app-border);
         padding: 12px 24px 0;
-        font-size: 13px;
+        font-size: 14px;
     }
 
     .storage-heading {
-        margin: 0 0 6px;
+        margin: 0 0 8px;
         color: var(--app-muted);
         font-size: 12px;
         font-weight: 500;
@@ -118,12 +119,13 @@
         margin: 0;
         font-size: 22px;
         font-weight: 500;
+        font-variant-numeric: tabular-nums;
         line-height: 1.2;
     }
 
     .storage-count {
         margin: 2px 0 0;
-        font-size: 13px;
+        font-size: 14px;
     }
 
     .storage-note {
@@ -149,7 +151,7 @@
     .storage-segment {
         flex-basis: 0;
         min-width: 4px;
-        border-radius: 999px;
+        border-radius: 2px;
     }
 
     .storage-legend {

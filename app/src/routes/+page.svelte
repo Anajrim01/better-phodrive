@@ -70,7 +70,7 @@
         refreshing={drive.library.loading}
         refreshDisabled={!drive.selectedEmail || actionsDisabled || drive.library.loading}
         onrefresh={() => {
-            void drive.library.refresh();
+            void drive.library.refresh(true);
         }}
         ontheme={(mode) => drive.settings.chooseTheme(mode)}
         bind:accountButton
