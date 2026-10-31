@@ -103,7 +103,7 @@ For Docker, pass the same variables with `-e`, for example `-e PHODRIVE_DEFAULT_
 
 Compression is off by default. Turn it on per browser in **Settings > Compress uploads**, or for one CLI upload with `--compress`. To make it the CLI default, run `phodrive setting set compression on`. The upload request carries the choice, so the server does not hold global state and two runs can differ.
 
-**Settings > Groups** creates named groups of connected accounts. Upload selection and the merged listing arrive in the next UI phase.
+**Settings > Groups** creates named groups of connected accounts. The upload button can then target a group, and the file list merges every member with owner labels.
 
 Changing the setting and uploading the same file again stores a second copy with a different hash. Delete removes every stored chunk for that file, including both copies.
 

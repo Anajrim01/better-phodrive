@@ -23,6 +23,7 @@
         hasMore: boolean;
         disabled: boolean;
         showFolder: boolean;
+        showOwner?: boolean;
         action: FileAction | null;
         onopenfolder: (path: string) => void;
         ondownload: (item: FileGroup) => void;
@@ -42,6 +43,7 @@
         hasMore,
         disabled,
         showFolder,
+        showOwner = false,
         action,
         onopenfolder,
         ondownload,
@@ -55,7 +57,16 @@
 
     {#if files.length}
         {#if layout === FileLayout.List}
-            <FileList {files} bind:sort {disabled} {action} {showFolder} {ondownload} {ondelete} />
+            <FileList
+                {files}
+                bind:sort
+                {disabled}
+                {action}
+                {showFolder}
+                {showOwner}
+                {ondownload}
+                {ondelete}
+            />
         {:else}
             <ul
                 class="mt-4 grid list-none grid-cols-[repeat(auto-fill,minmax(min(100%,220px),1fr))] gap-4 p-0"
@@ -69,6 +80,7 @@
                         <FileCard
                             {item}
                             {disabled}
+                            {showOwner}
                             working={action?.fileId === item.fileId ? action.kind : null}
                             {ondownload}
                             {ondelete}

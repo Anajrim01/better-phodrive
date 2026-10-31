@@ -23,6 +23,7 @@ import {
 } from '@madkarmaa/phodrive-core/models';
 import { AlbumKeys, ALBUMS_KEY } from '#browser/albums';
 import { GroupStore, GROUPS_KEY, GROUPS_SERIALIZER } from '#browser/groups';
+import { UploadTargetStore } from '#browser/upload-target';
 import {
     readState,
     readStoredJson,
@@ -130,6 +131,7 @@ export class BrowserPreferences {
     private readonly selectedState = new PersistedState(SELECTED_KEY, '', {
         serializer: SELECTED_ACCOUNT_SERIALIZER
     });
+    private readonly uploadTargetState = new UploadTargetStore();
     // Runed skips undefined writes, so deployment defaults apply until the user saves a choice.
     private readonly themeState = new PersistedState<ThemeMode | undefined>(THEME_KEY, undefined, {
         serializer: THEME_SERIALIZER
@@ -209,6 +211,10 @@ export class BrowserPreferences {
         return this.groupStore.groups;
     }
 
+    get uploadTarget(): string {
+        return this.uploadTargetState.value;
+    }
+
     albumKey(email: string, folder: string): string | undefined {
         return this.albumKeys.get(email, folder);
     }
@@ -269,6 +275,10 @@ export class BrowserPreferences {
 
     saveGroups(groups: Group[]): Result<void, ApplicationError> {
         return this.groupStore.save(groups);
+    }
+
+    saveUploadTarget(id: string): Result<void, ApplicationError> {
+        return this.uploadTargetState.save(id);
     }
 
     resetRefreshInterval(): Result<void, ApplicationError> {

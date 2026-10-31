@@ -85,6 +85,8 @@
             return `${label}, about ${formatDuration(eta)} left`;
         }
         if (failures) return `${failures} ${failures === 1 ? 'upload' : 'uploads'} failed`;
+        if (remaining)
+            return `${remaining} ${remaining === 1 ? 'upload is' : 'uploads are'} waiting for an account`;
 
         return `${jobs.length} ${jobs.length === 1 ? 'upload' : 'uploads'} complete`;
     });

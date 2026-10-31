@@ -126,7 +126,7 @@ export function transferGroupFiles(
                         member.email,
                         (job) => {
                             if (job.retryAt !== null) paused = true;
-                            onJob(job);
+                            onJob({ ...job, account: member.email });
                         },
                         onChunk
                     );

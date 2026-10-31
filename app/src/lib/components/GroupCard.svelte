@@ -12,8 +12,8 @@
         pausedEmails: readonly string[];
         onrename: (name: string) => boolean;
         ondelete: () => void;
-        onaddmember: (email: string) => void;
-        onremovemember: (email: string) => void;
+        onaddmember: (email: string) => boolean;
+        onremovemember: (email: string) => boolean;
     }
 
     let { group, accounts, pausedEmails, onrename, ondelete, onaddmember, onremovemember }: Props =
@@ -57,8 +57,7 @@
     }
 
     function confirmRemove() {
-        onremovemember(removing);
-        removing = '';
+        if (onremovemember(removing)) removing = '';
     }
 
     function confirmDelete() {
@@ -171,8 +170,7 @@
                 variant="outlined"
                 disabled={!selected}
                 onclick={() => {
-                    onaddmember(selected);
-                    selected = '';
+                    if (onaddmember(selected)) selected = '';
                 }}>Add</Button
             >
         </div>

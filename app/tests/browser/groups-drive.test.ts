@@ -46,13 +46,11 @@ const SECOND = 'second@example.com';
 const THIRD = 'third@example.com';
 
 let preferences: BrowserPreferences;
-let feedback: string[];
 
 function groups(): DriveGroups {
     return new DriveGroups(
         () => preferences,
-        () => ({ [FIRST]: 'aas_et/first', [SECOND]: 'aas_et/second', [THIRD]: 'aas_et/third' }),
-        (message) => feedback.push(message)
+        () => ({ [FIRST]: 'aas_et/first', [SECOND]: 'aas_et/second', [THIRD]: 'aas_et/third' })
     );
 }
 
@@ -63,7 +61,6 @@ function group(accounts: string[]): Group {
 beforeEach(() => {
     storage.clear();
     preferences = new BrowserPreferences();
-    feedback = [];
 });
 
 afterEach(() => vi.restoreAllMocks());
@@ -93,24 +90,24 @@ test('the group store reports validation errors without changing storage', () =>
     const store = groups();
 
     expect(store.create('', [FIRST, SECOND])).toBe(false);
-    expect(feedback.at(-1)).toBeTruthy();
+    expect(store.error).toBeTruthy();
 
     expect(store.create('Family', [FIRST])).toBe(false);
-    expect(feedback.at(-1)).toBe('Choose at least two accounts for a group.');
+    expect(store.error).toBe('Choose at least two accounts for a group.');
 
     expect(store.create('Family', [FIRST, 'missing@example.com'])).toBe(false);
-    expect(feedback.at(-1)).toBe('Connect every chosen account before creating the group.');
+    expect(store.error).toBe('Connect every chosen account before creating the group.');
 
     expect(store.create('Family', [FIRST, SECOND])).toBe(true);
     expect(store.create('family', [FIRST, THIRD])).toBe(false);
-    expect(feedback.at(-1)).toBe('A group named family already exists.');
+    expect(store.error).toBe('A group named family already exists.');
 
     const [created] = preferences.groups;
     store.addMember(created!.id, FIRST);
-    expect(feedback.at(-1)).toBe(`${FIRST} is already in Family.`);
+    expect(store.error).toBe(`${FIRST} is already in Family.`);
 
     store.addMember(created!.id, 'missing@example.com');
-    expect(feedback.at(-1)).toBe('Connect that account before adding it to a group.');
+    expect(store.error).toBe('Connect that account before adding it to a group.');
 
     expect(preferences.groups[0]?.accounts).toEqual([FIRST, SECOND]);
 });
@@ -123,7 +120,7 @@ test('removing the last member is refused', () => {
     store.removeMember(created!.id, SECOND);
     store.removeMember(created!.id, FIRST);
 
-    expect(feedback.at(-1)).toBe('A group needs at least one account. Delete the group instead.');
+    expect(store.error).toBe('A group needs at least one account. Delete the group instead.');
     expect(preferences.groups[0]?.accounts).toEqual([FIRST]);
 });
 
@@ -138,6 +135,12 @@ test('the paused state is tracked for member status', () => {
 
     store.setPausedEmails([FIRST, SECOND]);
     expect(groupReadiness(created!, store.pausedEmails)).toBe('all-paused');
+});
+
+test('the upload target defaults to the current account and persists', () => {
+    expect(preferences.uploadTarget).toBe('');
+    expect(preferences.saveUploadTarget('family').isOk()).toBe(true);
+    expect(new BrowserPreferences().uploadTarget).toBe('family');
 });
 
 test('group readiness covers the three empty states', () => {

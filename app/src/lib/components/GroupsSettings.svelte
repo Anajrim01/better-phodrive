@@ -54,10 +54,14 @@
         {/if}
     </div>
 
+    {#if store.error}
+        <p class="text-sm text-error" role="alert">{store.error}</p>
+    {/if}
+
     {#if groups.length === 0}
         <div class="flex items-start gap-3 rounded-xl bg-card p-4">
             <span class="grid size-9 shrink-0 place-items-center rounded-lg bg-hover text-muted">
-                <IconGroup class="size-4.5" aria-hidden="true" />
+                <IconGroup class="size-5" aria-hidden="true" />
             </span>
             <div class="min-w-0">
                 <p class="text-sm font-medium">No groups yet</p>

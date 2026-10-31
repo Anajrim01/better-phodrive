@@ -145,7 +145,7 @@ change album assignment.
   clean. This is the independence test under an active throttle, which the
   research could not run.
 
-## Phase 1 and phase 2a scope
+## Implementation status
 
 Phase 1 contained:
 
@@ -164,15 +164,21 @@ Phase 2a added:
   delete, with an owner column and owner in JSON;
 - owner routing from the merged listing for every file action.
 
-Phase 2b part one added:
+Phase 2b added:
 
 - group management in Settings: list, create, rename, delete, add and remove
   members, member status, and warnings for removals;
-- empty states for no groups, a single-member group, and a fully paused group.
+- empty states for no groups, a single-member group, and a fully paused group;
+- an upload target selector beside the upload button, persisted with the other
+  preferences and defaulting to the selected account;
+- a merged group listing with owner labels, media-key deduplication, and a
+  partial state that names paused members and their retry window;
+- owner routing for downloads and deletes, with a paused owner reporting why the
+  file is unavailable;
+- pause state fed by the merged listing and by upload retry windows.
 
 Not contained yet:
 
-- selecting a group in the upload UI, and the merged listing UI with owners;
 - the group view's cross-account grouping by file id and chunk index;
 - an owner field in the split header;
 - album migration, rebalancing, or moving existing files.

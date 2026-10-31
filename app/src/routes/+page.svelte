@@ -13,9 +13,10 @@
     import UploadSidebar from '#components/UploadSidebar.svelte';
     import UploadPanel from '#components/UploadPanel.svelte';
     import FileFilters from '#components/FileFilters.svelte';
+    import GroupListingStatus from '#components/GroupListingStatus.svelte';
     import FileGrid from '#components/FileGrid.svelte';
     import LayoutToggle from '#components/LayoutToggle.svelte';
-    import SettingsPanel from '#components/SettingsPanel.svelte';
+    import SettingsView from '#components/SettingsView.svelte';
     import ErrorFeedback from '#components/ErrorFeedback.svelte';
     import FileDrop from '#components/FileDrop.svelte';
     import { libraryStats } from '@madkarmaa/phodrive-core/stats';
@@ -37,17 +38,17 @@
 
     function addAccount() {
         view = AppView.Files;
-        drive.adding = true;
+        drive.accountEditor.adding = true;
         drive.feedbackMessage = '';
     }
 
     function upload(files: File[]) {
-        drive.adding = false;
+        drive.accountEditor.adding = false;
         void drive.upload(files);
     }
 </script>
 
-{#if !drive.ready || !drive.selectedEmail || drive.adding || view !== AppView.Files}
+{#if !drive.ready || !drive.selectedEmail || drive.accountEditor.adding || view !== AppView.Files}
     <FileDrop disabled={true} onupload={upload} />
 {/if}
 
@@ -98,8 +99,12 @@
         disabled={actionsDisabled || drive.library.loading}
         {view}
         {stats}
-        statsPartial={!!drive.library.nextPageToken}
+        statsPartial={!!drive.library.nextPageToken || drive.library.partial}
+        groups={drive.groupSettings.groups}
+        uploadTarget={drive.groupMode.uploadTarget}
+        currentEmail={drive.selectedEmail}
         onnavigate={(nextView) => (view = nextView)}
+        onuploadtarget={(id) => drive.groupMode.choose(id)}
         onconnect={addAccount}
         onupload={upload}
     />
@@ -108,39 +113,26 @@
         class="mr-4 mb-5 flex min-w-0 flex-col rounded-[22px] bg-panel px-7 pt-6.5 pb-12 text-text max-[800px]:mx-2 max-[800px]:mb-2 max-[800px]:px-4.5 max-[800px]:pt-5.5 max-[800px]:pb-[calc(96px+env(safe-area-inset-bottom,0px))]"
     >
         {#if drive.ready && view === AppView.Settings}
-            <SettingsPanel
-                defaults={data.preferencesDefaults}
-                refreshIntervalSeconds={drive.settings.refreshIntervalSeconds}
-                concurrentWorkers={drive.settings.concurrentWorkers}
-                compression={drive.settings.compression}
-                theme={drive.settings.themeMode}
-                onrefreshinterval={(seconds) => drive.settings.chooseRefreshInterval(seconds)}
-                onworkers={(workers) => drive.settings.chooseConcurrentWorkers(workers)}
-                oncompression={(enabled) => drive.settings.chooseCompression(enabled)}
-                onresetrefreshinterval={() => drive.settings.resetRefreshInterval()}
-                onresetworkers={() => drive.settings.resetConcurrentWorkers()}
-                onresetcompression={() => drive.settings.resetCompression()}
-                groupSettings={drive.groupSettings}
-            />
-        {:else if drive.ready && (!drive.selectedEmail || drive.adding)}
+            <SettingsView {drive} defaults={data.preferencesDefaults} />
+        {:else if drive.ready && (!drive.selectedEmail || drive.accountEditor.adding)}
             <div in:fade={{ duration: prefersReducedMotion.current ? 0 : 160 }}>
                 <div class="workspace-heading">
                     <h1>
-                        {drive.adding && drive.selectedEmail
+                        {drive.accountEditor.adding && drive.selectedEmail
                             ? 'Add account'
                             : 'Connect your account'}
                     </h1>
                 </div>
                 <AccountSetup
-                    bind:email={drive.newEmail}
-                    bind:token={drive.newToken}
-                    connecting={drive.connecting}
+                    bind:email={drive.accountEditor.newEmail}
+                    bind:token={drive.accountEditor.newToken}
+                    connecting={drive.accountEditor.connecting}
                     canCancel={!!drive.selectedEmail}
                     onsave={() => {
                         void drive.saveAccount();
                     }}
                     oncancel={() => {
-                        drive.adding = false;
+                        drive.accountEditor.adding = false;
                         drive.feedbackMessage = '';
                     }}
                 />
@@ -182,6 +174,15 @@
                     <LayoutToggle bind:layout={drive.settings.fileLayout} />
                 </div>
 
+                {#if drive.groupMode.target}
+                    {@const target = drive.groupMode.target}
+                    <GroupListingStatus
+                        groupName={target.group.name}
+                        total={target.group.accounts.length}
+                        accounts={drive.library.accounts}
+                    />
+                {/if}
+
                 <FileFilters
                     types={drive.library.availableTypes}
                     bind:type={drive.library.typeFilter}
@@ -207,6 +208,7 @@
                         hasMore={!!drive.library.nextPageToken}
                         disabled={actionsDisabled || drive.library.loading}
                         showFolder={drive.library.filtering}
+                        showOwner={drive.groupMode.target !== null}
                         action={drive.fileAction}
                         onopenfolder={(path) => drive.library.openFolder(path)}
                         ondownload={(item) => {

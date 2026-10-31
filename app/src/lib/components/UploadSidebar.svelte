@@ -9,8 +9,10 @@
     } from 'noph-ui';
     import { MediaQuery } from 'svelte/reactivity';
     import { AppView } from '@madkarmaa/phodrive-core/models';
+    import type { Group } from '@madkarmaa/phodrive-core/models';
     import type { LibraryStats } from '@madkarmaa/phodrive-core/stats';
     import StorageSummary from '#components/StorageSummary.svelte';
+    import UploadTarget from '#components/UploadTarget.svelte';
     import IconAdd from '~icons/material-symbols/add';
     import IconHome from '~icons/material-symbols/home-outline';
     import IconSettings from '~icons/material-symbols/settings-outline';
@@ -24,8 +26,12 @@
         view: AppView;
         stats: LibraryStats;
         statsPartial: boolean;
+        groups: readonly Group[];
+        uploadTarget: string;
+        currentEmail: string;
         onnavigate: (view: AppView) => void;
         onupload: (files: File[]) => void;
+        onuploadtarget: (id: string) => void;
         onconnect: () => void;
     }
 
@@ -36,8 +42,12 @@
         view,
         stats,
         statsPartial,
+        groups,
+        uploadTarget,
+        currentEmail,
         onnavigate,
         onupload,
+        onuploadtarget,
         onconnect
     }: Props = $props();
 
@@ -63,6 +73,8 @@
 </script>
 
 <aside class="upload-sidebar min-w-0 px-4 pt-2 pb-8" aria-label="Navigation and accounts">
+    <UploadTarget {groups} value={uploadTarget} {currentEmail} onchange={onuploadtarget} />
+
     <ExtendedFab
         class="upload-button"
         label="Upload"

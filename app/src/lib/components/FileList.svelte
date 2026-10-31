@@ -15,6 +15,7 @@
         disabled: boolean;
         action: FileAction | null;
         showFolder?: boolean;
+        showOwner?: boolean;
         ondownload: (item: FileGroup) => void;
         ondelete: (item: FileGroup) => void;
     }
@@ -25,6 +26,7 @@
         disabled,
         action,
         showFolder = false,
+        showOwner = false,
         ondownload,
         ondelete
     }: Props = $props();
@@ -103,6 +105,11 @@
                             {#if showFolder && item.folder}
                                 <span class="block truncate text-xs text-muted" title={item.folder}
                                     >{item.folder}</span
+                                >
+                            {/if}
+                            {#if showOwner}
+                                <span class="block truncate text-xs text-muted" title={item.email}
+                                    >{item.email}</span
                                 >
                             {/if}
                             {#if !item.complete}

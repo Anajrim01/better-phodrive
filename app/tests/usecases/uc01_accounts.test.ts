@@ -40,8 +40,8 @@ function createDrive(email = 'test@example.com', token = 'oauth2_4/fake') {
     const drive = new DriveController();
     drive.initialize();
     drive.ready = false;
-    drive.newEmail = email;
-    drive.newToken = token;
+    drive.accountEditor.newEmail = email;
+    drive.accountEditor.newToken = token;
     return drive;
 }
 
@@ -72,7 +72,7 @@ test('rejected or expired token leaves account storage unchanged and shows a saf
 
     expect(drive.accounts).toEqual({});
     expect(drive.feedbackMessage).toBe('AAS authentication failed');
-    expect(drive.connecting).toBe(false);
+    expect(drive.accountEditor.connecting).toBe(false);
 });
 
 test('a second submit while authentication is pending does not issue another validation', async () => {
@@ -92,7 +92,7 @@ test('a second submit while authentication is pending does not issue another val
     await drive.saveAccount();
 
     expect(validateAccount).toHaveBeenCalledTimes(1);
-    expect(drive.connecting).toBe(true);
+    expect(drive.accountEditor.connecting).toBe(true);
 
     resolveValidation?.(Ok('aas_et/fake'));
     await firstSubmit;
@@ -113,8 +113,8 @@ test('editing credentials during pending authentication does not associate the t
 
     const pendingSubmit = drive.saveAccount();
     await Promise.resolve();
-    drive.newEmail = 'changed@example.com';
-    drive.newToken = 'oauth2_4/other-fake';
+    drive.accountEditor.newEmail = 'changed@example.com';
+    drive.accountEditor.newToken = 'oauth2_4/other-fake';
     resolveValidation?.(Ok('aas_et/verified-original'));
     await pendingSubmit;
 

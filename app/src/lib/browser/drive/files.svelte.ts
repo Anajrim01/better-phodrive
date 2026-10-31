@@ -20,7 +20,11 @@ export type FileDeps = {
     onDeleted: (item: FileGroup, chunk: UploadedChunk) => void;
     closeUploads: () => void;
     reload: (email: string, token: string) => void;
+    reloadGroup: () => void;
     removeAccount: (email: string) => void;
+    groupMode: () => boolean;
+    tokenForOwner: (email: string) => string | undefined;
+    ownerPaused: (email: string) => boolean;
 };
 
 export class DriveFiles {
@@ -44,8 +48,9 @@ export class DriveFiles {
 
         const item = target.item;
         const current = this.deps.files().find((file) => fileKey(file) === fileKey(item));
+        const owner = this.deps.groupMode() ? item.email : this.deps.account().email;
         if (
-            item.email !== this.deps.account().email ||
+            item.email !== owner ||
             !current ||
             current.name !== item.name ||
             current.chunks.length !== item.chunks.length ||
@@ -70,9 +75,23 @@ export class DriveFiles {
     async act(item: FileGroup, action: FileActionKind): Promise<void> {
         if (this.deps.busy() || this.action || this.deps.loading()) return;
 
-        const { email, token } = this.deps.account();
-        if (item.email !== email || !token) {
+        const { email } = this.deps.account();
+        if (!this.deps.groupMode() && item.email !== email) {
             this.deps.feedback('Select the connected account for this file before continuing.');
+
+            return;
+        }
+        if (this.deps.ownerPaused(item.email)) {
+            this.deps.feedback(
+                `Files owned by ${item.email} are unavailable while that account is paused.`
+            );
+
+            return;
+        }
+
+        const token = this.deps.tokenForOwner(item.email);
+        if (!token) {
+            this.deps.feedback('The account for this file is not connected.');
 
             return;
         }
@@ -94,7 +113,8 @@ export class DriveFiles {
 
             this.deps.closeUploads();
             this.action = null;
-            this.deps.reload(item.email, token);
+            if (this.deps.groupMode()) this.deps.reloadGroup();
+            else this.deps.reload(item.email, token);
 
             return;
         }
@@ -108,6 +128,7 @@ export class DriveFiles {
             });
 
         this.action = null;
-        this.deps.reload(item.email, token);
+        if (this.deps.groupMode()) this.deps.reloadGroup();
+        else this.deps.reload(item.email, token);
     }
 }
