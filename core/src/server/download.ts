@@ -59,6 +59,7 @@ export function streamDownload(
         const abort = new AbortController();
         const hash = createHash('sha256');
         let active: SplitBmpReader | null = null;
+        let decoder: BrotliStreamDecoder | null = null;
         let index = 0;
         let closed = false;
         let responseController: ReadableStreamDefaultController<Uint8Array> | undefined;
@@ -69,6 +70,8 @@ export function streamDownload(
             closed = true;
             abort.abort();
             requestSignal?.removeEventListener('abort', onAbort);
+            decoder?.destroy();
+            decoder = null;
 
             if (active) {
                 const cancelled = await active.close();
@@ -156,7 +159,8 @@ export function streamDownload(
 
                         if (splitHeaderIsCompressed(active.header.flags)) {
                             const originalSize = active.header.originalSize!;
-                            const decoder = new BrotliStreamDecoder(originalSize);
+                            const streamDecoder = new BrotliStreamDecoder(originalSize);
+                            decoder = streamDecoder;
                             let produced = 0;
 
                             const emit = (parts: Uint8Array[]): boolean => {
@@ -188,14 +192,14 @@ export function streamDownload(
 
                                     const part = next.unwrap();
                                     if (part === null) break;
-                                    if (!emit(await decoder.push(part))) {
+                                    if (!emit(await streamDecoder.push(part))) {
                                         await cleanup();
 
                                         return;
                                     }
                                 }
 
-                                if (!emit(await decoder.end())) {
+                                if (!emit(await streamDecoder.end())) {
                                     await cleanup();
 
                                     return;
@@ -215,6 +219,7 @@ export function streamDownload(
                             }
 
                             active = null;
+                            decoder = null;
                             index++;
 
                             return;

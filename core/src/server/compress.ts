@@ -134,10 +134,26 @@ export class BrotliStreamDecoder {
     private readonly outputs: Uint8Array[] = [];
     private failure: ServerError | null = null;
     private rejectPending: ((reason: unknown) => void) | null = null;
+    private produced = 0;
+    private readonly originalSize: number;
 
     constructor(originalSize: number) {
-        this.decoder = createBrotliDecompress({ maxOutputLength: originalSize });
-        this.decoder.on('data', (chunk: Buffer) => this.outputs.push(chunk));
+        this.originalSize = originalSize;
+        this.decoder = createBrotliDecompress();
+        this.decoder.on('data', (chunk: Buffer) => {
+            this.produced += chunk.length;
+            if (this.produced > this.originalSize) {
+                this.failure = SERVER_ERRORS.DECOMPRESSION_FAILED;
+                this.outputs.length = 0;
+                this.decoder.destroy();
+                this.rejectPending?.(this.failure);
+                this.rejectPending = null;
+
+                return;
+            }
+
+            this.outputs.push(chunk);
+        });
         this.decoder.on('error', () => {
             this.failure = SERVER_ERRORS.DECOMPRESSION_FAILED;
             this.rejectPending?.(this.failure);
@@ -171,5 +187,18 @@ export class BrotliStreamDecoder {
         if (this.failure) throw this.failure;
 
         return this.outputs.splice(0);
+    }
+
+    destroy(): void {
+        this.outputs.length = 0;
+        this.failure ??= SERVER_ERRORS.DECOMPRESSION_FAILED;
+        this.rejectPending?.(this.failure);
+        this.rejectPending = null;
+
+        try {
+            this.decoder.destroy();
+        } catch {
+            // The decoder may already be closed by an error.
+        }
     }
 }

@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
+import { brotliCompressSync } from 'node:zlib';
 import { expect, test, vi } from 'vitest';
 import { Ok } from 'results-ts';
 import { FileActionKind, type FileRequest, type RemoteBmp } from '@madkarmaa/phodrive-core/models';
@@ -268,6 +269,51 @@ test('a mixed file downloads one compressed chunk and one raw chunk', async () =
         const bytes = await downloaded.unwrap().arrayBuffer();
 
         expect(Buffer.from(bytes)).toEqual(Buffer.from(original));
+    } finally {
+        vi.mocked(downloadBmp).mockReset();
+    }
+});
+
+test('a brotli bomb stops at the declared original size', async () => {
+    const bomb = brotliCompressSync(Buffer.alloc(50 * 1024 * 1024));
+    const fileHash = createHash('sha256').update('bomb').digest('hex');
+    const split = header(1024, bomb.length, true, fileHash, fileHash);
+    const bmp = encodeSplitBmp(bomb, split).unwrap();
+    const sha1 = createHash('sha1').update(bmp).digest('hex');
+    const chunk: RemoteBmp = {
+        fileHash,
+        fileId: fileHash,
+        chunkIndex: 0,
+        isLast: true,
+        originalName: NAME,
+        size: 1024,
+        storedSize: bomb.length,
+        compressed: true,
+        at: 1,
+        mediaKey: 'bomb',
+        sha1
+    };
+    vi.mocked(downloadBmp).mockImplementation(() =>
+        Ok(bmpResponse(bmp)).andThenAsync(async (response) => Ok(response))
+    );
+
+    try {
+        const downloaded = await downloadFile({
+            action: FileActionKind.Download,
+            email: 'test@example.com',
+            token: 'aas_et/test',
+            name: NAME,
+            fileHash,
+            fileId: fileHash,
+            chunks: [chunk],
+            workers: 1
+        });
+
+        expect(downloaded.isOk()).toBe(true);
+        if (downloaded.isOk())
+            await expect(downloaded.unwrap().arrayBuffer()).rejects.toMatchObject({
+                code: 'DECOMPRESSION_FAILED'
+            });
     } finally {
         vi.mocked(downloadBmp).mockReset();
     }

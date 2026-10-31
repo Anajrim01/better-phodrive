@@ -49,14 +49,19 @@ beforeEach(() => {
 
 afterAll(() => vi.unstubAllGlobals());
 
-function chunk(mediaKey: string, at: number, compressed: boolean): UploadedChunk {
-    const name = 'proof.bin';
+function chunk(
+    mediaKey: string,
+    at: number,
+    compressed: boolean,
+    fileId = createHash('sha256').update('proof.bin').digest('hex'),
+    name = 'proof.bin'
+): UploadedChunk {
     const bmp = Buffer.from(mediaKey);
 
     return {
         email: 'test@example.com',
-        fileHash: createHash('sha256').update(name).digest('hex'),
-        fileId: createHash('sha256').update(name).digest('hex'),
+        fileHash: fileId,
+        fileId,
         chunkIndex: 0,
         isLast: true,
         originalName: name,
@@ -68,7 +73,6 @@ function chunk(mediaKey: string, at: number, compressed: boolean): UploadedChunk
         sha1: createHash('sha1').update(bmp).digest('hex')
     };
 }
-
 test('a toggle and re-upload keeps the old chunk for onChunk delete', async () => {
     const old = chunk('raw-copy', 1, false);
     const fresh = chunk('compressed-copy', 2, true);
@@ -117,6 +121,40 @@ test('a toggle and re-upload keeps the old chunk for onChunk delete', async () =
     drive.confirmOpen = true;
     drive.confirmAction();
     await vi.waitFor(() => expect(requested).toHaveLength(2));
+    expect(requested.map((item) => item.mediaKey).sort()).toEqual(['compressed-copy', 'raw-copy']);
 
     expect(drive.library.chunks).toHaveLength(0);
+});
+
+test('same-name files with the same mediaKey both stay in the library', async () => {
+    const first = chunk('same-name', 1, false, '1'.repeat(64));
+    const second = chunk('same-name', 2, false, '2'.repeat(64));
+    const drive = new DriveController();
+    drive.initialize();
+
+    vi.spyOn(filesApi, 'uploadFiles').mockImplementation(
+        (files, _email, _token, _workers, onJob, onChunk) => {
+            const submitted = filesApi.createUploadJobs(files);
+
+            return Ok(undefined).andThenAsync(async () => {
+                onChunk(first);
+                onChunk(second);
+                onJob({
+                    ...submitted[0],
+                    status: UploadJobStatus.Complete,
+                    result: {
+                        status: UploadStatus.Uploaded,
+                        mediaKey: second.mediaKey,
+                        sha1: second.sha1
+                    }
+                });
+
+                return Ok(undefined);
+            });
+        }
+    );
+
+    await drive.upload([new File(['proof'], 'proof.bin')]);
+
+    expect(drive.library.chunks).toHaveLength(2);
 });

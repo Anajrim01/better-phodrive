@@ -199,6 +199,7 @@ export function encodeUploadBmp(input: ReceivedUpload): AsyncResult<UploadBmpSou
             if (released) return;
 
             released = true;
+            input.signal.removeEventListener('abort', release);
             uploadSlots.release();
         };
         input.signal.addEventListener('abort', release, { once: true });

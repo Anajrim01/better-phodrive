@@ -236,5 +236,37 @@ test('three buffered chunks queue the third and never exceed two', async () => {
     gates[2].resolve();
     const third = await encodes[2];
     expect(third.isOk()).toBe(true);
+    await third.unwrap().body.cancel();
+    for (const input of inputs) await input.cancel();
+});
+
+test('draining a completed body releases its buffered slot', async () => {
+    const payload = new Uint8Array(512 * 1024).fill(42);
+    const fixture = uploadForm(payload, 'drained.bin', { compress: true });
+    const inputs = [0, 1, 2].map(() => {
+        const stream = new ReadableStream<Uint8Array>({
+            start(controller) {
+                controller.enqueue(payload);
+                controller.close();
+            }
+        });
+
+        return receiveChunk(fixture.metadata, stream, new AbortController().signal).unwrap();
+    });
+    const encodes = inputs.map((input) => encodeUploadBmp(input));
+    const [first, second] = await Promise.all(encodes.slice(0, 2));
+    let settled = false;
+    void encodes[2].then(() => {
+        settled = true;
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(settled).toBe(false);
+
+    await first.unwrap().drain();
+    await second.unwrap().drain();
+    const third = await encodes[2];
+    expect(third.isOk()).toBe(true);
+    await third.unwrap().drain();
     for (const input of inputs) await input.cancel();
 });
