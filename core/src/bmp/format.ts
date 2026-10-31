@@ -31,11 +31,11 @@ function bmpLayout(
     if (!Number.isSafeInteger(length) || length < 0) return Err(BMP_ERRORS.INVALID_CHUNK_SIZE);
 
     const width = Math.max(
-        32,
+        256,
         Math.ceil((Math.floor(Math.sqrt(Math.ceil(length / 3))) + 1) / 4) * 4
     );
     const stride = width * 3;
-    const height = Math.max(32, Math.ceil(length / stride));
+    const height = Math.max(256, Math.ceil(length / stride));
     const total = BMP_HEADER_BYTES + stride * height;
 
     if (total > MAX_PHOTOS_BMP_BYTES || width > 0x7fffffff || height > 0x7fffffff)
