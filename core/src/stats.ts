@@ -12,7 +12,7 @@ export type LibraryStats = {
     types: FileTypeStat[];
 };
 
-/** Totals for the files currently loaded, including bytes already stored for partial files. */
+/** Counts bytes already stored for partial files. */
 export function libraryStats(files: readonly FileGroup[]): LibraryStats {
     const types = new Map<string, FileTypeStat>();
     const folders = new Set<string>();
