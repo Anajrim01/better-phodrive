@@ -250,8 +250,8 @@
             <div>
                 <h2 class="text-base font-medium">Compress uploads</h2>
                 <p id="compression-description" class="mt-1 text-sm leading-relaxed text-muted">
-                    Compress chunks when that saves at least 5%. This trades CPU and memory for
-                    fewer bytes sent to Google. JPEG, ZIP and video usually do not benefit.
+                    Compression costs CPU and memory to send fewer bytes to Google. JPEG, ZIP and
+                    video usually do not benefit.
                 </p>
             </div>
 

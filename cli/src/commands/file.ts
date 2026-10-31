@@ -200,7 +200,7 @@ export function registerFileCommands(program: Command, context: CliContext, run:
         .description('Upload files, and every file inside folders')
         .argument('<paths...>', 'files or folders')
         .option('-w, --workers <count>', 'concurrent transfers')
-        .option('--compress', 'compress chunks when it saves at least 5%')
+        .option('--compress', 'compress uploads when it saves at least 5%')
         .option('-a, --account <email>', 'use this account instead of the active one')
         .action((paths, options) => run(() => upload(context, paths, options)));
 
