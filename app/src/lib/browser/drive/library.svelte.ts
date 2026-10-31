@@ -8,14 +8,27 @@ import {
     type UploadedChunk
 } from '@madkarmaa/phodrive-core/files';
 import { FileSort } from '@madkarmaa/phodrive-core/models';
-import { readLibraryPage, readLibrarySnapshot } from '@madkarmaa/phodrive-core/browser/library';
+import {
+    readGroupLibrary,
+    readLibraryPage,
+    readLibrarySnapshot
+} from '@madkarmaa/phodrive-core/browser/library';
+import type { GroupAccountState } from '@madkarmaa/phodrive-core/groups';
+import { nextRetryAt } from '#browser/drive/group-target';
 
 const POST_UPLOAD_COOLDOWN_MS = 2 * 60 * 1_000;
+
+export type LibraryGroup = {
+    members: readonly { email: string; token: string; pausedUntil?: number }[];
+    missing: readonly string[];
+} | null;
 
 export class DriveLibrary {
     chunks = $state<UploadedChunk[]>([]);
     nextPageToken = $state('');
     loading = $state(false);
+    accounts = $state<GroupAccountState[]>([]);
+    partial = $state(false);
 
     private libraryRequest = 0;
     private loadedPages = 0;
@@ -49,7 +62,9 @@ export class DriveLibrary {
         private readonly account: () => { email: string; token: string | undefined },
         private readonly actionsDisabled: () => boolean,
         private readonly sortOrder: () => FileSort,
-        private readonly feedback: (message: string) => void
+        private readonly feedback: (message: string) => void,
+        private readonly group: () => LibraryGroup = () => null,
+        private readonly onAccounts: (accounts: GroupAccountState[]) => void = () => {}
     ) {}
 
     reset() {
@@ -64,6 +79,8 @@ export class DriveLibrary {
         this.libraryRequest++;
         this.loading = false;
         this.loadFailed = false;
+        this.accounts = [];
+        this.partial = false;
     }
 
     openFolder(path: string) {
@@ -79,6 +96,13 @@ export class DriveLibrary {
     }
 
     async load(reset = true) {
+        const group = this.group();
+        if (group) {
+            await this.loadGroup(group, reset);
+
+            return;
+        }
+
         if (this.actionsDisabled() || (!reset && (this.loading || !this.nextPageToken))) return;
 
         const { email, token } = this.account();
@@ -139,7 +163,60 @@ export class DriveLibrary {
         this.loading = false;
     }
 
+    private async loadGroup(group: NonNullable<LibraryGroup>, reset: boolean) {
+        if (this.actionsDisabled() || (!reset && this.loading)) return;
+
+        const request = ++this.libraryRequest;
+        if (reset) {
+            this.chunks = [];
+            this.nextPageToken = '';
+            this.loadedPages = 0;
+            this.libraryPageTokens.clear();
+            this.loadFailed = false;
+            this.accounts = [];
+            this.partial = false;
+        }
+
+        this.loading = true;
+        this.feedback('');
+
+        const loaded = await readGroupLibrary(group.members, group.missing);
+        if (request !== this.libraryRequest) return;
+
+        loaded.match({
+            Ok: (snapshot) => {
+                this.loadFailed = false;
+                this.chunks = snapshot.chunks;
+                this.accounts = snapshot.accounts;
+                this.partial = snapshot.partial;
+                this.nextPageToken = '';
+                this.loadedPages = 1;
+                this.onAccounts(snapshot.accounts);
+                this.retryAt = nextRetryAt(snapshot.accounts);
+                if (this.folder && !this.hasFolder(this.folder)) this.folder = '';
+            },
+            Err: (error) => {
+                this.loadFailed = true;
+                if (error.code === 'THROTTLED')
+                    this.retryAt = Date.now() + error.retryAfterSeconds * 1_000;
+                this.feedback(error.message);
+            }
+        });
+
+        this.loading = false;
+    }
+
     async refresh(manual = false) {
+        const group = this.group();
+        if (group) {
+            if (this.actionsDisabled() || this.loading || document.hidden) return;
+            if (!manual && (Date.now() < this.retryAt || Date.now() < this.cooldownUntil)) return;
+
+            await this.loadGroup(group, false);
+
+            return;
+        }
+
         if (this.actionsDisabled() || this.loading || document.hidden) return;
         if (!manual && (Date.now() < this.retryAt || Date.now() < this.cooldownUntil)) return;
 

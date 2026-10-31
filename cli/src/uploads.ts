@@ -45,9 +45,14 @@ function jobBytes(job: UploadJob, size: number): number {
     return Math.floor(((completed + reused) / total) * size);
 }
 
-function reportJob(context: CliContext, job: UploadJob): void {
+export function reportJob(context: CliContext, job: UploadJob): void {
     if (job.status === UploadJobStatus.Error) {
         status(context).error(`${job.name}: ${job.message}`);
+
+        return;
+    }
+    if (job.status === UploadJobStatus.Queued) {
+        status(context).warn(`${job.name}: ${job.message || 'Waiting for an available account.'}`);
 
         return;
     }
@@ -60,7 +65,7 @@ function reportJob(context: CliContext, job: UploadJob): void {
     status(context).success(`Uploaded ${job.name}`);
 }
 
-function trackUploads(
+export function trackUploads(
     context: CliContext,
     files: readonly LocalFile[],
     bar: ReturnType<typeof transferProgress>
@@ -100,7 +105,7 @@ function trackUploads(
     };
 }
 
-async function mirrorAlbums(
+export async function mirrorAlbums(
     context: CliContext,
     session: Session,
     chunks: readonly UploadedChunk[]

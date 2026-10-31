@@ -103,6 +103,8 @@ For Docker, pass the same variables with `-e`, for example `-e PHODRIVE_DEFAULT_
 
 Compression is off by default. Turn it on per browser in **Settings > Compress uploads**, or for one CLI upload with `--compress`. To make it the CLI default, run `phodrive setting set compression on`. The upload request carries the choice, so the server does not hold global state and two runs can differ.
 
+**Settings > Groups** creates named groups of connected accounts. The upload button can then target a group, and the file list merges every member with owner labels.
+
 Changing the setting and uploading the same file again stores a second copy with a different hash. Delete removes every stored chunk for that file, including both copies.
 
 When it is on, the server compresses each chunk with brotli quality 1 if that saves at least 5% of the payload, and stores it raw otherwise. Chunks under 4 KiB stay raw. Text, JSON, logs and source shrink by roughly 75% to 88%. Raw video can shrink by about 88%. JPEG saves about 4% and ZIP about 1%, so both stay raw and the setting is not worth enabling for a library of those.
@@ -160,9 +162,16 @@ phodrive file upload ./photos        # files and whole folders
 phodrive file upload ./photos --compress  # compress this run
 phodrive file download report.pdf    # by name or by the ID that file list shows
 phodrive file delete report.pdf
+phodrive group create Family --account you@gmail.com --account other@gmail.com
+phodrive file upload ./photos --group Family  # spread whole files across the group
+phodrive file list --group Family            # merged listing with an owner column
 phodrive setting set workers 4
 phodrive setting set compression on  # default for later uploads
 ```
+
+A group spreads whole files across its accounts by size. Each file and all of its
+chunks stay on one owner, and downloads and deletes go back to that owner. A
+paused account stops taking new files while the others continue.
 
 Uploading a folder keeps its relative paths, and each folder becomes a same-named Google Photos album, the same as the web app. `phodrive help` lists every command. `phodrive help file upload`, `phodrive file upload --help`, and `phodrive file upload -h` all show the options of one command.
 

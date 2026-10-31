@@ -1,4 +1,5 @@
 import { ConfirmKind, FileActionKind } from '@madkarmaa/phodrive-core/models';
+import { deleteRoute, downloadRoute, type RouteMember } from '@madkarmaa/phodrive-core/groups';
 import {
     fileKey,
     type FileAction,
@@ -20,7 +21,10 @@ export type FileDeps = {
     onDeleted: (item: FileGroup, chunk: UploadedChunk) => void;
     closeUploads: () => void;
     reload: (email: string, token: string) => void;
+    reloadGroup: () => void;
     removeAccount: (email: string) => void;
+    groupMode: () => boolean;
+    routeMembers: () => readonly RouteMember[];
 };
 
 export class DriveFiles {
@@ -44,8 +48,9 @@ export class DriveFiles {
 
         const item = target.item;
         const current = this.deps.files().find((file) => fileKey(file) === fileKey(item));
+        const owner = this.deps.groupMode() ? item.email : this.deps.account().email;
         if (
-            item.email !== this.deps.account().email ||
+            item.email !== owner ||
             !current ||
             current.name !== item.name ||
             current.chunks.length !== item.chunks.length ||
@@ -70,11 +75,28 @@ export class DriveFiles {
     async act(item: FileGroup, action: FileActionKind): Promise<void> {
         if (this.deps.busy() || this.action || this.deps.loading()) return;
 
-        const { email, token } = this.deps.account();
-        if (item.email !== email || !token) {
-            this.deps.feedback('Select the connected account for this file before continuing.');
+        const { email, token: selectedToken } = this.deps.account();
+        let token: string;
 
-            return;
+        if (this.deps.groupMode()) {
+            const members = this.deps.routeMembers();
+            const routed =
+                action === FileActionKind.Delete
+                    ? deleteRoute(item, members)
+                    : downloadRoute(item, members);
+            if (routed.isErr()) {
+                this.deps.feedback(routed.unwrapErr().message);
+
+                return;
+            }
+            token = routed.unwrap().token;
+        } else {
+            if (item.email !== email || !selectedToken) {
+                this.deps.feedback('Select the connected account for this file before continuing.');
+
+                return;
+            }
+            token = selectedToken;
         }
 
         this.action = { fileId: item.fileId, kind: action };
@@ -94,7 +116,8 @@ export class DriveFiles {
 
             this.deps.closeUploads();
             this.action = null;
-            this.deps.reload(item.email, token);
+            if (this.deps.groupMode()) this.deps.reloadGroup();
+            else this.deps.reload(item.email, token);
 
             return;
         }
@@ -108,6 +131,7 @@ export class DriveFiles {
             });
 
         this.action = null;
-        this.deps.reload(item.email, token);
+        if (this.deps.groupMode()) this.deps.reloadGroup();
+        else this.deps.reload(item.email, token);
     }
 }

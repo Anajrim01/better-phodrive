@@ -1,10 +1,18 @@
 import type { ApplicationError } from '../errors';
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import { LibraryResponseSchema, type LibraryResponse, type RemoteBmp } from '../models';
+import type { UploadedChunk } from '../files';
+import { mergeGroupLibrary, type GroupAccountState, type GroupPage } from '../groups';
 import { schemaResult } from '../validation';
 import { apiJson } from './api';
 
 export type LibrarySnapshot = LibraryResponse & { pages: number };
+
+export type GroupLibrarySnapshot = {
+    chunks: UploadedChunk[];
+    accounts: GroupAccountState[];
+    partial: boolean;
+};
 
 export function readLibraryPage(
     email: string,
@@ -59,5 +67,78 @@ export function readLibrarySnapshot(
         }
 
         return Ok({ items: [...items.values()], nextPageToken, pages });
+    });
+}
+
+async function readMemberPages(email: string, token: string): Promise<GroupPage> {
+    const items = new Map<string, RemoteBmp>();
+    const pageTokens = new Set<string>();
+    let pageToken = '';
+
+    do {
+        pageTokens.add(pageToken);
+
+        const received = await readLibraryPage(email, token, pageToken);
+        if (received.isErr()) return { email, error: received.unwrapErr() };
+
+        const page = received.unwrap();
+        if (page.nextPageToken && pageTokens.has(page.nextPageToken))
+            return {
+                email,
+                error: {
+                    code: 'REPEATED_LIBRARY_PAGE',
+                    message: 'Google Photos repeated a library page. Refresh to try again.'
+                }
+            };
+
+        for (const item of page.items) items.set(item.mediaKey, item);
+        pageToken = page.nextPageToken;
+    } while (pageToken);
+
+    return { email, items: [...items.values()] };
+}
+
+/** Query every member, merge their items, and report a paused member instead of failing. */
+export function readGroupLibrary(
+    members: readonly { email: string; token: string; pausedUntil?: number }[],
+    missing: readonly string[] = []
+): AsyncResult<GroupLibrarySnapshot, ApplicationError> {
+    return Ok(undefined).andThenAsync(async () => {
+        const pages: GroupPage[] = [];
+        const now = Date.now();
+
+        for (const email of missing)
+            pages.push({
+                email,
+                error: { code: 'ACCOUNT_NOT_FOUND', message: `${email} is not connected.` }
+            });
+
+        for (const member of members) {
+            if (member.pausedUntil && member.pausedUntil > now) {
+                pages.push({
+                    email: member.email,
+                    error: {
+                        code: 'THROTTLED',
+                        message: 'Google Photos is limiting requests',
+                        retryAfterSeconds: Math.max(
+                            1,
+                            Math.ceil((member.pausedUntil - now) / 1_000)
+                        )
+                    }
+                });
+
+                continue;
+            }
+
+            pages.push(await readMemberPages(member.email, member.token));
+        }
+
+        const merged = mergeGroupLibrary(pages);
+
+        return Ok({
+            chunks: merged.items,
+            accounts: merged.accounts,
+            partial: merged.partial
+        });
     });
 }

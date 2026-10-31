@@ -22,6 +22,7 @@ export interface UploadJob {
     bytesPerSecond: number;
     etaSeconds: number | null;
     retryAt: number | null;
+    account?: string;
 }
 
 export interface UploadSource {

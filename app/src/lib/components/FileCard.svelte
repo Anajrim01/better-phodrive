@@ -11,11 +11,12 @@
         item: FileGroup;
         disabled: boolean;
         working: FileActionKind | null;
+        showOwner?: boolean;
         ondownload: (item: FileGroup) => void;
         ondelete: (item: FileGroup) => void;
     }
 
-    let { item, disabled, working, ondownload, ondelete }: Props = $props();
+    let { item, disabled, working, showOwner = false, ondownload, ondelete }: Props = $props();
 </script>
 
 <Card type="text" variant="filled" class="file-card">
@@ -23,6 +24,9 @@
         <IconDescriptionOutline aria-hidden="true" class="size-5 shrink-0 text-muted" />
         <h3 class="min-w-0 flex-1 truncate text-sm font-medium" title={item.name}>{item.name}</h3>
     </div>
+    {#if showOwner}
+        <p class="m-0 truncate px-3 pb-1 text-xs text-muted" title={item.email}>{item.email}</p>
+    {/if}
 
     <div
         class="file-preview mx-2 mb-2 grid place-items-center rounded bg-preview"

@@ -11,8 +11,10 @@ import {
     StoredAccountsSchema,
     StoredAlbumsSchema,
     WorkerCountSchema,
+    type Group,
     type StoredAlbums
 } from '@madkarmaa/phodrive-core/models';
+import { StoredGroupsSchema } from '@madkarmaa/phodrive-core/groups';
 import type { CliError } from './context';
 import { isMissingPath } from './filesystem';
 
@@ -33,7 +35,8 @@ const StoredConfigSchema = z.object({
     accounts: StoredAccountsSchema.catch({}),
     selected: SelectedAccountSchema.catch(''),
     settings: StoredSettingsSchema.catch({}),
-    albums: StoredAlbumsSchema.catch({})
+    albums: StoredAlbumsSchema.catch({}),
+    groups: StoredGroupsSchema.catch([])
 });
 
 export type StoredSettings = z.infer<typeof StoredSettingsSchema>;
@@ -42,9 +45,16 @@ export type CliConfig = {
     selected: string;
     settings: StoredSettings;
     albums: StoredAlbums;
+    groups: Group[];
 };
 
-const EMPTY_CONFIG: CliConfig = { accounts: {}, selected: '', settings: {}, albums: {} };
+const EMPTY_CONFIG: CliConfig = {
+    accounts: {},
+    selected: '',
+    settings: {},
+    albums: {},
+    groups: []
+};
 
 export function defaultConfigPath(environment: Record<string, string | undefined>): string {
     const override = environment[CONFIG_PATH_VARIABLE]?.trim();
@@ -68,7 +78,8 @@ function parseConfig(value: unknown): CliConfig {
         accounts,
         selected: parsed.selected,
         settings: parsed.settings,
-        albums: parsed.albums
+        albums: parsed.albums,
+        groups: parsed.groups
     };
 }
 

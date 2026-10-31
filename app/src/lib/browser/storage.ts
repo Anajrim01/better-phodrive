@@ -18,9 +18,12 @@ import {
     StoredAccountsSchema,
     ThemeMode,
     ThemeSchema,
+    type Group,
     type PreferencesDefaults
 } from '@madkarmaa/phodrive-core/models';
 import { AlbumKeys, ALBUMS_KEY } from '#browser/albums';
+import { GroupStore, GROUPS_KEY, GROUPS_SERIALIZER } from '#browser/groups';
+import { UploadTargetStore } from '#browser/upload-target';
 import {
     readState,
     readStoredJson,
@@ -29,7 +32,7 @@ import {
     writeState
 } from '#browser/persisted';
 
-export { ALBUMS_KEY };
+export { ALBUMS_KEY, GROUPS_KEY, GROUPS_SERIALIZER };
 
 export const ACCOUNTS_KEY = 'accounts';
 export const SELECTED_KEY = 'selectedAccount';
@@ -128,6 +131,7 @@ export class BrowserPreferences {
     private readonly selectedState = new PersistedState(SELECTED_KEY, '', {
         serializer: SELECTED_ACCOUNT_SERIALIZER
     });
+    private readonly uploadTargetState = new UploadTargetStore();
     // Runed skips undefined writes, so deployment defaults apply until the user saves a choice.
     private readonly themeState = new PersistedState<ThemeMode | undefined>(THEME_KEY, undefined, {
         serializer: THEME_SERIALIZER
@@ -159,6 +163,7 @@ export class BrowserPreferences {
         undefined,
         { serializer: BOOLEAN_SERIALIZER }
     );
+    private readonly groupStore = new GroupStore();
     private readonly albumKeys = new AlbumKeys();
 
     get accounts(): Accounts {
@@ -200,6 +205,14 @@ export class BrowserPreferences {
 
     get compression(): boolean {
         return readState(this.compressionState).unwrapOr(undefined) ?? false;
+    }
+
+    get groups(): Group[] {
+        return this.groupStore.groups;
+    }
+
+    get uploadTarget(): string {
+        return this.uploadTargetState.value;
     }
 
     albumKey(email: string, folder: string): string | undefined {
@@ -258,6 +271,14 @@ export class BrowserPreferences {
 
     saveCompression(enabled: boolean): Result<void, ApplicationError> {
         return writeState(this.compressionState, enabled);
+    }
+
+    saveGroups(groups: Group[]): Result<void, ApplicationError> {
+        return this.groupStore.save(groups);
+    }
+
+    saveUploadTarget(id: string): Result<void, ApplicationError> {
+        return this.uploadTargetState.save(id);
     }
 
     resetRefreshInterval(): Result<void, ApplicationError> {

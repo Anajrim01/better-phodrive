@@ -73,7 +73,7 @@ test('cli delete sends both stored copies of the same file', async () => {
     const session: Session = {
         email: EMAIL,
         token: 'aas_et/test',
-        config: { accounts: {}, selected: '', settings: {}, albums: {} }
+        config: { accounts: {}, selected: '', settings: {}, albums: {}, groups: [] }
     };
 
     const result = await deleteFiles(context, session, [file], 1);

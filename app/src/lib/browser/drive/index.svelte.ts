@@ -5,6 +5,8 @@ import {
     ThemeSchema,
     type PreferencesDefaults
 } from '@madkarmaa/phodrive-core/models';
+import { DriveGroupMode } from '#browser/drive/group-mode';
+import { groupFileAccess, groupLibraryAccess, groupUploadAccess } from '#browser/drive/wiring';
 import { watch } from 'runed';
 import type { FileGroup, FileAction } from '@madkarmaa/phodrive-core/files';
 import { useAutomaticRefresh } from '#browser/drive/refresh.svelte';
@@ -12,6 +14,7 @@ import type { UploadJob } from '#browser/files';
 import { DriveLibrary } from '#browser/drive/library.svelte';
 import { DriveSettings } from '#browser/drive/settings.svelte';
 import { DriveAccounts } from '#browser/drive/accounts.svelte';
+import { DriveGroups } from '#browser/drive/groups.svelte';
 import { DriveUploads } from '#browser/drive/uploads.svelte';
 import { DriveFiles, type ConfirmTarget } from '#browser/drive/files.svelte';
 import { DriveSession } from '#browser/drive/session.svelte';
@@ -26,6 +29,8 @@ export class DriveController extends DriveView {
 
     readonly library: DriveLibrary;
     readonly settings: DriveSettings;
+    readonly groupSettings: DriveGroups;
+    readonly groupMode: DriveGroupMode;
     private readonly accountsState: DriveAccounts;
     protected readonly uploads: DriveUploads;
     protected readonly files: DriveFiles;
@@ -44,11 +49,29 @@ export class DriveController extends DriveView {
             blocked: () => this.busy || !!this.fileAction,
             feedback
         });
+        this.groupSettings = new DriveGroups(
+            () => this.preferences,
+            () => this.accounts
+        );
+        this.groupMode = new DriveGroupMode(
+            () => this.groupSettings,
+            () => this.settings,
+            () => this.accounts,
+            () => this.session.reset()
+        );
+        const libraryGroup = groupLibraryAccess(this.groupMode, this.groupSettings);
         this.library = new DriveLibrary(
             () => this.account(),
             () => this.busy || !!this.fileAction,
             () => this.settings.fileSort,
-            feedback
+            feedback,
+            libraryGroup.members,
+            libraryGroup.onAccounts
+        );
+        const uploadGroup = groupUploadAccess(
+            this.groupMode,
+            this.groupSettings,
+            () => void this.library.load()
         );
         this.uploads = new DriveUploads({
             account: () => this.account(),
@@ -71,7 +94,8 @@ export class DriveController extends DriveView {
                 ];
             },
             afterUpload: () => this.library.deferRefresh(),
-            reload: (email, token) => this.session.reload(email, token)
+            reload: (email, token) => this.session.reload(email, token),
+            ...uploadGroup
         });
         this.session = new DriveSession({
             busy: () => this.busy,
@@ -89,6 +113,7 @@ export class DriveController extends DriveView {
             matches: (email, token) =>
                 this.selectedEmail === email && this.accounts[email] === token
         });
+        const fileGroup = groupFileAccess(this.groupMode, () => void this.library.load());
         this.files = new DriveFiles({
             account: () => this.account(),
             busy: () => this.uploads.busy,
@@ -108,7 +133,8 @@ export class DriveController extends DriveView {
                 this.uploads.panelOpen = false;
             },
             reload: (email, token) => this.session.reload(email, token),
-            removeAccount: (email) => this.removeAccount(email)
+            removeAccount: (email) => this.removeAccount(email),
+            ...fileGroup
         });
 
         watch(
@@ -144,32 +170,8 @@ export class DriveController extends DriveView {
         return this.accountsState.selectedEmail;
     }
 
-    get adding() {
-        return this.accountsState.adding;
-    }
-
-    set adding(value: boolean) {
-        this.accountsState.adding = value;
-    }
-
-    get newEmail() {
-        return this.accountsState.newEmail;
-    }
-
-    set newEmail(value: string) {
-        this.accountsState.newEmail = value;
-    }
-
-    get newToken() {
-        return this.accountsState.newToken;
-    }
-
-    set newToken(value: string) {
-        this.accountsState.newToken = value;
-    }
-
-    get connecting() {
-        return this.accountsState.connecting;
+    get accountEditor(): DriveAccounts {
+        return this.accountsState;
     }
 
     private account() {

@@ -7,6 +7,16 @@ import type { CliContext, CliError } from './context';
 
 export const SHORT_ID_LENGTH = 12;
 export const FILE_TABLE_HEAD = ['ID', 'Name', 'Folder', 'Type', 'Size', 'Modified', ''];
+export const GROUP_FILE_TABLE_HEAD = [
+    'ID',
+    'Name',
+    'Owner',
+    'Folder',
+    'Type',
+    'Size',
+    'Modified',
+    ''
+];
 export const FOLDER_TABLE_HEAD = ['Folder', 'Files', 'Subfolders'];
 const PROGRESS_STEPS = 1000;
 const DATE_FORMAT = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });
@@ -123,10 +133,11 @@ export function fileSize(file: FileGroup): number {
     return file.chunks.reduce((sum, chunk) => sum + chunk.size, 0);
 }
 
-export function fileRow(file: FileGroup): string[] {
+export function fileRow(file: FileGroup, owner?: string): string[] {
     return [
         shortId(file),
         file.name,
+        ...(owner === undefined ? [] : [owner]),
         file.folder,
         fileType(file.name),
         prettyBytes(fileSize(file)),
@@ -136,10 +147,11 @@ export function fileRow(file: FileGroup): string[] {
 }
 
 /** Machine-readable files never include account credentials. */
-export function fileJson(file: FileGroup) {
+export function fileJson(file: FileGroup, owner?: string) {
     return {
         id: file.fileId,
         name: file.name,
+        ...(owner === undefined ? {} : { owner }),
         folder: file.folder,
         type: fileType(file.name),
         size: fileSize(file),

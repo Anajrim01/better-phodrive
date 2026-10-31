@@ -1,6 +1,7 @@
 export * from './models';
 export * from './errors';
 export * from './files';
+export * from './groups';
 export * from './upload';
 export * from './validation';
 export * from './preferences';

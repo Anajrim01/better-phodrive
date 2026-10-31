@@ -67,6 +67,18 @@ export class DriveSettings {
         return this.preferences()?.compression ?? false;
     }
 
+    get uploadTarget(): string {
+        return this.preferences()?.uploadTarget ?? '';
+    }
+
+    chooseUploadTarget(id: string) {
+        this.persist(
+            'Could not save the upload target in this browser.',
+            (preferences) => preferences.saveUploadTarget(id),
+            false
+        );
+    }
+
     chooseCompression(enabled: boolean) {
         this.persist('Could not save preferences in this browser.', (preferences) =>
             preferences.saveCompression(enabled)
