@@ -63,6 +63,18 @@ test('an upload retry reaches the pause and excludes that member', () => {
     expect(access.group()?.members.find((member) => member.email === FIRST)?.paused).toBe(true);
 });
 
+test('a successful upload observes the account without clearing a pause', () => {
+    const { store, mode } = setup();
+    const access = groupUploadAccess(mode, store, () => {});
+    const until = Date.now() + 30_000;
+
+    store.markPaused(FIRST, until);
+    access.observe(FIRST);
+
+    expect(store.pausedUntilFor(FIRST)).toBe(until);
+    expect(store.memberStatus(FIRST, until + 1)).toBe('ready');
+});
+
 test('changing the upload target clears pauses and the stale group error', () => {
     const { store, mode } = setup();
     store.markPaused(FIRST, Date.now() + 30_000);

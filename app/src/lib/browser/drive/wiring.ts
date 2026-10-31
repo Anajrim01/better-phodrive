@@ -13,7 +13,8 @@ export function groupUploadAccess(mode: DriveGroupMode, groups: DriveGroups, rel
     return {
         group: () => (mode.target ? { members: mode.target.members } : null),
         reloadGroup: reload,
-        markPaused: (email: string, retryAt: number) => groups.markPaused(email, retryAt)
+        markPaused: (email: string, retryAt: number) => groups.markPaused(email, retryAt),
+        observe: (email: string) => groups.observe(email)
     };
 }
 

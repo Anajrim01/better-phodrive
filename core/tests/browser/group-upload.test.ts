@@ -189,6 +189,30 @@ test('a throttled account stops taking new files while the other continues', asy
     expect(attempts.some((entry) => entry.startsWith(`${FIRST}:c.bin`))).toBe(false);
 });
 
+test('a paused member receives no files in a group upload', async () => {
+    const harness = photosUploadHarness();
+    const jobs: UploadJob[] = [];
+    const chunks: UploadedChunk[] = [];
+
+    const uploaded = await uploadGroupFiles(
+        files(),
+        [
+            { email: FIRST, token: 'aas_et/first', paused: true },
+            { email: SECOND, token: 'aas_et/second', paused: false }
+        ],
+        1,
+        (job) => jobs.push(job),
+        (chunk) => chunks.push(chunk),
+        { fetcher: harness.fetcher }
+    );
+
+    expect(uploaded.unwrap()).toEqual({ waiting: 0 });
+    expect(chunks).toHaveLength(3);
+    expect(chunks.every((chunk) => chunk.email === SECOND)).toBe(true);
+    const latest = new Map(jobs.map((job) => [job.id, job]));
+    expect([...latest.values()].every((job) => job.status === UploadJobStatus.Complete)).toBe(true);
+});
+
 test('a member paused before the batch takes no files', async () => {
     const attempts: string[] = [];
     const { result, jobs } = await runGroup(

@@ -19,6 +19,7 @@ export type UploadDeps = {
     reload: (email: string, token: string) => void;
     reloadGroup: () => void;
     markPaused: (email: string, retryAt: number) => void;
+    observe: (email: string) => void;
 };
 
 export class DriveUploads {
@@ -92,7 +93,8 @@ export class DriveUploads {
         const onChunk = (saved: UploadedChunk) => {
             uploadedChunks.push(saved);
 
-            if (!group && this.deps.account().email !== email) return;
+            if (group) this.deps.observe(saved.email);
+            else if (this.deps.account().email !== email) return;
 
             this.deps.onChunk(saved);
         };

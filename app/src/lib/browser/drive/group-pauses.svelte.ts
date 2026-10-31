@@ -25,6 +25,14 @@ export class GroupPauses {
         return this.status(email) === 'paused';
     }
 
+    observe(email: string): void {
+        const key = email.toLowerCase();
+        this.now = Date.now();
+        if (this.observed.has(key)) return;
+
+        this.observed = new Set(this.observed).add(key);
+    }
+
     mark(email: string, until: number): void {
         const key = email.toLowerCase();
         const deadline = Math.max(this.pausedUntil.get(key) ?? 0, until);
@@ -42,7 +50,10 @@ export class GroupPauses {
         for (const account of accounts) {
             const key = account.email.toLowerCase();
             if (account.status === 'paused') {
-                const seconds = Math.max(1, account.retryAfterSeconds ?? DEFAULT_PAUSE_SECONDS);
+                const seconds = Math.max(
+                    1,
+                    Math.floor(account.retryAfterSeconds ?? DEFAULT_PAUSE_SECONDS)
+                );
                 paused.set(key, Math.max(paused.get(key) ?? 0, now + seconds * 1_000));
             } else if (account.status === 'ok') {
                 if ((paused.get(key) ?? 0) <= now) paused.delete(key);

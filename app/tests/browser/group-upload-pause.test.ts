@@ -56,7 +56,8 @@ test('a throttled group upload marks its owner paused', async () => {
         afterUpload: () => {},
         reload: () => {},
         reloadGroup: () => {},
-        markPaused
+        markPaused,
+        observe: () => {}
     });
 
     await uploads.upload([new File(['x'], 'x.bin')]);

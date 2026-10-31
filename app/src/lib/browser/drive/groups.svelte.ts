@@ -36,6 +36,10 @@ export class DriveGroups {
         this.pauses.mark(email, until);
     }
 
+    observe(email: string): void {
+        this.pauses.observe(email);
+    }
+
     applyAccountStates(accounts: readonly GroupAccountState[]): void {
         this.pauses.apply(accounts);
     }
@@ -101,9 +105,11 @@ export class DriveGroups {
 
     delete(id: string): boolean {
         const group = this.groups.find((current) => current.id === id);
-        if (group) for (const email of group.accounts) this.pauses.forget(email);
+        const remaining = this.groups.filter((current) => current.id !== id);
+        const saved = this.persist(remaining);
+        if (saved && group) for (const email of group.accounts) this.forgetUnused(email, remaining);
 
-        return this.persist(this.groups.filter((current) => current.id !== id));
+        return saved;
     }
 
     addMember(id: string, email: string): boolean {
@@ -137,9 +143,21 @@ export class DriveGroups {
         );
         if (accounts.length === group.accounts.length) return false;
 
-        this.pauses.forget(email);
+        const nextGroups = this.groups.map((current) =>
+            current.id === id ? { ...current, accounts } : current
+        );
+        const saved = this.update(id, { accounts });
+        if (saved) this.forgetUnused(email, nextGroups);
 
-        return this.update(id, { accounts });
+        return saved;
+    }
+
+    private forgetUnused(email: string, groups: readonly Group[]): void {
+        const wanted = email.toLowerCase();
+        const stillUsed = groups.some((group) =>
+            group.accounts.some((account) => account.toLowerCase() === wanted)
+        );
+        if (!stillUsed) this.pauses.forget(email);
     }
 
     private isConnected(email: string): boolean {

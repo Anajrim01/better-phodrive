@@ -192,6 +192,22 @@ test('the upload target defaults to the current account and persists', () => {
     expect(new BrowserPreferences().uploadTarget).toBe('family');
 });
 
+test('a shared account keeps its pause when one group drops it', () => {
+    const store = groups();
+    store.create('Family', [FIRST, SECOND]);
+    const [family] = preferences.groups;
+    preferences
+        .saveGroups([...preferences.groups, { id: 'other', name: 'Other', accounts: [FIRST] }])
+        .unwrap();
+    store.markPaused(FIRST, Date.now() + 30_000);
+
+    store.removeMember(family!.id, FIRST);
+    expect(store.isPaused(FIRST)).toBe(true);
+
+    store.delete(family!.id);
+    expect(store.isPaused(FIRST)).toBe(true);
+});
+
 test('group readiness covers the three empty states', () => {
     expect(preferences.groups).toEqual([]);
 
