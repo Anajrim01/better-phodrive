@@ -68,7 +68,9 @@ Each account keeps its own:
 - probe cache namespace, which already includes the email.
 
 The queue assigns whole files. With one account, behavior is unchanged. With
-several, a file waits for its owner instead of moving to another account.
+several, a file waits for its owner instead of moving to another account. The
+worker setting applies to each account, so a group of three can run up to three
+times the configured worker count.
 
 ## Listing
 

@@ -103,6 +103,8 @@ For Docker, pass the same variables with `-e`, for example `-e PHODRIVE_DEFAULT_
 
 Compression is off by default. Turn it on per browser in **Settings > Compress uploads**, or for one CLI upload with `--compress`. To make it the CLI default, run `phodrive setting set compression on`. The upload request carries the choice, so the server does not hold global state and two runs can differ.
 
+**Settings > Groups** creates named groups of connected accounts. Upload selection and the merged listing arrive in the next UI phase.
+
 Changing the setting and uploading the same file again stores a second copy with a different hash. Delete removes every stored chunk for that file, including both copies.
 
 When it is on, the server compresses each chunk with brotli quality 1 if that saves at least 5% of the payload, and stores it raw otherwise. Chunks under 4 KiB stay raw. Text, JSON, logs and source shrink by roughly 75% to 88%. Raw video can shrink by about 88%. JPEG saves about 4% and ZIP about 1%, so both stay raw and the setting is not worth enabling for a library of those.
