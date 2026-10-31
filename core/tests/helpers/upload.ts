@@ -6,7 +6,8 @@ import {
     UploadStatus,
     type UploadEvent
 } from '@madkarmaa/phodrive-core/models';
-import { encodeSplitBmp, decodeSplitBmp } from '@madkarmaa/phodrive-core/server/bmp';
+import { encodeSplitBmp } from '@madkarmaa/phodrive-core/server/bmp';
+import { decodeSplitBmp } from './bmp';
 import { encodeSplitPrefix, MAX_CHUNK_PAYLOAD_BYTES } from '@madkarmaa/phodrive-core/bmp/format';
 import { fileIdentity } from '@madkarmaa/phodrive-core/server/chunks';
 import { bytesField, message, nested, numberField } from '@madkarmaa/phodrive-core/server/protobuf';
@@ -15,7 +16,12 @@ import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
 export function uploadForm(
     payload: Uint8Array = Buffer.from([0, 255, 13, 10, 42]),
     name = 'proof.bin',
-    options: { fileSize?: number; fileHash?: string; chunkIndex?: number } = {}
+    options: {
+        fileSize?: number;
+        fileHash?: string;
+        chunkIndex?: number;
+        compress?: boolean;
+    } = {}
 ) {
     const file = {
         name,
@@ -46,7 +52,8 @@ export function uploadForm(
         token: 'aas_et/test',
         file,
         chunkIndex,
-        sha1: hash.digest('hex')
+        sha1: hash.digest('hex'),
+        compress: options.compress ?? false
     };
     const form = new FormData();
     form.set('metadata', JSON.stringify(metadata));

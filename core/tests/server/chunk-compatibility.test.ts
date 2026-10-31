@@ -4,11 +4,11 @@ import { Ok } from 'results-ts';
 import { groupChunks, type UploadedChunk } from '@madkarmaa/phodrive-core/files';
 import { FileActionKind } from '@madkarmaa/phodrive-core/models';
 import {
-    decodeSplitBmp,
     encodeSplitBmp,
     MAX_CHUNK_PAYLOAD_BYTES,
     MAX_PHOTOS_BMP_BYTES
 } from '@madkarmaa/phodrive-core/server/bmp';
+import { decodeSplitBmp } from '../helpers/bmp';
 import { fileIdentity } from '@madkarmaa/phodrive-core/server/chunks';
 import { downloadFile } from '@madkarmaa/phodrive-core/server/files';
 import { downloadBmp } from '@madkarmaa/phodrive-core/server/photos';

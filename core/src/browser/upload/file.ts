@@ -12,7 +12,8 @@ export function uploadPlannedFile(
     account: { email: string; token: string },
     transport: ChunkTransport,
     chunkLimit: ReturnType<typeof pLimit>,
-    handle: (event: UploadEvent) => Result<void, ApplicationError>
+    handle: (event: UploadEvent) => Result<void, ApplicationError>,
+    compress = false
 ): AsyncResult<void, ApplicationError> {
     return Ok(undefined).andThenAsync(async () => {
         const total = sizes.reduce((sum, size) => sum + size, 0);
@@ -49,7 +50,8 @@ export function uploadPlannedFile(
                         }
                     });
                 },
-                (event) => handle({ ...event, id })
+                (event) => handle({ ...event, id }),
+                compress
             );
 
             result.match({

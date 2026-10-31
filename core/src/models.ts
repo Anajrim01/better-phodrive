@@ -107,6 +107,7 @@ export const FileNameSchema = z
     .refine((name) => !/[\\/\r\n\0]/.test(name));
 export const MAX_FOLDER_PATH_LENGTH = 512;
 export const MAX_FOLDER_SEGMENT_LENGTH = 255;
+export const MAX_CHUNK_PAYLOAD_BYTES = 195_000_000;
 export const FolderPathSchema = z
     .string()
     .min(1)
@@ -156,18 +157,39 @@ export const FileSizeSchema = z.int().nonnegative();
 export const Sha1HexSchema = z.string().regex(/^[a-f0-9]{40}$/);
 export const Sha256HexSchema = z.string().regex(/^[a-f0-9]{64}$/);
 
+/** The split header flags byte is a bitfield; version 1 only ever wrote bit 0. */
+export const SPLIT_FLAG_LAST = 1;
+export const SPLIT_FLAG_COMPRESSED = 2;
+export const SPLIT_FLAGS_MAX = SPLIT_FLAG_LAST | SPLIT_FLAG_COMPRESSED;
+
+export function splitHeaderIsLast(flags: number): boolean {
+    return (flags & SPLIT_FLAG_LAST) !== 0;
+}
+
+export function splitHeaderIsCompressed(flags: number): boolean {
+    return (flags & SPLIT_FLAG_COMPRESSED) !== 0;
+}
+
 export const SplitHeaderSchema = z
     .object({
         fileHash: Sha256HexSchema,
         fileId: Sha256HexSchema,
         chunkIndex: z.int().nonnegative(),
-        flags: z.union([z.literal(0), z.literal(1)]),
-        payloadSize: z.int().nonnegative(),
+        flags: z.int().min(0).max(SPLIT_FLAGS_MAX),
+        payloadSize: z.int().nonnegative().max(MAX_CHUNK_PAYLOAD_BYTES),
+        originalSize: z.int().nonnegative().max(MAX_CHUNK_PAYLOAD_BYTES).optional(),
         fileName: z.string().min(1).optional(),
         folder: FolderPathSchema.optional()
     })
     .refine((header) => header.chunkIndex !== 0 || header.fileName !== undefined)
-    .refine((header) => header.chunkIndex === 0 || header.folder === undefined);
+    .refine((header) => header.chunkIndex === 0 || header.folder === undefined)
+    .refine(
+        (header) => splitHeaderIsCompressed(header.flags) === (header.originalSize !== undefined)
+    )
+    .refine(
+        (header) =>
+            !splitHeaderIsCompressed(header.flags) || header.originalSize! >= header.payloadSize
+    );
 
 export const RemoteBmpSchema = z.object({
     fileHash: Sha256HexSchema,
@@ -177,6 +199,8 @@ export const RemoteBmpSchema = z.object({
     originalName: z.string().min(1).optional(),
     folder: FolderPathSchema.optional(),
     size: z.number().nonnegative(),
+    storedSize: z.int().nonnegative().optional(),
+    compressed: z.boolean().optional(),
     at: z.int().nonnegative(),
     mediaKey: z.string().min(1),
     sha1: Sha1HexSchema
@@ -277,7 +301,8 @@ export const UploadFileSchema = z.object({
 export const UploadRequestSchema = AccountSchema.extend({
     file: UploadFileSchema,
     chunkIndex: z.int().nonnegative(),
-    sha1: Sha1HexSchema
+    sha1: Sha1HexSchema,
+    compress: z.boolean().default(false)
 });
 export const MAX_ALBUM_BATCH_SIZE = 500;
 export const AlbumAssignRequestSchema = AccountRequestSchema.extend({

@@ -73,8 +73,8 @@ test('zero and one-byte chunks stream with exact hashes and payloads', async () 
         const fixture = uploadForm(payload, 'small.bin');
         const received = await receiveUpload(fixture.request());
         const input = received.unwrap();
-        const bmp = encodeUploadBmp(input);
-        const drained = await bmp.drain();
+        const bmp = await encodeUploadBmp(input);
+        const drained = await bmp.unwrap().drain();
         expect(drained.isOk()).toBe(true);
         expect(input.file.size).toBe(payload.length);
         expect(input.file.fileHash).toBe(createHash('sha256').update(payload).digest('hex'));

@@ -26,14 +26,18 @@ export function planUpload(file: UploadFile): Result<UploadPlan, ServerError> {
     return planChunks(file, fileIdentity(file.name, file.fileHash, undefined, file.folder ?? ''));
 }
 
-/** Encode and forward one incoming chunk without disk storage or a whole-chunk buffer. */
+/** Encode and forward one incoming chunk without disk storage. */
 export function uploadFiles(
     input: ReceivedUpload,
     emit: (event: UploadEvent) => void,
     fetcher?: Fetcher
 ): AsyncResult<void, ServerError> {
-    return Ok(undefined).andThenAsync(async () => {
-        const source = encodeUploadBmp(input);
+    return encodeUploadBmp(input).andThenAsync(async (source) => {
+        // Browser job totals are raw plan sizes, so map stored bytes back onto that
+        // scale instead of letting the bar lag and jump at the forced final report.
+        const progressTotal = input.bmp.totalSize;
+        const scale = source.length > 0 ? progressTotal / source.length : 1;
+        const scaled = (sent: number) => Math.min(progressTotal, Math.round(sent * scale));
         let lastProgress = 0;
         const report = (completed: number, reused = 0, force = false) => {
             const now = performance.now();
@@ -47,7 +51,7 @@ export function uploadFiles(
                     phase: UploadPhase.Uploading,
                     completed,
                     reused,
-                    total: input.bmp.totalSize
+                    total: progressTotal
                 }
             });
         };
@@ -63,13 +67,13 @@ export function uploadFiles(
                 input.chunkCount
             ),
             source,
-            fetcher ?? photosFetchWithProgress((sent) => report(sent)),
+            fetcher ?? photosFetchWithProgress((sent) => report(scaled(sent))),
             input.signal
         );
 
         return uploaded.map((result) => {
-            const reused = result.status === UploadStatus.AlreadyExists ? input.bmp.totalSize : 0;
-            report(input.bmp.totalSize - reused, reused, true);
+            const reused = result.status === UploadStatus.AlreadyExists ? progressTotal : 0;
+            report(progressTotal - reused, reused, true);
             emit({
                 type: UploadEventType.Chunk,
                 id: 0,
@@ -77,10 +81,12 @@ export function uploadFiles(
                     fileHash: input.header.fileHash,
                     fileId: input.header.fileId,
                     chunkIndex: input.header.chunkIndex,
-                    isLast: input.header.flags === 1,
+                    isLast: source.last,
                     originalName: input.header.fileName,
                     folder: input.header.folder,
-                    size: input.header.payloadSize,
+                    size: source.originalSize,
+                    storedSize: source.storedSize,
+                    compressed: source.compressed,
                     at: Date.now(),
                     mediaKey: result.mediaKey,
                     sha1: result.sha1

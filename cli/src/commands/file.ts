@@ -18,7 +18,7 @@ import {
 } from '../output';
 import { askConfirmation, canConfirm } from '../prompts';
 import type { Runner } from '../program';
-import { chooseSort, chooseWorkers } from '../settings';
+import { chooseCompression, chooseSort, chooseWorkers } from '../settings';
 import { openUploads, sendFiles } from '../uploads';
 
 const DAYS_PATTERN = /^[1-9]\d*$/;
@@ -118,13 +118,19 @@ function listFiles(
 function upload(
     context: CliContext,
     paths: readonly string[],
-    options: { workers?: string; account?: string }
+    options: { workers?: string; account?: string; compress?: boolean }
 ): AsyncResult<void, CliError> {
     return openSession(context, options.account).andThenAsync((session) =>
         chooseWorkers(session.config, context.environment, options.workers).andThenAsync(
             (workers) =>
                 openUploads(context, paths).andThenAsync((files) =>
-                    sendFiles(context, session, files, workers)
+                    sendFiles(
+                        context,
+                        session,
+                        files,
+                        workers,
+                        chooseCompression(session.config, options.compress)
+                    )
                 )
         )
     );
@@ -194,6 +200,8 @@ export function registerFileCommands(program: Command, context: CliContext, run:
         .description('Upload files, and every file inside folders')
         .argument('<paths...>', 'files or folders')
         .option('-w, --workers <count>', 'concurrent transfers')
+        .option('--compress', 'compress uploads when it saves at least 5%')
+        .option('--no-compress', 'send raw chunks even when compression is on')
         .option('-a, --account <email>', 'use this account instead of the active one')
         .action((paths, options) => run(() => upload(context, paths, options)));
 

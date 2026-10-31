@@ -30,6 +30,7 @@ function group(name: string, folder: string, complete: boolean, sizes: number[])
         at: 0,
         chunkCount: complete ? sizes.length : null,
         chunks: sizes.map((size, index) => chunk(name, size, index)),
+        duplicates: [],
         complete
     };
 }

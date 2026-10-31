@@ -2,6 +2,7 @@ import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import {
     UploadEventType,
     UploadPhase,
+    Sha1HexSchema,
     type SplitHeader,
     type UploadEvent,
     type UploadResponse
@@ -31,7 +32,8 @@ export function uploadChunk(
     onProgress: (sent: number, reused: number, retryAfterSeconds?: number) => void,
     onChunk: (
         chunk: UploadEvent & { type: UploadEventType.Chunk }
-    ) => Result<void, ApplicationError>
+    ) => Result<void, ApplicationError>,
+    compress = false
 ): AsyncResult<UploadResponse, ApplicationError> {
     const start = header.chunkIndex * MAX_CHUNK_PAYLOAD_BYTES;
     const payload = file.slice(start, start + header.payloadSize);
@@ -47,7 +49,8 @@ export function uploadChunk(
                 fileHash: header.fileHash
             },
             chunkIndex: header.chunkIndex,
-            sha1
+            sha1,
+            compress
         };
         let emitted = 0;
 
@@ -93,7 +96,9 @@ export function uploadChunk(
                         chunk.size !== header.payloadSize ||
                         chunk.originalName !== header.fileName ||
                         chunk.folder !== header.folder ||
-                        chunk.sha1 !== sha1
+                        (chunk.compressed
+                            ? !Sha1HexSchema.safeParse(chunk.sha1).success
+                            : chunk.sha1 !== sha1)
                     )
                         return invalidResponse();
 

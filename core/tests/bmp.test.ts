@@ -2,12 +2,12 @@ import { test, expect } from 'vitest';
 import { createHash } from 'node:crypto';
 import {
     decodeSplitHeader,
-    decodeSplitBmp,
     encodeSplitBmp,
     MAX_CHUNK_PAYLOAD_BYTES,
     MAX_PHOTOS_BMP_BYTES,
     splitBmpByteLength
 } from '@madkarmaa/phodrive-core/server/bmp';
+import { decodeSplitBmp } from './helpers/bmp';
 import { chunkFileName } from '@madkarmaa/phodrive-core/server/chunks';
 import { groupChunks } from '@madkarmaa/phodrive-core/files';
 import {

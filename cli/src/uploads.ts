@@ -142,7 +142,8 @@ export function sendFiles(
     context: CliContext,
     session: Session,
     files: readonly LocalFile[],
-    workers: number
+    workers: number,
+    compress = false
 ): AsyncResult<void, CliError> {
     return Ok(undefined).andThenAsync<void, CliError>(async () => {
         const total = files.reduce((sum, { file }) => sum + file.size, 0);
@@ -164,7 +165,7 @@ export function sendFiles(
             (chunk) => {
                 chunks.push(chunk);
             },
-            { signal: context.signal, folders }
+            { signal: context.signal, folders, compress }
         );
 
         const results = tracker.results();

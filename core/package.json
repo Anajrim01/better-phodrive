@@ -145,6 +145,10 @@
             "@madkarmaa/phodrive-core": "./src/server/chunks.ts",
             "default": "./dist/server/chunks.js"
         },
+        "./server/compress": {
+            "@madkarmaa/phodrive-core": "./src/server/compress.ts",
+            "default": "./dist/server/compress.js"
+        },
         "./server/download": {
             "@madkarmaa/phodrive-core": "./src/server/download.ts",
             "default": "./dist/server/download.js"
@@ -245,6 +249,18 @@
             "@madkarmaa/phodrive-core": "./src/server/upload/input.ts",
             "default": "./dist/server/upload/input.js"
         },
+        "./server/upload/probe": {
+            "@madkarmaa/phodrive-core": "./src/server/upload/probe.ts",
+            "default": "./dist/server/upload/probe.js"
+        },
+        "./server/upload/raw": {
+            "@madkarmaa/phodrive-core": "./src/server/upload/raw.ts",
+            "default": "./dist/server/upload/raw.js"
+        },
+        "./server/upload/source": {
+            "@madkarmaa/phodrive-core": "./src/server/upload/source.ts",
+            "default": "./dist/server/upload/source.js"
+        },
         "./server/upload/stream": {
             "@madkarmaa/phodrive-core": "./src/server/upload/stream.ts",
             "default": "./dist/server/upload/stream.js"
@@ -326,6 +342,7 @@
             "./server/bmp": "./dist/server/bmp/index.js",
             "./server/bmp/stream": "./dist/server/bmp/stream.js",
             "./server/chunks": "./dist/server/chunks.js",
+            "./server/compress": "./dist/server/compress.js",
             "./server/download": "./dist/server/download.js",
             "./server/errors": "./dist/server/errors.js",
             "./server/fetcher": "./dist/server/fetcher.js",
@@ -351,6 +368,9 @@
             "./server/upload": "./dist/server/upload/index.js",
             "./server/upload/bmp": "./dist/server/upload/bmp.js",
             "./server/upload/input": "./dist/server/upload/input.js",
+            "./server/upload/probe": "./dist/server/upload/probe.js",
+            "./server/upload/raw": "./dist/server/upload/raw.js",
+            "./server/upload/source": "./dist/server/upload/source.js",
             "./server/upload/stream": "./dist/server/upload/stream.js",
             "./server/workers": "./dist/server/workers.js",
             "./stats": "./dist/stats.js",

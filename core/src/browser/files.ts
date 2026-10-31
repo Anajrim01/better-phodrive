@@ -29,7 +29,10 @@ function fileRequest(
             name: item.name,
             fileHash: item.fileHash,
             fileId: item.fileId,
-            chunks: item.chunks,
+            chunks:
+                action === FileActionKind.Delete
+                    ? [...item.chunks, ...item.duplicates]
+                    : item.chunks,
             workers
         })
     };
@@ -51,8 +54,9 @@ export function deleteFile(
         )
         .andThen((data) => schemaResult(FileDeleteResponseSchema, data, 'Delete failed'))
         .andThen(({ deleted, error, retryAfterSeconds }): Result<void, ApplicationError> => {
+            const knownChunks = [...item.chunks, ...item.duplicates];
             for (const chunk of deleted) {
-                const known = item.chunks.find(
+                const known = knownChunks.find(
                     (current) => current.mediaKey === chunk.mediaKey && current.sha1 === chunk.sha1
                 );
                 if (!known)
@@ -67,7 +71,7 @@ export function deleteFile(
             if (retryAfterSeconds !== undefined)
                 return Err({
                     code: 'THROTTLED',
-                    message: `Deleted ${deleted.length} of ${item.chunks.length} chunks. ${throttleMessage(retryAfterSeconds, 'try again')}`,
+                    message: `Deleted ${deleted.length} of ${knownChunks.length} chunks. ${throttleMessage(retryAfterSeconds, 'try again')}`,
                     retryAfterSeconds
                 });
 

@@ -1,7 +1,8 @@
 import { afterEach, expect, test, vi } from 'vitest';
 import { UploadJobStatus } from '@madkarmaa/phodrive-core/models';
 import { uploadFiles, type UploadJob } from '#browser/files';
-import { decodeSplitBmp, encodeSplitBmp } from '@madkarmaa/phodrive-core/server/bmp';
+import { encodeSplitBmp } from '@madkarmaa/phodrive-core/server/bmp';
+import { decodeSplitBmp } from '../../../core/tests/helpers/bmp';
 import { receiveUpload } from '@madkarmaa/phodrive-core/server/upload/input';
 import { encodeUploadBmp } from '@madkarmaa/phodrive-core/server/upload/bmp';
 import { uploadForm, browserUploadResponse } from '../../../core/tests/helpers/upload';
@@ -21,8 +22,8 @@ test('empty files preserve Unicode, emoji, combining marks, dotfiles, extensionl
         const fixture = uploadForm(new Uint8Array(), name);
         const received = await receiveUpload(fixture.request());
         const input = received.unwrap();
-        const bmp = encodeUploadBmp(input);
-        const drained = await bmp.drain();
+        const bmp = await encodeUploadBmp(input);
+        const drained = await bmp.unwrap().drain();
         expect(drained.isOk()).toBe(true);
         expect(input.header.fileName).toBe(name);
         const encoded = encodeSplitBmp(new Uint8Array(), input.header).unwrap();

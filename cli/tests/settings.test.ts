@@ -1,8 +1,9 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { availableParallelism } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { runCli, temporaryFolder } from './helpers/cli';
+import { chooseCompression } from '../src/settings';
 
 let folder: Awaited<ReturnType<typeof temporaryFolder>>;
 
@@ -22,7 +23,8 @@ async function settings(environment: Record<string, string> = {}) {
 test('saved settings take precedence over deployment and built-in defaults', async () => {
     expect(await settings()).toEqual([
         { key: 'sort', value: 'modified-desc', source: 'default' },
-        { key: 'workers', value: 8, source: 'default' }
+        { key: 'workers', value: 8, source: 'default' },
+        { key: 'compression', value: false, source: 'default' }
     ]);
 
     const environment = {
@@ -31,7 +33,8 @@ test('saved settings take precedence over deployment and built-in defaults', asy
     };
     expect(await settings(environment)).toEqual([
         { key: 'sort', value: 'name-asc', source: 'default' },
-        { key: 'workers', value: 3, source: 'default' }
+        { key: 'workers', value: 3, source: 'default' },
+        { key: 'compression', value: false, source: 'default' }
     ]);
 
     const saved = await runCli(['setting', 'set', 'workers', '5'], { folder: folder.path });
@@ -48,16 +51,63 @@ test('saved settings take precedence over deployment and built-in defaults', asy
         value: 3,
         source: 'default'
     });
+
+    const compressed = await runCli(['setting', 'set', 'compression', 'on'], {
+        folder: folder.path
+    });
+    expect(compressed.exitCode).toBe(0);
+    expect(await settings(environment)).toContainEqual({
+        key: 'compression',
+        value: true,
+        source: 'saved'
+    });
+
+    await runCli(['setting', 'reset', 'compression'], { folder: folder.path });
+    expect(await settings(environment)).toContainEqual({
+        key: 'compression',
+        value: false,
+        source: 'default'
+    });
+});
+
+test('a fresh config prints compression off and writes off when chosen', async () => {
+    const shown = await runCli(['setting', 'show'], { folder: folder.path });
+    expect(shown.exitCode).toBe(0);
+    expect(shown.stdout).toMatch(/compression\s+off/);
+
+    const set = await runCli(['setting', 'set', 'compression', 'off'], { folder: folder.path });
+    expect(set.exitCode).toBe(0);
+    expect(set.stderr).toContain('off');
+
+    const saved = JSON.parse(await readFile(join(folder.path, 'config', 'config.json'), 'utf8'));
+    expect(saved.settings.compression).toBe(false);
+});
+
+test('a one-run flag overrides the saved compression default', () => {
+    const config = {
+        accounts: {},
+        selected: '',
+        albums: {},
+        settings: { compression: true }
+    };
+
+    expect(chooseCompression(config, false)).toBe(false);
+    expect(chooseCompression(config, true)).toBe(true);
+    expect(chooseCompression({ ...config, settings: {} }, undefined)).toBe(false);
 });
 
 test('invalid settings are rejected without saving', async () => {
     const workers = await runCli(['setting', 'set', 'workers', '17'], { folder: folder.path });
     const sort = await runCli(['setting', 'set', 'sort', 'sideways'], { folder: folder.path });
+    const compression = await runCli(['setting', 'set', 'compression', 'sideways'], {
+        folder: folder.path
+    });
     const unknown = await runCli(['setting', 'set', 'theme', 'dark'], { folder: folder.path });
 
     expect(workers.exitCode).toBe(1);
     expect(workers.stderr).toContain('whole numbers from 1 to 16');
     expect(sort.failures).toMatchObject([{ code: 'INVALID_OPTION' }]);
+    expect(compression.failures).toMatchObject([{ code: 'INVALID_OPTION' }]);
     expect(unknown.stderr).toContain('Unknown setting theme');
     expect(await settings()).toContainEqual({ key: 'workers', value: 8, source: 'default' });
 });

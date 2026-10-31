@@ -20,7 +20,11 @@ import { uploadPlannedFile } from './file';
 
 const PROGRESS_INTERVAL_MS = 100;
 
-export type UploadOptions = { folder?: string; folders?: ReadonlyMap<File, string> };
+export type UploadOptions = {
+    folder?: string;
+    folders?: ReadonlyMap<File, string>;
+    compress?: boolean;
+};
 
 export function uploadFiles(
     files: readonly File[],
@@ -131,7 +135,8 @@ export function transferFiles(
                     { email, token },
                     transport,
                     chunkLimit,
-                    handle
+                    handle,
+                    options.compress === true
                 )
             );
         });

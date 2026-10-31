@@ -1,7 +1,7 @@
 import { afterEach, expect, test, vi } from 'vitest';
 import { readJson } from '@madkarmaa/phodrive-core/server/request';
 import { parse } from '@madkarmaa/phodrive-core/server/protobuf';
-import { decodeSplitBmp } from '@madkarmaa/phodrive-core/server/bmp';
+import { decodeSplitBmp } from '../../../core/tests/helpers/bmp';
 import { receiveUpload } from '@madkarmaa/phodrive-core/server/upload/input';
 import { encodeUploadBmp } from '@madkarmaa/phodrive-core/server/upload/bmp';
 import { uploadForm } from '../../../core/tests/helpers/upload';
@@ -12,8 +12,13 @@ async function checked(request: Request) {
     const received = await receiveUpload(request);
     if (received.isErr()) return received.map(() => undefined);
     const input = received.unwrap();
-    const source = encodeUploadBmp(input);
-    const result = await source.drain();
+    const source = await encodeUploadBmp(input);
+    if (source.isErr()) {
+        await input.cancel();
+
+        return source;
+    }
+    const result = await source.unwrap().drain();
     await input.cancel();
     return result;
 }

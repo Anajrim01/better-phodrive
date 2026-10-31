@@ -131,11 +131,12 @@ export function findFiles(
 
 /** A file is deleted only when every known chunk is confirmed in the trash. */
 function deleteFailure(file: FileGroup, { deleted, error }: DeleteResult): string | null {
-    if (deleted.length === file.chunks.length) return null;
+    const total = file.chunks.length + file.duplicates.length;
+    if (deleted.length === total) return null;
 
     const reason = error ? ` ${error}` : '';
 
-    return `${file.name}: deleted ${deleted.length} of ${file.chunks.length} chunks.${reason}`;
+    return `${file.name}: deleted ${deleted.length} of ${total} chunks.${reason}`;
 }
 
 export function deleteFiles(
@@ -148,7 +149,7 @@ export function deleteFiles(
         let failed = 0;
 
         for (const file of files) {
-            let remaining = file.chunks;
+            let remaining = [...file.chunks, ...file.duplicates];
             const deleted: DeleteResult['deleted'] = [];
             let error: string | undefined;
             let lastThrottle: number | undefined;

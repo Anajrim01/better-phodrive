@@ -18,11 +18,18 @@ export class SplitBmpReader {
     private totalSize = 0;
     private payloadEnd = 0;
     private closed = false;
+    private chunkHeader: SplitHeader | null = null;
 
     private constructor(
         private readonly reader: ReadableStreamDefaultReader<Uint8Array>,
         private readonly sha1: string
     ) {}
+
+    get header(): SplitHeader {
+        if (!this.chunkHeader) throw new Error('Split header is not available');
+
+        return this.chunkHeader;
+    }
 
     static open(
         response: Response,
@@ -97,12 +104,14 @@ export class SplitBmpReader {
                         header.chunkIndex !== expected.chunkIndex ||
                         header.flags !== expected.flags ||
                         header.payloadSize !== expected.payloadSize ||
+                        header.originalSize !== expected.originalSize ||
                         header.fileName !== expected.fileName ||
                         header.folder !== expected.folder ||
                         payloadOffset !== length
                     )
                         return Err(SERVER_ERRORS.DOWNLOAD_CHUNK_MISMATCH);
 
+                    this.chunkHeader = header;
                     this.payloadEnd = payloadOffset + header.payloadSize;
 
                     return Ok(undefined);

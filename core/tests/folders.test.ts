@@ -26,6 +26,7 @@ function group(name: string, folder: string): FileGroup {
         at: 0,
         chunkCount: null,
         chunks: [],
+        duplicates: [],
         complete: false
     };
 }

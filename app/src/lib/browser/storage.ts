@@ -38,6 +38,7 @@ export const FILE_SORT_KEY = 'phodrive-sort';
 export const FILE_LAYOUT_KEY = 'phodrive-layout';
 export const REFRESH_INTERVAL_KEY = 'phodrive-refresh-interval';
 export const CONCURRENT_WORKERS_KEY = 'phodrive-concurrent-workers';
+export const COMPRESSION_KEY = 'phodrive-compression';
 export const NEXT_THEME: Record<ThemeMode, ThemeMode> = {
     [ThemeMode.Auto]: ThemeMode.Light,
     [ThemeMode.Light]: ThemeMode.Dark,
@@ -93,6 +94,16 @@ export const FILE_SORT_SERIALIZER = enumSerializer(FileSortSchema);
 export const FILE_LAYOUT_SERIALIZER = enumSerializer(FileLayoutSchema);
 export const REFRESH_INTERVAL_SERIALIZER = nullableNumberSerializer(RefreshIntervalSchema);
 export const CONCURRENT_WORKERS_SERIALIZER = nullableNumberSerializer(ConcurrentWorkersSchema);
+export const BOOLEAN_SERIALIZER = {
+    serialize: (value: boolean | null | undefined) =>
+        value === undefined ? '' : JSON.stringify(value),
+    deserialize: (raw: string): boolean | null | undefined => {
+        const parsed = readStoredJson(raw);
+        if (parsed === null) return null;
+
+        return typeof parsed === 'boolean' ? parsed : undefined;
+    }
+};
 
 /** JSON encodes an empty selection as a nonempty string so Runed reads it from storage. */
 export const SELECTED_ACCOUNT_SERIALIZER = {
@@ -143,6 +154,11 @@ export class BrowserPreferences {
         undefined,
         { serializer: CONCURRENT_WORKERS_SERIALIZER }
     );
+    private readonly compressionState = new PersistedState<boolean | null | undefined>(
+        COMPRESSION_KEY,
+        undefined,
+        { serializer: BOOLEAN_SERIALIZER }
+    );
     private readonly albumKeys = new AlbumKeys();
 
     get accounts(): Accounts {
@@ -180,6 +196,10 @@ export class BrowserPreferences {
             readState(this.concurrentWorkersState).unwrapOr(undefined) ??
             this.defaults.concurrentWorkers
         );
+    }
+
+    get compression(): boolean {
+        return readState(this.compressionState).unwrapOr(undefined) ?? false;
     }
 
     albumKey(email: string, folder: string): string | undefined {
@@ -236,12 +256,20 @@ export class BrowserPreferences {
         return writeState(this.concurrentWorkersState, parsed.data);
     }
 
+    saveCompression(enabled: boolean): Result<void, ApplicationError> {
+        return writeState(this.compressionState, enabled);
+    }
+
     resetRefreshInterval(): Result<void, ApplicationError> {
         return resetState(this.refreshIntervalState);
     }
 
     resetConcurrentWorkers(): Result<void, ApplicationError> {
         return resetState(this.concurrentWorkersState);
+    }
+
+    resetCompression(): Result<void, ApplicationError> {
+        return resetState(this.compressionState);
     }
 }
 

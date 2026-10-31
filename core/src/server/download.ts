@@ -1,8 +1,10 @@
 import { createHash } from 'node:crypto';
 import { Err, Ok, type AsyncResult } from 'results-ts';
 import type { FileRequest, RemoteBmp, SplitHeader } from '../models';
+import { SPLIT_FLAG_COMPRESSED, SPLIT_FLAG_LAST, splitHeaderIsCompressed } from '../models';
 import { SplitBmpReader } from './bmp/stream';
 import { MAX_SPLIT_HEADER_BYTES, splitHeaderByteLength } from './bmp/index';
+import { BrotliStreamDecoder } from './compress';
 import { SERVER_ERRORS, throttleError, type ServerError, type ThrottleMode } from './errors';
 import { downloadBmp } from './photos/index';
 
@@ -12,12 +14,15 @@ function openChunk(
     signal: AbortSignal,
     mode: ThrottleMode
 ): AsyncResult<SplitBmpReader, ServerError> {
+    const compressed = chunk.compressed === true;
+    const storedSize = compressed ? (chunk.storedSize ?? chunk.size) : chunk.size;
     const expected: SplitHeader = {
         fileHash: input.fileHash,
         fileId: input.fileId,
         chunkIndex: chunk.chunkIndex,
-        flags: chunk.isLast ? 1 : 0,
-        payloadSize: chunk.size,
+        flags: (chunk.isLast ? SPLIT_FLAG_LAST : 0) | (compressed ? SPLIT_FLAG_COMPRESSED : 0),
+        payloadSize: storedSize,
+        originalSize: compressed ? chunk.size : undefined,
         fileName: chunk.chunkIndex === 0 ? input.name : undefined,
         folder: chunk.folder
     };
@@ -54,6 +59,7 @@ export function streamDownload(
         const abort = new AbortController();
         const hash = createHash('sha256');
         let active: SplitBmpReader | null = null;
+        let decoder: BrotliStreamDecoder | null = null;
         let index = 0;
         let closed = false;
         let responseController: ReadableStreamDefaultController<Uint8Array> | undefined;
@@ -64,6 +70,8 @@ export function streamDownload(
             closed = true;
             abort.abort();
             requestSignal?.removeEventListener('abort', onAbort);
+            decoder?.destroy();
+            decoder = null;
 
             if (active) {
                 const cancelled = await active.close();
@@ -148,6 +156,74 @@ export function streamDownload(
                             }
                         }
                         if (!active) return;
+
+                        if (splitHeaderIsCompressed(active.header.flags)) {
+                            const originalSize = active.header.originalSize!;
+                            const streamDecoder = new BrotliStreamDecoder(originalSize);
+                            decoder = streamDecoder;
+                            let produced = 0;
+
+                            const emit = (parts: Uint8Array[]): boolean => {
+                                for (const part of parts) {
+                                    produced += part.length;
+                                    if (produced > originalSize) {
+                                        controller.error(SERVER_ERRORS.DECOMPRESSION_FAILED);
+
+                                        return false;
+                                    }
+
+                                    hash.update(part);
+                                    controller.enqueue(part);
+                                }
+
+                                return true;
+                            };
+
+                            try {
+                                while (true) {
+                                    const next = await active.readPayload();
+                                    if (closed) return;
+                                    if (next.isErr()) {
+                                        next.inspectErr((error) => controller.error(error));
+                                        await cleanup();
+
+                                        return;
+                                    }
+
+                                    const part = next.unwrap();
+                                    if (part === null) break;
+                                    if (!emit(await streamDecoder.push(part))) {
+                                        await cleanup();
+
+                                        return;
+                                    }
+                                }
+
+                                if (!emit(await streamDecoder.end())) {
+                                    await cleanup();
+
+                                    return;
+                                }
+                            } catch (error) {
+                                controller.error(error);
+                                await cleanup();
+
+                                return;
+                            }
+
+                            if (produced !== originalSize) {
+                                controller.error(SERVER_ERRORS.DECOMPRESSION_FAILED);
+                                await cleanup();
+
+                                return;
+                            }
+
+                            active = null;
+                            decoder = null;
+                            index++;
+
+                            return;
+                        }
 
                         const next = await active.readPayload();
                         if (closed) return;

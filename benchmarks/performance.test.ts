@@ -166,14 +166,17 @@ async function workload(): Promise<{ run: () => Promise<void> | void; bytes: num
         };
     }
     if (name === 'bmp-stream') {
-        const fixture = uploadForm(new Uint8Array(CHUNK).fill(42));
+        const fixture = uploadForm(new Uint8Array(CHUNK).fill(42), 'fixture.bin', {
+            compress: true
+        });
         return {
             bytes: CHUNK,
             run: async () => {
                 const received = await receiveUpload(fixture.request());
                 const input = received.unwrap();
-                const source = encodeUploadBmp(input);
-                const result = await source.drain();
+                const encoded = await encodeUploadBmp(input);
+                assert.ok(encoded.isOk());
+                const result = await encoded.unwrap().drain();
                 assert.ok(result.isOk());
                 await input.cancel();
             }
@@ -266,7 +269,9 @@ async function workload(): Promise<{ run: () => Promise<void> | void; bytes: num
         };
     }
     if (name === 'failure-paths') {
-        const fixture = uploadForm(new Uint8Array(MIB).fill(42));
+        const fixture = uploadForm(new Uint8Array(MIB).fill(42), 'fixture.bin', {
+            compress: true
+        });
         return {
             bytes: 0,
             run: async () => {
@@ -287,14 +292,16 @@ async function workload(): Promise<{ run: () => Promise<void> | void; bytes: num
                             }
                         });
                     }
-                    const source = encodeUploadBmp(input);
-                    if (mode === 'cancel') await source.body.cancel();
-                    else {
-                        const drained = await source.drain();
-                        assert.ok(drained.isErr());
+                    const encoded = await encodeUploadBmp(input);
+                    if (mode === 'cancel') {
+                        assert.ok(encoded.isOk());
+                        const source = encoded.unwrap();
+                        await source.body.cancel();
+                        const verified = await source.verified;
+                        assert.ok(verified.isErr());
+                    } else {
+                        assert.ok(encoded.isErr());
                     }
-                    const verified = await source.verified;
-                    assert.ok(verified.isErr());
                     await input.cancel();
                 }
             }
