@@ -47,38 +47,44 @@ beforeEach(() => {
 afterAll(() => vi.unstubAllGlobals());
 
 test('automatic refresh waits for a throttling window while a manual refresh does not', async () => {
-    const read = vi.spyOn(libraryApi, 'readLibrarySnapshot').mockReturnValue(
+    const automatic = vi.spyOn(libraryApi, 'readLibraryUpdates').mockReturnValue(
         Err({
             code: 'THROTTLED',
             message: 'Google Photos is limiting requests, retrying in about 2 min',
             retryAfterSeconds: 120
-        } as const).andThenAsync(async () => Ok({ items: [], nextPageToken: '', pages: 0 }))
+        } as const).andThenAsync(async () => Ok({ items: [], nextPageToken: '', pages: 1 }))
     );
+    const manual = vi.spyOn(libraryApi, 'readLibrarySnapshot').mockReturnValue(emptySnapshot());
     const drive = new DriveController();
     drive.initialize();
 
     await drive.library.refresh();
-    expect(read).toHaveBeenCalledTimes(1);
+    expect(automatic).toHaveBeenCalledTimes(1);
     expect(drive.library.retryAt).toBeGreaterThan(Date.now());
 
     await drive.library.refresh();
-    expect(read).toHaveBeenCalledTimes(1);
+    expect(automatic).toHaveBeenCalledTimes(1);
 
     await drive.library.refresh(true);
-    expect(read).toHaveBeenCalledTimes(2);
+    expect(manual).toHaveBeenCalledTimes(1);
 });
 
 test('the upload cooldown defers automatic refresh but keeps the button responsive', async () => {
-    const read = vi.spyOn(libraryApi, 'readLibrarySnapshot').mockReturnValue(emptySnapshot());
+    const automatic = vi
+        .spyOn(libraryApi, 'readLibraryUpdates')
+        .mockReturnValue(
+            Ok(undefined).andThenAsync(async () => Ok({ items: [], nextPageToken: '', pages: 0 }))
+        );
+    const manual = vi.spyOn(libraryApi, 'readLibrarySnapshot').mockReturnValue(emptySnapshot());
     const drive = new DriveController();
     drive.initialize();
     drive.library.deferRefresh();
 
     await drive.library.refresh();
-    expect(read).not.toHaveBeenCalled();
+    expect(automatic).not.toHaveBeenCalled();
 
     await drive.library.refresh(true);
-    expect(read).toHaveBeenCalledTimes(1);
+    expect(manual).toHaveBeenCalledTimes(1);
 });
 
 test('loading a throttled page arms the retry timer', async () => {

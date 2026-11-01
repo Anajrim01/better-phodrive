@@ -8,13 +8,14 @@ import { guardedSend, readBody } from '../transport';
 import { bodyBytes } from '../../protobuf';
 import { pageRequest, parseLibraryPage, type LibraryCandidate } from './metadata';
 import { LIBRARY_STATE_REQUEST } from './requests';
-import { hasPhodriveNames, probeLibraryItem } from './probe';
+import { namedAsNonPhodrive, probeLibraryItem } from './probe';
 
 export { clearProbeCache, configureProbeCache, flushProbeCache } from './probe-cache';
 
 const LIBRARY_URL = 'https://photosdata-pa.googleapis.com/6439526531001121323/18047484249733410717';
 const LIBRARY_PROBE_CONCURRENCY = 2;
 const MAX_PAGE_TOKEN_LENGTH = 8192;
+
 export function listBmps(
     email: string,
     token: string,
@@ -29,78 +30,37 @@ export function listBmps(
 
     return validated
         .andThenAsync(() => authenticatedHeaders(email, token, fetcher))
-        .andThenAsync((headers) => {
-            const visited = new Set<string>();
-
-            return findFilePage(email, pageToken, headers, fetcher, visited).andThenAsync(
-                async (page) => {
-                    if (!page.nextPageToken) return Ok({ items: page.items, nextPageToken: '' });
-
-                    // Google Photos can return a resume token followed only by an empty sync page.
-                    // Look ahead so the UI offers Load more only for confirmed Phodrive files.
-                    return await findFilePage(
-                        email,
-                        page.nextPageToken,
-                        headers,
-                        fetcher,
-                        visited
-                    ).map((next) => ({
-                        items: page.items,
-                        nextPageToken: next.items.length ? next.requestToken : ''
-                    }));
-                }
-            );
-        });
+        .andThenAsync((headers) => readLibraryPage(email, pageToken, headers, fetcher));
 }
 
-function findFilePage(
+function readLibraryPage(
     email: string,
     pageToken: string,
     headers: PhotosHeaders,
-    fetcher: Fetcher,
-    visited: Set<string>
-): AsyncResult<{ items: RemoteBmp[]; nextPageToken: string; requestToken: string }, ServerError> {
+    fetcher: Fetcher
+): AsyncResult<{ items: RemoteBmp[]; nextPageToken: string }, ServerError> {
     return Ok(undefined).andThenAsync(async () => {
-        let nextPageToken = pageToken;
+        const request = pageToken
+            ? pageRequest(Buffer.from(pageToken, 'base64url'))
+            : Ok(Buffer.from(LIBRARY_STATE_REQUEST, 'base64'));
+        const received = await request.andThenAsync((body) =>
+            guardedSend(
+                email,
+                fetcher,
+                LIBRARY_URL,
+                {
+                    method: 'POST',
+                    redirect: 'manual',
+                    headers: headers.rpcHeaders,
+                    body: bodyBytes(body)
+                },
+                'Library list'
+            )
+                .andThenAsync((response) => readBody(response, 'Library list'))
+                .andThen(parseLibraryPage)
+        );
 
-        while (true) {
-            const requestToken = nextPageToken;
-            if (visited.has(requestToken)) return Err(SERVER_ERRORS.REPEATED_LIBRARY_PAGE);
-
-            visited.add(requestToken);
-
-            const request = requestToken
-                ? pageRequest(Buffer.from(requestToken, 'base64url'))
-                : Ok(Buffer.from(LIBRARY_STATE_REQUEST, 'base64'));
-            const received = await request.andThenAsync((body) =>
-                guardedSend(
-                    email,
-                    fetcher,
-                    LIBRARY_URL,
-                    {
-                        method: 'POST',
-                        redirect: 'manual',
-                        headers: headers.rpcHeaders,
-                        body: bodyBytes(body)
-                    },
-                    'Library list'
-                )
-                    .andThenAsync((response) => readBody(response, 'Library list'))
-                    .andThen(parseLibraryPage)
-                    .andThenAsync((page) => scanLibraryPage(email, page, headers, fetcher))
-                    .map((page) => {
-                        nextPageToken = page.nextPageToken;
-
-                        return { ...page, requestToken };
-                    })
-            );
-
-            const finished = received.match({
-                Ok: (page) => page.items.length > 0 || !page.nextPageToken,
-                Err: () => true
-            });
-            if (finished) return received;
-        }
+        return received.andThenAsync((page) => scanLibraryPage(email, page, headers, fetcher));
     });
 }
 
@@ -111,17 +71,10 @@ function scanLibraryPage(
     fetcher: Fetcher
 ): AsyncResult<{ items: RemoteBmp[]; nextPageToken: string }, ServerError> {
     return Ok(undefined).andThenAsync(async () => {
+        const candidates = page.items.filter((candidate) => !namedAsNonPhodrive(candidate));
         const limit = pLimit(LIBRARY_PROBE_CONCURRENCY);
-        const pageHasPhodriveName = hasPhodriveNames(page.items);
-        const scanned = await limit.map(page.items, (candidate) =>
-            probeLibraryItem(
-                email,
-                candidate,
-                headers.commonHeaders,
-                headers.rpcHeaders,
-                fetcher,
-                pageHasPhodriveName
-            )
+        const scanned = await limit.map(candidates, (candidate) =>
+            probeLibraryItem(email, candidate, headers.commonHeaders, headers.rpcHeaders, fetcher)
         );
 
         const items: RemoteBmp[] = [];

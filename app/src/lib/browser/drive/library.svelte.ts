@@ -10,11 +10,13 @@ import {
 import { FileSort } from '@madkarmaa/phodrive-core/models';
 import {
     readGroupLibrary,
+    readGroupLibraryUpdates,
     readLibraryPage,
-    readLibrarySnapshot
+    readLibrarySnapshot,
+    readLibraryUpdates
 } from '@madkarmaa/phodrive-core/browser/library';
 import type { GroupAccountState } from '@madkarmaa/phodrive-core/groups';
-import { nextRetryAt } from '#browser/drive/group-target';
+import { applyGroupSnapshot, reportLoadFailure } from '#browser/drive/library-state';
 
 const POST_UPLOAD_COOLDOWN_MS = 2 * 60 * 1_000;
 
@@ -31,7 +33,7 @@ export class DriveLibrary {
     partial = $state(false);
 
     private libraryRequest = 0;
-    private loadedPages = 0;
+    loadedPages = 0;
     private libraryPageTokens = new Set<string>();
 
     searchTerm = $state('');
@@ -153,17 +155,12 @@ export class DriveLibrary {
 
                 this.loadedPages++;
             },
-            Err: (error) => {
-                this.loadFailed = true;
-                if (error.code === 'THROTTLED')
-                    this.retryAt = Date.now() + error.retryAfterSeconds * 1_000;
-                this.feedback(error.message);
-            }
+            Err: (error) => reportLoadFailure(this, error, this.feedback)
         });
         this.loading = false;
     }
 
-    private async loadGroup(group: NonNullable<LibraryGroup>, reset: boolean) {
+    private async loadGroup(group: NonNullable<LibraryGroup>, reset: boolean, full = true) {
         if (this.actionsDisabled() || (!reset && this.loading)) return;
 
         const request = ++this.libraryRequest;
@@ -180,27 +177,20 @@ export class DriveLibrary {
         this.loading = true;
         this.feedback('');
 
-        const loaded = await readGroupLibrary(group.members, group.missing);
+        const loaded = full
+            ? await readGroupLibrary(group.members, group.missing)
+            : await readGroupLibraryUpdates(
+                  group.members,
+                  group.missing,
+                  this.chunks,
+                  this.accounts
+              );
         if (request !== this.libraryRequest) return;
 
         loaded.match({
-            Ok: (snapshot) => {
-                this.loadFailed = false;
-                this.chunks = snapshot.chunks;
-                this.accounts = snapshot.accounts;
-                this.partial = snapshot.partial;
-                this.nextPageToken = '';
-                this.loadedPages = 1;
-                this.onAccounts(snapshot.accounts);
-                this.retryAt = nextRetryAt(snapshot.accounts);
-                if (this.folder && !this.hasFolder(this.folder)) this.folder = '';
-            },
-            Err: (error) => {
-                this.loadFailed = true;
-                if (error.code === 'THROTTLED')
-                    this.retryAt = Date.now() + error.retryAfterSeconds * 1_000;
-                this.feedback(error.message);
-            }
+            Ok: (snapshot) =>
+                applyGroupSnapshot(this, snapshot, this.onAccounts, (path) => this.hasFolder(path)),
+            Err: (error) => reportLoadFailure(this, error, this.feedback)
         });
 
         this.loading = false;
@@ -212,7 +202,8 @@ export class DriveLibrary {
             if (this.actionsDisabled() || this.loading || document.hidden) return;
             if (!manual && (Date.now() < this.retryAt || Date.now() < this.cooldownUntil)) return;
 
-            await this.loadGroup(group, false);
+            if (manual) await this.loadGroup(group, false);
+            else await this.loadGroup(group, false, false);
 
             return;
         }
@@ -226,7 +217,15 @@ export class DriveLibrary {
         const request = ++this.libraryRequest;
         this.loading = true;
 
-        const refreshed = await readLibrarySnapshot(email, token, this.loadedPages);
+        const refreshed = manual
+            ? await readLibrarySnapshot(email, token, this.loadedPages)
+            : await readLibraryUpdates(
+                  email,
+                  token,
+                  this.chunks,
+                  this.nextPageToken,
+                  this.loadedPages
+              );
         if (request !== this.libraryRequest || email !== this.account().email) return;
 
         refreshed.match({
@@ -240,12 +239,7 @@ export class DriveLibrary {
                 this.libraryPageTokens.clear();
                 if (snapshot.nextPageToken) this.libraryPageTokens.add(snapshot.nextPageToken);
             },
-            Err: (error) => {
-                this.loadFailed = true;
-                if (error.code === 'THROTTLED')
-                    this.retryAt = Date.now() + error.retryAfterSeconds * 1_000;
-                this.feedback(error.message);
-            }
+            Err: (error) => reportLoadFailure(this, error, this.feedback)
         });
 
         this.loading = false;

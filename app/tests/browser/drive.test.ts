@@ -1,4 +1,9 @@
-import { ThemeMode, UploadJobStatus, UploadStatus } from '@madkarmaa/phodrive-core/models';
+import {
+    ThemeMode,
+    UploadJobStatus,
+    UploadStatus,
+    type RemoteBmp
+} from '@madkarmaa/phodrive-core/models';
 import { afterAll, beforeEach, expect, test, vi } from 'vitest';
 import { Err, Ok } from 'results-ts';
 import { DriveController } from '#browser/drive/index.svelte';
@@ -41,6 +46,22 @@ beforeEach(() => {
 });
 
 afterAll(() => vi.unstubAllGlobals());
+
+function remoteBmp(index: number, originalName: string): RemoteBmp {
+    const hash = index.toString(16).padStart(64, '0');
+
+    return {
+        mediaKey: `media-${index}`,
+        fileHash: hash,
+        fileId: hash,
+        sha1: 'a'.repeat(40),
+        chunkIndex: 0,
+        isLast: true,
+        originalName,
+        size: 4,
+        at: index
+    };
+}
 
 test('retry keeps the original job ID and sends only its file, preserving other outcomes', async () => {
     const sources = [
@@ -118,13 +139,13 @@ test('dismissing a library error preserves failed-load state and repeated errors
         message: 'Library list failed (HTTP 400)'
     } as const;
 
-    vi.spyOn(libraryApi, 'readLibraryPage').mockImplementation(() =>
+    vi.spyOn(libraryApi, 'readLibraryPage').mockImplementationOnce(() =>
         Ok(undefined).andThenAsync(async () => Err(failure))
     );
-    vi.spyOn(libraryApi, 'readLibrarySnapshot')
+    vi.spyOn(libraryApi, 'readLibraryUpdates')
         .mockImplementationOnce(() => Ok(undefined).andThenAsync(async () => Err(failure)))
         .mockImplementationOnce(() =>
-            Ok(undefined).andThenAsync(async () => Ok({ items: [], nextPageToken: '', pages: 1 }))
+            Ok(undefined).andThenAsync(async () => Ok({ items: [], nextPageToken: '', pages: 0 }))
         );
 
     const drive = new DriveController();
@@ -146,4 +167,59 @@ test('dismissing a library error preserves failed-load state and repeated errors
     expect(drive.library.loadFailed).toBe(false);
     expect(drive.feedbackMessage).toBe('');
     expect(drive.library.chunks).toEqual([]);
+});
+
+test('automatic refresh merges the newest page and manual refresh reloads the depth', async () => {
+    const page = (items: RemoteBmp[], nextPageToken: string) =>
+        Ok(undefined).andThenAsync(async () => Ok({ items, nextPageToken }));
+    const readPage = vi
+        .spyOn(libraryApi, 'readLibraryPage')
+        .mockImplementationOnce(() => page([remoteBmp(1, 'first.bin')], 'page-two'))
+        .mockImplementationOnce(() => page([remoteBmp(2, 'second.bin')], ''));
+    const updates = vi.spyOn(libraryApi, 'readLibraryUpdates').mockImplementationOnce(() =>
+        Ok(undefined).andThenAsync(async () =>
+            Ok({
+                items: [
+                    remoteBmp(1, 'renamed.bin'),
+                    remoteBmp(2, 'second.bin'),
+                    remoteBmp(3, 'third.bin')
+                ],
+                nextPageToken: '',
+                pages: 2
+            })
+        )
+    );
+    const snapshot = vi
+        .spyOn(libraryApi, 'readLibrarySnapshot')
+        .mockImplementationOnce(() =>
+            Ok(undefined).andThenAsync(async () =>
+                Ok({ items: [remoteBmp(3, 'only.bin')], nextPageToken: '', pages: 1 })
+            )
+        );
+    const drive = new DriveController();
+    drive.initialize();
+
+    await drive.library.load();
+    await drive.library.load(false);
+
+    expect(drive.library.chunks.map((chunk) => chunk.originalName)).toEqual([
+        'first.bin',
+        'second.bin'
+    ]);
+
+    await drive.library.refresh();
+
+    expect(readPage).toHaveBeenCalledTimes(2);
+    expect(updates).toHaveBeenCalledTimes(1);
+    expect(snapshot).not.toHaveBeenCalled();
+    expect(drive.library.chunks.map((chunk) => chunk.originalName).toSorted()).toEqual([
+        'renamed.bin',
+        'second.bin',
+        'third.bin'
+    ]);
+
+    await drive.library.refresh(true);
+
+    expect(snapshot).toHaveBeenCalledTimes(1);
+    expect(drive.library.chunks.map((chunk) => chunk.originalName)).toEqual(['only.bin']);
 });

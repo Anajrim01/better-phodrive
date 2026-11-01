@@ -157,7 +157,7 @@ test('refresh removing a chunk invalidates the stale file confirmation', async (
         }
     };
     drive.confirmOpen = true;
-    await drive.library.refresh();
+    await drive.library.refresh(true);
 
     expect(load).toHaveBeenCalled();
     drive.confirmAction();

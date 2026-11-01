@@ -1,7 +1,7 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, expect, test } from 'vitest';
+import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import type { RemoteBmp } from '@madkarmaa/phodrive-core/models';
 import type { LibraryCandidate } from '@madkarmaa/phodrive-core/server/photos/library/metadata';
 import {
@@ -54,6 +54,71 @@ test('a cold process reuses persisted probes', () => {
 
     expect(readProbe(EMAIL, CANDIDATE)).toEqual(ITEM);
 });
+
+test('a positive probe never expires', () => {
+    writeProbe(EMAIL, CANDIDATE, ITEM, 0);
+
+    expect(readProbe(EMAIL, CANDIDATE, 400 * 24 * 60 * 60 * 1_000)).toEqual(ITEM);
+});
+
+test('a negative probe expires after one hour', () => {
+    writeProbe(EMAIL, CANDIDATE, null, 0);
+
+    expect(readProbe(EMAIL, CANDIDATE, 59 * 60 * 1_000)).toBeNull();
+    expect(readProbe(EMAIL, CANDIDATE, 61 * 60 * 1_000)).toBeUndefined();
+});
+
+test('full cache rewrites are spaced thirty seconds apart', { timeout: 15_000 }, async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000_000);
+
+    try {
+        writeProbe(EMAIL, { ...CANDIDATE, mediaKey: 'first' }, { ...ITEM, mediaKey: 'first' });
+        await vi.advanceTimersByTimeAsync(1_000);
+
+        const first = JSON.parse(await readFile(join(folder, 'probe-cache.json'), 'utf8')) as {
+            entries: unknown[];
+        };
+        expect(first.entries).toHaveLength(1);
+
+        writeProbe(EMAIL, { ...CANDIDATE, mediaKey: 'second' }, { ...ITEM, mediaKey: 'second' });
+        await vi.advanceTimersByTimeAsync(1_000);
+
+        const early = JSON.parse(await readFile(join(folder, 'probe-cache.json'), 'utf8')) as {
+            entries: unknown[];
+        };
+        expect(early.entries).toHaveLength(1);
+
+        await vi.advanceTimersByTimeAsync(29_000);
+
+        const later = JSON.parse(await readFile(join(folder, 'probe-cache.json'), 'utf8')) as {
+            entries: unknown[];
+        };
+        expect(later.entries).toHaveLength(2);
+    } finally {
+        vi.useRealTimers();
+    }
+});
+
+test(
+    'the cache file keeps more than the old twenty thousand entry limit',
+    { timeout: 30_000 },
+    () => {
+        for (let index = 0; index < 20_001; index++) {
+            const candidate = { ...CANDIDATE, mediaKey: `media-${index}` };
+
+            writeProbe(EMAIL, candidate, { ...ITEM, mediaKey: candidate.mediaKey });
+        }
+
+        flushProbeCache();
+        clearProbeCache();
+        configureProbeCache(join(folder, 'probe-cache.json'));
+
+        expect(readProbe(EMAIL, { ...CANDIDATE, mediaKey: 'media-0' })).toMatchObject({
+            mediaKey: 'media-0'
+        });
+    }
+);
 
 test('a corrupt cache file is ignored', async () => {
     await writeFile(join(folder, 'probe-cache.json'), '{ broken');

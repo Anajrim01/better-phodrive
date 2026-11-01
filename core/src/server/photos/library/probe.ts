@@ -3,6 +3,7 @@ import { Err, Ok, type AsyncResult } from 'results-ts';
 import type { RemoteBmp } from '../../../models';
 import type { Fetcher } from '../../fetcher';
 import {
+    logThrottleStage,
     parseRetryAfter,
     recordServerFailure,
     recordServerSuccess,
@@ -82,6 +83,7 @@ function fetchPrefix(
                 : response.status >= 500
                   ? recordServerFailure(email)
                   : null;
+        if (response.status === 429) logThrottleStage(email, 'Media fetch', url.hostname);
         if (paused !== null) {
             try {
                 await response.body?.cancel();
@@ -112,19 +114,9 @@ function definitelyNotPhodrive(prefix: Uint8Array): boolean {
     return !SPLIT_MAGIC_PREFIX.every((byte, index) => prefix[BMP_HEADER_BYTES + index] === byte);
 }
 
-export function hasPhodriveNames(items: readonly { fileName?: string }[]): boolean {
-    return items.some((item) => item.fileName?.includes('.phodrive-'));
-}
-
-export function namedAsNonPhodrive(
-    candidate: { fileName?: string },
-    pageHasPhodriveName: boolean
-): boolean {
-    return (
-        pageHasPhodriveName &&
-        candidate.fileName !== undefined &&
-        !candidate.fileName.includes('.phodrive-')
-    );
+/** A named item without the marker is an ordinary photo, not a Phodrive chunk. */
+export function namedAsNonPhodrive(candidate: { fileName?: string }): boolean {
+    return candidate.fileName !== undefined && !candidate.fileName.includes('.phodrive-');
 }
 
 export function probeLibraryItem(
@@ -132,17 +124,14 @@ export function probeLibraryItem(
     candidate: LibraryCandidate,
     commonHeaders: Record<string, string>,
     rpcHeaders: Record<string, string>,
-    fetcher: Fetcher,
-    pageHasPhodriveName: boolean
+    fetcher: Fetcher
 ): AsyncResult<RemoteBmp | null, ServerError> {
+    if (namedAsNonPhodrive(candidate))
+        return Ok(undefined).andThenAsync<RemoteBmp | null, ServerError>(async () => Ok(null));
+
     const cached = readProbe(email, candidate);
     if (cached !== undefined)
         return Ok(undefined).andThenAsync<RemoteBmp | null, ServerError>(async () => Ok(cached));
-
-    if (namedAsNonPhodrive(candidate, pageHasPhodriveName)) {
-        // Name-based skips stay out of the cache; a renamed chunk must be rechecked.
-        return Ok(undefined).andThenAsync<RemoteBmp | null, ServerError>(async () => Ok(null));
-    }
 
     return preparedDownloadUrl(email, candidate.mediaKey, candidate.sha1, rpcHeaders, fetcher)
         .andThenAsync(async (url) => {

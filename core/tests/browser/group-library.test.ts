@@ -1,5 +1,8 @@
 import { afterEach, expect, test, vi } from 'vitest';
-import { readGroupLibrary } from '@madkarmaa/phodrive-core/browser/library';
+import {
+    readGroupLibrary,
+    readGroupLibraryUpdates
+} from '@madkarmaa/phodrive-core/browser/library';
 import type { RemoteBmp } from '@madkarmaa/phodrive-core/models';
 
 afterEach(() => vi.restoreAllMocks());
@@ -116,4 +119,131 @@ test('a group listing without failures is complete', async () => {
     expect(snapshot.partial).toBe(false);
     expect(snapshot.accounts.every((account) => account.status === 'ok')).toBe(true);
     expect(snapshot.chunks).toHaveLength(2);
+});
+
+test('a group refresh reads one page per member and keeps items already loaded', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch');
+    fetchMock.mockImplementation(async (_input, init) => {
+        const body = JSON.parse(String(init?.body)) as { email: string };
+
+        return Response.json({ items: [remote(`${body.email}-new`)], nextPageToken: 'more' });
+    });
+    const members = [
+        { email: 'first@example.com', token: 'aas_et/first' },
+        { email: 'second@example.com', token: 'aas_et/second' }
+    ];
+    const loaded = [
+        { ...remote('first-old'), email: 'first@example.com' },
+        { ...remote('second-old'), email: 'second@example.com' }
+    ];
+
+    const updated = await readGroupLibraryUpdates(
+        members,
+        [],
+        loaded,
+        members.map((member) => ({ email: member.email, status: 'ok' as const }))
+    );
+    const snapshot = updated.unwrap();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(snapshot.chunks.map((chunk) => chunk.mediaKey).toSorted()).toEqual([
+        'first-old',
+        'first@example.com-new',
+        'second-old',
+        'second@example.com-new'
+    ]);
+    expect(snapshot.accounts.every((account) => account.status === 'ok')).toBe(true);
+    expect(snapshot.partial).toBe(false);
+});
+
+test('a group refresh matches loaded items regardless of email case', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+        Response.json({ items: [remote('fresh')], nextPageToken: '' })
+    );
+    const loaded = [{ ...remote('kept'), email: 'owner@example.com' }];
+
+    const updated = await readGroupLibraryUpdates(
+        [{ email: 'Owner@Example.com', token: 'aas_et/owner' }],
+        [],
+        loaded,
+        [{ email: 'Owner@Example.com', status: 'ok' }]
+    );
+    const snapshot = updated.unwrap();
+
+    expect(snapshot.chunks.map((chunk) => chunk.mediaKey).toSorted()).toEqual(['fresh', 'kept']);
+});
+
+test('a failed group member keeps its loaded items and reports the pause', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch');
+    fetchMock.mockImplementation(async (_input, init) => {
+        const body = JSON.parse(String(init?.body)) as { email: string };
+        if (body.email === 'paused@example.com')
+            return Response.json(
+                { error: 'Google Photos is limiting requests', retryAfterSeconds: 30 },
+                { status: 429 }
+            );
+
+        return Response.json({ items: [remote('fresh')], nextPageToken: '' });
+    });
+    const members = [
+        { email: 'first@example.com', token: 'aas_et/first' },
+        { email: 'paused@example.com', token: 'aas_et/paused' }
+    ];
+    const loaded = [
+        { ...remote('kept'), email: 'paused@example.com' },
+        { ...remote('stale'), email: 'first@example.com' }
+    ];
+
+    const updated = await readGroupLibraryUpdates(
+        members,
+        [],
+        loaded,
+        members.map((member) => ({ email: member.email, status: 'ok' as const }))
+    );
+    const snapshot = updated.unwrap();
+
+    expect(snapshot.partial).toBe(true);
+    expect(snapshot.accounts).toContainEqual(
+        expect.objectContaining({ email: 'paused@example.com', status: 'paused' })
+    );
+    expect(snapshot.chunks.map((chunk) => chunk.mediaKey).toSorted()).toEqual([
+        'fresh',
+        'kept',
+        'stale'
+    ]);
+});
+
+test('a member that recovers from a pause reads every page again', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch');
+    fetchMock.mockImplementation(async (_input, init) => {
+        const body = JSON.parse(String(init?.body)) as { pageToken?: string };
+        if (!body.pageToken)
+            return Response.json({
+                items: [remote('page-zero')],
+                nextPageToken: 'page-two'
+            });
+
+        return Response.json({ items: [remote('page-one')], nextPageToken: '' });
+    });
+    const loaded = [{ ...remote('kept'), email: 'owner@example.com' }];
+
+    const updated = await readGroupLibraryUpdates(
+        [{ email: 'owner@example.com', token: 'aas_et/owner' }],
+        [],
+        loaded,
+        [{ email: 'owner@example.com', status: 'paused', retryAfterSeconds: 30 }]
+    );
+    const snapshot = updated.unwrap();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(snapshot.partial).toBe(false);
+    expect(snapshot.accounts).toContainEqual({
+        email: 'owner@example.com',
+        status: 'ok'
+    });
+    expect(snapshot.chunks.map((chunk) => chunk.mediaKey).toSorted()).toEqual([
+        'kept',
+        'page-one',
+        'page-zero'
+    ]);
 });

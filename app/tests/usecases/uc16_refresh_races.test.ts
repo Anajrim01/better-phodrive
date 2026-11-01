@@ -30,6 +30,8 @@ const { storage } = vi.hoisted(() => {
 vi.mock('esm-env', () => ({ BROWSER: true, DEV: true }));
 vi.mock('@madkarmaa/phodrive-core/browser/accounts', () => ({ validateAccount: vi.fn() }));
 vi.mock('@madkarmaa/phodrive-core/browser/library', () => ({
+    readGroupLibrary: vi.fn(),
+    readGroupLibraryUpdates: vi.fn(),
     readLibraryPage: vi.fn(),
     readLibrarySnapshot: vi.fn()
 }));
@@ -129,7 +131,7 @@ test('manual refresh replaces completed initial data and clears the loading stat
     await initialLoad;
     expect(drive.library.loading).toBe(false);
 
-    const olderRefresh = drive.library.refresh();
+    const olderRefresh = drive.library.refresh(true);
     expect(drive.library.loading).toBe(true);
     firstRefresh.resolve(Ok({ items: [chunk('refreshed')], nextPageToken: '', pages: 1 }));
     await olderRefresh;
@@ -155,7 +157,7 @@ test('file selection during refresh shows feedback and can be submitted again af
     drive.uploadJobs = previousJobs;
     const files = [new File(['selected'], 'selected.txt')];
 
-    const refresh = drive.library.refresh();
+    const refresh = drive.library.refresh(true);
     expect(drive.library.loading).toBe(true);
     await drive.upload(files);
 

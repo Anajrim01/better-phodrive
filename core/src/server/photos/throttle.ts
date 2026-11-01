@@ -8,6 +8,7 @@ type ThrottleState = {
     serverFailures: number;
     pausedUntil: number;
     pausedAt: number;
+    loggedStages: Set<string>;
 };
 
 const states = new Map<string, ThrottleState>();
@@ -41,10 +42,22 @@ export function recordThrottle(
     const remaining = active ? Math.ceil((state.pausedUntil - now) / 1000) : 0;
     const seconds = Math.max(remaining, calculated);
 
-    if (!active) state.pausedAt = now;
+    if (!active) {
+        state.pausedAt = now;
+        state.loggedStages.clear();
+    }
     state.pausedUntil = now + seconds * 1000;
 
     return seconds;
+}
+
+/** Name the throttled stage once per pause, with no account or request details. */
+export function logThrottleStage(email: string, stage: string, host: string): void {
+    const state = stateFor(email);
+    if (state.loggedStages.has(stage)) return;
+
+    state.loggedStages.add(stage);
+    console.warn(`Google Photos rate limited ${stage} on ${host}`);
 }
 
 export function recordServerFailure(
@@ -62,6 +75,7 @@ export function recordServerFailure(
     const seconds = backoffSeconds(level, random);
     state.pausedAt = now;
     state.pausedUntil = now + seconds * 1000;
+    state.loggedStages.clear();
 
     return seconds;
 }
@@ -121,7 +135,13 @@ function stateFor(email: string): ThrottleState {
     const existing = states.get(email);
     if (existing) return existing;
 
-    const state: ThrottleState = { failures: 0, serverFailures: 0, pausedUntil: 0, pausedAt: 0 };
+    const state: ThrottleState = {
+        failures: 0,
+        serverFailures: 0,
+        pausedUntil: 0,
+        pausedAt: 0,
+        loggedStages: new Set()
+    };
     states.set(email, state);
 
     return state;
