@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { encodeSplitBmp } from '@madkarmaa/phodrive-core/server/bmp';
+import { fileIdentity } from '@madkarmaa/phodrive-core/server/chunks';
 import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
 import {
     bytesField,
@@ -33,10 +34,11 @@ export function chunkItem(index: number): Item {
     const payload = Uint8Array.of(index % 251, (index + 1) % 251);
     const fileHash = createHash('sha256').update(`file-${index}`).digest('hex');
     const fileName = `file-${index}.bin`;
+    const fileId = fileIdentity(fileName, fileHash);
     const bmp = Buffer.from(
         encodeSplitBmp(payload, {
             fileHash,
-            fileId: fileHash,
+            fileId,
             chunkIndex: 0,
             flags: 1,
             payloadSize: payload.length,
@@ -54,7 +56,7 @@ export function chunkItem(index: number): Item {
     };
 }
 
-export function fileChunk(fileIndex: number, chunkIndex: number, count: number): Item {
+export function fileChunk(fileIndex: number, chunkIndex: number, count: number, folder = ''): Item {
     const payload = Uint8Array.of(
         fileIndex % 251,
         chunkIndex % 251,
@@ -62,14 +64,15 @@ export function fileChunk(fileIndex: number, chunkIndex: number, count: number):
     );
     const fileHash = createHash('sha256').update(`file-${fileIndex}`).digest('hex');
     const fileName = `file-${fileIndex}.bin`;
+    const fileId = fileIdentity(fileName, fileHash, undefined, folder);
     const bmp = Buffer.from(
         encodeSplitBmp(payload, {
             fileHash,
-            fileId: fileHash,
+            fileId,
             chunkIndex,
             flags: chunkIndex === count - 1 ? 1 : 0,
             payloadSize: payload.length,
-            ...(chunkIndex === 0 ? { fileName } : {})
+            ...(chunkIndex === 0 ? { fileName, ...(folder ? { folder } : {}) } : {})
         }).unwrap()
     );
 

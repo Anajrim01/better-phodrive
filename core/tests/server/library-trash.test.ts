@@ -6,13 +6,14 @@ import { missingChunks } from '@madkarmaa/phodrive-core/files';
 import { partitionFileGroups } from '@madkarmaa/phodrive-core/trash';
 import type { UploadedChunk } from '@madkarmaa/phodrive-core/files';
 import type { RemoteBmp } from '@madkarmaa/phodrive-core/models';
-import { syncLibrary } from '@madkarmaa/phodrive-core/server/photos';
+import { listBmps, syncLibrary } from '@madkarmaa/phodrive-core/server/photos';
 import { clearAuthCache } from '@madkarmaa/phodrive-core/server/photos/auth';
 import { clearProbeCache } from '@madkarmaa/phodrive-core/server/photos/library';
 import {
     clearLibraryState,
     configureLibraryState,
-    readAccountState
+    readAccountState,
+    writeAccountState
 } from '@madkarmaa/phodrive-core/server/photos/library/state';
 import { clearThrottleState } from '@madkarmaa/phodrive-core/server/photos/throttle';
 import {
@@ -30,8 +31,8 @@ const TOKEN = 'aas_et/trash';
 
 let folder = '';
 
-function syncWith(fetcher: Parameters<typeof syncLibrary>[4], revision = 0) {
-    return syncLibrary(EMAIL, TOKEN, false, revision, fetcher);
+function syncWith(fetcher: Parameters<typeof syncLibrary>[4], revision = 0, force = false) {
+    return syncLibrary(EMAIL, TOKEN, force, revision, fetcher);
 }
 
 function groupsOf(items: Iterable<RemoteBmp>) {
@@ -92,6 +93,7 @@ test('a full sync keeps hidden chunks with their metadata and flags them trashed
         complete: true,
         trashed: true
     });
+    expect(groups.trashed[0].fileId).not.toBe(groups.trashed[0].fileHash);
 });
 
 test('a hidden delta item marks the indexed chunk trashed instead of deleting it', async () => {
@@ -136,6 +138,29 @@ test('a partly trashed file stays in the main list with the missing chunk warnin
     expect(groups.files[0].name).toBe('file-0.bin');
 });
 
+test('a visible sibling supplies the folder and file identity for a hidden chunk', async () => {
+    const items = [fileChunk(1, 0, 2, 'Projects'), fileChunk(1, 1, 2, 'Projects')];
+    const counts = emptyCounts();
+    const fetcher = fetcherFor(
+        items,
+        [pageBytes([items[0]], '', { syncToken: SYNC_ONE, trashed: [items[1]] })],
+        counts,
+        {
+            delta: pageBytes([], '', { syncToken: SYNC_TWO })
+        }
+    );
+
+    const cold = await syncWith(fetcher);
+    const groups = groupsOf(cold.unwrap().items);
+
+    expect(groups.trashed).toHaveLength(0);
+    expect(groups.files).toHaveLength(1);
+    expect(groups.files[0].folder).toBe('Projects');
+    expect(groups.files[0].complete).toBe(false);
+    expect(groups.files[0].trashedChunks).toHaveLength(1);
+    expect(groups.files[0].fileId).not.toBe(groups.files[0].fileHash);
+});
+
 test('a fully trashed file moves to the trash group only', async () => {
     const items = [fileChunk(0, 0, 2), fileChunk(0, 1, 2)];
     const counts = emptyCounts();
@@ -156,7 +181,6 @@ test('a fully trashed file moves to the trash group only', async () => {
         complete: true,
         trashed: true
     });
-    expect(groups.trashed[0].trashedAt).toEqual(expect.any(Number));
 });
 
 test('a permanent deletion removes the chunk from the index', async () => {
@@ -190,4 +214,80 @@ test('an ordinary hidden photo without the chunk marker is ignored', async () =>
         revision: cold.unwrap().revision
     });
     expect(readAccountState(EMAIL)?.items.size).toBe(40);
+});
+
+test('a key-only hidden delta entry still marks an indexed chunk trashed', async () => {
+    const items = [chunkItem(0)];
+    const counts = emptyCounts();
+    const fetcher = fetcherFor(items, [pageBytes(items, '', { syncToken: SYNC_ONE })], counts, {
+        delta: pageBytes([], '', { syncToken: SYNC_TWO, trashed: ['chunk-0'] })
+    });
+
+    const cold = await syncWith(fetcher);
+    await syncWith(fetcher, cold.unwrap().revision);
+
+    expect(readAccountState(EMAIL)?.items.get('chunk-0')?.trashedAt).toEqual(expect.any(Number));
+});
+
+test('a full sync keeps a metadata-less hidden key that is already indexed', async () => {
+    const items = [chunkItem(0)];
+    const counts = emptyCounts();
+    const coldFetcher = fetcherFor(items, [pageBytes(items, '', { syncToken: SYNC_ONE })], counts, {
+        delta: pageBytes([], '', { syncToken: SYNC_TWO })
+    });
+    const cold = await syncWith(coldFetcher);
+
+    const hiddenFetcher = fetcherFor(
+        [],
+        [pageBytes([], '', { syncToken: SYNC_TWO, trashed: ['chunk-0'] })],
+        counts,
+        {
+            delta: pageBytes([], '', { syncToken: 'sync-three' })
+        }
+    );
+    await syncWith(hiddenFetcher, cold.unwrap().revision, true);
+
+    expect(readAccountState(EMAIL)?.items.get('chunk-0')?.trashedAt).toEqual(expect.any(Number));
+});
+
+test('a paged listing fills a metadata-less hidden key from the index', async () => {
+    const items = [chunkItem(0)];
+    const counts = emptyCounts();
+    const fetcher = fetcherFor(items, [pageBytes(items, '', { syncToken: SYNC_ONE })], counts, {
+        delta: pageBytes([], '', { syncToken: SYNC_TWO })
+    });
+    await syncWith(fetcher);
+
+    const state = readAccountState(EMAIL);
+    const item = state?.items.get('chunk-0');
+    if (!state || !item) throw new Error('Missing indexed chunk');
+    state.items.set('chunk-0', { ...item, trashedAt: 123 });
+
+    const hiddenFetcher = fetcherFor([], [pageBytes([], '', { trashed: ['chunk-0'] })], counts, {
+        delta: pageBytes([], '', { syncToken: SYNC_TWO })
+    });
+    const page = await listBmps(EMAIL, TOKEN, '', hiddenFetcher);
+
+    expect(page.unwrap().items).toContainEqual(
+        expect.objectContaining({ mediaKey: 'chunk-0', trashedAt: 123 })
+    );
+});
+
+test('a full sync keeps the known trash timestamp', async () => {
+    const hidden = chunkItem(0);
+    const counts = emptyCounts();
+    const page = pageBytes([], '', { syncToken: SYNC_ONE, trashed: [hidden] });
+    const fetcher = fetcherFor([hidden], [page], counts, {
+        delta: pageBytes([], '', { syncToken: SYNC_TWO })
+    });
+
+    const cold = await syncWith(fetcher);
+    const state = readAccountState(EMAIL);
+    const item = state?.items.get('chunk-0');
+    if (!state || !item) throw new Error('Missing hidden chunk state');
+    state.items.set('chunk-0', { ...item, trashedAt: 123 });
+
+    await syncWith(fetcher, cold.unwrap().revision, true);
+
+    expect(readAccountState(EMAIL)?.items.get('chunk-0')?.trashedAt).toBe(123);
 });

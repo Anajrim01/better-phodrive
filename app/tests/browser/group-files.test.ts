@@ -46,7 +46,6 @@ function file(email: string): FileGroup {
         duplicates: [],
         trashedChunks: [],
         trashed: false,
-        trashedAt: null,
         complete: true
     };
 }

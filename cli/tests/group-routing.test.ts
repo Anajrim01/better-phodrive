@@ -41,7 +41,6 @@ function file(): FileGroup {
         duplicates: [],
         trashedChunks: [],
         trashed: false,
-        trashedAt: null,
         complete: true
     };
 }

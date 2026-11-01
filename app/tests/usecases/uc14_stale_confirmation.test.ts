@@ -102,7 +102,6 @@ test('confirming a file after switching accounts refuses the old account target'
         duplicates: [],
         trashedChunks: [],
         trashed: false,
-        trashedAt: null,
         complete: true
     };
     drive.library.chunks = [
@@ -158,7 +157,6 @@ test('refresh removing a chunk invalidates the stale file confirmation', async (
             duplicates: [],
             trashedChunks: [],
             trashed: false,
-            trashedAt: null,
             complete: true
         }
     };

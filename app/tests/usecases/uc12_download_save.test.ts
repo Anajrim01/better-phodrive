@@ -160,7 +160,6 @@ test('browser save failures show an error and always clear the active file actio
         duplicates: [],
         trashedChunks: [],
         trashed: false,
-        trashedAt: null,
         complete: true
     };
 
@@ -193,7 +192,6 @@ test('failed download is surfaced and clears the active file action', async () =
         duplicates: [],
         trashedChunks: [],
         trashed: false,
-        trashedAt: null,
         complete: true
     };
 

@@ -33,7 +33,6 @@ function group(name: string, folder: string, complete: boolean, sizes: number[])
         duplicates: [],
         trashedChunks: [],
         trashed: false,
-        trashedAt: null,
         complete
     };
 }

@@ -93,7 +93,11 @@ test('restoring clears the trashed mark and keeps the chunks', async () => {
     save(items);
     const { input } = downloadFixture();
 
-    const result = await restoreFile({ ...input, action: FileActionKind.Restore });
+    const result = await restoreFile({
+        ...input,
+        action: FileActionKind.Restore,
+        chunks: items
+    });
 
     const state = readAccountState(EMAIL);
     expect(result.unwrap().restored).toHaveLength(2);
@@ -112,7 +116,7 @@ test('permanent deletion removes the selected chunks from the index', async () =
     const result = await deleteForeverFile({
         ...input,
         action: FileActionKind.DeleteForever,
-        chunks: input.chunks.slice(0, 1)
+        chunks: items.slice(0, 1)
     });
 
     const state = readAccountState(EMAIL);
@@ -121,4 +125,20 @@ test('permanent deletion removes the selected chunks from the index', async () =
     expect(state?.items.has('chunk-1')).toBe(true);
     expect(state?.revision).toBe(4);
     expect(state?.log.at(-1)?.deleted).toEqual(['chunk-0']);
+});
+
+test('restore and delete forever reject chunks that are not trashed', async () => {
+    save(chunks());
+    const { input } = downloadFixture();
+
+    const restored = await restoreFile({ ...input, action: FileActionKind.Restore });
+    const deleted = await deleteForeverFile({
+        ...input,
+        action: FileActionKind.DeleteForever
+    });
+
+    expect(restored.unwrapErr().code).toBe('NOT_TRASHED');
+    expect(deleted.unwrapErr().code).toBe('NOT_TRASHED');
+    expect(restoreFromTrash).not.toHaveBeenCalled();
+    expect(deletePermanently).not.toHaveBeenCalled();
 });

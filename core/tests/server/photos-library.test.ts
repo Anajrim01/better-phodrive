@@ -112,13 +112,16 @@ test('library returns one page per request and leaves empty continuations to the
     );
     expect(secondResult.unwrap().items).toEqual([
         {
-            originalName: 'deleted-copy.bmp',
+            originalName: 'original.bin',
             fileHash,
             fileId: fileHash,
             chunkIndex: 0,
             chunkCount: 2,
             isLast: false,
-            size: 196662,
+            folder: undefined,
+            size: 2,
+            storedSize: 2,
+            compressed: false,
             at: 42,
             mediaKey: 'renamed-first',
             sha1: fingerprint(first).toString('hex'),

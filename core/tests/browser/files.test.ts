@@ -34,7 +34,6 @@ test('an incomplete file is rejected with the missing chunk count', async () => 
         duplicates: [],
         trashedChunks: [],
         trashed: false,
-        trashedAt: null,
         complete: false
     };
 

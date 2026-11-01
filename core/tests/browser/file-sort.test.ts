@@ -15,7 +15,6 @@ function file(name: string, at: number): FileGroup {
         duplicates: [],
         trashedChunks: [],
         trashed: false,
-        trashedAt: null,
         complete: false
     };
 }
