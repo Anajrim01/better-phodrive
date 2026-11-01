@@ -19,7 +19,8 @@ import {
     emptyCounts,
     fetcherFor,
     pageBytes,
-    pagesOf
+    pagesOf,
+    type LibraryRequestTokens
 } from '../helpers/delta-library';
 
 const EMAIL = 'delta@example.com';
@@ -85,6 +86,44 @@ test('a full sync stores the index and a quiet warm refresh is one delta call', 
         range: 0
     });
 }, 60_000);
+
+test('a delta starts with a state request then pages with resume and old sync', async () => {
+    const items = Array.from({ length: 40 }, (_, index) => chunkItem(index));
+    const counts = emptyCounts();
+    const requests: LibraryRequestTokens[] = [];
+    const options = {
+        delta: (tokens: LibraryRequestTokens) => {
+            requests.push(tokens);
+
+            return tokens.hasResume
+                ? pageBytes([items[1]], '', { syncToken: SYNC_TWO })
+                : pageBytes([items[0]], 'delta-page', { syncToken: SYNC_TWO });
+        }
+    };
+    const fetcher = fetcherFor(
+        items,
+        [pageBytes(items, '', { syncToken: SYNC_ONE })],
+        counts,
+        options
+    );
+
+    const cold = await syncWith(fetcher);
+    const warm = await syncWith(fetcher, cold.unwrap().revision);
+    options.delta = (tokens) => {
+        requests.push(tokens);
+
+        return pageBytes([], '', { syncToken: 'sync-three' });
+    };
+    const third = await syncWith(fetcher, warm.unwrap().revision);
+
+    expect(third.unwrap().full).toBe(false);
+    expect(warm.unwrap().items.map((item) => item.mediaKey)).toEqual(['chunk-0', 'chunk-1']);
+    expect(requests).toEqual([
+        { resume: '', hasResume: false, sync: SYNC_ONE },
+        { resume: 'delta-page', hasResume: true, sync: SYNC_ONE },
+        { resume: '', hasResume: false, sync: SYNC_TWO }
+    ]);
+});
 
 test('delta deletions remove indexed chunks', async () => {
     const items = Array.from({ length: 40 }, (_, index) => chunkItem(index));

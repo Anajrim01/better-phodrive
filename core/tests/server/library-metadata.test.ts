@@ -1,9 +1,13 @@
 import { expect, test } from 'vitest';
 import {
     pageRequest,
-    parseLibraryPage
+    parseLibraryPage,
+    stateRequest
 } from '@madkarmaa/phodrive-core/server/photos/library/metadata';
-import { LIBRARY_PAGE_REQUEST } from '@madkarmaa/phodrive-core/server/photos/library/requests';
+import {
+    LIBRARY_PAGE_REQUEST,
+    LIBRARY_STATE_REQUEST
+} from '@madkarmaa/phodrive-core/server/photos/library/requests';
 import { bytesField, message, nested, numberField } from '@madkarmaa/phodrive-core/server/protobuf';
 
 test('library pagination sends the resume token at field 1.4 and preserves the metadata mask', () => {
@@ -24,6 +28,16 @@ test('library pagination sends the sync token at field 1.6', () => {
 
     expect(nested(request, 1, 4).unwrap()).toEqual(resume);
     expect(nested(request, 1, 6).unwrap()).toEqual(sync);
+    expect(nested(request, 1, 1).unwrap()).toEqual(nested(template, 1, 1).unwrap());
+});
+
+test('the first delta state request carries 1.6 with no resume field', () => {
+    const sync = Buffer.from('sync-context');
+    const request = stateRequest(sync).unwrap();
+    const template = Buffer.from(LIBRARY_STATE_REQUEST, 'base64');
+
+    expect(nested(request, 1, 6).unwrap()).toEqual(sync);
+    expect(nested(request, 1, 4).isErr()).toBe(true);
     expect(nested(request, 1, 1).unwrap()).toEqual(nested(template, 1, 1).unwrap());
 });
 

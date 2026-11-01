@@ -1,12 +1,12 @@
 import { SERVER_ERRORS, type ServerError } from '../../errors';
-import { Ok, type AsyncResult } from 'results-ts';
+import { Ok, type AsyncResult, type Result } from 'results-ts';
 import type { RemoteBmp } from '../../../models';
 import pLimit from 'p-limit';
 import { authenticatedHeaders, type PhotosHeaders } from '../auth';
 import { photosFetch, type Fetcher } from '../../fetcher';
 import { guardedSend, readBody } from '../transport';
 import { bodyBytes } from '../../protobuf';
-import { pageRequest, parseLibraryPage, type ParsedLibraryPage } from './metadata';
+import { pageRequest, parseLibraryPage, stateRequest, type ParsedLibraryPage } from './metadata';
 import { LIBRARY_STATE_REQUEST } from './requests';
 import { namedAsNonPhodrive, probeLibraryItem } from './probe';
 
@@ -41,6 +41,16 @@ export type LibraryPage = {
     deletedMediaKeys: string[];
 };
 
+function libraryRequest(
+    pageToken: string,
+    syncToken: Buffer | undefined
+): Result<Buffer, ServerError> {
+    if (syncToken && !pageToken) return stateRequest(syncToken);
+    if (pageToken) return pageRequest(Buffer.from(pageToken, 'base64url'), syncToken);
+
+    return Ok(Buffer.from(LIBRARY_STATE_REQUEST, 'base64'));
+}
+
 export function readLibraryPage(
     email: string,
     token: string,
@@ -49,10 +59,7 @@ export function readLibraryPage(
     fetcher: Fetcher = photosFetch
 ): AsyncResult<LibraryPage, ServerError> {
     return authenticatedHeaders(email, token, fetcher).andThenAsync(async (headers) => {
-        const request =
-            pageToken || syncToken
-                ? pageRequest(Buffer.from(pageToken, 'base64url'), syncToken)
-                : Ok(Buffer.from(LIBRARY_STATE_REQUEST, 'base64'));
+        const request = libraryRequest(pageToken, syncToken);
         const received = await request.andThenAsync((body) =>
             guardedSend(
                 email,
