@@ -30,7 +30,7 @@ test('a paused delete reports the confirmed chunks and a manual retry', async ()
     expect(error).toEqual({
         code: 'THROTTLED',
         message:
-            'Deleted 1 of 1 chunks. Google Photos is limiting requests, try again in about 2 min',
+            'Moved 1 of 1 chunks to trash. Google Photos is limiting requests, try again in about 2 min',
         retryAfterSeconds: 120
     });
     expect(removed).toEqual(group.chunks);

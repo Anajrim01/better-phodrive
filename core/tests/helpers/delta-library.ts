@@ -7,12 +7,10 @@ import {
     message,
     nested,
     numberField,
-    parse,
     utf8
 } from '@madkarmaa/phodrive-core/server/protobuf';
 
 export const PAGE_URL = '18047484249733410717';
-export const RESTORE_URL = '17490284929287180316';
 export const PREPARE_URL = 'PhotosPrepareDownload';
 export const DOWNLOAD_HOST = 'https://lh3.googleusercontent.com';
 export const PAGE_SIZE = 200;
@@ -186,8 +184,6 @@ export function fetcherFor(
         delta: Buffer | ((tokens: LibraryRequestTokens) => Buffer);
         deltaStatus?: number;
         prepareStatus?: number;
-        restoreStatus?: number | ((sha1s: readonly string[]) => number | undefined);
-        restoreRequests?: string[][];
     }
 ): Fetcher {
     const byKey = new Map(items.map((item) => [item.mediaKey, item]));
@@ -199,29 +195,6 @@ export function fetcherFor(
             counts.auth++;
 
             return new Response(`Auth=bearer\nExpiry=${Math.floor(Date.now() / 1000) + 3600}`);
-        }
-
-        if (url.includes(RESTORE_URL)) {
-            const request = Buffer.from(await new Response(init?.body).arrayBuffer());
-            const sha1s: string[] = [];
-            for (const field of parse(request).unwrap()) {
-                if (field.number !== 3 || !Buffer.isBuffer(field.value)) continue;
-
-                sha1s.push(Buffer.from(field.value.toString(), 'base64url').toString('hex'));
-            }
-            options.restoreRequests?.push(sha1s);
-
-            const status =
-                typeof options.restoreStatus === 'function'
-                    ? options.restoreStatus(sha1s)
-                    : options.restoreStatus;
-            if (status)
-                return new Response(null, {
-                    status,
-                    headers: status === 429 ? { 'retry-after': '9' } : undefined
-                });
-
-            return new Response(new Uint8Array());
         }
 
         if (url.includes(PAGE_URL)) {

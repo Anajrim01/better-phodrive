@@ -1,6 +1,6 @@
 import type { RemoteBmp } from './models';
 
-export type ChunkShape = Pick<RemoteBmp, 'chunkIndex' | 'chunkCount' | 'isLast'>;
+type ChunkShape = Pick<RemoteBmp, 'chunkIndex' | 'chunkCount' | 'isLast'>;
 
 /** The declared chunk total, or the last chunk position for legacy chunks. */
 export function expectedChunks(chunks: readonly ChunkShape[]): number | null {
@@ -15,12 +15,8 @@ export function expectedChunks(chunks: readonly ChunkShape[]): number | null {
 
 export function missingChunks(chunks: readonly ChunkShape[], expected: number): number {
     const present = new Set(chunks.map((chunk) => chunk.chunkIndex));
-    let missing = 0;
-    for (let index = 0; index < expected; index++) {
-        if (!present.has(index)) missing++;
-    }
 
-    return missing;
+    return expected - [...present].filter((index) => index < expected).length;
 }
 
 export function incompleteChunkMessage(total: number, missing: number): string {

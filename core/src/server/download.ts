@@ -15,7 +15,10 @@ function openChunk(
     mode: ThrottleMode
 ): AsyncResult<SplitBmpReader, ServerError> {
     const compressed = chunk.compressed === true;
-    const storedSize = compressed ? (chunk.storedSize ?? chunk.size) : chunk.size;
+    const storedSize = compressed ? chunk.storedSize : chunk.size;
+    if (storedSize === undefined)
+        return Ok(undefined).andThenAsync(async () => Err(SERVER_ERRORS.INVALID_CHUNK_METADATA));
+
     const expected: SplitHeader = {
         fileHash: input.fileHash,
         fileId: input.fileId,

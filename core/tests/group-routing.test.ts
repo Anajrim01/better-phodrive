@@ -3,6 +3,7 @@ import {
     deleteRoute,
     downloadRoute,
     ownerRoute,
+    restoreRoute,
     type RouteMember
 } from '@madkarmaa/phodrive-core/groups';
 
@@ -14,14 +15,16 @@ function members(...emails: string[]): RouteMember[] {
     return emails.map((email) => ({ email, token: `aas_et/${email}`, paused: false }));
 }
 
-test('a download and a delete always resolve to the owner', () => {
+test('a download, delete, and restore always resolve to the owner', () => {
     const group = members(FIRST, SECOND, THIRD);
 
     const download = downloadRoute({ email: SECOND }, group);
     const remove = deleteRoute({ email: FIRST }, group);
+    const restore = restoreRoute({ email: THIRD }, group);
 
     expect(download.unwrap()).toEqual({ email: SECOND, token: `aas_et/${SECOND}` });
     expect(remove.unwrap()).toEqual({ email: FIRST, token: `aas_et/${FIRST}` });
+    expect(restore.unwrap()).toEqual({ email: THIRD, token: `aas_et/${THIRD}` });
 });
 
 test('another member being paused does not divert a file from its owner', () => {
@@ -48,7 +51,8 @@ test('a paused owner keeps the route and never falls back to another member', ()
 
     for (const routed of [
         downloadRoute({ email: SECOND }, group),
-        deleteRoute({ email: SECOND }, group)
+        deleteRoute({ email: SECOND }, group),
+        restoreRoute({ email: SECOND }, group)
     ]) {
         expect(routed.isErr()).toBe(true);
         if (routed.isErr()) {
@@ -75,7 +79,8 @@ test('a file whose owner left the group is unavailable', () => {
 
     for (const routed of [
         downloadRoute({ email: THIRD }, group),
-        deleteRoute({ email: THIRD }, group)
+        deleteRoute({ email: THIRD }, group),
+        restoreRoute({ email: THIRD }, group)
     ]) {
         expect(routed.isErr()).toBe(true);
         if (routed.isErr())

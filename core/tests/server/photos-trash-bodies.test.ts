@@ -6,6 +6,7 @@ import { parse } from '@madkarmaa/phodrive-core/server/protobuf';
 import { authResponse } from '../helpers/photos';
 
 const SHA1 = createHash('sha1').update('transfer body').digest('hex');
+const SHA1_B = createHash('sha1').update('second body').digest('hex');
 
 function bodyFetcher(request: { body?: Buffer }): Fetcher {
     return async (input, init) => {
@@ -17,12 +18,12 @@ function bodyFetcher(request: { body?: Buffer }): Fetcher {
     };
 }
 
-test('restore sends a batch of dedup keys with the restore operation', async () => {
+test('restore sends one key per sha1 with the restore operation', async () => {
     const request: { body?: Buffer } = {};
     const result = await restoreFromTrash(
         'test@example.com',
         'aas_et/test',
-        [SHA1, SHA1],
+        [SHA1, SHA1_B],
         bodyFetcher(request)
     );
     const fields = parse(request.body!).unwrap();

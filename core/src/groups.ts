@@ -221,7 +221,7 @@ export function deleteRoute(
     file: { email: string },
     members: readonly RouteMember[]
 ): Result<FileRoute, ApplicationError> {
-    return availableRoute(file.email, members, 'be deleted');
+    return availableRoute(file.email, members, 'be changed');
 }
 
 export function restoreRoute(

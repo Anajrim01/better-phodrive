@@ -65,10 +65,10 @@ export function deleteFile(
             apiJson(
                 FILES_API_URL,
                 fileRequest(item, FileActionKind.Delete, token, concurrency),
-                'Delete failed'
+                'Move to trash failed'
             )
         )
-        .andThen((data) => schemaResult(FileDeleteResponseSchema, data, 'Delete failed'))
+        .andThen((data) => schemaResult(FileDeleteResponseSchema, data, 'Move to trash failed'))
         .andThen(({ deleted, error, retryAfterSeconds }): Result<void, ApplicationError> => {
             const knownChunks = [...item.chunks, ...item.duplicates];
             for (const chunk of deleted) {
@@ -87,7 +87,7 @@ export function deleteFile(
             if (retryAfterSeconds !== undefined)
                 return Err({
                     code: 'THROTTLED',
-                    message: `Deleted ${deleted.length} of ${knownChunks.length} chunks. ${throttleMessage(retryAfterSeconds, 'try again')}`,
+                    message: `Moved ${deleted.length} of ${knownChunks.length} chunks to trash. ${throttleMessage(retryAfterSeconds, 'try again')}`,
                     retryAfterSeconds
                 });
 
