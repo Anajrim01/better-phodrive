@@ -11,11 +11,7 @@ import { bulkFailureMessage, type BulkAction, type BulkFailure } from '#browser/
 import type { MoveDestination } from '#browser/drive/manage-types';
 import type { DriveSelection } from '#browser/drive/selection.svelte';
 import { FILE_CHANGED_MESSAGE, fileChangedSince } from '#browser/drive/file-snapshot';
-import {
-    bulkMoveDestinations,
-    selectionSummary,
-    type SelectionSummary
-} from '#browser/drive/selection-files';
+import { bulkMoveDestinations } from '#browser/drive/selection-files';
 
 type BulkDeps = FileActionDeps & {
     selection: DriveSelection;
@@ -51,10 +47,6 @@ export class DriveBulk {
         return bulkMoveDestinations(this.deps.allFiles(), this.moveFiles);
     }
 
-    get detailsSummary(): SelectionSummary {
-        return selectionSummary(this.detailFiles);
-    }
-
     openMove(files: readonly FileGroup[]): void {
         if (this.blocked() || files.length === 0) return;
 
@@ -88,7 +80,7 @@ export class DriveBulk {
     }
 
     async delete(files: readonly FileGroup[]): Promise<void> {
-        if (!this.validateSnapshot(files)) return;
+        if (!this.validateSnapshot(files, FileActionKind.Delete)) return;
 
         await this.runAction(files, FileActionKind.Delete, 'delete');
     }
@@ -98,7 +90,7 @@ export class DriveBulk {
     }
 
     async deleteForever(files: readonly FileGroup[]): Promise<void> {
-        if (!this.validateSnapshot(files)) return;
+        if (!this.validateSnapshot(files, FileActionKind.DeleteForever)) return;
 
         await this.runAction(files, FileActionKind.DeleteForever, 'delete');
     }
@@ -116,17 +108,21 @@ export class DriveBulk {
 
         for (const item of files) {
             const routed = resolveMoveToken(item, this.deps);
-            if (routed.isErr()) {
-                failures.push({
-                    email: item.email,
-                    name: item.name,
-                    message: routed.unwrapErr().message
-                });
+            const token = routed.match({
+                Ok: (value) => value,
+                Err: (error) => {
+                    failures.push({
+                        email: item.email,
+                        name: item.name,
+                        message: error.message
+                    });
 
-                continue;
-            }
+                    return null;
+                }
+            });
+            if (token === null) continue;
 
-            const moved = await moveFile(item.email, routed.unwrap(), item.fileId, destination);
+            const moved = await moveFile(item.email, token, item.fileId, destination);
             moved.match({
                 Ok: (response) => {
                     this.deps.applyItems(item.email, response.items, response.revision);
@@ -170,18 +166,25 @@ export class DriveBulk {
         const failures: BulkFailure[] = [];
         for (const item of files) {
             const routed = resolveFileToken(item, action, this.deps);
-            if (routed.isErr()) {
-                failures.push({
-                    email: item.email,
-                    name: item.name,
-                    message: routed.unwrapErr().message
-                });
+            const token = routed.match({
+                Ok: (value) => value,
+                Err: (error) => {
+                    failures.push({
+                        email: item.email,
+                        name: item.name,
+                        message: error.message
+                    });
+
+                    return null;
+                }
+            });
+            if (token === null) {
                 this.progressDone++;
 
                 continue;
             }
 
-            const applied = await applyFileAction(item, action, routed.unwrap(), this.deps);
+            const applied = await applyFileAction(item, action, token, this.deps);
             applied.match({
                 Ok: () => this.deps.selection.remove(fileKey(item)),
                 Err: (error) => {
@@ -198,12 +201,15 @@ export class DriveBulk {
         this.deps.feedback(bulkFailureMessage(failures, files.length, verb));
     }
 
-    private validateSnapshot(files: readonly FileGroup[]): boolean {
+    private validateSnapshot(
+        files: readonly FileGroup[],
+        action: FileActionKind.Delete | FileActionKind.DeleteForever
+    ): boolean {
         const current = this.deps.currentFiles();
 
         for (const item of files) {
             const now = current.find((file) => fileKey(file) === fileKey(item));
-            if (fileChangedSince(item, now, item.email)) {
+            if (fileChangedSince(item, now, item.email, action)) {
                 this.deps.feedback(FILE_CHANGED_MESSAGE);
 
                 return false;

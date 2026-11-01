@@ -1,11 +1,5 @@
 import { ConfirmKind, FileActionKind } from '@madkarmaa/phodrive-core/models';
-import type { RouteMember } from '@madkarmaa/phodrive-core/groups';
-import {
-    fileKey,
-    type FileAction,
-    type FileGroup,
-    type UploadedChunk
-} from '@madkarmaa/phodrive-core/files';
+import { fileKey, type FileAction, type FileGroup } from '@madkarmaa/phodrive-core/files';
 import type { FileActionDeps } from '#browser/drive/file-action';
 import { applyFileAction, resolveFileToken } from '#browser/drive/file-action';
 import { FILE_CHANGED_MESSAGE, fileChangedSince } from '#browser/drive/file-snapshot';
@@ -53,7 +47,7 @@ export class DriveFiles {
                 : FileActionKind.Delete;
         const current = this.deps.files().find((file) => fileKey(file) === fileKey(item));
         const owner = this.deps.groupMode() ? item.email : this.deps.account().email;
-        if (!current || fileChangedSince(item, current, owner)) {
+        if (!current || fileChangedSince(item, current, owner, action)) {
             this.deps.feedback(FILE_CHANGED_MESSAGE);
 
             return;
@@ -66,13 +60,16 @@ export class DriveFiles {
         if (this.deps.busy() || this.action || this.deps.loading()) return;
 
         const routed = resolveFileToken(item, action, this.deps);
-        if (routed.isErr()) {
-            this.deps.feedback(routed.unwrapErr().message);
+        const token = routed.match({
+            Ok: (value) => value,
+            Err: (error) => {
+                this.deps.feedback(error.message);
 
-            return;
-        }
+                return null;
+            }
+        });
+        if (token === null) return;
 
-        const token = routed.unwrap();
         this.action = { email: item.email, fileId: item.fileId, kind: action };
         this.deps.feedback('');
 

@@ -100,6 +100,31 @@ test('bulk delete forever refuses a file that changed while confirming', async (
     expect([...selection.selectedKeys]).toEqual([fileKey(item)]);
 });
 
+test('delete forever aborts when the confirmation sees a restored file', async () => {
+    const snapshot = file({
+        name: 'old.bin',
+        trashed: true,
+        chunks: [],
+        trashedChunks: [chunk({ trashedAt: 1 })]
+    });
+    const restored = file({
+        name: 'old.bin',
+        trashed: false,
+        chunks: [chunk()],
+        trashedChunks: []
+    });
+    vi.mocked(filesApi.deleteForeverFile).mockReturnValue(ok(undefined));
+    const { bulk, selection, feedback, setFiles } = makeBulk();
+    setFiles([restored]);
+    selection.selectAll([fileKey(snapshot)]);
+
+    await bulk.deleteForever([snapshot]);
+
+    expect(filesApi.deleteForeverFile).not.toHaveBeenCalled();
+    expect(feedback).toHaveBeenCalledWith(FILE_CHANGED_MESSAGE);
+    expect([...selection.selectedKeys]).toEqual([fileKey(snapshot)]);
+});
+
 test('a paused owner is reported without calling its account', async () => {
     const first = file({ name: 'first.bin' });
     const second = file({

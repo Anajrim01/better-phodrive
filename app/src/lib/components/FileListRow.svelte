@@ -64,7 +64,6 @@
 
     function contextMenu(event: MouseEvent): void {
         event.preventDefault();
-        const key = fileKey(item);
         if (selectedCount > 1 && selected) {
             onselectionmenu?.({ x: event.clientX, y: event.clientY });
 
