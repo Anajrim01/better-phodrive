@@ -109,7 +109,11 @@ function confirmDeletion(
 ): AsyncResult<void, CliError> {
     const names = files.map(filePath).join(', ');
 
-    return askConfirmation(context, `Delete ${names} from ${session.email}?`, confirmed);
+    return askConfirmation(
+        context,
+        `Move ${names} to Google Photos trash on ${session.email}?`,
+        confirmed
+    );
 }
 
 export function remove(
@@ -147,7 +151,7 @@ export function remove(
                 const names = files.unwrap().map(filePath).join(', ');
                 const confirmed = await askConfirmation(
                     context,
-                    `Delete ${names} from their owners?`,
+                    `Move ${names} to Google Photos trash on their owners?`,
                     options.yes
                 );
                 if (confirmed.isErr()) return confirmed;

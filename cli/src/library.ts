@@ -130,14 +130,14 @@ export function findFiles(
     );
 }
 
-/** A file is deleted only when every known chunk is confirmed in the trash. */
+/** A file is moved only when every known chunk is confirmed in the trash. */
 function deleteFailure(file: FileGroup, { deleted, error }: DeleteResult): string | null {
     const total = file.chunks.length + file.duplicates.length;
     if (deleted.length === total) return null;
 
     const reason = error ? ` ${error}` : '';
 
-    return `${file.name}: deleted ${deleted.length} of ${total} chunks.${reason}`;
+    return `${file.name}: moved ${deleted.length} of ${total} chunks to trash.${reason}`;
 }
 
 function deletePlanned(
@@ -206,14 +206,14 @@ function deletePlanned(
                 continue;
             }
 
-            status(context).success(`Deleted ${file.name}`);
+            status(context).success(`Moved ${file.name} to trash`);
         }
 
         if (!failed) return Ok(undefined);
 
         return Err({
             code: 'DELETE_INCOMPLETE',
-            message: `${failed} of ${files.length} files were not fully deleted. Run the command again to retry.`
+            message: `${failed} of ${files.length} files were not fully moved to trash. Run the command again to retry.`
         } as const);
     });
 }
