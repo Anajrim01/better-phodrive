@@ -89,6 +89,67 @@ test('clicking the card body sends a point gesture and actions do not', async ()
     expect(props.onselect).toHaveBeenCalledTimes(1);
 });
 
+test('clicking a card tooltip keeps a multi selection', async () => {
+    const item = file({ name: 'card.bin' });
+    const props = selectionCallbacks();
+    render(FileCard, {
+        props: {
+            item,
+            disabled: false,
+            working: null,
+            selected: true,
+            selectedCount: 2,
+            ...props
+        }
+    });
+    const card = screen.getByRole('group', { name: 'card.bin' });
+    const tooltip = document.createElement('span');
+    tooltip.setAttribute('role', 'tooltip');
+    tooltip.textContent = 'Download card.bin';
+    card.append(tooltip);
+
+    await fireEvent.click(tooltip);
+
+    expect(props.onselect).not.toHaveBeenCalled();
+    expect(
+        (screen.getByRole('checkbox', { name: 'Select card.bin' }) as HTMLInputElement).checked
+    ).toBe(true);
+});
+
+test('dragging from card controls does not start a file drag', async () => {
+    const item = file({ name: 'card.bin' });
+    const onstartdrag = vi.fn();
+    render(FileCard, {
+        props: {
+            item,
+            disabled: false,
+            working: null,
+            selected: false,
+            onstartdrag,
+            ...selectionCallbacks()
+        }
+    });
+    const card = screen.getByRole('group', { name: 'card.bin' });
+
+    await fireEvent.dragStart(screen.getByRole('checkbox', { name: 'Select card.bin' }));
+    await fireEvent.dragStart(screen.getByRole('button', { name: 'Download' }));
+    await fireEvent.dragStart(screen.getByRole('button', { name: 'More actions for card.bin' }));
+
+    expect(onstartdrag).not.toHaveBeenCalled();
+
+    await fireEvent.pointerDown(screen.getByRole('checkbox', { name: 'Select card.bin' }));
+    await fireEvent.dragStart(card);
+    expect(onstartdrag).not.toHaveBeenCalled();
+
+    await fireEvent.pointerDown(screen.getByRole('button', { name: 'Download' }));
+    await fireEvent.dragStart(card);
+    expect(onstartdrag).not.toHaveBeenCalled();
+
+    await fireEvent.pointerDown(card);
+    await fireEvent.dragStart(card);
+    expect(onstartdrag).toHaveBeenCalledTimes(1);
+});
+
 test('the card checkbox is hidden at rest and shown when selected', () => {
     const item = file({ name: 'card.bin' });
     const props = selectionCallbacks();

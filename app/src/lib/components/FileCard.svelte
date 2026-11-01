@@ -51,6 +51,7 @@
         onenddrag
     }: Props = $props();
     let isChecked = $state(false);
+    let dragOrigin: EventTarget | null = null;
 
     $effect(() => {
         isChecked = selected;
@@ -59,7 +60,9 @@
     function interactive(target: EventTarget | null): boolean {
         return (
             target instanceof Element &&
-            target.closest('button, a, input, select, textarea') !== null
+            target.closest(
+                'button, a, input, label, select, textarea, [role="button"], [role="checkbox"], [role="menuitem"], [role="tooltip"]'
+            ) !== null
         );
     }
 
@@ -77,13 +80,18 @@
     }
 
     function startDrag(event: DragEvent): void {
-        if (event.altKey) {
+        if (event.altKey || interactive(event.target) || interactive(dragOrigin)) {
             event.preventDefault();
 
             return;
         }
 
         onstartdrag?.(item, event);
+    }
+
+    function endDrag(event: DragEvent): void {
+        dragOrigin = null;
+        onenddrag?.(event);
     }
 
     function contextMenu(event: MouseEvent): void {
@@ -111,8 +119,9 @@
     onclick={cardClick}
     onkeydown={cardKeydown}
     oncontextmenu={contextMenu}
+    onpointerdowncapture={(event) => (dragOrigin = event.target)}
     ondragstart={startDrag}
-    ondragend={(event) => onenddrag?.(event)}
+    ondragend={endDrag}
 >
     <Card type="text" variant="filled" class="file-card">
         <div class="flex h-12 min-w-0 items-center gap-2 px-2">
