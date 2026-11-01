@@ -169,6 +169,10 @@
             "@madkarmaa/phodrive-core": "./src/server/bmp/stream.ts",
             "default": "./dist/server/bmp/stream.js"
         },
+        "./server/chunk-open": {
+            "@madkarmaa/phodrive-core": "./src/server/chunk-open.ts",
+            "default": "./dist/server/chunk-open.js"
+        },
         "./server/chunks": {
             "@madkarmaa/phodrive-core": "./src/server/chunks.ts",
             "default": "./dist/server/chunks.js"
@@ -333,6 +337,10 @@
             "@madkarmaa/phodrive-core": "./src/server/photos/upload/transfer.ts",
             "default": "./dist/server/photos/upload/transfer.js"
         },
+        "./server/preview": {
+            "@madkarmaa/phodrive-core": "./src/server/preview.ts",
+            "default": "./dist/server/preview.js"
+        },
         "./server/protobuf": {
             "@madkarmaa/phodrive-core": "./src/server/protobuf.ts",
             "default": "./dist/server/protobuf.js"
@@ -460,6 +468,7 @@
             "./server/accounts": "./dist/server/accounts.js",
             "./server/bmp": "./dist/server/bmp/index.js",
             "./server/bmp/stream": "./dist/server/bmp/stream.js",
+            "./server/chunk-open": "./dist/server/chunk-open.js",
             "./server/chunks": "./dist/server/chunks.js",
             "./server/compress": "./dist/server/compress.js",
             "./server/download": "./dist/server/download.js",
@@ -501,6 +510,7 @@
             "./server/photos/upload": "./dist/server/photos/upload/index.js",
             "./server/photos/upload/lookup": "./dist/server/photos/upload/lookup.js",
             "./server/photos/upload/transfer": "./dist/server/photos/upload/transfer.js",
+            "./server/preview": "./dist/server/preview.js",
             "./server/protobuf": "./dist/server/protobuf.js",
             "./server/request": "./dist/server/request.js",
             "./server/upload": "./dist/server/upload/index.js",

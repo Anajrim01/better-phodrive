@@ -61,6 +61,22 @@ export enum FileActionKind {
     DeleteForever = 'delete-forever'
 }
 
+export enum PreviewMode {
+    Image = 'image',
+    Text = 'text'
+}
+
+export enum PreviewUnavailableReason {
+    MultiChunk = 'multi-chunk',
+    TooLarge = 'too-large',
+    UnsupportedImage = 'unsupported-image',
+    IncompleteImage = 'incomplete-image',
+    DecodeFailed = 'decode-failed',
+    Binary = 'binary',
+    Incomplete = 'incomplete',
+    Unsupported = 'unsupported'
+}
+
 export enum AppView {
     Files = 'files',
     Trash = 'trash',
@@ -306,6 +322,20 @@ export const FileRequestSchema = AccountRequestSchema.extend({
     chunks: z.array(RemoteBmpSchema).nonempty(),
     workers: WorkerCountSchema
 });
+export const FilePreviewRequestSchema = AccountRequestSchema.extend({
+    mode: z.enum(PreviewMode),
+    name: FileNameSchema,
+    fileHash: Sha256HexSchema,
+    fileId: Sha256HexSchema,
+    chunks: z.array(RemoteBmpSchema).nonempty()
+});
+export const PreviewTextResponseSchema = z.object({
+    text: z.string(),
+    truncated: z.boolean()
+});
+export const PreviewUnavailableResponseSchema = z.object({
+    reason: z.enum(PreviewUnavailableReason)
+});
 export const FileDeleteResponseSchema = z.object({
     deleted: z.array(RemoteBmpSchema),
     error: z.string().optional(),
@@ -344,6 +374,8 @@ export type UploadResponse = z.infer<typeof UploadResponseSchema>;
 export type UploadEvent = z.infer<typeof UploadEventSchema>;
 export type UploadProgress = z.infer<typeof UploadProgressSchema>;
 export type FileRequest = z.infer<typeof FileRequestSchema>;
+export type FilePreviewRequest = z.infer<typeof FilePreviewRequestSchema>;
+export type PreviewTextResponse = z.infer<typeof PreviewTextResponseSchema>;
 export type PreferencesDefaults = z.infer<typeof PreferencesDefaultsSchema>;
 
 export const DEFAULT_FILE_SORT = FileSort.ModifiedDescending;
