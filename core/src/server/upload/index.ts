@@ -15,6 +15,7 @@ import { photosFetchWithProgress, type Fetcher } from '../fetcher';
 import { uploadBmpStream } from '../photos/index';
 import { encodeUploadBmp } from './bmp';
 import type { ReceivedUpload } from './input';
+import { compressedUploadStart, readProgress, sentProgress } from './progress';
 
 const PROGRESS_INTERVAL_MS = 100;
 
@@ -32,30 +33,38 @@ export function uploadFiles(
     emit: (event: UploadEvent) => void,
     fetcher?: Fetcher
 ): AsyncResult<void, ServerError> {
-    return encodeUploadBmp(input).andThenAsync(async (source) => {
-        // Browser job totals are raw plan sizes, so map stored bytes back onto that
-        // scale instead of letting the bar lag and jump at the forced final report.
-        const progressTotal = input.bmp.totalSize;
-        const scale = source.length > 0 ? progressTotal / source.length : 1;
-        const scaled = (sent: number) => Math.min(progressTotal, Math.round(sent * scale));
-        let lastProgress = 0;
-        const report = (completed: number, reused = 0, force = false) => {
-            const now = performance.now();
-            if (!force && now - lastProgress < PROGRESS_INTERVAL_MS) return;
+    // Browser job totals are raw plan sizes, so map every phase back onto that
+    // scale and keep the Google commit outside the progress ceiling.
+    const progressTotal = input.bmp.totalSize;
+    let lastProgress = 0;
+    let lastCompleted = 0;
+    const report = (completed: number, reused = 0, force = false) => {
+        const now = performance.now();
+        if (!force && now - lastProgress < PROGRESS_INTERVAL_MS) return;
 
-            lastProgress = now;
-            emit({
-                type: UploadEventType.Progress,
-                id: 0,
-                progress: {
-                    phase: UploadPhase.Uploading,
-                    completed,
-                    reused,
-                    total: progressTotal
-                }
-            });
-        };
-        report(0, 0, true);
+        lastProgress = now;
+        lastCompleted = Math.max(lastCompleted, Math.min(progressTotal, Math.round(completed)));
+        emit({
+            type: UploadEventType.Progress,
+            id: 0,
+            progress: {
+                phase: UploadPhase.Uploading,
+                completed: lastCompleted,
+                reused,
+                total: progressTotal
+            }
+        });
+    };
+    report(0, 0, true);
+
+    const reading = input.compress
+        ? (received: number) =>
+              report(readProgress(progressTotal, received, input.header.payloadSize))
+        : undefined;
+
+    return encodeUploadBmp(input, reading).andThenAsync(async (source) => {
+        const start = source.compressed ? compressedUploadStart(progressTotal) : 0;
+        if (source.compressed) report(start, 0, true);
 
         const uploaded = await uploadBmpStream(
             input.email,
@@ -67,13 +76,20 @@ export function uploadFiles(
                 input.chunkCount
             ),
             source,
-            fetcher ?? photosFetchWithProgress((sent) => report(scaled(sent))),
+            fetcher ??
+                photosFetchWithProgress((sent) =>
+                    report(sentProgress(progressTotal, sent, source.length, start))
+                ),
             input.signal
         );
 
         return uploaded.map((result) => {
-            const reused = result.status === UploadStatus.AlreadyExists ? progressTotal : 0;
-            report(progressTotal - reused, reused, true);
+            const deduplicated = result.status === UploadStatus.AlreadyExists;
+            report(
+                deduplicated ? lastCompleted : progressTotal,
+                deduplicated ? progressTotal - lastCompleted : 0,
+                true
+            );
             emit({
                 type: UploadEventType.Chunk,
                 id: 0,
