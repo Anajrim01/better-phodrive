@@ -113,7 +113,7 @@ test('stored accounts retain valid entries and reject malformed data without log
     log.mockRestore();
 });
 
-test('account JSON and plain-text theme serialization retain their storage formats', () => {
+test('account JSON and theme serializers round-trip valid values', () => {
     const accounts = { 'valid@example.com': 'aas_et/test' };
     const serialized = ACCOUNTS_SERIALIZER.serialize(accounts);
 

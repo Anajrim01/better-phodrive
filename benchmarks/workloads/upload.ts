@@ -7,7 +7,18 @@ import { uploadStream } from '@madkarmaa/phodrive-core/server/upload/stream';
 import { provider } from '../transport';
 import { CHUNK, MIB, files, type TransportState, type Workload } from '../fixtures';
 
-export function uploadWorkload(name: string, transport: TransportState): Workload {
+export function uploadWorkload(name: string, transport: TransportState): Workload | undefined {
+    const mixed = /^upload-mixed-(1|4|8|32)$/.test(name);
+    const known =
+        mixed ||
+        name === 'upload-tiny' ||
+        name === 'upload-many' ||
+        name === 'upload-large' ||
+        name === 'upload-boundaries' ||
+        name === 'upload-duplicate' ||
+        name === 'upload-retry';
+    if (!known) return undefined;
+
     const sizes =
         name === 'upload-tiny'
             ? [0, 1, 1024]

@@ -231,7 +231,7 @@ export function restoreRoute(
     return availableRoute(file.email, members, 'be restored');
 }
 
-/** Stored groups may predate the field or contain entries a newer schema rejects. */
+/** Invalid stored entries are dropped on read; the stored group shape is not a compatibility promise. */
 export function parseStoredGroups(value: unknown): Group[] {
     if (!Array.isArray(value)) return [];
 

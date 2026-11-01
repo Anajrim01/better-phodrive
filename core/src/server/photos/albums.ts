@@ -13,7 +13,7 @@ const ADD_MEDIA_TO_ALBUM_URL =
 const DEVICE = message(bytesField(3, 'Pixel XL'), bytesField(4, 'Google'), numberField(5, 28));
 const MEDIA_KEY_LENGTH_LIMIT = 2048;
 
-export const MAX_ALBUM_NAME_LENGTH = 255;
+const MAX_ALBUM_NAME_LENGTH = 255;
 
 export function assignFolderAlbum(
     email: string,

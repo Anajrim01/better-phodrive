@@ -69,7 +69,7 @@ test('the compression setting round-trips through the config file', async () => 
     expect((await readConfig(path)).unwrap().settings).toEqual({ compression: true });
 });
 
-test('groups migrate from an absent field and round-trip through the config file', async () => {
+test('groups default to empty, drop invalid entries, and round-trip through the config file', async () => {
     await mkdir(dirname(path), { recursive: true });
     await writeFile(path, JSON.stringify({ accounts: { [EMAIL]: AAS_TOKEN } }));
 
