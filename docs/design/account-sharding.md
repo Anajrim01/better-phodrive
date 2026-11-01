@@ -40,7 +40,7 @@ When an upload starts with a group, the client assigns each file to one member
 and keeps that owner for the whole upload.
 
 - The owner covers the file and all of its chunks: hash lookup, upload start,
-  transfer, commit, retries, downloads, and deletes.
+  transfer, commit, retries, downloads, and trash actions.
 - Assignment is weighted by bytes. Files are placed largest first, each on the
   member with the fewest assigned bytes. When two members have equal loads, the
   earlier member in the group wins. File order does not change the result.
@@ -89,6 +89,9 @@ The client lists each group member and merges the pages into one result.
   its retry window, and the result is marked partial. An incremental refresh
   keeps that member's previously loaded items, so they stay visible. The partial
   state tells the view why, so the files are not reported as deleted.
+- Hidden trashed chunks belong to the member's listing and carry a trash mark.
+  After the merge, grouping splits fully trashed files into Trash; a partly
+  trashed file stays in the main list with an incomplete warning.
 - A member status is unknown until a listing or an upload observes it. Paused
   carries a deadline. A listing that returns ok clears the pause only after
   that deadline, and automatic refresh skips members inside their window
@@ -103,19 +106,26 @@ Each group member costs one listing pass per refresh; the probe cache and delta
 sync keep repeat passes cheap. A manifest item would reduce the cost but is a
 second source of truth and stays deferred.
 
-## Downloads and deletes
+## Downloads and trash
 
 The owner routes every file request: prepare-download, the ranged header probe,
-the real download, and the delete.
+the real download, and every trash action (move to trash, restore, delete
+forever).
 
 - When the client already knows a file's owner, routing reports
   `OWNER_PAUSED` for a paused owner and never falls back to another account.
   A merged listing alone cannot target a paused owner's files because that
   member contributed no items; the partial state covers that case.
-- A delete removes only the owner's chunks.
-- Each owner's copy is a separate row. Deleting a file removes only that owner's
-  chunks; delete each row to remove every copy. A delete never removes a chunk
-  from an account that does not own it.
+- A trash action affects only the owner's chunks.
+- Each owner's copy is a separate row. Trashing a file affects only that owner's
+  chunks; trash each row to move every copy. A trash action never touches an
+  account that does not own the chunk.
+- Phodrive never restores a file automatically and stores no tombstone. Restore
+  clears the trash mark on the owner's chunks; Delete forever drops them from
+  the local index.
+- A permanent deletion made outside Phodrive drops the chunk on the next delta,
+  so the remaining chunks group into an incomplete file with a missing-chunk
+  warning.
 - A file whose owner left the group stays unavailable until that account is added
   back. The client never guesses an owner.
 - Routing resolves the owner's token from the account store. A route that cannot
@@ -141,10 +151,10 @@ change album assignment.
 - One member is paused during a listing: the result is partial, other members
   still list, and the paused member carries a retry window.
 - Two accounts return the same media key: it merges once per chunk index.
-- The owner is paused and its route is already known: download and delete
-  report `OWNER_PAUSED` and name that account, with no request to another
-  member. A paused member in a full merged listing omits its files and reports
-  a partial state instead.
+- The owner is paused and its route is already known: download, trash, restore,
+  and delete forever report `OWNER_PAUSED` and name that account, with no request
+  to another member. A paused member in a full merged listing omits its files
+  and reports a partial state instead.
 - Every member is paused: the assignment leaves files unassigned.
 - File sizes are very uneven: byte totals stay close without splitting a file.
 - The owner was removed from the group: routing reports `OWNER_NOT_IN_GROUP`.
@@ -159,12 +169,12 @@ Shipped:
 - the group schema and tolerant stored-data parsing;
 - deterministic, size-weighted file assignment with per-member availability;
 - a merged listing with per-account state, deduplication, and partial results;
-- owner routing for downloads and deletes;
+- owner routing for downloads, trash, restore, and delete forever;
 - group upload orchestration, with one concurrency pool and breaker per
   account, waiting files when every member is paused, and per-owner album
   mirroring;
 - the `group` CLI commands and `--group` on file list, upload, download, and
-  delete, with an owner column and owner in JSON;
+  trash (the `delete` command), with an owner column and owner in JSON;
 - group management in Settings: list, create, rename, delete, add and remove
   members, member status, and warnings for removals;
 - empty states for no groups, a single-member group, and a fully paused group;
@@ -172,13 +182,17 @@ Shipped:
   preferences and defaulting to the selected account;
 - a merged group listing with owner labels, media-key deduplication, and a
   partial state that names paused members and their retry window;
-- owner routing for downloads and deletes, with a paused owner reporting why the
-  file is unavailable;
+- a merged Trash view with owner labels and owner routing for Restore and Delete
+  forever;
+- owner routing for downloads, trash, restore, and delete forever, with a paused
+  owner reporting why the file is unavailable;
 - pause state fed by the merged listing and by upload retry windows.
 
 Not shipped:
 
 - cross-account grouping by file id and chunk index;
+- CLI commands to list trash, restore, or delete forever; the CLI can only move
+  files to trash;
 - album migration, rebalancing, or moving existing files.
 
 Without a group, every path uses the selected account: no extra listing calls or

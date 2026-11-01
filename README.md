@@ -99,11 +99,13 @@ bunx cross-env PHODRIVE_DEFAULT_REFRESH_INTERVAL_SECONDS=120 PHODRIVE_DEFAULT_CO
 
 For Docker, pass the same variables with `-e`, for example `-e PHODRIVE_DEFAULT_CONCURRENT_WORKERS=4`.
 
+The server keeps its probe cache and library index in `~/.phodrive`. Set `PHODRIVE_PROBE_CACHE` and `PHODRIVE_LIBRARY_STATE` to use other files.
+
 ### Compression and memory
 
 Compression is off by default. Turn it on per browser in **Settings > Compress uploads**, or for one CLI upload with `--compress`. To make it the CLI default, run `phodrive setting set compression on`. The upload request carries the choice, so the server does not hold global state and two runs can differ.
 
-Changing the setting and uploading the same file again stores a second copy of each chunk that compresses, because its stored bytes and SHA-1 differ. Chunks that stay raw are deduplicated. Delete removes every stored chunk for that file on that account, including both copies.
+Changing the setting and uploading the same file again stores a second copy of each chunk that compresses, because its stored bytes and SHA-1 differ. Chunks that stay raw are deduplicated. Moving a file to trash moves every stored chunk for that file on that account, including both copies.
 
 When it is on, the server samples the first 85 KiB of each chunk. A chunk is buffered when the start probe suggests savings, and stored compressed with brotli quality 1 only when the full result saves at least 5% of the original bytes; otherwise it is stored raw. Chunks under 4 KiB stay raw. Text, JSON, logs and source shrink by roughly 74% to 79%. Raw video can shrink by about 88%. JPEG saves about 4% and ZIP about 1%, so both stay raw and the setting is not worth enabling for a library of those.
 
@@ -127,15 +129,23 @@ Drop a folder onto the page, or use **Upload folder**, to keep its relative path
 
 Folder upload needs a window wider than 800px with a hover-capable, fine pointer. At 800px or narrower, or without one, the folder button is hidden and dragging files or folders is unavailable; upload single files instead.
 
-The navigation sidebar totals the original size of the files loaded so far, not the compressed bytes stored on Google, plus file and folder counts and a breakdown by the top file types. Load more adds the next page when the list is paginated; uploads show an estimate once a transfer rate is known.
+The navigation sidebar totals My files: the original size of the loaded chunks, not the compressed bytes stored on Google, plus file, folder, and incomplete counts and a breakdown by the top file types. Trashed files are left out, and a partly trashed file counts only its remaining chunks. Load more adds the next page when the list is paginated; uploads show an estimate once a transfer rate is known.
+
+## Trash and incomplete files
+
+**Delete** moves a file to Google Photos trash instead of removing it. When every chunk is in the trash, the file moves to **Trash** in the navigation sidebar, where **Restore** returns it to My files and **Delete forever** removes it for good. Phodrive never restores a file on its own.
+
+A file with some chunks in the trash stays in My files. If a chunk has no other copy, the file is marked incomplete and cannot be downloaded. Restore returns the chunks that are still in the trash. If chunks were permanently deleted, the file stays incomplete and **Delete remaining chunks** moves the rest to the trash.
+
+With a group selected, Trash merges every member that answers and labels the owner.
 
 ## Account groups
 
-**Settings > Groups** creates named groups of at least two connected accounts. Select a group as the upload target to spread whole files across its members; the file list then merges every member with an owner label. A paused member takes no new files while the others continue.
+**Settings > Groups** creates named groups of at least two connected accounts. Select a group as the upload target to spread whole files across its members; the file list and Trash then merge every member with an owner label. A paused member takes no new files while the others continue.
 
 ## Command line
 
-The `phodrive` command does everything the web app does without running the server. Each [release](https://github.com/madkarmaa/phodrive/releases/latest) includes executables that don't need Node.js. On Linux or macOS, download yours and make it executable:
+The `phodrive` command handles accounts, settings, groups, uploads, downloads, and moving files to trash without running the server. Each [release](https://github.com/madkarmaa/phodrive/releases/latest) includes executables that don't need Node.js. On Linux or macOS, download yours and make it executable:
 
 ```sh
 curl -fLo phodrive https://github.com/madkarmaa/phodrive/releases/latest/download/phodrive-linux-x64
@@ -161,7 +171,7 @@ phodrive file list --folder photos/2024  # files in one folder
 phodrive file upload ./photos        # files and whole folders
 phodrive file upload ./photos --compress  # compress this run
 phodrive file download report.pdf    # by name or by the ID that file list shows
-phodrive file delete report.pdf
+phodrive file delete report.pdf      # moves it to Google Photos trash
 phodrive group create Family --account you@gmail.com --account other@gmail.com
 phodrive file upload ./photos --group Family  # spread whole files across the group
 phodrive file list --group Family            # merged listing with an owner column
@@ -170,10 +180,13 @@ phodrive setting set compression on  # default for later uploads
 ```
 
 A group spreads whole files across its accounts by size. Each file and all of its
-chunks stay on one owner, and downloads and deletes go back to that owner. A
-paused account stops taking new files while the others continue.
+chunks stay on one owner, and downloads, trash moves, restores, and permanent
+deletes go back to that owner. A paused account stops taking new files while the
+others continue.
 
 Uploading a folder keeps its relative paths, and each folder becomes a same-named Google Photos album, the same as the web app. `phodrive help` lists every command. `phodrive help file upload`, `phodrive file upload --help`, and `phodrive file upload -h` all show the options of one command.
+
+`phodrive file list` marks files with missing chunks as incomplete. `phodrive file delete` moves files to Google Photos trash; the CLI cannot list trash, restore files, or delete forever.
 
 `phodrive` saves accounts, settings, groups, and folder album keys in `config.json` in your user configuration folder. On macOS and Linux, only your user can read that file. Set `PHODRIVE_CONFIG` to use another file.
 
