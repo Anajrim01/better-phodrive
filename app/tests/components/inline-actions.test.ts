@@ -171,7 +171,7 @@ test('a trash row keeps Restore and Delete forever beside More', async () => {
     });
 
     const restore = screen.getByRole('button', { name: 'Restore proof.bin' });
-    const remove = screen.getByRole('button', { name: 'Delete proof.bin forever' });
+    const remove = screen.getByRole('button', { name: 'Delete forever: proof.bin' });
     expect(screen.getByRole('button', { name: 'More actions for proof.bin' })).toBeTruthy();
 
     await fireEvent.click(restore);
@@ -198,7 +198,7 @@ test('the trash view threads inline restore and delete forever', async () => {
     });
 
     await fireEvent.click(screen.getByRole('button', { name: 'Restore proof.bin' }));
-    await fireEvent.click(screen.getByRole('button', { name: 'Delete proof.bin forever' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Delete forever: proof.bin' }));
 
     expect(props.onrestore).toHaveBeenCalledTimes(1);
     expect(props.ondeleteforever).toHaveBeenCalledTimes(1);

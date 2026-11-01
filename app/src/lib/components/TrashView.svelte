@@ -75,7 +75,7 @@
         </h1>
     </div>
     <p class="m-0 mb-6 max-w-2xl text-sm text-muted">
-        Google Photos deletes trashed files after 60 days. Restore them or delete them forever.
+        Google Photos deletes trashed files after 30 days. Restore them or delete them forever.
     </p>
 
     {#if groupName}

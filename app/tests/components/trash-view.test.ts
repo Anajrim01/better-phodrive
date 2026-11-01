@@ -33,6 +33,30 @@ vi.hoisted(() => {
 beforeEach(() => cleanup());
 afterEach(() => vi.restoreAllMocks());
 
+test('the trash view states the 30-day Google Photos deletion window', () => {
+    render(TrashView, {
+        props: {
+            files: [],
+            sort: FileSort.ModifiedDescending,
+            disabled: false,
+            loading: false,
+            loadFailed: false,
+            hasMore: false,
+            action: null,
+            onrestore: vi.fn(),
+            ondeleteforever: vi.fn(),
+            onmenu: vi.fn(),
+            onmore: vi.fn()
+        }
+    });
+
+    expect(
+        screen.getByText(
+            'Google Photos deletes trashed files after 30 days. Restore them or delete them forever.'
+        )
+    ).toBeTruthy();
+});
+
 test('an empty first page offers Load more instead of claiming Trash is empty', () => {
     render(TrashView, {
         props: {
