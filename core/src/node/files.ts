@@ -3,7 +3,7 @@ import { lstat, open, rename, rm, type FileHandle } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import type { ApplicationError } from '../errors';
-import type { FileGroup } from '../files';
+import { incompleteFileMessage, type FileGroup } from '../files';
 import { FileActionKind, FileRequestSchema, type FileRequest, type RemoteBmp } from '../models';
 import { schemaResult } from '../validation';
 import { SERVER_ERRORS, type ServerError } from '../server/errors';
@@ -174,7 +174,7 @@ export function downloadFile(
         if (!item.complete)
             return Err({
                 code: 'INCOMPLETE_DOWNLOAD_CHUNKS',
-                message: `${item.name} is missing chunks and cannot be downloaded.`
+                message: incompleteFileMessage(item)
             } as const);
 
         const available = await ensureAvailable(destination, force);

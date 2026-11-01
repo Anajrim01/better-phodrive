@@ -201,4 +201,5 @@ export type ServerError =
           readonly status?: number;
           readonly retryAfterSeconds?: number;
       }
+    | { readonly code: 'INCOMPLETE_DOWNLOAD_CHUNKS'; readonly message: string }
     | { readonly code: 'THROTTLED'; readonly message: string; readonly retryAfterSeconds: number };

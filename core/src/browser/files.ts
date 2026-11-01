@@ -1,8 +1,13 @@
 import type { ApplicationError } from '../errors';
 import { throttleMessage } from './upload/eta';
-import { FileActionKind, ConcurrentWorkersSchema, FileDeleteResponseSchema } from '../models';
+import {
+    FileActionKind,
+    ConcurrentWorkersSchema,
+    FileDeleteResponseSchema,
+    FileRestoreResponseSchema
+} from '../models';
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
-import type { FileGroup, UploadedChunk } from '../files';
+import { incompleteFileMessage, type FileGroup, type UploadedChunk } from '../files';
 import { schemaResult } from '../validation';
 import { apiJson, request } from './api';
 
@@ -12,6 +17,14 @@ export type { UploadProgress } from '../models';
 export { uploadFiles } from './upload/index';
 
 const FILES_API_URL = '/api/files';
+
+function chunksFor(item: FileGroup, action: FileActionKind): UploadedChunk[] {
+    if (action === FileActionKind.Delete) return [...item.chunks, ...item.duplicates];
+    if (action === FileActionKind.Restore || action === FileActionKind.DeleteForever)
+        return item.trashedChunks;
+
+    return item.chunks;
+}
 
 function fileRequest(
     item: FileGroup,
@@ -29,10 +42,7 @@ function fileRequest(
             name: item.name,
             fileHash: item.fileHash,
             fileId: item.fileId,
-            chunks:
-                action === FileActionKind.Delete
-                    ? [...item.chunks, ...item.duplicates]
-                    : item.chunks,
+            chunks: chunksFor(item, action),
             workers
         })
     };
@@ -41,7 +51,7 @@ function fileRequest(
 export function deleteFile(
     item: FileGroup,
     token: string,
-    onDeleted: (chunk: UploadedChunk) => void,
+    onTrashed: (chunk: UploadedChunk) => void,
     workers: number
 ): AsyncResult<void, ApplicationError> {
     return schemaResult(ConcurrentWorkersSchema, workers, 'Invalid concurrent worker count.')
@@ -65,7 +75,7 @@ export function deleteFile(
                         message: 'Invalid delete response.'
                     } as const);
 
-                onDeleted(known);
+                onTrashed({ ...known, trashedAt: chunk.trashedAt });
             }
 
             if (retryAfterSeconds !== undefined)
@@ -79,12 +89,74 @@ export function deleteFile(
         });
 }
 
+export function restoreFile(
+    item: FileGroup,
+    token: string,
+    onRestored: (chunk: UploadedChunk) => void
+): AsyncResult<void, ApplicationError> {
+    return apiJson(
+        FILES_API_URL,
+        fileRequest(item, FileActionKind.Restore, token, 1),
+        'Restore failed'
+    )
+        .andThen((data) => schemaResult(FileRestoreResponseSchema, data, 'Restore failed'))
+        .andThen(({ restored }): Result<void, ApplicationError> => {
+            for (const chunk of restored) {
+                const known = item.trashedChunks.find(
+                    (current) => current.mediaKey === chunk.mediaKey && current.sha1 === chunk.sha1
+                );
+                if (!known)
+                    return Err({
+                        code: 'INVALID_DELETE_RESPONSE',
+                        message: 'Invalid restore response.'
+                    } as const);
+
+                onRestored({ ...known, trashedAt: undefined });
+            }
+
+            return Ok(undefined);
+        });
+}
+
+export function deleteForeverFile(
+    item: FileGroup,
+    token: string,
+    onDeleted: (chunk: UploadedChunk) => void,
+    workers: number
+): AsyncResult<void, ApplicationError> {
+    return schemaResult(ConcurrentWorkersSchema, workers, 'Invalid concurrent worker count.')
+        .andThenAsync((concurrency) =>
+            apiJson(
+                FILES_API_URL,
+                fileRequest(item, FileActionKind.DeleteForever, token, concurrency),
+                'Permanent delete failed'
+            )
+        )
+        .andThen((data) => schemaResult(FileDeleteResponseSchema, data, 'Permanent delete failed'))
+        .andThen(({ deleted }): Result<void, ApplicationError> => {
+            for (const chunk of deleted) {
+                const known = item.trashedChunks.find(
+                    (current) => current.mediaKey === chunk.mediaKey && current.sha1 === chunk.sha1
+                );
+                if (!known)
+                    return Err({
+                        code: 'INVALID_DELETE_RESPONSE',
+                        message: 'Invalid delete response.'
+                    } as const);
+
+                onDeleted(known);
+            }
+
+            return Ok(undefined);
+        });
+}
+
 export function downloadFile(item: FileGroup, token: string): AsyncResult<Blob, ApplicationError> {
     return Ok(undefined).andThenAsync(async () => {
         if (!item.complete || item.chunkCount === null)
             return Err({
                 code: 'INCOMPLETE_DOWNLOAD_CHUNKS',
-                message: 'Load the remaining chunks before downloading.'
+                message: incompleteFileMessage(item)
             } as const);
 
         return request(

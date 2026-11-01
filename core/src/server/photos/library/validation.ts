@@ -12,7 +12,15 @@ export function isRemoteBmp(value: unknown): value is RemoteBmp {
         typeof item.sha1 === 'string' &&
         typeof item.size === 'number' &&
         typeof item.chunkIndex === 'number' &&
+        (item.chunkCount === undefined ||
+            (typeof item.chunkCount === 'number' &&
+                Number.isSafeInteger(item.chunkCount) &&
+                item.chunkCount > 0)) &&
         typeof item.isLast === 'boolean' &&
-        typeof item.at === 'number'
+        typeof item.at === 'number' &&
+        (item.trashedAt === undefined ||
+            (typeof item.trashedAt === 'number' &&
+                Number.isSafeInteger(item.trashedAt) &&
+                item.trashedAt >= 0))
     );
 }

@@ -8,7 +8,7 @@ import { guardedSend, readBody } from '../transport';
 import { bodyBytes } from '../../protobuf';
 import { pageRequest, parseLibraryPage, stateRequest, type ParsedLibraryPage } from './metadata';
 import { LIBRARY_STATE_REQUEST } from './requests';
-import { namedAsNonPhodrive, probeLibraryItem } from './probe';
+import { namedAsNonPhodrive, parseChunkName, probeLibraryItem } from './probe';
 
 const LIBRARY_URL = 'https://photosdata-pa.googleapis.com/6439526531001121323/18047484249733410717';
 const LIBRARY_PROBE_CONCURRENCY = 2;
@@ -39,6 +39,8 @@ export type LibraryPage = {
     nextPageToken: string;
     syncToken?: Buffer;
     deletedMediaKeys: string[];
+    trashedMediaKeys: string[];
+    skippedMediaKeys: string[];
 };
 
 function libraryRequest(
@@ -78,21 +80,9 @@ export function readLibraryPage(
         );
         const classified = syncToken ? received.mapErr(classifyDeltaError) : received;
 
-        return classified.andThenAsync(async (page) => {
-            const scanned = await scanLibraryPage(email, page, headers, fetcher);
-            if (!syncToken) return scanned;
-
-            return scanned.map((result) => ({
-                ...result,
-                deletedMediaKeys: [
-                    ...result.deletedMediaKeys,
-                    ...page.hiddenMediaKeys,
-                    ...page.items
-                        .filter((item) => namedAsNonPhodrive(item))
-                        .map((item) => item.mediaKey)
-                ]
-            }));
-        });
+        return classified.andThenAsync(async (page) =>
+            scanLibraryPage(email, page, headers, fetcher)
+        );
     });
 }
 
@@ -123,7 +113,13 @@ function scanLibraryPage(
             items,
             nextPageToken: page.nextPageToken,
             ...(page.syncToken ? { syncToken: page.syncToken } : {}),
-            deletedMediaKeys: page.deletedMediaKeys
+            deletedMediaKeys: page.deletedMediaKeys,
+            trashedMediaKeys: page.items
+                .filter((candidate) => candidate.trashed && parseChunkName(candidate.fileName))
+                .map((candidate) => candidate.mediaKey),
+            skippedMediaKeys: page.items
+                .filter((candidate) => !candidate.trashed && namedAsNonPhodrive(candidate))
+                .map((candidate) => candidate.mediaKey)
         });
     });
 }
