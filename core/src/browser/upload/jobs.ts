@@ -10,7 +10,7 @@ import {
 import type { UploadedChunk } from '../../files';
 import { Err, Ok, type Result } from 'results-ts';
 import { INVALID_UPLOAD_PROGRESS } from './request';
-import { remainingSeconds, transferRate, type RateSample } from './eta';
+import { estimatedRate, remainingSeconds, trimRateSamples, type RateSample } from './eta';
 
 export interface UploadJob {
     id: number;
@@ -121,7 +121,11 @@ export function createUploadEventHandler(
     function estimate(job: UploadJob): UploadJob {
         const jobSamples = samples[job.id];
 
-        if (job.status !== UploadJobStatus.Active || job.progress.phase !== UploadPhase.Uploading) {
+        if (
+            job.status !== UploadJobStatus.Active ||
+            job.progress.phase !== UploadPhase.Uploading ||
+            job.retryAt !== null
+        ) {
             jobSamples.length = 0;
 
             return { ...job, bytesPerSecond: 0, etaSeconds: null };
@@ -129,8 +133,9 @@ export function createUploadEventHandler(
 
         const { completed, reused, total } = job.progress;
         jobSamples.push({ at: now(), bytes: completed });
+        trimRateSamples(jobSamples);
 
-        const rate = transferRate(jobSamples);
+        const rate = estimatedRate(jobSamples);
         if (rate === null) return { ...job, bytesPerSecond: 0, etaSeconds: null };
 
         return {

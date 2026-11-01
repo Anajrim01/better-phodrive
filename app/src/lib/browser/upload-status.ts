@@ -31,7 +31,10 @@ export function uploadJobDetail(job: UploadJob, now = Date.now()): string {
     if (progress.phase === UploadPhase.Preparing) return `Preparing ${percent}%`;
     if (processed === progress.total) return 'Finishing upload';
 
-    const eta = job.etaSeconds === null ? '' : `, about ${formatDuration(job.etaSeconds)} left`;
+    const eta =
+        job.etaSeconds === null
+            ? ', estimating...'
+            : `, about ${formatDuration(Math.max(1, job.etaSeconds))} left`;
 
     return `Uploading ${percent}%${eta}`;
 }

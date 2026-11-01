@@ -24,7 +24,7 @@ test('a paused upload shows the throttle state and the remaining wait', () => {
     expect(detail).toBe('Paused at 50%, retrying in about 2 min');
 });
 
-test('an active upload appends the estimate only when one exists', () => {
+test('an active upload appends a measured estimate or names the uncertainty', () => {
     const withEstimate = uploadJobDetail(
         job({
             status: UploadJobStatus.Active,
@@ -40,7 +40,19 @@ test('an active upload appends the estimate only when one exists', () => {
     );
 
     expect(withEstimate).toBe('Uploading 50%, about 1 min 20 s left');
-    expect(withoutEstimate).toBe('Uploading 50%');
+    expect(withoutEstimate).toBe('Uploading 50%, estimating...');
+});
+
+test('a sub-second estimate never reads as zero seconds left', () => {
+    const detail = uploadJobDetail(
+        job({
+            status: UploadJobStatus.Active,
+            etaSeconds: 0.2,
+            progress: { phase: UploadPhase.Uploading, completed: 2, reused: 0, total: 4 }
+        })
+    );
+
+    expect(detail).toBe('Uploading 50%, about 1 s left');
 });
 
 test('completed and deduplicated uploads keep their existing wording', () => {

@@ -71,7 +71,7 @@
             const label = `Uploading ${remaining} ${remaining === 1 ? 'item' : 'items'}`;
             if (eta === null) return label;
 
-            return `${label}, about ${formatDuration(eta)} left`;
+            return `${label}, about ${formatDuration(Math.max(1, eta))} left`;
         }
         if (failures) return `${failures} ${failures === 1 ? 'upload' : 'uploads'} failed`;
         if (remaining)
