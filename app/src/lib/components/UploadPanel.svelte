@@ -65,14 +65,11 @@
     });
 
     const failures = $derived(jobs.filter((job) => job.status === UploadJobStatus.Error).length);
-    const heading = $derived.by(() => {
+    const status = $derived.by(() => {
         if (busy) {
             if (paused.length) return `${remaining} ${remaining === 1 ? 'item' : 'items'} waiting`;
 
-            const label = `Uploading ${remaining} ${remaining === 1 ? 'item' : 'items'}`;
-            if (eta === null) return label;
-
-            return `${label}, about ${formatDuration(Math.max(1, eta))} left`;
+            return `Uploading ${remaining} ${remaining === 1 ? 'item' : 'items'}`;
         }
         if (failures) return `${failures} ${failures === 1 ? 'upload' : 'uploads'} failed`;
         if (remaining)
@@ -80,6 +77,11 @@
 
         return `${jobs.length} ${jobs.length === 1 ? 'upload' : 'uploads'} complete`;
     });
+    const detail = $derived(
+        busy && !paused.length && eta !== null
+            ? `about ${formatDuration(Math.max(1, eta))} left`
+            : ''
+    );
 </script>
 
 <Sheet
@@ -91,15 +93,17 @@
     class="upload-sheet"
 >
     <header class="flex min-h-14 items-center gap-1 bg-surface py-1 pr-2 pl-4">
-        <div class="mr-auto min-w-0" aria-live="polite">
-            <h2 class="text-base font-medium">{heading}</h2>
+        <div class="mr-auto min-w-0">
+            <h2 class="text-base font-medium">
+                <span aria-live="polite">{status}</span>{#if detail}<span>, {detail}</span>{/if}
+            </h2>
             {#if busy && paused.length}
                 <p class="text-xs text-muted">Google Photos is limiting requests</p>
             {/if}
         </div>
         <IconButton
             size="s"
-            aria-label={collapsed ? 'Expand upload status' : 'Minimise upload status'}
+            aria-label={collapsed ? 'Expand upload status' : 'Minimize upload status'}
             aria-expanded={!collapsed}
             onclick={() => (collapsed = !collapsed)}
         >

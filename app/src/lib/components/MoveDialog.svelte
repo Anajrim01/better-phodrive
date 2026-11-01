@@ -26,8 +26,8 @@
         busy,
         headline = target?.kind === 'folder' ? 'Move folder' : 'Move file',
         note = target?.kind === 'folder'
-            ? 'This moves the folder in Phodrive only. Google Photos files stay where they are.'
-            : 'This moves the file in Phodrive only. Google Photos albums are unchanged.',
+            ? 'Only the Phodrive folder moves. The Google Photos album stays where it is.'
+            : 'Only the Phodrive file moves. The Google Photos album is unchanged.',
         disableWhenUnchanged = true,
         onmove,
         onclose

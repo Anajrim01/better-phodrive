@@ -51,7 +51,7 @@ test('an empty first page offers Load more instead of claiming Trash is empty', 
     });
 
     expect(screen.getByRole('status').textContent).toContain(
-        'No trashed files in the loaded pages.'
+        'No trashed files in the loaded pages'
     );
     expect(screen.getByRole('button', { name: 'Load more' })).toBeTruthy();
 });

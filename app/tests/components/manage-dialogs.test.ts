@@ -114,7 +114,7 @@ test('the rename dialog says the change is Phodrive-only and submits a new name'
 
     expect(
         screen.getByText(
-            'This renames the file in Phodrive only. The file in Google Photos is unchanged.'
+            'Only the Phodrive file name changes. The file in Google Photos keeps its name.'
         )
     ).toBeTruthy();
     const input = document.querySelector('input') as HTMLInputElement;
@@ -141,7 +141,7 @@ test('the rename dialog validates names and shows server errors', async () => {
 
     expect(
         screen.getByText(
-            'This renames the folder in Phodrive only. Google Photos files are not renamed.'
+            'Only the Phodrive folder name changes. The Google Photos album keeps its name.'
         )
     ).toBeTruthy();
     expect(screen.getByText('A folder with that name already exists here.')).toBeTruthy();
@@ -168,9 +168,7 @@ test('the move dialog says the change is Phodrive-only and lists folder destinat
     });
 
     expect(
-        screen.getByText(
-            'This moves the file in Phodrive only. Google Photos albums are unchanged.'
-        )
+        screen.getByText('Only the Phodrive file moves. The Google Photos album is unchanged.')
     ).toBeTruthy();
     expect((screen.getByRole('button', { name: 'Move' }) as HTMLButtonElement).disabled).toBe(true);
 });
@@ -224,7 +222,7 @@ test('folder delete warns about the count, Trash, and confirms', async () => {
 
     expect(
         screen.getByText(
-            'Reports and 2 loaded files will move to Google Photos trash. Every file under the folder is included, and you can restore them from Trash.'
+            'This moves every file under Reports to Google Photos trash, including 2 loaded files. You can restore them from Trash.'
         )
     ).toBeTruthy();
 
