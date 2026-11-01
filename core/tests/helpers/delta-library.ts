@@ -55,7 +55,7 @@ export function chunkItem(index: number): Item {
 export function pageBytes(
     items: readonly Item[],
     nextToken: string,
-    options: { syncToken?: string; deleted?: readonly string[] } = {}
+    options: { syncToken?: string; deleted?: readonly string[]; trashed?: readonly string[] } = {}
 ): Buffer {
     const entries = items.map((item) =>
         bytesField(
@@ -71,6 +71,15 @@ export function pageBytes(
                         bytesField(13, message(bytesField(1, Buffer.from(item.sha1, 'hex'))))
                     )
                 )
+            )
+        )
+    );
+    const trashed = (options.trashed ?? []).map((mediaKey) =>
+        bytesField(
+            2,
+            message(
+                bytesField(1, mediaKey),
+                bytesField(2, message(bytesField(16, message(numberField(3, 1)))))
             )
         )
     );
@@ -91,6 +100,7 @@ export function pageBytes(
         message(
             bytesField(1, nextToken),
             ...entries,
+            ...trashed,
             ...deletions,
             ...(options.syncToken ? [bytesField(6, options.syncToken)] : [])
         )

@@ -79,6 +79,7 @@ export function readLibraryPage(
                 ...result,
                 deletedMediaKeys: [
                     ...result.deletedMediaKeys,
+                    ...page.hiddenMediaKeys,
                     ...page.items
                         .filter((item) => namedAsNonPhodrive(item))
                         .map((item) => item.mediaKey)

@@ -45,7 +45,13 @@ export type LibraryCandidate = {
     fileName?: string;
 };
 
-function libraryItem(value: Buffer): Result<LibraryCandidate | null, ServerError> {
+type ParsedLibraryItem = { candidate: LibraryCandidate } | { hiddenMediaKey: string };
+
+function itemMediaKey(item: Field[]): Result<string, ServerError> {
+    return bytes(item, 1).andThen(utf8);
+}
+
+function libraryItem(value: Buffer): Result<ParsedLibraryItem | null, ServerError> {
     const parsed = parse(value).andThen((item) =>
         bytes(item, 2)
             .andThen(parse)
@@ -56,10 +62,14 @@ function libraryItem(value: Buffer): Result<LibraryCandidate | null, ServerError
     );
 
     return visibility.andThen(({ item, details, visible }) => {
-        if (!visible) return Ok(null);
+        if (!visible) {
+            return itemMediaKey(item).map((mediaKey): ParsedLibraryItem | null =>
+                mediaKey ? { hiddenMediaKey: mediaKey } : null
+            );
+        }
 
         return libraryMetadata(item, details).map(
-            ({ fingerprint, size, at, mediaKey, fileName }) => {
+            ({ fingerprint, size, at, mediaKey, fileName }): ParsedLibraryItem | null => {
                 const sha1 = fingerprint.toString('hex');
                 if (
                     !Sha1HexSchema.safeParse(sha1).success ||
@@ -70,7 +80,7 @@ function libraryItem(value: Buffer): Result<LibraryCandidate | null, ServerError
                 )
                     return null;
 
-                return { size, at, mediaKey, sha1, fileName };
+                return { candidate: { size, at, mediaKey, sha1, fileName } };
             }
         );
     });
@@ -123,6 +133,7 @@ function fileName(details: Field[]): { fileName?: string } {
 
 export type ParsedLibraryPage = {
     items: LibraryCandidate[];
+    hiddenMediaKeys: string[];
     nextPageToken: string;
     syncToken?: Buffer;
     deletedMediaKeys: string[];
@@ -151,13 +162,16 @@ export function parseLibraryPage(data: Buffer): Result<ParsedLibraryPage, Server
         .andThen(parse)
         .map((fields) => {
             const items: LibraryCandidate[] = [];
+            const hiddenMediaKeys: string[] = [];
             const deletedMediaKeys: string[] = [];
 
             for (const entry of fields) {
                 if (entry.number === 2 && typeof entry.value !== 'number') {
                     const parsed = libraryItem(entry.value);
                     parsed.inspect((item) => {
-                        if (item) items.push(item);
+                        if (!item) return;
+                        if ('hiddenMediaKey' in item) hiddenMediaKeys.push(item.hiddenMediaKey);
+                        else items.push(item.candidate);
                     });
                 }
 
@@ -174,6 +188,7 @@ export function parseLibraryPage(data: Buffer): Result<ParsedLibraryPage, Server
 
             return {
                 items,
+                hiddenMediaKeys,
                 nextPageToken:
                     next && typeof next.value !== 'number' ? next.value.toString('base64url') : '',
                 ...(sync && typeof sync.value !== 'number' && sync.value.length

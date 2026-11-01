@@ -115,6 +115,21 @@ test('a chunk renamed without the marker is removed by the delta', async () => {
     expect(readAccountState(EMAIL)?.items.has('chunk-0')).toBe(false);
 });
 
+test('a trashed chunk in a delta is removed from the index', async () => {
+    const items = Array.from({ length: 40 }, (_, index) => chunkItem(index));
+    const counts = emptyCounts();
+    const delta = pageBytes([], '', { syncToken: SYNC_TWO, trashed: ['chunk-0'] });
+    const fetcher = fetcherFor(items, [pageBytes(items, '', { syncToken: SYNC_ONE })], counts, {
+        delta
+    });
+
+    await syncLibrary(EMAIL, TOKEN, false, fetcher);
+    const warm = await syncLibrary(EMAIL, TOKEN, false, fetcher);
+
+    expect(warm.unwrap().deleted).toEqual(['chunk-0']);
+    expect(readAccountState(EMAIL)?.items.has('chunk-0')).toBe(false);
+});
+
 test('a 429 delta propagates without a full re-crawl', async () => {
     const items = Array.from({ length: 40 }, (_, index) => chunkItem(index));
     const counts = emptyCounts();
