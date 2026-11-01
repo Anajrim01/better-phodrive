@@ -3,13 +3,24 @@ import { dirname } from 'node:path';
 import type { RemoteBmp } from '../../../models';
 import { isRemoteBmp } from './validation';
 
-const LIBRARY_STATE_VERSION = 1;
+const LIBRARY_STATE_VERSION = 2;
 const LIBRARY_STATE_FLUSH_DELAY_MS = 1_000;
 const LIBRARY_STATE_FLUSH_INTERVAL_MS = 30_000;
+export const LIBRARY_STATE_LOG_LIMIT = 64;
+export const LIBRARY_STATE_LOG_MAX_AGE_MS = 24 * 60 * 60 * 1_000;
+
+export type LibraryChange = {
+    revision: number;
+    at: number;
+    items: RemoteBmp[];
+    deleted: string[];
+};
 
 export type LibraryAccountState = {
     syncToken: Buffer;
+    revision: number;
     items: Map<string, RemoteBmp>;
+    log: LibraryChange[];
 };
 
 const accounts = new Map<string, LibraryAccountState>();
@@ -52,17 +63,68 @@ function load(): void {
         for (const [email, value] of Object.entries(stored.accounts)) {
             if (!value || typeof value !== 'object') continue;
 
-            const { syncToken, items } = value as { syncToken?: unknown; items?: unknown };
-            if (typeof syncToken !== 'string' || !syncToken || !Array.isArray(items)) continue;
+            const { syncToken, revision, items, log } = value as {
+                syncToken?: unknown;
+                revision?: unknown;
+                items?: unknown;
+                log?: unknown;
+            };
+            if (
+                typeof syncToken !== 'string' ||
+                !syncToken ||
+                !Array.isArray(items) ||
+                typeof revision !== 'number' ||
+                !Number.isSafeInteger(revision) ||
+                revision < 0
+            )
+                continue;
 
             const saved = new Map<string, RemoteBmp>();
             for (const item of items) {
                 if (isRemoteBmp(item)) saved.set(item.mediaKey, item);
             }
 
+            const changes: LibraryChange[] = [];
+            if (Array.isArray(log)) {
+                for (const entry of log) {
+                    if (!entry || typeof entry !== 'object') continue;
+
+                    const {
+                        revision: entryRevision,
+                        at,
+                        items: changed,
+                        deleted
+                    } = entry as {
+                        revision?: unknown;
+                        at?: unknown;
+                        items?: unknown;
+                        deleted?: unknown;
+                    };
+                    if (
+                        typeof entryRevision !== 'number' ||
+                        !Number.isSafeInteger(entryRevision) ||
+                        typeof at !== 'number' ||
+                        !Array.isArray(changed) ||
+                        !Array.isArray(deleted)
+                    )
+                        continue;
+
+                    changes.push({
+                        revision: entryRevision,
+                        at,
+                        items: changed.filter(isRemoteBmp),
+                        deleted: deleted.filter(
+                            (mediaKey): mediaKey is string => typeof mediaKey === 'string'
+                        )
+                    });
+                }
+            }
+
             accounts.set(email.toLowerCase(), {
                 syncToken: Buffer.from(syncToken, 'base64url'),
-                items: saved
+                revision,
+                items: saved,
+                log: changes
             });
         }
     } catch {
@@ -79,7 +141,9 @@ export function flushLibraryState(): void {
                 email,
                 {
                     syncToken: account.syncToken.toString('base64url'),
-                    items: [...account.items.values()]
+                    revision: account.revision,
+                    items: [...account.items.values()],
+                    log: account.log
                 }
             ])
         );
@@ -118,17 +182,14 @@ export function readAccountState(email: string): LibraryAccountState | undefined
     return accounts.get(email.toLowerCase());
 }
 
-export function writeAccountState(
-    email: string,
-    syncToken: Buffer,
-    items: Iterable<RemoteBmp>
-): void {
+export function readAccountRevision(email: string): number {
+    return readAccountState(email)?.revision ?? 0;
+}
+
+export function writeAccountState(email: string, state: LibraryAccountState): void {
     load();
 
-    accounts.set(email.toLowerCase(), {
-        syncToken,
-        items: new Map([...items].map((item) => [item.mediaKey, item]))
-    });
+    accounts.set(email.toLowerCase(), state);
     dirty = true;
     scheduleFlush();
 }
@@ -138,6 +199,12 @@ export function updateAccountSyncToken(email: string, syncToken: Buffer): void {
 
     const account = accounts.get(email.toLowerCase());
     if (account) account.syncToken = syncToken;
+}
+
+export function trimChangeLog(log: readonly LibraryChange[], now = Date.now()): LibraryChange[] {
+    return log
+        .filter((entry) => now - entry.at <= LIBRARY_STATE_LOG_MAX_AGE_MS)
+        .slice(-LIBRARY_STATE_LOG_LIMIT);
 }
 
 export function deleteAccountState(email: string): void {

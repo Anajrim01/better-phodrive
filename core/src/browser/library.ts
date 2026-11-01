@@ -18,6 +18,7 @@ export type GroupLibrarySnapshot = {
     chunks: UploadedChunk[];
     accounts: GroupAccountState[];
     partial: boolean;
+    revisions: Record<string, number>;
 };
 
 export function readLibraryPage(
@@ -47,6 +48,7 @@ export function readLibrarySnapshot(
         const pageTokens = new Set<string>();
         let nextPageToken = '';
         let pages = 0;
+        let revision: number | undefined;
 
         for (let index = 0; index < Math.max(1, pageCount); index++) {
             pageTokens.add(nextPageToken);
@@ -63,6 +65,7 @@ export function readLibrarySnapshot(
 
                 for (const item of page.items) items.set(item.mediaKey, item);
                 nextPageToken = page.nextPageToken;
+                revision = page.revision ?? revision;
                 pages++;
 
                 return Ok(undefined);
@@ -72,21 +75,27 @@ export function readLibrarySnapshot(
             if (!nextPageToken) break;
         }
 
-        return Ok({ items: [...items.values()], nextPageToken, pages });
+        return Ok({
+            items: [...items.values()],
+            nextPageToken,
+            pages,
+            ...(revision !== undefined ? { revision } : {})
+        });
     });
 }
 
 export function readLibrarySync(
     email: string,
     token: string,
-    force = false
+    force = false,
+    revision = 0
 ): AsyncResult<LibrarySyncResponse, ApplicationError> {
     return apiJson(
         '/api/library/sync',
         {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ email, token, force })
+            body: JSON.stringify({ email, token, force, revision })
         },
         'Could not sync files.'
     ).andThen((value) => schemaResult(LibrarySyncResponseSchema, value, 'Could not sync files.'));
@@ -121,6 +130,7 @@ async function readMemberPages(email: string, token: string): Promise<GroupPage>
     const items = new Map<string, RemoteBmp>();
     const pageTokens = new Set<string>();
     let pageToken = '';
+    let revision: number | undefined;
 
     do {
         pageTokens.add(pageToken);
@@ -140,24 +150,27 @@ async function readMemberPages(email: string, token: string): Promise<GroupPage>
             };
 
         for (const item of page.items) items.set(item.mediaKey, item);
+        revision = page.revision ?? revision;
         pageToken = page.nextPageToken;
     } while (pageToken);
 
-    return { email, items: [...items.values()] };
+    return { email, items: [...items.values()], ...(revision !== undefined ? { revision } : {}) };
 }
 
 async function readMemberSync(
     email: string,
     token: string,
     loaded: readonly UploadedChunk[],
-    force: boolean
+    force: boolean,
+    revision: number
 ): Promise<GroupPage> {
-    const received = await readLibrarySync(email, token, force);
+    const received = await readLibrarySync(email, token, force, revision);
 
     return received.match<GroupPage>({
         Ok: (update) => ({
             email,
-            items: update.full ? update.items : applyLibraryDelta(loaded, email, update)
+            items: update.full ? update.items : applyLibraryDelta(loaded, email, update),
+            revision: update.revision
         }),
         Err: (error) => ({ email, error })
     });
@@ -209,11 +222,16 @@ async function collectGroupPages(
 
 function groupSnapshot(pages: readonly GroupPage[]): GroupLibrarySnapshot {
     const merged = mergeGroupLibrary(pages);
+    const revisions: Record<string, number> = {};
+    for (const page of pages) {
+        if (page.revision !== undefined) revisions[page.email.toLowerCase()] = page.revision;
+    }
 
     return {
         chunks: merged.items,
         accounts: merged.accounts,
-        partial: merged.partial
+        partial: merged.partial,
+        revisions
     };
 }
 
@@ -236,7 +254,8 @@ export function readGroupLibraryUpdates(
     members: readonly { email: string; token: string; pausedUntil?: number }[],
     missing: readonly string[] = [],
     loaded: readonly UploadedChunk[] = [],
-    previousAccounts: readonly GroupAccountState[] = []
+    previousAccounts: readonly GroupAccountState[] = [],
+    revisions: ReadonlyMap<string, number> = new Map()
 ): AsyncResult<GroupLibrarySnapshot, ApplicationError> {
     return Ok(undefined).andThenAsync(async () => {
         const complete = new Set(
@@ -244,14 +263,17 @@ export function readGroupLibraryUpdates(
                 .filter((account) => account.status === 'ok')
                 .map((account) => account.email.toLowerCase())
         );
-        const updates = await collectGroupPages(members, missing, (member) =>
-            readMemberSync(
+        const updates = await collectGroupPages(members, missing, (member) => {
+            const email = member.email.toLowerCase();
+
+            return readMemberSync(
                 member.email,
                 member.token,
                 loaded,
-                !complete.has(member.email.toLowerCase())
-            )
-        );
+                !complete.has(email),
+                revisions.get(email) ?? 0
+            );
+        });
         const kept: GroupPage[] = members
             .filter((member) =>
                 updates.some(

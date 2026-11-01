@@ -5,10 +5,13 @@ import { z } from 'zod';
 import type { RequestHandler } from './$types';
 
 const LibrarySyncRequestSchema = AccountRequestSchema.extend({
-    force: z.boolean().optional()
+    force: z.boolean().optional(),
+    revision: z.int().nonnegative().optional()
 });
 
 export const POST: RequestHandler = ({ request }) =>
     readJsonRequest(request, LibrarySyncRequestSchema, 'Invalid request')
-        .andThenAsync((input) => syncLibrary(input.email, input.token, input.force ?? false))
+        .andThenAsync((input) =>
+            syncLibrary(input.email, input.token, input.force ?? false, input.revision ?? 0)
+        )
         .match({ Ok: jsonResponse, Err: errorResponse });

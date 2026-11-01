@@ -89,6 +89,7 @@ export type GroupPage = {
     items?: readonly RemoteBmp[];
     paused?: boolean;
     error?: GroupPageError;
+    revision?: number;
 };
 
 export type GroupLibrary = {

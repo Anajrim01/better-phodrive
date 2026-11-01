@@ -3,6 +3,7 @@ import { Err, Ok, type AsyncResult } from 'results-ts';
 import type { RemoteBmp } from '../../../models';
 import { photosFetch, type Fetcher } from '../../fetcher';
 import { readLibraryPage } from './page';
+import { readAccountRevision } from './state';
 
 export { clearProbeCache, configureProbeCache, flushProbeCache } from './probe-cache';
 export { clearLibraryState, configureLibraryState, flushLibraryState } from './state';
@@ -15,7 +16,7 @@ export function listBmps(
     token: string,
     pageToken = '',
     fetcher: Fetcher = photosFetch
-): AsyncResult<{ items: RemoteBmp[]; nextPageToken: string }, ServerError> {
+): AsyncResult<{ items: RemoteBmp[]; nextPageToken: string; revision?: number }, ServerError> {
     const validated =
         pageToken.length > MAX_PAGE_TOKEN_LENGTH ||
         (pageToken && !/^[A-Za-z0-9_-]+$/.test(pageToken))
@@ -26,6 +27,7 @@ export function listBmps(
         .andThenAsync(() => readLibraryPage(email, token, pageToken, undefined, fetcher))
         .map((page) => ({
             items: page.items,
-            nextPageToken: page.nextPageToken
+            nextPageToken: page.nextPageToken,
+            revision: readAccountRevision(email)
         }));
 }

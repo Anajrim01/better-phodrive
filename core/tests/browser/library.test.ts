@@ -50,7 +50,8 @@ test('a library sync posts the force flag and parses the delta', async () => {
         Response.json({
             items: [{ ...remoteFile('changed'), originalName: 'renamed.bin' }],
             deleted: ['removed'],
-            full: false
+            full: false,
+            revision: 2
         })
     );
 
@@ -60,12 +61,18 @@ test('a library sync posts the force flag and parses the delta', async () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0][0]).toBe('/api/library/sync');
     expect(fetchMock.mock.calls[0][1]?.body).toBe(
-        JSON.stringify({ email: 'test@example.com', token: 'aas_et/test', force: true })
+        JSON.stringify({
+            email: 'test@example.com',
+            token: 'aas_et/test',
+            force: true,
+            revision: 0
+        })
     );
     expect(snapshot.items.map((item) => item.mediaKey)).toEqual(['changed']);
     expect(snapshot.items[0]?.originalName).toBe('renamed.bin');
     expect(snapshot.deleted).toEqual(['removed']);
     expect(snapshot.full).toBe(false);
+    expect(snapshot.revision).toBe(2);
 });
 
 test('a library delta replaces changed items, removes deletions, and keeps the rest', () => {

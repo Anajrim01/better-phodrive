@@ -17,6 +17,7 @@ export type LibraryState = {
     loadFailed: boolean;
     retryAt: number;
     folder: string;
+    revisions: Map<string, number>;
 };
 
 export function resetLibraryPages(
@@ -30,31 +31,60 @@ export function resetLibraryPages(
 }
 
 export function applyLibrarySync(
-    state: Pick<LibraryState, 'chunks' | 'nextPageToken' | 'loadedPages'>,
+    state: Pick<
+        LibraryState,
+        | 'chunks'
+        | 'nextPageToken'
+        | 'loadedPages'
+        | 'revisions'
+        | 'loadFailed'
+        | 'retryAt'
+        | 'folder'
+    >,
     email: string,
-    update: { items: readonly RemoteBmp[]; deleted: readonly string[]; full: boolean }
-): Pick<LibraryState, 'chunks' | 'nextPageToken' | 'loadedPages'> {
-    if (update.full)
-        return {
-            chunks: update.items.map((item) => ({ ...item, email })),
-            nextPageToken: '',
-            loadedPages: 1
-        };
+    update: {
+        items: readonly RemoteBmp[];
+        deleted: readonly string[];
+        full: boolean;
+        revision: number;
+    },
+    pageTokens: Set<string>,
+    hasFolder: (path: string) => boolean
+): void {
+    state.revisions.set(email.toLowerCase(), update.revision);
+    state.loadFailed = false;
+    state.retryAt = 0;
 
-    return {
-        chunks: applyLibraryDelta(state.chunks, email, update),
-        nextPageToken: state.nextPageToken,
-        loadedPages: state.loadedPages
-    };
+    if (update.full) {
+        state.chunks = update.items.map((item) => ({ ...item, email }));
+        state.nextPageToken = '';
+        state.loadedPages = 1;
+        pageTokens.clear();
+    } else {
+        state.chunks = applyLibraryDelta(state.chunks, email, update);
+    }
+
+    if (state.folder && !hasFolder(state.folder)) state.folder = '';
 }
 
 export function applyLibrarySnapshot(
     state: Pick<
         LibraryState,
-        'chunks' | 'nextPageToken' | 'loadedPages' | 'loadFailed' | 'retryAt' | 'folder'
+        | 'chunks'
+        | 'nextPageToken'
+        | 'loadedPages'
+        | 'loadFailed'
+        | 'retryAt'
+        | 'folder'
+        | 'revisions'
     >,
     email: string,
-    snapshot: { items: readonly RemoteBmp[]; nextPageToken: string; pages: number },
+    snapshot: {
+        items: readonly RemoteBmp[];
+        nextPageToken: string;
+        pages: number;
+        revision?: number;
+    },
     pageTokens: Set<string>,
     hasFolder: (path: string) => boolean
 ): void {
@@ -65,6 +95,8 @@ export function applyLibrarySnapshot(
     state.loadedPages = snapshot.pages;
     pageTokens.clear();
     if (snapshot.nextPageToken) pageTokens.add(snapshot.nextPageToken);
+    if (snapshot.revision !== undefined)
+        state.revisions.set(email.toLowerCase(), snapshot.revision);
     if (state.folder && !hasFolder(state.folder)) state.folder = '';
 }
 
@@ -92,5 +124,8 @@ export function applyGroupSnapshot(
     state.loadedPages = 1;
     onAccounts(snapshot.accounts);
     state.retryAt = nextRetryAt(snapshot.accounts);
+    for (const [email, revision] of Object.entries(snapshot.revisions ?? {})) {
+        state.revisions.set(email.toLowerCase(), revision);
+    }
     if (state.folder && !hasFolder(state.folder)) state.folder = '';
 }

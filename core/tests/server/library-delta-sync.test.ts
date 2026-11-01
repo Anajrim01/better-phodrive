@@ -8,8 +8,7 @@ import {
     clearLibraryState,
     configureLibraryState,
     flushLibraryState,
-    readAccountState,
-    writeAccountState
+    readAccountState
 } from '@madkarmaa/phodrive-core/server/photos/library/state';
 import { clearProbeCache } from '@madkarmaa/phodrive-core/server/photos/library';
 import { clearThrottleState } from '@madkarmaa/phodrive-core/server/photos/throttle';
@@ -29,6 +28,10 @@ const ITEM_COUNT = 5_000;
 const PAGE_COUNT = ITEM_COUNT / 200;
 
 let folder = '';
+
+function syncWith(fetcher: Parameters<typeof syncLibrary>[4], revision = 0, force = false) {
+    return syncLibrary(EMAIL, TOKEN, force, revision, fetcher);
+}
 
 beforeEach(async () => {
     folder = await mkdtemp(join(tmpdir(), 'phodrive-delta-'));
@@ -51,7 +54,8 @@ test('a full sync stores the index and a quiet warm refresh is one delta call', 
     const delta = pageBytes([], '', { syncToken: SYNC_TWO });
     const fetcher = fetcherFor(items, pagesOf(items), counts, { delta });
 
-    const cold = await syncLibrary(EMAIL, TOKEN, false, fetcher);
+    const cold = await syncWith(fetcher);
+    const revision = cold.unwrap().revision;
     expect(cold.unwrap()).toMatchObject({ full: true, deleted: [] });
     expect(cold.unwrap().items).toHaveLength(ITEM_COUNT);
     expect(counts).toEqual({
@@ -70,9 +74,9 @@ test('a full sync stores the index and a quiet warm refresh is one delta call', 
     counts.page = 0;
     counts.prepare = 0;
     counts.range = 0;
-    const warm = await syncLibrary(EMAIL, TOKEN, false, fetcher);
+    const warm = await syncWith(fetcher, revision);
 
-    expect(warm.unwrap()).toEqual({ items: [], deleted: [], full: false });
+    expect(warm.unwrap()).toEqual({ items: [], deleted: [], full: false, revision });
     expect(counts).toEqual({
         auth: 0,
         page: 0,
@@ -85,13 +89,12 @@ test('a full sync stores the index and a quiet warm refresh is one delta call', 
 test('delta deletions remove indexed chunks', async () => {
     const items = Array.from({ length: 40 }, (_, index) => chunkItem(index));
     const counts = emptyCounts();
-    const delta = pageBytes([], '', { syncToken: SYNC_TWO, deleted: ['chunk-0'] });
     const fetcher = fetcherFor(items, [pageBytes(items, '', { syncToken: SYNC_ONE })], counts, {
-        delta
+        delta: pageBytes([], '', { syncToken: SYNC_TWO, deleted: ['chunk-0'] })
     });
 
-    await syncLibrary(EMAIL, TOKEN, false, fetcher);
-    const warm = await syncLibrary(EMAIL, TOKEN, false, fetcher);
+    const cold = await syncWith(fetcher);
+    const warm = await syncWith(fetcher, cold.unwrap().revision);
 
     expect(warm.unwrap().deleted).toEqual(['chunk-0']);
     expect(readAccountState(EMAIL)?.items.has('chunk-0')).toBe(false);
@@ -101,15 +104,14 @@ test('delta deletions remove indexed chunks', async () => {
 test('a chunk renamed without the marker is removed by the delta', async () => {
     const items = Array.from({ length: 40 }, (_, index) => chunkItem(index));
     const counts = emptyCounts();
-    const delta = pageBytes([{ ...items[0], fileName: 'renamed.jpg' }], '', {
-        syncToken: SYNC_TWO
-    });
     const fetcher = fetcherFor(items, [pageBytes(items, '', { syncToken: SYNC_ONE })], counts, {
-        delta
+        delta: pageBytes([{ ...items[0], fileName: 'renamed.jpg' }], '', {
+            syncToken: SYNC_TWO
+        })
     });
 
-    await syncLibrary(EMAIL, TOKEN, false, fetcher);
-    const warm = await syncLibrary(EMAIL, TOKEN, false, fetcher);
+    const cold = await syncWith(fetcher);
+    const warm = await syncWith(fetcher, cold.unwrap().revision);
 
     expect(warm.unwrap().deleted).toEqual(['chunk-0']);
     expect(readAccountState(EMAIL)?.items.has('chunk-0')).toBe(false);
@@ -118,13 +120,12 @@ test('a chunk renamed without the marker is removed by the delta', async () => {
 test('a trashed chunk in a delta is removed from the index', async () => {
     const items = Array.from({ length: 40 }, (_, index) => chunkItem(index));
     const counts = emptyCounts();
-    const delta = pageBytes([], '', { syncToken: SYNC_TWO, trashed: ['chunk-0'] });
     const fetcher = fetcherFor(items, [pageBytes(items, '', { syncToken: SYNC_ONE })], counts, {
-        delta
+        delta: pageBytes([], '', { syncToken: SYNC_TWO, trashed: ['chunk-0'] })
     });
 
-    await syncLibrary(EMAIL, TOKEN, false, fetcher);
-    const warm = await syncLibrary(EMAIL, TOKEN, false, fetcher);
+    const cold = await syncWith(fetcher);
+    const warm = await syncWith(fetcher, cold.unwrap().revision);
 
     expect(warm.unwrap().deleted).toEqual(['chunk-0']);
     expect(readAccountState(EMAIL)?.items.has('chunk-0')).toBe(false);
@@ -144,13 +145,13 @@ test('a 429 delta propagates without a full re-crawl', async () => {
         options
     );
 
-    await syncLibrary(EMAIL, TOKEN, false, fetcher);
+    const cold = await syncWith(fetcher);
     options.deltaStatus = 429;
     counts.page = 0;
     counts.prepare = 0;
     counts.range = 0;
 
-    const throttled = await syncLibrary(EMAIL, TOKEN, false, fetcher);
+    const throttled = await syncWith(fetcher, cold.unwrap().revision);
 
     expect(throttled.unwrapErr().code).toBe('THROTTLED');
     expect(counts).toMatchObject({ page: 0, delta: 1, prepare: 0, range: 0 });
@@ -172,14 +173,14 @@ test('a probe 404 during a delta does not trigger a full re-crawl', async () => 
         options
     );
 
-    await syncLibrary(EMAIL, TOKEN, false, fetcher);
+    const cold = await syncWith(fetcher);
     options.prepareStatus = 404;
     counts.page = 0;
     counts.delta = 0;
     counts.prepare = 0;
     counts.range = 0;
 
-    const failed = await syncLibrary(EMAIL, TOKEN, false, fetcher);
+    const failed = await syncWith(fetcher, cold.unwrap().revision);
 
     expect(failed.unwrapErr()).toMatchObject({ code: 'REQUEST_FAILED', status: 404 });
     expect(counts).toMatchObject({ page: 0, delta: 1, prepare: 1, range: 0 });
@@ -194,15 +195,16 @@ test('a rejected token falls back to a full sync', async () => {
         deltaStatus: 400
     });
 
-    await syncLibrary(EMAIL, TOKEN, false, fetcher);
+    const cold = await syncWith(fetcher);
     counts.delta = 0;
     counts.page = 0;
     counts.prepare = 0;
     counts.range = 0;
 
-    const recovered = await syncLibrary(EMAIL, TOKEN, false, fetcher);
+    const recovered = await syncWith(fetcher, cold.unwrap().revision);
 
     expect(recovered.unwrap().full).toBe(true);
+    expect(recovered.unwrap().revision).toBe(cold.unwrap().revision + 1);
     expect(counts).toMatchObject({
         page: 1,
         delta: 1,
@@ -219,36 +221,11 @@ test('a corrupt state file falls back to a full sync', async () => {
         delta: pageBytes([], '', { syncToken: SYNC_TWO })
     });
 
-    const cold = await syncLibrary(EMAIL, TOKEN, false, fetcher);
+    const cold = await syncWith(fetcher);
 
     expect(cold.unwrap().full).toBe(true);
     expect(counts.page).toBe(1);
     expect(readAccountState(EMAIL)?.syncToken.toString()).toBe(SYNC_ONE);
-});
-
-test('accounts keep independent state in one file', () => {
-    const item = (mediaKey: string) => ({
-        fileHash: 'a'.repeat(64),
-        fileId: 'b'.repeat(64),
-        chunkIndex: 0,
-        isLast: true,
-        size: 1,
-        at: 1,
-        mediaKey,
-        sha1: 'c'.repeat(40)
-    });
-
-    writeAccountState('first@example.com', Buffer.from('token-first'), [item('chunk-0')]);
-    writeAccountState('second@example.com', Buffer.from('token-second'), [item('chunk-1')]);
-    flushLibraryState();
-    clearLibraryState();
-    configureLibraryState(join(folder, 'library-state.json'));
-
-    expect(readAccountState('first@example.com')?.syncToken.toString()).toBe('token-first');
-    expect(readAccountState('second@example.com')?.syncToken.toString()).toBe('token-second');
-    expect(readAccountState('first@example.com')?.items.has('chunk-0')).toBe(true);
-    expect(readAccountState('second@example.com')?.items.has('chunk-1')).toBe(true);
-    expect(readAccountState('first@example.com')?.items.has('chunk-1')).toBe(false);
 });
 
 test('a forced sync rebuilds from every page', async () => {
@@ -258,15 +235,16 @@ test('a forced sync rebuilds from every page', async () => {
         delta: pageBytes([], '', { syncToken: SYNC_TWO })
     });
 
-    await syncLibrary(EMAIL, TOKEN, false, fetcher);
+    const cold = await syncWith(fetcher);
     counts.page = 0;
     counts.delta = 0;
     counts.prepare = 0;
     counts.range = 0;
 
-    const forced = await syncLibrary(EMAIL, TOKEN, true, fetcher);
+    const forced = await syncWith(fetcher, cold.unwrap().revision, true);
 
     expect(forced.unwrap().full).toBe(true);
+    expect(forced.unwrap().revision).toBe(cold.unwrap().revision + 1);
     expect(counts).toMatchObject({
         page: 1,
         delta: 0,

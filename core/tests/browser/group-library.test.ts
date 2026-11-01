@@ -129,7 +129,8 @@ test('a group refresh syncs each loaded member once and keeps items already load
         return Response.json({
             items: [remote(`${body.email}-new`)],
             deleted: [],
-            full: false
+            full: false,
+            revision: 1
         });
     });
     const members = [
@@ -158,11 +159,15 @@ test('a group refresh syncs each loaded member once and keeps items already load
     ]);
     expect(snapshot.accounts.every((account) => account.status === 'ok')).toBe(true);
     expect(snapshot.partial).toBe(false);
+    expect(snapshot.revisions).toEqual({
+        'first@example.com': 1,
+        'second@example.com': 1
+    });
 });
 
 test('a group refresh matches loaded items regardless of email case', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-        Response.json({ items: [remote('fresh')], deleted: [], full: false })
+        Response.json({ items: [remote('fresh')], deleted: [], full: false, revision: 1 })
     );
     const loaded = [{ ...remote('kept'), email: 'owner@example.com' }];
 
@@ -187,7 +192,7 @@ test('a failed group member keeps its loaded items and reports the pause', async
                 { status: 429 }
             );
 
-        return Response.json({ items: [remote('fresh')], deleted: [], full: false });
+        return Response.json({ items: [remote('fresh')], deleted: [], full: false, revision: 1 });
     });
     const members = [
         { email: 'first@example.com', token: 'aas_et/first' },
@@ -223,7 +228,8 @@ test('a member that recovers from a pause requests a forced full sync', async ()
         Response.json({
             items: [remote('page-zero'), remote('page-one')],
             deleted: [],
-            full: true
+            full: true,
+            revision: 1
         })
     );
     const loaded = [{ ...remote('kept'), email: 'owner@example.com' }];

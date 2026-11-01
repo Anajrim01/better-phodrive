@@ -4,16 +4,20 @@ import { SERVER_ERRORS, type ServerError } from '../../errors';
 import { photosFetch, type Fetcher } from '../../fetcher';
 import { readLibraryPage, type LibraryPage } from './page';
 import {
+    LIBRARY_STATE_LOG_MAX_AGE_MS,
     deleteAccountState,
     readAccountState,
+    trimChangeLog,
     updateAccountSyncToken,
-    writeAccountState
+    writeAccountState,
+    type LibraryAccountState
 } from './state';
 
 export type LibrarySyncResult = {
     items: RemoteBmp[];
     deleted: string[];
     full: boolean;
+    revision: number;
 };
 
 type PageRead = { page: LibraryPage } | { error: ServerError };
@@ -92,17 +96,75 @@ function fetchDelta(
     });
 }
 
+function fullResult(revision: number, items: Iterable<RemoteBmp>): LibrarySyncResult {
+    return { items: [...items], deleted: [], full: true, revision };
+}
+
 function applyFullSync(
     email: string,
     token: string,
+    revision: number,
     fetcher: Fetcher
 ): AsyncResult<LibrarySyncResult, ServerError> {
     return fetchFullSync(email, token, fetcher).map((value) => {
-        if (value.syncToken) writeAccountState(email, value.syncToken, value.items);
-        else deleteAccountState(email);
+        if (!value.syncToken) {
+            deleteAccountState(email);
 
-        return { items: value.items, deleted: [], full: true };
+            return fullResult(revision, value.items);
+        }
+
+        const state: LibraryAccountState = {
+            syncToken: value.syncToken,
+            revision,
+            items: new Map(value.items.map((item) => [item.mediaKey, item])),
+            log: []
+        };
+        writeAccountState(email, state);
+
+        return fullResult(revision, value.items);
     });
+}
+
+function changesSince(
+    state: LibraryAccountState,
+    cursor: number
+): { items: RemoteBmp[]; deleted: string[] } | null {
+    if (cursor <= 0 || cursor > state.revision) return null;
+    if (cursor === state.revision) return { items: [], deleted: [] };
+
+    const now = Date.now();
+    const entries = state.log.filter(
+        (entry) => entry.revision > cursor && now - entry.at <= LIBRARY_STATE_LOG_MAX_AGE_MS
+    );
+    if (entries.length === 0) return null;
+    if (cursor < entries[0].revision - 1) return null;
+
+    const items = new Map<string, RemoteBmp>();
+    const deleted = new Set<string>();
+    for (const entry of entries) {
+        for (const item of entry.items) {
+            items.set(item.mediaKey, item);
+            deleted.delete(item.mediaKey);
+        }
+        for (const mediaKey of entry.deleted) {
+            deleted.add(mediaKey);
+            items.delete(mediaKey);
+        }
+    }
+
+    return { items: [...items.values()], deleted: [...deleted] };
+}
+
+function revisionResult(state: LibraryAccountState, cursor: number): LibrarySyncResult {
+    const changes = changesSince(state, cursor);
+    if (!changes) return fullResult(state.revision, state.items.values());
+
+    return {
+        items: changes.items,
+        deleted: changes.deleted,
+        full: false,
+        revision: state.revision
+    };
 }
 
 const syncLocks = new Map<string, Promise<unknown>>();
@@ -118,17 +180,20 @@ function withAccountLock<T>(email: string, task: () => Promise<T>): Promise<T> {
     return run;
 }
 
-/** Apply the changes since the last stored sync, or rebuild the index from a full read. */
+/** Apply Google's changes, then answer this client from the persisted change log. */
 export function syncLibrary(
     email: string,
     token: string,
     force = false,
+    revision = 0,
     fetcher: Fetcher = photosFetch
 ): AsyncResult<LibrarySyncResult, ServerError> {
     return Ok(undefined).andThenAsync(() =>
         withAccountLock(email.toLowerCase(), async () => {
-            const stored = force ? undefined : readAccountState(email);
-            if (!stored) return await applyFullSync(email, token, fetcher);
+            const previous = readAccountState(email);
+            const stored = force ? undefined : previous;
+            if (!stored)
+                return await applyFullSync(email, token, (previous?.revision ?? 0) + 1, fetcher);
 
             const received = await fetchDelta(email, token, stored.syncToken, fetcher);
             const read = received.match<
@@ -143,7 +208,7 @@ export function syncLibrary(
 
                 deleteAccountState(email);
 
-                return await applyFullSync(email, token, fetcher);
+                return await applyFullSync(email, token, stored.revision + 1, fetcher);
             }
 
             const indexChanged =
@@ -153,20 +218,31 @@ export function syncLibrary(
             if (!indexChanged) {
                 updateAccountSyncToken(email, read.value.syncToken);
 
-                return Ok({ items: [], deleted: read.value.deleted, full: false });
+                return Ok(revisionResult(stored, revision));
             }
 
             const items = new Map(stored.items);
             for (const item of read.value.items) items.set(item.mediaKey, item);
             for (const mediaKey of read.value.deleted) items.delete(mediaKey);
 
-            writeAccountState(email, read.value.syncToken, items.values());
+            const nextRevision = stored.revision + 1;
+            const state: LibraryAccountState = {
+                syncToken: read.value.syncToken,
+                revision: nextRevision,
+                items,
+                log: trimChangeLog([
+                    ...stored.log,
+                    {
+                        revision: nextRevision,
+                        at: Date.now(),
+                        items: read.value.items,
+                        deleted: read.value.deleted
+                    }
+                ])
+            };
+            writeAccountState(email, state);
 
-            return Ok({
-                items: read.value.items,
-                deleted: read.value.deleted,
-                full: false
-            });
+            return Ok(revisionResult(state, revision));
         })
     );
 }

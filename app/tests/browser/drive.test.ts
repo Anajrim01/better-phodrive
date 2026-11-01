@@ -145,7 +145,9 @@ test('dismissing a library error preserves failed-load state and repeated errors
     vi.spyOn(libraryApi, 'readLibrarySync')
         .mockImplementationOnce(() => Ok(undefined).andThenAsync(async () => Err(failure)))
         .mockImplementationOnce(() =>
-            Ok(undefined).andThenAsync(async () => Ok({ items: [], deleted: [], full: true }))
+            Ok(undefined).andThenAsync(async () =>
+                Ok({ items: [], deleted: [], full: true, revision: 1 })
+            )
         );
 
     const drive = new DriveController();
@@ -170,8 +172,8 @@ test('dismissing a library error preserves failed-load state and repeated errors
 });
 
 test('automatic refresh merges the newest page and manual refresh reloads the depth', async () => {
-    const page = (items: RemoteBmp[], nextPageToken: string) =>
-        Ok(undefined).andThenAsync(async () => Ok({ items, nextPageToken }));
+    const page = (items: RemoteBmp[], nextPageToken: string, revision = 1) =>
+        Ok(undefined).andThenAsync(async () => Ok({ items, nextPageToken, revision }));
     const readPage = vi
         .spyOn(libraryApi, 'readLibraryPage')
         .mockImplementationOnce(() => page([remoteBmp(1, 'first.bin')], 'page-two'))
@@ -181,7 +183,8 @@ test('automatic refresh merges the newest page and manual refresh reloads the de
             Ok({
                 items: [remoteBmp(1, 'renamed.bin'), remoteBmp(3, 'third.bin')],
                 deleted: [],
-                full: false
+                full: false,
+                revision: 2
             })
         )
     );
@@ -207,6 +210,7 @@ test('automatic refresh merges the newest page and manual refresh reloads the de
 
     expect(readPage).toHaveBeenCalledTimes(2);
     expect(updates).toHaveBeenCalledTimes(1);
+    expect(updates).toHaveBeenCalledWith('test@example.com', 'aas_et/test', false, 1);
     expect(snapshot).not.toHaveBeenCalled();
     expect(drive.library.chunks.map((chunk) => chunk.originalName).toSorted()).toEqual([
         'renamed.bin',

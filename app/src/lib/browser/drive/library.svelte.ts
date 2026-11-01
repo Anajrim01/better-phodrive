@@ -40,6 +40,7 @@ export class DriveLibrary {
 
     private libraryRequest = 0;
     loadedPages = 0;
+    revisions = new Map<string, number>();
     private libraryPageTokens = new Set<string>();
 
     searchTerm = $state('');
@@ -152,6 +153,8 @@ export class DriveLibrary {
                     this.feedback('Google Photos repeated a library page. Refresh to try again.');
                 }
                 if (this.nextPageToken) this.libraryPageTokens.add(this.nextPageToken);
+                if (data.revision !== undefined)
+                    this.revisions.set(email.toLowerCase(), data.revision);
 
                 this.loadedPages++;
             },
@@ -180,7 +183,8 @@ export class DriveLibrary {
                   group.members,
                   group.missing,
                   this.chunks,
-                  this.accounts
+                  this.accounts,
+                  this.revisions
               );
         if (request !== this.libraryRequest) return;
 
@@ -231,21 +235,15 @@ export class DriveLibrary {
             return;
         }
 
-        const synced = await readLibrarySync(email, token);
+        const cursor = this.revisions.get(email.toLowerCase()) ?? 0;
+        const synced = await readLibrarySync(email, token, false, cursor);
         if (request !== this.libraryRequest || email !== this.account().email) return;
 
         synced.match({
-            Ok: (update) => {
-                const applied = applyLibrarySync(this, email, update);
-
-                this.loadFailed = false;
-                this.retryAt = 0;
-                this.chunks = applied.chunks;
-                this.nextPageToken = applied.nextPageToken;
-                this.loadedPages = applied.loadedPages;
-                if (update.full) this.libraryPageTokens.clear();
-                if (this.folder && !this.hasFolder(this.folder)) this.folder = '';
-            },
+            Ok: (update) =>
+                applyLibrarySync(this, email, update, this.libraryPageTokens, (path) =>
+                    this.hasFolder(path)
+                ),
             Err: (error) => reportLoadFailure(this, error, this.feedback)
         });
 
