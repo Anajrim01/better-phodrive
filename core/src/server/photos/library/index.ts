@@ -23,11 +23,13 @@ export function listBmps(
             ? Err(SERVER_ERRORS.INVALID_PAGE_TOKEN)
             : Ok(pageToken);
 
+    const revision = readAccountRevision(email);
+
     return validated
         .andThenAsync(() => readLibraryPage(email, token, pageToken, undefined, fetcher))
         .map((page) => ({
             items: page.items,
             nextPageToken: page.nextPageToken,
-            revision: readAccountRevision(email)
+            revision
         }));
 }

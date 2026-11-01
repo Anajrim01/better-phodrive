@@ -65,7 +65,7 @@ export function readLibrarySnapshot(
 
                 for (const item of page.items) items.set(item.mediaKey, item);
                 nextPageToken = page.nextPageToken;
-                revision = page.revision ?? revision;
+                revision ??= page.revision;
                 pages++;
 
                 return Ok(undefined);
@@ -150,7 +150,7 @@ async function readMemberPages(email: string, token: string): Promise<GroupPage>
             };
 
         for (const item of page.items) items.set(item.mediaKey, item);
-        revision = page.revision ?? revision;
+        revision ??= page.revision;
         pageToken = page.nextPageToken;
     } while (pageToken);
 

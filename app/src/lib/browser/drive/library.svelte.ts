@@ -113,6 +113,7 @@ export class DriveLibrary {
 
         const { email, token } = this.account();
         const pageToken = reset ? '' : this.nextPageToken;
+        const firstPage = pageToken === '';
         const request = ++this.libraryRequest;
         if (reset) {
             this.chunks = [];
@@ -153,7 +154,7 @@ export class DriveLibrary {
                     this.feedback('Google Photos repeated a library page. Refresh to try again.');
                 }
                 if (this.nextPageToken) this.libraryPageTokens.add(this.nextPageToken);
-                if (data.revision !== undefined)
+                if (firstPage && data.revision !== undefined)
                     this.revisions.set(email.toLowerCase(), data.revision);
 
                 this.loadedPages++;

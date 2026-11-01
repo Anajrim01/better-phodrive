@@ -8,6 +8,7 @@ const LIBRARY_STATE_FLUSH_DELAY_MS = 1_000;
 const LIBRARY_STATE_FLUSH_INTERVAL_MS = 30_000;
 export const LIBRARY_STATE_LOG_LIMIT = 64;
 export const LIBRARY_STATE_LOG_MAX_AGE_MS = 24 * 60 * 60 * 1_000;
+export const LIBRARY_STATE_LOG_MAX_ITEMS = 10_000;
 
 export type LibraryChange = {
     revision: number;
@@ -85,6 +86,7 @@ function load(): void {
             }
 
             const changes: LibraryChange[] = [];
+            let lastRevision = 0;
             if (Array.isArray(log)) {
                 for (const entry of log) {
                     if (!entry || typeof entry !== 'object') continue;
@@ -103,12 +105,15 @@ function load(): void {
                     if (
                         typeof entryRevision !== 'number' ||
                         !Number.isSafeInteger(entryRevision) ||
+                        entryRevision <= lastRevision ||
+                        entryRevision > revision ||
                         typeof at !== 'number' ||
                         !Array.isArray(changed) ||
                         !Array.isArray(deleted)
                     )
                         continue;
 
+                    lastRevision = entryRevision;
                     changes.push({
                         revision: entryRevision,
                         at,
@@ -202,9 +207,22 @@ export function updateAccountSyncToken(email: string, syncToken: Buffer): void {
 }
 
 export function trimChangeLog(log: readonly LibraryChange[], now = Date.now()): LibraryChange[] {
-    return log
+    const recent = log
         .filter((entry) => now - entry.at <= LIBRARY_STATE_LOG_MAX_AGE_MS)
         .slice(-LIBRARY_STATE_LOG_LIMIT);
+    const kept: LibraryChange[] = [];
+    let items = 0;
+
+    for (let index = recent.length - 1; index >= 0; index--) {
+        const entry = recent[index];
+        const size = entry.items.length + entry.deleted.length;
+        if (items + size > LIBRARY_STATE_LOG_MAX_ITEMS) break;
+
+        kept.unshift(entry);
+        items += size;
+    }
+
+    return kept;
 }
 
 export function deleteAccountState(email: string): void {

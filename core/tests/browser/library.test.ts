@@ -44,6 +44,26 @@ test('refresh reads the loaded pagination depth and stops when the library ends'
     );
 });
 
+test('a multi-page snapshot keeps the first page revision', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch');
+    fetchMock.mockResolvedValueOnce(
+        Response.json({
+            items: [remoteFile('first')],
+            nextPageToken: 'page-two',
+            revision: 10
+        })
+    );
+    fetchMock.mockResolvedValueOnce(
+        Response.json({ items: [remoteFile('second')], nextPageToken: '', revision: 11 })
+    );
+
+    const refreshed = await readLibrarySnapshot('test@example.com', 'aas_et/test', 2);
+
+    expect(refreshed.unwrap().items.map((item) => item.mediaKey)).toEqual(['first', 'second']);
+    expect(refreshed.unwrap().revision).toBe(10);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+});
+
 test('a library sync posts the force flag and parses the delta', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch');
     fetchMock.mockResolvedValueOnce(

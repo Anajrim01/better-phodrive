@@ -177,7 +177,7 @@ test('automatic refresh merges the newest page and manual refresh reloads the de
     const readPage = vi
         .spyOn(libraryApi, 'readLibraryPage')
         .mockImplementationOnce(() => page([remoteBmp(1, 'first.bin')], 'page-two'))
-        .mockImplementationOnce(() => page([remoteBmp(2, 'second.bin')], ''));
+        .mockImplementationOnce(() => page([remoteBmp(2, 'second.bin')], '', 2));
     const updates = vi.spyOn(libraryApi, 'readLibrarySync').mockImplementationOnce(() =>
         Ok(undefined).andThenAsync(async () =>
             Ok({

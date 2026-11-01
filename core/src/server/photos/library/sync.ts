@@ -193,7 +193,12 @@ export function syncLibrary(
             const previous = readAccountState(email);
             const stored = force ? undefined : previous;
             if (!stored)
-                return await applyFullSync(email, token, (previous?.revision ?? 0) + 1, fetcher);
+                return await applyFullSync(
+                    email,
+                    token,
+                    previous ? previous.revision + 1 : Date.now(),
+                    fetcher
+                );
 
             const received = await fetchDelta(email, token, stored.syncToken, fetcher);
             const read = received.match<
