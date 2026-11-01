@@ -10,7 +10,7 @@ import {
 import type { UploadedChunk } from '../../files';
 import { Err, Ok, type Result } from 'results-ts';
 import { INVALID_UPLOAD_PROGRESS } from './request';
-import { remainingSeconds, transferRate, type RateSample } from './eta';
+import { estimatedRate, remainingSeconds, trimRateSamples, type RateSample } from './eta';
 
 export interface UploadJob {
     id: number;
@@ -21,6 +21,7 @@ export interface UploadJob {
     result: UploadResponse | null;
     bytesPerSecond: number;
     etaSeconds: number | null;
+    etaUpdatedAt?: number;
     retryAt: number | null;
     account?: string;
 }
@@ -40,6 +41,7 @@ export function createUploadJobs(files: readonly File[]): UploadJob[] {
         result: null,
         bytesPerSecond: 0,
         etaSeconds: null,
+        etaUpdatedAt: 0,
         retryAt: null
     }));
 }
@@ -121,22 +123,29 @@ export function createUploadEventHandler(
     function estimate(job: UploadJob): UploadJob {
         const jobSamples = samples[job.id];
 
-        if (job.status !== UploadJobStatus.Active || job.progress.phase !== UploadPhase.Uploading) {
+        if (
+            job.status !== UploadJobStatus.Active ||
+            job.progress.phase !== UploadPhase.Uploading ||
+            job.retryAt !== null
+        ) {
             jobSamples.length = 0;
 
-            return { ...job, bytesPerSecond: 0, etaSeconds: null };
+            return { ...job, bytesPerSecond: 0, etaSeconds: null, etaUpdatedAt: 0 };
         }
 
         const { completed, reused, total } = job.progress;
         jobSamples.push({ at: now(), bytes: completed });
+        trimRateSamples(jobSamples);
 
-        const rate = transferRate(jobSamples);
-        if (rate === null) return { ...job, bytesPerSecond: 0, etaSeconds: null };
+        const rate = estimatedRate(jobSamples);
+        if (rate === null)
+            return { ...job, bytesPerSecond: 0, etaSeconds: null, etaUpdatedAt: Date.now() };
 
         return {
             ...job,
             bytesPerSecond: rate,
-            etaSeconds: remainingSeconds(total - completed - reused, rate)
+            etaSeconds: remainingSeconds(total - completed - reused, rate),
+            etaUpdatedAt: Date.now()
         };
     }
 

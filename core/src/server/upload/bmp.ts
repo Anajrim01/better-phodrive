@@ -183,7 +183,10 @@ function uploadBody(
 }
 
 /** Encode and verify a BMP in fixed-sized pieces before permitting the Google commit. */
-export function encodeUploadBmp(input: ReceivedUpload): AsyncResult<UploadBmpSource, ServerError> {
+export function encodeUploadBmp(
+    input: ReceivedUpload,
+    onRead?: (received: number) => void
+): AsyncResult<UploadBmpSource, ServerError> {
     if (!input.compress || input.header.payloadSize < COMPRESSION_MIN_BYTES)
         return Ok(undefined).andThenAsync(async () => Ok(rawUploadSource(input)));
 
@@ -204,84 +207,86 @@ export function encodeUploadBmp(input: ReceivedUpload): AsyncResult<UploadBmpSou
         };
         input.signal.addEventListener('abort', release, { once: true });
 
-        const prepared = await readCompressPayload(input, probe).andThenAsync(async (payload) => {
-            let buffer = payload;
-            const rawSha1Value = rawSha1(input, buffer);
-            if (rawSha1Value !== input.sha1) {
-                release();
+        const prepared = await readCompressPayload(input, probe, onRead).andThenAsync(
+            async (payload) => {
+                let buffer = payload;
+                const rawSha1Value = rawSha1(input, buffer);
+                if (rawSha1Value !== input.sha1) {
+                    release();
 
-                return Err(SERVER_ERRORS.UPLOAD_INTEGRITY_FAILED);
-            }
+                    return Err(SERVER_ERRORS.UPLOAD_INTEGRITY_FAILED);
+                }
 
-            const finished = await input.finished();
-            if (finished.isErr()) {
-                release();
+                const finished = await input.finished();
+                if (finished.isErr()) {
+                    release();
 
-                return finished;
-            }
+                    return finished;
+                }
 
-            const encodedResult = await encodeUpload(input, buffer, rawSha1Value);
-            // Compression copies what it needs; drop the only reference to the raw chunk.
-            buffer = new Uint8Array(0);
-            if (encodedResult.isErr()) {
-                release();
+                const encodedResult = await encodeUpload(input, buffer, rawSha1Value);
+                // Compression copies what it needs; drop the only reference to the raw chunk.
+                buffer = new Uint8Array(0);
+                if (encodedResult.isErr()) {
+                    release();
 
-                return encodedResult;
-            }
+                    return encodedResult;
+                }
 
-            return encodedResult.map((encoded) => {
-                let settle: (result: Result<void, ServerError>) => void = () => {};
-                const verification = new Promise<Result<void, ServerError>>((resolve) => {
-                    settle = resolve;
-                });
-                const body = uploadBody(
-                    encoded,
-                    input.signal,
-                    () => {
-                        release();
-                        settle(Err(SERVER_ERRORS.FILE_RECEIVE_FAILED));
-                    },
-                    () => {
-                        release();
-                        settle(Ok(undefined));
-                    }
-                );
+                return encodedResult.map((encoded) => {
+                    let settle: (result: Result<void, ServerError>) => void = () => {};
+                    const verification = new Promise<Result<void, ServerError>>((resolve) => {
+                        settle = resolve;
+                    });
+                    const body = uploadBody(
+                        encoded,
+                        input.signal,
+                        () => {
+                            release();
+                            settle(Err(SERVER_ERRORS.FILE_RECEIVE_FAILED));
+                        },
+                        () => {
+                            release();
+                            settle(Ok(undefined));
+                        }
+                    );
 
-                return {
-                    body,
-                    length: encoded.totalSize,
-                    sha1: encoded.sha1,
-                    originalSize: input.header.payloadSize,
-                    storedSize: encoded.header.payloadSize,
-                    compressed: splitHeaderIsCompressed(encoded.header.flags),
-                    last: (encoded.header.flags & SPLIT_FLAG_LAST) !== 0,
-                    verified: Ok(undefined).and(verification),
-                    drain: () =>
-                        Ok(undefined).andThenAsync(async () => {
-                            const bmpReader = body.getReader();
+                    return {
+                        body,
+                        length: encoded.totalSize,
+                        sha1: encoded.sha1,
+                        originalSize: input.header.payloadSize,
+                        storedSize: encoded.header.payloadSize,
+                        compressed: splitHeaderIsCompressed(encoded.header.flags),
+                        last: (encoded.header.flags & SPLIT_FLAG_LAST) !== 0,
+                        verified: Ok(undefined).and(verification),
+                        drain: () =>
+                            Ok(undefined).andThenAsync(async () => {
+                                const bmpReader = body.getReader();
 
-                            try {
-                                while (true) {
-                                    const next = await bmpReader.read();
-                                    if (next.done) {
-                                        release();
-                                        settle(Ok(undefined));
-                                        break;
+                                try {
+                                    while (true) {
+                                        const next = await bmpReader.read();
+                                        if (next.done) {
+                                            release();
+                                            settle(Ok(undefined));
+                                            break;
+                                        }
                                     }
+                                } catch {
+                                    release();
+
+                                    return await verification;
+                                } finally {
+                                    bmpReader.releaseLock();
                                 }
-                            } catch {
-                                release();
 
                                 return await verification;
-                            } finally {
-                                bmpReader.releaseLock();
-                            }
-
-                            return await verification;
-                        })
-                };
-            });
-        });
+                            })
+                    };
+                });
+            }
+        );
         if (prepared.isErr()) release();
 
         return prepared;

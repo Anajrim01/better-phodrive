@@ -3,7 +3,7 @@
 
     import { CircularProgress, IconButton, ListItem } from 'noph-ui';
     import type { UploadJob } from '#browser/files';
-    import { uploadJobDetail } from '#browser/upload-status';
+    import { uploadJobDetail, uploadPercent } from '#browser/upload-status';
     import IconDescription from '~icons/material-symbols/description-outline';
     import IconCheckCircle from '~icons/material-symbols/check-circle-outline';
     import IconError from '~icons/material-symbols/error-outline';
@@ -19,10 +19,7 @@
     let { job, retryDisabled, now, onretry }: Props = $props();
 
     const progress = $derived(job.progress);
-    const processed = $derived(
-        progress.completed + (progress.phase === UploadPhase.Uploading ? progress.reused : 0)
-    );
-    const percent = $derived(progress.total ? Math.round((processed / progress.total) * 100) : 0);
+    const percent = $derived(uploadPercent(job));
     const indeterminate = $derived(progress.phase === UploadPhase.Receiving || !progress.total);
     const detail = $derived(uploadJobDetail(job, now));
 </script>

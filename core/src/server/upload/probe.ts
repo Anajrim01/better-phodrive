@@ -120,13 +120,15 @@ export function readProbe(input: ReceivedUpload): AsyncResult<PayloadProbe, Serv
 /** The probe cleared the threshold, so buffer the full chunk before compressing it. */
 export function readCompressPayload(
     input: ReceivedUpload,
-    probe: PayloadProbe
+    probe: PayloadProbe,
+    onRead?: (received: number) => void
 ): AsyncResult<Uint8Array, ServerError> {
     return Ok(undefined).andThenAsync<Uint8Array, ServerError>(async () => {
         const expected = input.header.payloadSize;
         if (probe.whole) {
             probe.reader.releaseLock();
             if (probe.whole.length !== expected) return Err(SERVER_ERRORS.INVALID_CHUNK_SIZE);
+            onRead?.(expected);
 
             return Ok(probe.whole);
         }
@@ -150,6 +152,7 @@ export function readCompressPayload(
 
                 return Err(SERVER_ERRORS.INVALID_CHUNK_SIZE);
             }
+            onRead?.(received);
 
             while (!probe.done) {
                 const next = await readPart(probe.reader, input.signal);
@@ -162,6 +165,7 @@ export function readCompressPayload(
 
                     return Err(SERVER_ERRORS.INVALID_CHUNK_SIZE);
                 }
+                onRead?.(received);
             }
         } catch {
             failed = true;

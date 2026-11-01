@@ -2,6 +2,36 @@ import { UploadJobStatus, UploadPhase, UploadStatus } from '@madkarmaa/phodrive-
 import { formatDuration } from '@madkarmaa/phodrive-core/browser/upload/eta';
 import type { UploadJob } from '#browser/files';
 
+export const ETA_STALE_MS = 10_000;
+
+function processedBytes(job: UploadJob): number {
+    const progress = job.progress;
+
+    return progress.completed + (progress.phase === UploadPhase.Uploading ? progress.reused : 0);
+}
+
+export function uploadPercent(job: UploadJob): number {
+    const progress = job.progress;
+    if (!progress.total) return 0;
+
+    const processed = processedBytes(job);
+    const percent = Math.round((processed / progress.total) * 100);
+    if (progress.phase === UploadPhase.Uploading && processed < progress.total)
+        return Math.min(99, percent);
+
+    return percent;
+}
+
+function etaIsFresh(job: UploadJob, now: number): boolean {
+    return job.etaUpdatedAt === undefined || now - job.etaUpdatedAt <= ETA_STALE_MS;
+}
+
+export function uploadRate(job: UploadJob, now = Date.now()): number {
+    if (job.etaSeconds === null || !etaIsFresh(job, now)) return 0;
+
+    return job.bytesPerSecond;
+}
+
 export function retryRemainingSeconds(job: UploadJob, now = Date.now()): number | null {
     if (job.retryAt === null) return null;
 
@@ -10,9 +40,8 @@ export function retryRemainingSeconds(job: UploadJob, now = Date.now()): number 
 
 export function uploadJobDetail(job: UploadJob, now = Date.now()): string {
     const progress = job.progress;
-    const processed =
-        progress.completed + (progress.phase === UploadPhase.Uploading ? progress.reused : 0);
-    const percent = progress.total ? Math.round((processed / progress.total) * 100) : 0;
+    const processed = processedBytes(job);
+    const percent = uploadPercent(job);
 
     if (job.status === UploadJobStatus.Queued) return job.message || 'Waiting for an account';
     if (job.status === UploadJobStatus.Error) return job.message;
@@ -31,7 +60,10 @@ export function uploadJobDetail(job: UploadJob, now = Date.now()): string {
     if (progress.phase === UploadPhase.Preparing) return `Preparing ${percent}%`;
     if (processed === progress.total) return 'Finishing upload';
 
-    const eta = job.etaSeconds === null ? '' : `, about ${formatDuration(job.etaSeconds)} left`;
+    const eta =
+        job.etaSeconds === null || !etaIsFresh(job, now)
+            ? ', estimating...'
+            : `, about ${formatDuration(Math.max(1, job.etaSeconds))} left`;
 
     return `Uploading ${percent}%${eta}`;
 }
