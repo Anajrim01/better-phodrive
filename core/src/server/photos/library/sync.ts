@@ -216,9 +216,7 @@ export function syncLibrary(
                 return await applyFullSync(email, token, stored.revision + 1, fetcher);
             }
 
-            const indexChanged =
-                read.value.items.length > 0 ||
-                read.value.deleted.some((mediaKey) => stored.items.has(mediaKey));
+            const indexChanged = read.value.items.length > 0 || read.value.deleted.length > 0;
 
             if (!indexChanged) {
                 updateAccountSyncToken(email, read.value.syncToken);

@@ -161,10 +161,9 @@ async function readMemberSync(
     email: string,
     token: string,
     loaded: readonly UploadedChunk[],
-    force: boolean,
     revision: number
 ): Promise<GroupPage> {
-    const received = await readLibrarySync(email, token, force, revision);
+    const received = await readLibrarySync(email, token, false, revision);
 
     return received.match<GroupPage>({
         Ok: (update) => ({
@@ -265,14 +264,9 @@ export function readGroupLibraryUpdates(
         );
         const updates = await collectGroupPages(members, missing, (member) => {
             const email = member.email.toLowerCase();
+            const revision = complete.has(email) ? (revisions.get(email) ?? 0) : 0;
 
-            return readMemberSync(
-                member.email,
-                member.token,
-                loaded,
-                !complete.has(email),
-                revisions.get(email) ?? 0
-            );
+            return readMemberSync(member.email, member.token, loaded, revision);
         });
         const kept: GroupPage[] = members
             .filter((member) =>

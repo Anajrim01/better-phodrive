@@ -171,6 +171,42 @@ test('dismissing a library error preserves failed-load state and repeated errors
     expect(drive.library.chunks).toEqual([]);
 });
 
+test('a failed reset load discards the cursor so the next sync recovers', async () => {
+    const failure = {
+        code: 'REQUEST_FAILED',
+        message: 'Library list failed (HTTP 503)'
+    } as const;
+    const page = (items: RemoteBmp[], revision: number) =>
+        Ok(undefined).andThenAsync(async () => Ok({ items, nextPageToken: '', revision }));
+    vi.spyOn(libraryApi, 'readLibraryPage')
+        .mockImplementationOnce(() => page([remoteBmp(1, 'first.bin')], 5))
+        .mockImplementationOnce(() => Ok(undefined).andThenAsync(async () => Err(failure)));
+    const sync = vi.spyOn(libraryApi, 'readLibrarySync').mockImplementationOnce(() =>
+        Ok(undefined).andThenAsync(async () =>
+            Ok({
+                items: [remoteBmp(1, 'first.bin')],
+                deleted: [],
+                full: true,
+                revision: 6
+            })
+        )
+    );
+    const drive = new DriveController();
+    drive.initialize();
+
+    await drive.library.load();
+    expect(drive.library.revisions.get('test@example.com')).toBe(5);
+
+    await drive.library.load();
+    expect(drive.library.revisions.size).toBe(0);
+    expect(drive.library.chunks).toEqual([]);
+
+    await drive.library.refresh();
+
+    expect(sync).toHaveBeenCalledWith('test@example.com', 'aas_et/test', false, 0);
+    expect(drive.library.chunks.map((chunk) => chunk.originalName)).toEqual(['first.bin']);
+});
+
 test('automatic refresh merges the newest page and manual refresh reloads the depth', async () => {
     const page = (items: RemoteBmp[], nextPageToken: string, revision = 1) =>
         Ok(undefined).andThenAsync(async () => Ok({ items, nextPageToken, revision }));

@@ -222,7 +222,7 @@ test('a failed group member keeps its loaded items and reports the pause', async
     ]);
 });
 
-test('a member that recovers from a pause requests a forced full sync', async () => {
+test('a member that recovers from a pause requests a full index from revision zero', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch');
     fetchMock.mockImplementation(async () =>
         Response.json({
@@ -245,7 +245,8 @@ test('a member that recovers from a pause requests a forced full sync', async ()
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toMatchObject({
         email: 'owner@example.com',
-        force: true
+        force: false,
+        revision: 0
     });
     expect(snapshot.partial).toBe(false);
     expect(snapshot.accounts).toContainEqual({

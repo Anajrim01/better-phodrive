@@ -21,12 +21,13 @@ export type LibraryState = {
 };
 
 export function resetLibraryPages(
-    state: Pick<LibraryState, 'nextPageToken' | 'loadedPages' | 'loadFailed'>,
+    state: Pick<LibraryState, 'nextPageToken' | 'loadedPages' | 'loadFailed' | 'revisions'>,
     pageTokens: Set<string>
 ): void {
     state.nextPageToken = '';
     state.loadedPages = 0;
     state.loadFailed = false;
+    state.revisions.clear();
     pageTokens.clear();
 }
 
