@@ -88,6 +88,7 @@ test('a folder menu offers open, rename, flatten, delete, and details once', () 
     expect(labels(entries)).toEqual([
         'Open',
         'Rename',
+        'Move folder',
         'Move contents to My files',
         'Delete folder and files',
         'Details'

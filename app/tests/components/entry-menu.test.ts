@@ -160,12 +160,13 @@ test('the trash and folder menus show their own actions', async () => {
     cleanup();
     const folder: FolderEntry = { path: 'A', name: 'A', files: 2, subfolders: 1 };
     mount({ kind: 'folder', entry: folder });
-    await waitFor(() => expect(screen.getAllByRole('menuitem', { hidden: true })).toHaveLength(5));
+    await waitFor(() => expect(screen.getAllByRole('menuitem', { hidden: true })).toHaveLength(6));
     expect(
         screen.getAllByRole('menuitem', { hidden: true }).map((item) => item.textContent?.trim())
     ).toEqual([
         'Open',
         'Rename',
+        'Move folder',
         'Move contents to My files',
         'Delete folder and files',
         'Details'

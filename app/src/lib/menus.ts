@@ -53,6 +53,7 @@ export function folderMenu(entry: FolderEntry): MenuEntry[] {
     return [
         { action: 'open', label: 'Open' },
         { action: 'rename', label: 'Rename' },
+        { action: 'move', label: 'Move folder' },
         { action: 'move-contents', label: 'Move contents to My files' },
         { action: 'delete-folder', label: 'Delete folder and files' },
         { action: 'details', label: 'Details', divider: true }
