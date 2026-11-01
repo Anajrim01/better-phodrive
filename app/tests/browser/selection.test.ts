@@ -91,6 +91,15 @@ test('select only replaces the previous selection', () => {
     expect([...selection.selectedKeys]).toEqual(['c']);
 });
 
+test('a marquee preview replaces the selection with exactly its keys', () => {
+    const selection = new DriveSelection();
+
+    selection.selectAll(visible);
+    selection.set(new Set(['b', 'd']));
+
+    expect([...selection.selectedKeys]).toEqual(['b', 'd']);
+});
+
 test('the selection scope covers folder navigation and every filter', () => {
     const parts = { folder: '', searchTerm: '', typeFilter: '', modifiedDays: '' };
     const initial = selectionScope(parts);

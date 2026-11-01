@@ -51,3 +51,17 @@ export function selectionCallbacks() {
         onmenu: vi.fn()
     };
 }
+
+export function domRect(left: number, top: number, right: number, bottom: number): DOMRect {
+    return {
+        left,
+        top,
+        right,
+        bottom,
+        width: right - left,
+        height: bottom - top,
+        x: left,
+        y: top,
+        toJSON: () => ({})
+    } as DOMRect;
+}
