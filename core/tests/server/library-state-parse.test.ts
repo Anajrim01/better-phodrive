@@ -14,10 +14,13 @@ const ITEM: RemoteBmp = {
     sha1: 'b'.repeat(40)
 };
 
-function stored(log: { revision: number; at: number; items: RemoteBmp[]; deleted: string[] }[]) {
+function stored(
+    log: { revision: number; at: number; items: RemoteBmp[]; deleted: string[] }[],
+    revision = 3
+) {
     return {
         syncToken: 'c3luYy1vbmU',
-        revision: 3,
+        revision,
         items: [ITEM],
         log
     };
@@ -39,6 +42,22 @@ test('a change above the account revision drops the log but keeps the account', 
     const parsed = parseAccountState(stored([{ revision: 4, at: 1, items: [ITEM], deleted: [] }]));
 
     expect(parsed?.revision).toBe(3);
+    expect(parsed?.items.size).toBe(1);
+    expect(parsed?.log).toEqual([]);
+});
+
+test('a gap in the change log drops the log but keeps the account', () => {
+    const parsed = parseAccountState(
+        stored(
+            [
+                { revision: 2, at: 1, items: [ITEM], deleted: [] },
+                { revision: 4, at: 2, items: [ITEM], deleted: [] }
+            ],
+            4
+        )
+    );
+
+    expect(parsed?.revision).toBe(4);
     expect(parsed?.items.size).toBe(1);
     expect(parsed?.log).toEqual([]);
 });

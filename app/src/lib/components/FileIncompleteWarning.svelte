@@ -29,7 +29,7 @@
     );
     const title = $derived(
         item.complete
-            ? 'A duplicate copy is in Trash. Restore it to bring it back.'
+            ? 'A duplicate copy is in Google Photos trash. This file is complete.'
             : partial
               ? 'Load more to check the rest of this file.'
               : message

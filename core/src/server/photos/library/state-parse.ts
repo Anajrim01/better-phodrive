@@ -22,9 +22,12 @@ export function parseAccountState(value: unknown): LibraryAccountState | null {
     if (!parsed.success) return null;
 
     const log: typeof parsed.data.log = [];
-    let lastRevision = 0;
+    let previous: number | null = null;
     for (const entry of parsed.data.log) {
-        if (entry.revision <= lastRevision || entry.revision > parsed.data.revision)
+        if (
+            entry.revision > parsed.data.revision ||
+            (previous !== null && entry.revision !== previous + 1)
+        )
             return {
                 syncToken: Buffer.from(parsed.data.syncToken, 'base64url'),
                 revision: parsed.data.revision,
@@ -32,7 +35,7 @@ export function parseAccountState(value: unknown): LibraryAccountState | null {
                 log: []
             };
 
-        lastRevision = entry.revision;
+        previous = entry.revision;
         log.push(entry);
     }
 
