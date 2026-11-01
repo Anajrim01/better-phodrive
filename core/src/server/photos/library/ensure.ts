@@ -12,5 +12,14 @@ export function ensureAccountIndex(
 ): AsyncResult<void, ServerError> {
     if (readAccountState(email)) return Ok(undefined).andThenAsync(async () => Ok(undefined));
 
+    return refreshAccountIndex(email, token, fetcher);
+}
+
+/** Rebuild a stale index when an edit names a file the cached listing does not contain. */
+export function refreshAccountIndex(
+    email: string,
+    token: string,
+    fetcher: Fetcher = photosFetch
+): AsyncResult<void, ServerError> {
     return syncLibrary(email, token, true, 0, fetcher).map(() => undefined);
 }

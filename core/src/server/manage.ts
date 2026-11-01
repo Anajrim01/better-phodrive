@@ -4,7 +4,7 @@ import type { RemoteBmp } from '../models';
 import { SERVER_ERRORS, type ServerError } from './errors';
 import { photosFetch, type Fetcher } from './fetcher';
 import { verifyManageAccount } from './manage-auth';
-import { ensureAccountIndex } from './photos/library/ensure';
+import { ensureAccountIndex, refreshAccountIndex } from './photos/library/ensure';
 import {
     fileById,
     folderPathExists,
@@ -67,50 +67,59 @@ export function manageFile(
 ): AsyncResult<ManageResult, ServerError> {
     return verifyManageAccount(input.email, input.token, fetcher)
         .andThenAsync(() => ensureAccountIndex(input.email, input.token, fetcher))
-        .andThenAsync(() =>
-            withAccountLock(input.email, async () => {
-                const state = readAccountState(input.email);
-                if (!state) return Err(SERVER_ERRORS.LIBRARY_STATE_REQUIRED);
+        .andThenAsync(() => manageIndexedFile(input))
+        .orElseAsync(async (error) => {
+            if (error.code !== 'FILE_NOT_FOUND') return Err(error);
 
-                const files = indexFiles(state.items.values());
-                const file = fileById(files, input.fileId);
-                if (!file) return Err(SERVER_ERRORS.FILE_NOT_FOUND);
+            const refreshed = await refreshAccountIndex(input.email, input.token, fetcher);
 
-                if (input.action === FileManageAction.Rename) {
-                    if (input.name === file.name)
-                        return Ok({ items: [], revision: state.revision });
-                    if (nameExistsInFolder(files, input.name, file.folder, file.fileId))
-                        return Err(renameError(input.name));
+            return refreshed.andThenAsync(() => manageIndexedFile(input));
+        });
+}
 
-                    writeAccountOverrides(
-                        input.email,
-                        renamedOverrides(readAccountOverrides(input.email), file.fileId, input.name)
-                    );
-                    const items = updateListingItems(
-                        input.email,
-                        file.items.map((item) => withListingName(item, input.name))
-                    );
+function manageIndexedFile(input: FileManageRequest): AsyncResult<ManageResult, ServerError> {
+    return Ok(undefined).andThenAsync(async () =>
+        withAccountLock(input.email, async () => {
+            const state = readAccountState(input.email);
+            if (!state) return Err(SERVER_ERRORS.LIBRARY_STATE_REQUIRED);
 
-                    return Ok({ items, revision: readAccountRevision(input.email) });
-                }
+            const files = indexFiles(state.items.values());
+            const file = fileById(files, input.fileId);
+            if (!file) return Err(SERVER_ERRORS.FILE_NOT_FOUND);
 
-                if (input.folder === file.folder)
-                    return Ok({ items: [], revision: state.revision });
-                if (input.folder && !folderPathExists(files, input.folder))
-                    return Err(destinationError());
-                if (nameExistsInFolder(files, file.name, input.folder, file.fileId))
-                    return Err(renameError(file.name));
+            if (input.action === FileManageAction.Rename) {
+                if (input.name === file.name) return Ok({ items: [], revision: state.revision });
+                if (nameExistsInFolder(files, input.name, file.folder, file.fileId))
+                    return Err(renameError(input.name));
 
                 writeAccountOverrides(
                     input.email,
-                    movedOverrides(readAccountOverrides(input.email), file.fileId, input.folder)
+                    renamedOverrides(readAccountOverrides(input.email), file.fileId, input.name)
                 );
                 const items = updateListingItems(
                     input.email,
-                    file.items.map((item) => withMovedListingFolder(item, input.folder))
+                    file.items.map((item) => withListingName(item, input.name))
                 );
 
                 return Ok({ items, revision: readAccountRevision(input.email) });
-            })
-        );
+            }
+
+            if (input.folder === file.folder) return Ok({ items: [], revision: state.revision });
+            if (input.folder && !folderPathExists(files, input.folder))
+                return Err(destinationError());
+            if (nameExistsInFolder(files, file.name, input.folder, file.fileId))
+                return Err(renameError(file.name));
+
+            writeAccountOverrides(
+                input.email,
+                movedOverrides(readAccountOverrides(input.email), file.fileId, input.folder)
+            );
+            const items = updateListingItems(
+                input.email,
+                file.items.map((item) => withMovedListingFolder(item, input.folder))
+            );
+
+            return Ok({ items, revision: readAccountRevision(input.email) });
+        })
+    );
 }

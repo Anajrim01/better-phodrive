@@ -1,14 +1,17 @@
 import { mkdtemp, rm } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test } from 'vitest';
 import { FileManageAction } from '@madkarmaa/phodrive-core/manage';
 import { RemoteBmpSchema } from '@madkarmaa/phodrive-core/models';
 import { manageFile } from '@madkarmaa/phodrive-core/server/manage';
+import { fileIdentity } from '@madkarmaa/phodrive-core/server/chunks';
 import {
     clearLibraryState,
     configureLibraryState
 } from '@madkarmaa/phodrive-core/server/photos/library/state';
+import { SYNC_ONE, emptyCounts, fetcherFor, fileChunk, pageBytes } from '../helpers/delta-library';
 import {
     MANAGE_EMAIL,
     MANAGE_TOKEN,
@@ -79,6 +82,60 @@ test('moving a file keeps its chunk identity and listing folder', async () => {
     expect(moved?.originalName).toBe('move.bin');
     expect(overrides().fileFolders[fileId]).toBe('B');
     expect(result.unwrap().revision).toBe(6);
+});
+
+test('a stale index is refreshed when a move names a client-visible file', async () => {
+    const sourceFolder = 'Docs';
+    const name = 'file-7.bin';
+    const fileHash = createHash('sha256').update('file-7').digest('hex');
+    const fileId = fileIdentity(name, fileHash, undefined, sourceFolder);
+    const fresh = fileChunk(7, 0, 1, sourceFolder);
+    const anchor = fileChunk(8, 0, 1, 'Parent');
+    saveItems([chunk(id('stale'), 'stale', { name: 'stale.bin' })]);
+    const counts = emptyCounts();
+    const fetcher = fetcherFor(
+        [fresh, anchor],
+        [pageBytes([fresh, anchor], '', { syncToken: SYNC_ONE })],
+        counts,
+        { delta: pageBytes([], '', { syncToken: SYNC_ONE }) }
+    );
+
+    const result = await manageFile(
+        {
+            action: FileManageAction.Move,
+            email: MANAGE_EMAIL,
+            token: MANAGE_TOKEN,
+            fileId,
+            folder: 'Parent'
+        },
+        fetcher
+    );
+
+    expect(counts.page).toBe(1);
+    expect(result.unwrap().items.some((item) => item.fileId === fileId)).toBe(true);
+    expect(savedItems().find((item) => item.fileId === fileId)?.folder).toBe('Parent');
+});
+
+test('a file missing from a refreshed index is still rejected', async () => {
+    saveItems([chunk(id('stale'), 'stale', { name: 'stale.bin' })]);
+    const counts = emptyCounts();
+    const fetcher = fetcherFor([], [pageBytes([], '', { syncToken: SYNC_ONE })], counts, {
+        delta: pageBytes([], '', { syncToken: SYNC_ONE })
+    });
+
+    const result = await manageFile(
+        {
+            action: FileManageAction.Move,
+            email: MANAGE_EMAIL,
+            token: MANAGE_TOKEN,
+            fileId: id('missing'),
+            folder: ''
+        },
+        fetcher
+    );
+
+    expect(counts.page).toBe(1);
+    expect(result.unwrapErr().code).toBe('FILE_NOT_FOUND');
 });
 
 test('moving a file to My files omits the folder field', async () => {
