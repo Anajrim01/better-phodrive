@@ -8,7 +8,13 @@ import {
     renameFile,
     renameFolder
 } from '@madkarmaa/phodrive-core/browser/manage';
-import { isPoint, type EntryTarget, type MenuAnchor } from '#browser/drive/menu-types';
+import {
+    isPoint,
+    type EntryTarget,
+    type MenuAnchor,
+    type MenuTarget,
+    type SelectionTarget
+} from '#browser/drive/menu-types';
 import type {
     ManageAction,
     ManageDeps,
@@ -36,7 +42,7 @@ export type { ManageDialog, MoveDestination } from '#browser/drive/manage-types'
 
 export class DriveManage {
     menuOpen = $state(false);
-    menuTarget = $state<EntryTarget | null>(null);
+    menuTarget = $state<MenuTarget | null>(null);
     menuAnchor = $state<MenuAnchor | null>(null);
 
     dialog = $state<ManageDialog | null>(null);
@@ -72,7 +78,7 @@ export class DriveManage {
         return detailOwners(this.deps.files(), this.dialogTarget);
     }
 
-    openMenu(target: EntryTarget, anchor: MenuAnchor): void {
+    openMenu(target: MenuTarget, anchor: MenuAnchor): void {
         if (this.deps.busy() || this.deps.loading() || this.dialogBusy) return;
 
         this.returnFocus = isPoint(anchor)
@@ -83,6 +89,10 @@ export class DriveManage {
         this.menuTarget = target;
         this.menuAnchor = anchor;
         this.menuOpen = true;
+    }
+
+    openBulkMenu(target: SelectionTarget, anchor: MenuAnchor): void {
+        this.openMenu(target, anchor);
     }
 
     closeMenu(): void {

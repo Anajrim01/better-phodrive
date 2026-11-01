@@ -1,6 +1,5 @@
 <script lang="ts">
-    import { Button } from 'noph-ui';
-    import prettyBytes from 'pretty-bytes';
+    import { Button, Checkbox } from 'noph-ui';
     import { FileSort } from '@madkarmaa/phodrive-core/models';
     import {
         fileActionKind,
@@ -8,11 +7,7 @@
         type FileAction,
         type FileGroup
     } from '@madkarmaa/phodrive-core/files';
-    import LocalizedDate from '#components/LocalizedDate.svelte';
-    import FileActions from '#components/FileActions.svelte';
-    import MoreButton from '#components/MoreButton.svelte';
-    import FileIncompleteWarning from '#components/FileIncompleteWarning.svelte';
-    import IconDescription from '~icons/material-symbols/description-outline';
+    import FileListRow from '#components/FileListRow.svelte';
     import IconArrowUp from '~icons/material-symbols/arrow-upward';
     import IconArrowDown from '~icons/material-symbols/arrow-downward';
     import type { MenuAnchor } from '#browser/drive/menu-types';
@@ -27,6 +22,11 @@
         partial?: boolean;
         headingId?: string;
         action?: FileAction | null;
+        selected?: ReadonlySet<string>;
+        onselect?: (item: FileGroup, event: MouseEvent | KeyboardEvent) => void;
+        onselectall?: (select: boolean) => void;
+        oncontextselect?: (item: FileGroup) => void;
+        onselectionmenu?: (anchor: MenuAnchor) => void;
         ondownload?: (item: FileGroup) => void;
         ondelete?: (item: FileGroup) => void;
         onrestore?: (item: FileGroup) => void;
@@ -44,6 +44,11 @@
         partial = false,
         headingId = 'files-heading',
         action = null,
+        selected = new Set<string>(),
+        onselect,
+        onselectall,
+        oncontextselect,
+        onselectionmenu,
         ondownload,
         ondelete,
         onrestore,
@@ -54,11 +59,35 @@
     const ascending = $derived(
         sort === FileSort.NameAscending || sort === FileSort.ModifiedAscending
     );
+    const selectedCount = $derived(files.filter((item) => selected.has(fileKey(item))).length);
+    const selectedKeys = $derived(new Set([...selected]));
+    const allSelected = $derived(files.length > 0 && selectedCount === files.length);
+    const someSelected = $derived(selectedCount > 0 && !allSelected);
+    let headerChecked = $state(false);
+    let headerMixed = $state(false);
+
+    $effect(() => {
+        headerChecked = allSelected;
+        headerMixed = someSelected;
+    });
 </script>
 
 <table class="file-list" aria-labelledby={headingId}>
     <thead>
         <tr>
+            <th scope="col" class="select-column">
+                <div class="select-cell">
+                    <Checkbox
+                        aria-label="Select all files"
+                        bind:checked={headerChecked}
+                        bind:indeterminate={headerMixed}
+                        disabled={disabled || files.length === 0}
+                        onclick={() => {
+                            onselectall?.(!allSelected);
+                        }}
+                    />
+                </div>
+            </th>
             <th
                 scope="col"
                 aria-sort={nameSort ? (ascending ? 'ascending' : 'descending') : 'none'}
@@ -114,71 +143,25 @@
     </thead>
     <tbody>
         {#each files as item (fileKey(item))}
-            <tr
-                oncontextmenu={(event) => {
-                    event.preventDefault();
-                    onmenu?.(item, { x: event.clientX, y: event.clientY });
-                }}
-            >
-                <td>
-                    <div class="file-name">
-                        <IconDescription aria-hidden="true" class="size-5 shrink-0 text-muted" />
-                        <div class="min-w-0">
-                            <span class="block truncate font-medium" title={item.name}
-                                >{item.name}</span
-                            >
-                            {#if showFolder && item.folder}
-                                <span class="block truncate text-xs text-muted" title={item.folder}
-                                    >{item.folder}</span
-                                >
-                            {/if}
-                            {#if showOwner}
-                                <span class="block truncate text-xs text-muted" title={item.email}
-                                    >{item.email}</span
-                                >
-                            {/if}
-                            {#if !item.complete || (!trash && item.trashedChunks.length > 0)}
-                                <FileIncompleteWarning {item} {partial} {trash} />
-                            {:else}
-                                <span class="mobile-date text-xs text-muted"
-                                    ><LocalizedDate timestamp={item.at} /></span
-                                >
-                            {/if}
-                        </div>
-                    </div>
-                </td>
-                <td class="date-column"><LocalizedDate timestamp={item.at} /></td>
-                <td class="size-column">
-                    {#if item.complete}
-                        {prettyBytes(item.chunks.reduce((sum, chunk) => sum + chunk.size, 0))}
-                    {:else}<span title="Size is unknown while not all chunks are available"
-                            >Unknown</span
-                        >{/if}
-                </td>
-                <td class="actions-column">
-                    <div class="actions-cell">
-                        <div class="inline-actions">
-                            <FileActions
-                                {item}
-                                {disabled}
-                                compact
-                                {trash}
-                                {partial}
-                                working={fileActionKind(action, item)}
-                                {ondownload}
-                                {ondelete}
-                                {onrestore}
-                                {ondeleteforever}
-                            />
-                        </div>
-                        <MoreButton
-                            label={item.name}
-                            {disabled}
-                            onopen={(element) => onmenu?.(item, element)}
-                        />
-                    </div>
-                </td>
-            </tr>
+            <FileListRow
+                {item}
+                selected={selectedKeys.has(fileKey(item))}
+                {selectedCount}
+                {disabled}
+                {showFolder}
+                {showOwner}
+                {trash}
+                {partial}
+                working={fileActionKind(action, item)}
+                {onselect}
+                {oncontextselect}
+                {onselectionmenu}
+                {ondownload}
+                {ondelete}
+                {onrestore}
+                {ondeleteforever}
+                {onmenu}
+            />
         {/each}
     </tbody>
 </table>
@@ -191,44 +174,24 @@
         font-size: 14px;
     }
 
-    th,
-    td {
-        height: 48px;
+    th {
+        height: 40px;
         border-bottom: 1px solid var(--app-border);
         padding: 4px 12px;
+        font-weight: 500;
         text-align: start;
         vertical-align: middle;
     }
 
-    th {
-        height: 40px;
-        font-weight: 500;
+    .select-column {
+        width: 52px;
+        padding-inline: 2px;
     }
 
-    .mobile-date {
-        display: none;
-        font-variant-numeric: tabular-nums;
-    }
-
-    td:not(:first-child) {
-        color: var(--app-muted);
-        font-variant-numeric: tabular-nums;
-    }
-
-    tbody tr {
-        transition: background-color var(--np-motion-standard-fast-effects);
-    }
-
-    tbody tr:hover,
-    tbody tr:focus-within {
-        background: var(--np-color-surface-container);
-    }
-
-    .file-name {
+    .select-cell {
         display: flex;
         align-items: center;
-        gap: 16px;
-        min-width: 0;
+        justify-content: center;
     }
 
     .date-column {
@@ -236,25 +199,12 @@
     }
     .size-column {
         width: 100px;
-        font-variant-numeric: tabular-nums;
         text-align: end;
         white-space: nowrap;
     }
     .actions-column {
         width: 144px;
         padding-inline: 4px;
-    }
-
-    .actions-cell {
-        display: flex;
-        align-items: center;
-        justify-content: flex-end;
-        gap: 2px;
-    }
-
-    .inline-actions {
-        display: flex;
-        align-items: center;
     }
 
     .file-list :global(.column-sort) {
@@ -266,30 +216,27 @@
     }
 
     @media (width < 800px) {
+        th {
+            padding-inline: 4px;
+        }
         .date-column {
             display: none;
-        }
-        .mobile-date {
-            display: block;
         }
         .size-column {
             width: 76px;
         }
-        th,
-        td {
-            padding-inline: 4px;
-        }
-        .file-name {
-            gap: 8px;
-        }
         .actions-column {
             width: 56px;
         }
-        .inline-actions {
+    }
+
+    @media (width < 520px) {
+        .size-column {
             display: none;
         }
-        tbody td {
-            height: 56px;
+        .select-column {
+            width: 48px;
+            padding-inline: 0;
         }
     }
 </style>

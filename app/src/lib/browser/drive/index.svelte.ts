@@ -5,7 +5,7 @@ import {
     type PreferencesDefaults
 } from '@madkarmaa/phodrive-core/models';
 import { DriveGroupMode } from '#browser/drive/group-mode';
-import { groupFileAccess, groupLibraryAccess, groupUploadAccess } from '#browser/drive/wiring';
+import { groupLibraryAccess, groupUploadAccess } from '#browser/drive/wiring';
 import { watch } from 'runed';
 import type { FileGroup } from '@madkarmaa/phodrive-core/files';
 import { useAutomaticRefresh } from '#browser/drive/refresh.svelte';
@@ -14,10 +14,13 @@ import { DriveSettings } from '#browser/drive/settings.svelte';
 import { DriveAccounts } from '#browser/drive/accounts.svelte';
 import { DriveGroups } from '#browser/drive/groups.svelte';
 import { DriveUploads } from '#browser/drive/uploads.svelte';
-import { DriveFiles } from '#browser/drive/files.svelte';
-import { markChunkRestored, markChunkTrashed, removeChunk } from '#browser/drive/library-chunks';
+import type { DriveFiles } from '#browser/drive/files.svelte';
 import { DriveSession } from '#browser/drive/session.svelte';
 import { DriveView } from '#browser/drive/view.svelte';
+import { DriveSelection } from '#browser/drive/selection.svelte';
+import type { DriveBulk } from '#browser/drive/bulk.svelte';
+import { createDriveFiles } from '#browser/drive/files-factory';
+import { createDriveBulk } from '#browser/drive/bulk-factory';
 
 export type { ConfirmTarget } from '#browser/drive/files.svelte';
 
@@ -30,6 +33,8 @@ export class DriveController extends DriveView {
     readonly settings: DriveSettings;
     readonly groupSettings: DriveGroups;
     readonly groupMode: DriveGroupMode;
+    readonly selection: DriveSelection;
+    readonly bulk: DriveBulk;
     private readonly accountsState: DriveAccounts;
     protected readonly uploads: DriveUploads;
     protected readonly files: DriveFiles;
@@ -42,6 +47,7 @@ export class DriveController extends DriveView {
             this.feedbackMessage = message;
         };
 
+        this.selection = new DriveSelection();
         this.settings = new DriveSettings(() => this.preferences, defaults, feedback);
         this.accountsState = new DriveAccounts({
             defaults,
@@ -61,7 +67,7 @@ export class DriveController extends DriveView {
         const libraryGroup = groupLibraryAccess(this.groupMode, this.groupSettings);
         this.library = new DriveLibrary(
             () => this.account(),
-            () => this.busy || !!this.fileAction,
+            () => this.busy || !!this.fileAction || this.bulk.running || this.bulk.moveBusy,
             () => this.settings.fileSort,
             feedback,
             libraryGroup.members,
@@ -77,7 +83,7 @@ export class DriveController extends DriveView {
             folder: () => this.library.folder,
             workers: () => this.settings.concurrentWorkers,
             loading: () => this.library.loading,
-            blocked: () => !!this.files.action,
+            blocked: () => !!this.files.action || this.bulk.running,
             preferences: () => this.accountsState.preferences,
             feedback,
             onChunk: (saved) => {
@@ -99,7 +105,10 @@ export class DriveController extends DriveView {
         this.session = new DriveSession({
             busy: () => this.busy,
             fileAction: () => !!this.fileAction,
-            resetLibrary: () => this.library.reset(),
+            resetLibrary: () => {
+                this.selection.clear();
+                this.library.reset();
+            },
             loadLibrary: () => void this.library.load(),
             resetUploads: () => this.uploads.reset(),
             clearConfirmation: () => {
@@ -112,30 +121,8 @@ export class DriveController extends DriveView {
             matches: (email, token) =>
                 this.selectedEmail === email && this.accounts[email] === token
         });
-        const fileGroup = groupFileAccess(this.groupMode, () => void this.library.load());
-        this.files = new DriveFiles({
-            account: () => this.account(),
-            busy: () => this.uploads.busy,
-            loading: () => this.library.loading,
-            files: () => [...this.library.files, ...this.library.trashFiles],
-            workers: () => this.settings.concurrentWorkers,
-            feedback,
-            onTrashed: (item, chunk) => {
-                this.library.chunks = markChunkTrashed(this.library.chunks, item, chunk);
-            },
-            onRestored: (item, chunk) => {
-                this.library.chunks = markChunkRestored(this.library.chunks, item, chunk);
-            },
-            onRemoved: (item, chunk) => {
-                this.library.chunks = removeChunk(this.library.chunks, item, chunk);
-            },
-            closeUploads: () => {
-                this.uploads.panelOpen = false;
-            },
-            reload: (email, token) => this.session.reload(email, token),
-            removeAccount: (email) => this.removeAccount(email),
-            ...fileGroup
-        });
+        this.files = createDriveFiles(this);
+        this.bulk = createDriveBulk(this);
 
         watch(
             [() => this.selectedEmail, () => this.accounts[this.selectedEmail]],
@@ -153,7 +140,9 @@ export class DriveController extends DriveView {
                 !!this.selectedEmail &&
                 !this.busy &&
                 !this.fileAction &&
-                !this.library.loading,
+                !this.library.loading &&
+                !this.bulk.moveOpen &&
+                !this.bulk.moveBusy,
             () => this.library.refresh()
         );
     }
@@ -168,6 +157,10 @@ export class DriveController extends DriveView {
 
     get selectedEmail() {
         return this.accountsState.selectedEmail;
+    }
+
+    get currentAccount() {
+        return this.account();
     }
 
     get accountEditor(): DriveAccounts {
@@ -191,15 +184,31 @@ export class DriveController extends DriveView {
     }
 
     selectAccount(email: string) {
+        this.selection.clear();
         this.accountsState.select(email);
     }
 
     removeAccount(email: string) {
+        this.selection.clear();
         this.accountsState.remove(email);
     }
 
     confirmAction() {
+        const target = this.confirmTarget;
+        if (target?.kind === 'selection') {
+            this.confirmOpen = false;
+            this.confirmTarget = null;
+            if (target.permanent) void this.bulk.deleteForever(target.files);
+            else void this.bulk.delete(target.files);
+
+            return;
+        }
+
         this.files.confirm();
+    }
+
+    reloadAccount(email: string, token: string) {
+        this.session.reload(email, token);
     }
 
     async actOnFile(item: FileGroup, action: FileActionKind) {

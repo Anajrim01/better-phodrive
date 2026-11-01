@@ -7,10 +7,18 @@
         value: string;
         currentEmail: string;
         unavailable?: string | null;
+        disabled?: boolean;
         onchange: (id: string) => void;
     }
 
-    let { groups, value, currentEmail, unavailable = null, onchange }: Props = $props();
+    let {
+        groups,
+        value,
+        currentEmail,
+        unavailable = null,
+        disabled = false,
+        onchange
+    }: Props = $props();
 
     const options = $derived([
         {
@@ -31,6 +39,7 @@
             label="Upload to"
             {options}
             {value}
+            {disabled}
             onchange={(event) => onchange(event.currentTarget.value)}
         />
         {#if unavailable}

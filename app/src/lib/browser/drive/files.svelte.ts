@@ -1,45 +1,24 @@
 import { ConfirmKind, FileActionKind } from '@madkarmaa/phodrive-core/models';
-import {
-    deleteRoute,
-    downloadRoute,
-    restoreRoute,
-    type RouteMember
-} from '@madkarmaa/phodrive-core/groups';
-import {
-    fileKey,
-    type FileAction,
-    type FileGroup,
-    type UploadedChunk
-} from '@madkarmaa/phodrive-core/files';
-import {
-    deleteFile,
-    deleteForeverFile,
-    downloadFile,
-    restoreFile,
-    saveDownloadedFile
-} from '#browser/files';
+import { fileKey, type FileAction, type FileGroup } from '@madkarmaa/phodrive-core/files';
+import type { FileActionDeps } from '#browser/drive/file-action';
+import { applyFileAction, resolveFileToken } from '#browser/drive/file-action';
+import { FILE_CHANGED_MESSAGE, fileChangedSince } from '#browser/drive/file-snapshot';
 
 export type ConfirmTarget =
     | { kind: ConfirmKind.Account; email: string }
     | { kind: ConfirmKind.File; item: FileGroup }
-    | { kind: ConfirmKind.PermanentDelete; item: FileGroup };
+    | { kind: ConfirmKind.PermanentDelete; item: FileGroup }
+    | { kind: 'selection'; files: readonly FileGroup[]; permanent: boolean };
 
-type FileDeps = {
-    account: () => { email: string; token: string | undefined };
+type FileDeps = FileActionDeps & {
     busy: () => boolean;
     loading: () => boolean;
     files: () => readonly FileGroup[];
-    workers: () => number;
     feedback: (message: string) => void;
-    onTrashed: (item: FileGroup, chunk: UploadedChunk) => void;
-    onRestored: (item: FileGroup, chunk: UploadedChunk) => void;
-    onRemoved: (item: FileGroup, chunk: UploadedChunk) => void;
     closeUploads: () => void;
     reload: (email: string, token: string) => void;
     reloadGroup: () => void;
     removeAccount: (email: string) => void;
-    groupMode: () => boolean;
-    routeMembers: () => readonly RouteMember[];
 };
 
 export class DriveFiles {
@@ -53,7 +32,7 @@ export class DriveFiles {
         const target = this.confirmTarget;
         this.confirmOpen = false;
         this.confirmTarget = null;
-        if (!target) return;
+        if (!target || target.kind === 'selection') return;
 
         if (target.kind === ConfirmKind.Account) {
             this.deps.removeAccount(target.email);
@@ -68,24 +47,8 @@ export class DriveFiles {
                 : FileActionKind.Delete;
         const current = this.deps.files().find((file) => fileKey(file) === fileKey(item));
         const owner = this.deps.groupMode() ? item.email : this.deps.account().email;
-        if (
-            item.email !== owner ||
-            !current ||
-            current.name !== item.name ||
-            current.chunks.length !== item.chunks.length ||
-            current.chunks.some(
-                (chunk) =>
-                    !item.chunks.some(
-                        (saved) =>
-                            saved.mediaKey === chunk.mediaKey &&
-                            saved.sha1 === chunk.sha1 &&
-                            saved.chunkIndex === chunk.chunkIndex
-                    )
-            )
-        ) {
-            this.deps.feedback(
-                'This file changed while you were confirming. Refresh and try again.'
-            );
+        if (!current || fileChangedSince(item, current, owner, action)) {
+            this.deps.feedback(FILE_CHANGED_MESSAGE);
 
             return;
         }
@@ -96,94 +59,34 @@ export class DriveFiles {
     async act(item: FileGroup, action: FileActionKind): Promise<void> {
         if (this.deps.busy() || this.action || this.deps.loading()) return;
 
-        const { email, token: selectedToken } = this.deps.account();
-        let token: string;
+        const routed = resolveFileToken(item, action, this.deps);
+        const token = routed.match({
+            Ok: (value) => value,
+            Err: (error) => {
+                this.deps.feedback(error.message);
 
-        if (this.deps.groupMode()) {
-            const members = this.deps.routeMembers();
-            const routed =
-                action === FileActionKind.Download
-                    ? downloadRoute(item, members)
-                    : action === FileActionKind.Restore
-                      ? restoreRoute(item, members)
-                      : deleteRoute(item, members);
-            if (routed.isErr()) {
-                this.deps.feedback(routed.unwrapErr().message);
-
-                return;
+                return null;
             }
-            token = routed.unwrap().token;
-        } else {
-            if (item.email !== email || !selectedToken) {
-                this.deps.feedback('Select the connected account for this file before continuing.');
-
-                return;
-            }
-            token = selectedToken;
-        }
+        });
+        if (token === null) return;
 
         this.action = { email: item.email, fileId: item.fileId, kind: action };
         this.deps.feedback('');
 
-        if (action === FileActionKind.Delete) {
-            const deleted = await deleteFile(
-                item,
-                token,
-                (chunk) => this.deps.onTrashed(item, chunk),
-                this.deps.workers()
-            );
+        const applied = await applyFileAction(item, action, token, this.deps);
+        applied.inspectErr((error) => {
+            this.deps.feedback(error.message);
+        });
 
-            deleted.inspectErr((error) => {
-                this.deps.feedback(error.message);
-            });
-
-            this.finish(item, token);
+        if (action === FileActionKind.Download) {
+            this.action = null;
+            if (this.deps.groupMode()) this.deps.reloadGroup();
+            else this.deps.reload(item.email, token);
 
             return;
         }
 
-        if (action === FileActionKind.Restore) {
-            const restored = await restoreFile(item, token, (chunk) =>
-                this.deps.onRestored(item, chunk)
-            );
-
-            restored.inspectErr((error) => {
-                this.deps.feedback(error.message);
-            });
-
-            this.finish(item, token);
-
-            return;
-        }
-
-        if (action === FileActionKind.DeleteForever) {
-            const removed = await deleteForeverFile(
-                item,
-                token,
-                (chunk) => this.deps.onRemoved(item, chunk),
-                this.deps.workers()
-            );
-
-            removed.inspectErr((error) => {
-                this.deps.feedback(error.message);
-            });
-
-            this.finish(item, token);
-
-            return;
-        }
-
-        const downloaded = await downloadFile(item, token);
-
-        downloaded
-            .andThen((file) => saveDownloadedFile(file, item.name))
-            .inspectErr((error) => {
-                this.deps.feedback(error.message);
-            });
-
-        this.action = null;
-        if (this.deps.groupMode()) this.deps.reloadGroup();
-        else this.deps.reload(item.email, token);
+        this.finish(item, token);
     }
 
     private finish(item: FileGroup, token: string): void {

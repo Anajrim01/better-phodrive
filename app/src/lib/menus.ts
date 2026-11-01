@@ -59,3 +59,19 @@ export function folderMenu(entry: FolderEntry): MenuEntry[] {
         { action: 'details', label: 'Details', divider: true }
     ];
 }
+
+export function selectionMenu(trash: boolean): MenuEntry[] {
+    if (trash)
+        return [
+            { action: 'restore', label: 'Restore' },
+            { action: 'delete-forever', label: 'Delete forever' },
+            { action: 'details', label: 'Details', divider: true }
+        ];
+
+    return [
+        { action: 'download', label: 'Download' },
+        { action: 'move', label: 'Move to folder' },
+        { action: 'delete', label: 'Delete' },
+        { action: 'details', label: 'Details', divider: true }
+    ];
+}

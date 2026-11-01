@@ -1,10 +1,12 @@
 import {
+    FileSort,
     ThemeMode,
     UploadJobStatus,
     UploadStatus,
     type RemoteBmp
 } from '@madkarmaa/phodrive-core/models';
 import { afterAll, beforeEach, expect, test, vi } from 'vitest';
+import { flushSync } from 'svelte';
 import { Err, Ok } from 'results-ts';
 import { DriveController } from '#browser/drive/index.svelte';
 import * as filesApi from '#browser/files';
@@ -62,6 +64,29 @@ function remoteBmp(index: number, originalName: string): RemoteBmp {
         at: index
     };
 }
+
+test('selection survives sorting and clears when the account changes', () => {
+    storage.setItem(
+        'accounts',
+        JSON.stringify({
+            'test@example.com': 'aas_et/test',
+            'other@example.com': 'aas_et/other'
+        })
+    );
+    const drive = new DriveController();
+    drive.initialize();
+    const keys = ['test@example.com:file-a', 'test@example.com:file-b'];
+
+    drive.selection.selectAll(keys);
+    drive.settings.fileSort = FileSort.NameDescending;
+    flushSync();
+    expect(drive.selection.size).toBe(2);
+
+    drive.selection.selectAll(keys);
+    drive.selectAccount('other@example.com');
+    flushSync();
+    expect(drive.selection.size).toBe(0);
+});
 
 test('retry keeps the original job ID and sends only its file, preserving other outcomes', async () => {
     const sources = [

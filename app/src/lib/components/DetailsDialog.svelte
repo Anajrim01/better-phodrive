@@ -4,6 +4,7 @@
     import type { FileGroup } from '@madkarmaa/phodrive-core/files';
     import LocalizedDate from '#components/LocalizedDate.svelte';
     import type { EntryTarget } from '#browser/drive/menu-types';
+    import { selectionSummary } from '#browser/drive/selection-files';
     import { filesUnderPath } from '#lib/folders';
 
     interface Props {
@@ -11,13 +12,22 @@
         target: EntryTarget | null;
         files: readonly FileGroup[];
         owners: readonly string[];
+        selection?: readonly FileGroup[] | null;
         onclose: () => void;
     }
 
-    let { open = $bindable(false), target, files, owners, onclose }: Props = $props();
+    let {
+        open = $bindable(false),
+        target,
+        files,
+        owners,
+        selection = null,
+        onclose
+    }: Props = $props();
 
     const file = $derived(target?.kind === 'file' ? target.item : null);
     const folder = $derived(target?.kind === 'folder' ? target.entry : null);
+    const summary = $derived(selection === null ? null : selectionSummary(selection));
     const total = $derived(folder === null ? 0 : filesUnderPath(files, folder.path).length);
     const size = $derived(
         file === null || !file.complete
@@ -26,6 +36,13 @@
     );
     const status = $derived(
         file === null ? '' : file.trashed ? 'In Trash' : file.complete ? 'Complete' : 'Incomplete'
+    );
+    const summarySize = $derived(
+        summary === null
+            ? ''
+            : summary.incomplete === summary.count
+              ? 'Unknown'
+              : `${prettyBytes(summary.size)}${summary.incomplete > 0 ? ' known' : ''}`
     );
 </script>
 
@@ -73,6 +90,15 @@
             <dd>{folder.subfolders}</dd>
             <dt>Total files</dt>
             <dd>{total}</dd>
+        {:else if summary}
+            <dt>Files</dt>
+            <dd>{summary.count}</dd>
+            <dt>Total size</dt>
+            <dd>{summarySize}</dd>
+            <dt>Owners</dt>
+            <dd>{summary.owners.join(', ')}</dd>
+            <dt>Incomplete</dt>
+            <dd>{summary.incomplete}</dd>
         {/if}
     </dl>
 

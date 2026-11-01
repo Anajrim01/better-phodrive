@@ -10,6 +10,9 @@
         value: string;
         error?: string;
         busy: boolean;
+        headline?: string;
+        note?: string;
+        disableWhenUnchanged?: boolean;
         onmove: (destination: string) => void;
         onclose: () => void;
     }
@@ -21,16 +24,16 @@
         value,
         error = '',
         busy,
+        headline = target?.kind === 'folder' ? 'Move folder' : 'Move file',
+        note = target?.kind === 'folder'
+            ? 'This moves the folder in Phodrive only. Google Photos files stay where they are.'
+            : 'This moves the file in Phodrive only. Google Photos albums are unchanged.',
+        disableWhenUnchanged = true,
         onmove,
         onclose
     }: Props = $props();
 
     let destination = $state('');
-    const note = $derived(
-        target?.kind === 'folder'
-            ? 'This moves the folder in Phodrive only. Google Photos files stay where they are.'
-            : 'This moves the file in Phodrive only. Google Photos albums are unchanged.'
-    );
     const options = $derived(
         destinations.map((entry) => ({ value: entry.value, label: entry.label }))
     );
@@ -50,7 +53,7 @@
 
 <Dialog
     bind:open
-    headline={target?.kind === 'folder' ? 'Move folder' : 'Move file'}
+    {headline}
     supportingText={note}
     ontoggle={(event) => {
         if (event.newState === 'closed') onclose();
@@ -72,7 +75,7 @@
             variant="text"
             loading={busy}
             loadingAriaLabel="Moving"
-            disabled={destination === value}
+            disabled={disableWhenUnchanged && destination === value}
             onclick={submit}
         >
             Move
