@@ -161,7 +161,11 @@
         currentEmail={drive.selectedEmail}
         unavailableTarget={drive.groupMode.unavailableTargetName}
         onnavigate={navigate}
-        onuploadtarget={(id) => drive.groupMode.choose(id)}
+        onuploadtarget={(id) => {
+            if (actionsDisabled) return;
+
+            drive.groupMode.choose(id);
+        }}
         onconnect={addAccount}
         onupload={upload}
     />

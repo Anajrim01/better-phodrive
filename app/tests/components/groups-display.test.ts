@@ -69,6 +69,23 @@ test('the upload target lists the current account and groups', () => {
     expect(container.querySelector('select')).toBeTruthy();
 });
 
+test('the upload target is disabled while a bulk action or move runs', () => {
+    const { container } = render(UploadTarget, {
+        props: {
+            groups: [group()],
+            value: '',
+            currentEmail: FIRST,
+            disabled: true,
+            onchange: vi.fn()
+        }
+    });
+
+    expect(container.querySelector('[role="combobox"]')?.getAttribute('aria-disabled')).toBe(
+        'true'
+    );
+    expect((container.querySelector('select') as HTMLSelectElement).disabled).toBe(true);
+});
+
 test('a saved group that cannot shard explains the fallback', () => {
     render(UploadTarget, {
         props: {

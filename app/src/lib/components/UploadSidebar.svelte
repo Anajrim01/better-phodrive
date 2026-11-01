@@ -81,6 +81,7 @@
         value={uploadTarget}
         {currentEmail}
         unavailable={unavailableTarget}
+        {disabled}
         onchange={onuploadtarget}
     />
 
