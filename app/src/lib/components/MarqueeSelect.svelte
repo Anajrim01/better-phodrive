@@ -19,9 +19,7 @@
         children
     }: Props = $props();
     const DRAG_THRESHOLD = 4;
-    const IGNORE = [
-        'tr',
-        'li',
+    const ALWAYS_IGNORE = [
         'input',
         'button',
         'a',
@@ -33,8 +31,7 @@
         '[role="button"]',
         '[role="menuitem"]',
         '[role="option"]',
-        '[contenteditable="true"]',
-        '[data-file-key]'
+        '[contenteditable="true"]'
     ].join(',');
 
     let surface = $state<HTMLElement>();
@@ -46,23 +43,33 @@
         additive: boolean;
         previous: Set<string>;
         moved: boolean;
+        background: boolean;
     } | null>(null);
 
-    function ignored(target: EventTarget | null): boolean {
-        return target instanceof Element && target.closest(IGNORE) !== null;
+    function ignored(target: EventTarget | null, altKey: boolean): boolean {
+        if (!(target instanceof Element)) return true;
+        if (target.closest(ALWAYS_IGNORE)) return true;
+
+        const item = target.closest('[data-file-key]');
+        if (item) return !altKey;
+
+        return target.closest('tr, li') !== null;
     }
 
     function start(event: PointerEvent): void {
         if (disabled || event.pointerType === 'touch' || event.button !== 0) return;
-        if (ignored(event.target)) return;
+        if (ignored(event.target, event.altKey)) return;
 
+        const item =
+            event.target instanceof Element ? event.target.closest('[data-file-key]') : null;
         drag = {
             pointerId: event.pointerId,
             startX: event.clientX,
             startY: event.clientY,
             additive: event.ctrlKey || event.metaKey,
             previous: new Set(selected),
-            moved: false
+            moved: false,
+            background: item === null
         };
         surface?.setPointerCapture(event.pointerId);
     }
@@ -105,6 +112,7 @@
     function end(event: PointerEvent): void {
         if (!drag || event.pointerId !== drag.pointerId) return;
 
+        if (!drag.moved && drag.background) onpreview(new Set());
         finish();
     }
 

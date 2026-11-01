@@ -17,13 +17,19 @@
         partial?: boolean;
         selected?: boolean;
         selectedCount?: number;
-        onselect?: (item: FileGroup, event: MouseEvent | KeyboardEvent) => void;
+        onselect?: (
+            item: FileGroup,
+            event: MouseEvent | KeyboardEvent,
+            mode?: 'toggle' | 'point'
+        ) => void;
         oncontextselect?: (item: FileGroup) => void;
         onselectionmenu?: (anchor: MenuAnchor) => void;
         ondownload?: (item: FileGroup) => void;
         ondelete?: (item: FileGroup) => void;
         onrestore?: (item: FileGroup) => void;
         onmenu: (item: FileGroup, anchor: MenuAnchor) => void;
+        onstartdrag?: (item: FileGroup, event: DragEvent) => void;
+        onenddrag?: (event: DragEvent) => void;
     }
 
     let {
@@ -40,13 +46,53 @@
         ondownload,
         ondelete,
         onrestore,
-        onmenu
+        onmenu,
+        onstartdrag,
+        onenddrag
     }: Props = $props();
     let isChecked = $state(false);
+    let dragOrigin: EventTarget | null = null;
 
     $effect(() => {
         isChecked = selected;
     });
+
+    function interactive(target: EventTarget | null): boolean {
+        return (
+            target instanceof Element &&
+            target.closest(
+                'button, a, input, label, select, textarea, [role="button"], [role="checkbox"], [role="menuitem"], [role="tooltip"]'
+            ) !== null
+        );
+    }
+
+    function cardClick(event: MouseEvent): void {
+        if (interactive(event.target)) return;
+
+        onselect?.(item, event, 'point');
+    }
+
+    function cardKeydown(event: KeyboardEvent): void {
+        if (event.key !== ' ' || event.target !== event.currentTarget) return;
+
+        event.preventDefault();
+        onselect?.(item, event, 'toggle');
+    }
+
+    function startDrag(event: DragEvent): void {
+        if (event.altKey || interactive(event.target) || interactive(dragOrigin)) {
+            event.preventDefault();
+
+            return;
+        }
+
+        onstartdrag?.(item, event);
+    }
+
+    function endDrag(event: DragEvent): void {
+        dragOrigin = null;
+        onenddrag?.(event);
+    }
 
     function contextMenu(event: MouseEvent): void {
         event.preventDefault();
@@ -61,24 +107,33 @@
     }
 </script>
 
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions, a11y_no_noninteractive_tabindex -->
 <div
     class="file-card-shell"
     class:selected
     role="group"
     aria-label={item.name}
     data-file-key={fileKey(item)}
+    tabindex="0"
+    draggable={!disabled}
+    onclick={cardClick}
+    onkeydown={cardKeydown}
     oncontextmenu={contextMenu}
+    onpointerdowncapture={(event) => (dragOrigin = event.target)}
+    ondragstart={startDrag}
+    ondragend={endDrag}
 >
     <Card type="text" variant="filled" class="file-card">
         <div class="flex h-12 min-w-0 items-center gap-2 px-2">
             <Checkbox
                 aria-label={`Select ${item.name}`}
+                class="card-select"
                 bind:checked={isChecked}
                 {disabled}
-                --np-checkbox-margin="12px"
+                --np-checkbox-margin="7px"
                 onclick={(event) => {
                     event.stopPropagation();
-                    onselect?.(item, event);
+                    onselect?.(item, event, 'toggle');
                     if (event.shiftKey) {
                         const input = event.currentTarget;
                         queueMicrotask(() => {
@@ -139,6 +194,23 @@
         border-radius: 12px;
     }
 
+    .file-card-shell :global(.np-checkbox-container.card-select) {
+        opacity: 0;
+        transition: opacity var(--np-motion-standard-fast-effects);
+    }
+
+    .file-card-shell:hover :global(.np-checkbox-container.card-select),
+    .file-card-shell:focus-within :global(.np-checkbox-container.card-select),
+    .file-card-shell.selected :global(.np-checkbox-container.card-select) {
+        opacity: 1;
+    }
+
+    @media (hover: none), (pointer: coarse) {
+        .file-card-shell :global(.np-checkbox-container.card-select) {
+            opacity: 1;
+        }
+    }
+
     .file-card-shell:focus-visible {
         outline: 2px solid var(--app-primary);
         outline-offset: 2px;
@@ -175,9 +247,10 @@
 
     .card-inline-actions {
         display: flex;
+        min-width: 0;
     }
 
-    @media (width < 800px) {
+    @container (width < 260px) {
         .card-inline-actions {
             display: none;
         }

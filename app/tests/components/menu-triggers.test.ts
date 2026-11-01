@@ -143,7 +143,14 @@ test('folder tiles open from the tile and expose a separate More button', async 
     const onopen = vi.fn();
     const onmenu = vi.fn();
     render(FolderTiles, {
-        props: { folders: [folder], disabled: false, onopen, onmenu }
+        props: {
+            folders: [folder],
+            disabled: false,
+            dragging: false,
+            onopen,
+            onmenu,
+            ondropfiles: vi.fn()
+        }
     });
 
     const open = screen.getByRole('button', { name: 'Open folder A' });
@@ -157,6 +164,29 @@ test('folder tiles open from the tile and expose a separate More button', async 
 
     await fireEvent.contextMenu(open, { clientX: 9, clientY: 11 });
     expect(onmenu).toHaveBeenLastCalledWith(folder, { x: 9, y: 11 });
+});
+
+test('a folder tile accepts a dragged file drop', async () => {
+    const ondropfiles = vi.fn();
+    render(FolderTiles, {
+        props: {
+            folders: [folder],
+            disabled: false,
+            dragging: true,
+            onopen: vi.fn(),
+            onmenu: vi.fn(),
+            ondropfiles
+        }
+    });
+    const tile = screen.getByRole('button', { name: 'Open folder A' }).closest('li');
+    if (!tile) throw new Error('Expected a folder tile');
+
+    await fireEvent.dragOver(tile);
+    expect(tile.classList.contains('drop-target')).toBe(true);
+    await fireEvent.drop(tile);
+
+    expect(ondropfiles).toHaveBeenCalledWith(folder);
+    expect(tile.classList.contains('drop-target')).toBe(false);
 });
 
 test('disabled entries cannot open their menus', async () => {

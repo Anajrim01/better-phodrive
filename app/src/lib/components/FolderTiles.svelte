@@ -1,6 +1,7 @@
 <script lang="ts">
     import type { FolderEntry } from '@madkarmaa/phodrive-core/files';
     import { folderCount } from '#lib/folders';
+    import { FILE_DRAG_TYPE } from '#browser/drive/drag-types';
     import MoreButton from '#components/MoreButton.svelte';
     import type { MenuAnchor } from '#browser/drive/menu-types';
     import IconFolder from '~icons/material-symbols/folder-outline';
@@ -8,11 +9,46 @@
     interface Props {
         folders: FolderEntry[];
         disabled: boolean;
+        dragging: boolean;
         onopen: (path: string) => void;
         onmenu: (folder: FolderEntry, anchor: MenuAnchor) => void;
+        ondropfiles: (folder: FolderEntry) => void;
     }
 
-    let { folders, disabled, onopen, onmenu }: Props = $props();
+    let { folders, disabled, dragging, onopen, onmenu, ondropfiles }: Props = $props();
+    let dropPath = $state<string | null>(null);
+
+    function accepts(event: DragEvent): boolean {
+        return (
+            !disabled && (dragging || event.dataTransfer?.types.includes(FILE_DRAG_TYPE) === true)
+        );
+    }
+
+    function over(folder: FolderEntry, event: DragEvent): void {
+        if (!accepts(event)) return;
+
+        event.preventDefault();
+        if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+        dropPath = folder.path;
+    }
+
+    function leave(folder: FolderEntry, event: DragEvent): void {
+        if (
+            event.currentTarget instanceof Node &&
+            event.relatedTarget instanceof Node &&
+            event.currentTarget.contains(event.relatedTarget)
+        )
+            return;
+        if (dropPath === folder.path) dropPath = null;
+    }
+
+    function drop(folder: FolderEntry, event: DragEvent): void {
+        if (!accepts(event)) return;
+
+        event.preventDefault();
+        dropPath = null;
+        ondropfiles(folder);
+    }
 </script>
 
 {#if folders.length}
@@ -25,10 +61,14 @@
             {#each folders as folder (folder.path)}
                 <li
                     class="folder-tile"
+                    class:drop-target={dropPath === folder.path}
                     oncontextmenu={(event) => {
                         event.preventDefault();
                         onmenu(folder, { x: event.clientX, y: event.clientY });
                     }}
+                    ondragover={(event) => over(folder, event)}
+                    ondragleave={(event) => leave(folder, event)}
+                    ondrop={(event) => drop(folder, event)}
                 >
                     <button
                         type="button"
@@ -98,6 +138,11 @@
 
     .folder-tile:hover {
         background: var(--app-hover);
+    }
+
+    .folder-tile.drop-target {
+        background: color-mix(in srgb, var(--app-primary) 12%, var(--app-card));
+        box-shadow: inset 0 0 0 2px var(--app-primary);
     }
 
     .folder-open {

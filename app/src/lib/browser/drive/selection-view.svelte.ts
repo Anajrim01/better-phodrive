@@ -3,6 +3,8 @@ import { fileKey, type FileGroup } from '@madkarmaa/phodrive-core/files';
 import type { DriveController } from '#browser/drive/index.svelte';
 import type { DriveManage } from '#browser/drive/manage.svelte';
 import type { MenuAnchor } from '#browser/drive/menu-types';
+import { applySelectionGesture } from '#browser/drive/selection.svelte';
+import { isSelectionBackground } from '#browser/drive/selection-background';
 import { selectionFiles, selectedFiles, selectionScope } from '#browser/drive/selection-files';
 import type { MenuAction } from '#lib/menus';
 
@@ -31,15 +33,12 @@ export function createSelectionView(
             drive.bulk.detailsOpen
     );
 
-    function selectFile(item: FileGroup, event: MouseEvent | KeyboardEvent): void {
-        const key = fileKey(item);
-        if (event.shiftKey) {
-            drive.selection.extendTo(key, available.map(fileKey));
-
-            return;
-        }
-
-        drive.selection.toggle(key);
+    function selectFile(
+        item: FileGroup,
+        event: MouseEvent | KeyboardEvent,
+        mode: 'toggle' | 'point' = 'point'
+    ): void {
+        applySelectionGesture(drive.selection, fileKey(item), event, mode, available.map(fileKey));
     }
 
     function selectAll(select: boolean): void {
@@ -53,6 +52,11 @@ export function createSelectionView(
 
     function replace(keys: ReadonlySet<string>): void {
         drive.selection.set(keys);
+    }
+
+    function backgroundClick(event: MouseEvent, disabled: boolean): void {
+        if (view() === AppView.Settings || disabled) return;
+        if (isSelectionBackground(event.target)) drive.selection.clear();
     }
 
     function openMenu(anchor: MenuAnchor): void {
@@ -105,6 +109,7 @@ export function createSelectionView(
         selectAll,
         selectOnly,
         replace,
+        backgroundClick,
         openMenu,
         confirm,
         run,

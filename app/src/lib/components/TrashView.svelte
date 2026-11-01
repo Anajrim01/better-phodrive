@@ -24,7 +24,11 @@
         partial?: boolean;
         action?: FileAction | null;
         selected?: ReadonlySet<string>;
-        onselect?: (item: FileGroup, event: MouseEvent | KeyboardEvent) => void;
+        onselect?: (
+            item: FileGroup,
+            event: MouseEvent | KeyboardEvent,
+            mode?: 'toggle' | 'point'
+        ) => void;
         onselectall?: (select: boolean) => void;
         oncontextselect?: (item: FileGroup) => void;
         onselectionmenu?: (anchor: MenuAnchor) => void;

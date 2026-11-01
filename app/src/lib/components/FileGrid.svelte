@@ -33,11 +33,19 @@
         showOwner?: boolean;
         action?: FileAction | null;
         selected?: ReadonlySet<string>;
-        onselect?: (item: FileGroup, event: MouseEvent | KeyboardEvent) => void;
+        onselect?: (
+            item: FileGroup,
+            event: MouseEvent | KeyboardEvent,
+            mode?: 'toggle' | 'point'
+        ) => void;
         onselectall?: (select: boolean) => void;
         oncontextselect?: (item: FileGroup) => void;
         onselectionmenu?: (anchor: MenuAnchor) => void;
         onmarquee?: (keys: ReadonlySet<string>) => void;
+        onmovefiles: (destination: string) => void;
+        dragging: boolean;
+        onstartdrag: (item: FileGroup, event: DragEvent) => void;
+        onenddrag: () => void;
         onopenfolder: (path: string) => void;
         ondownload: (item: FileGroup) => void;
         ondelete: (item: FileGroup) => void;
@@ -67,6 +75,10 @@
         oncontextselect,
         onselectionmenu,
         onmarquee,
+        onmovefiles,
+        dragging,
+        onstartdrag,
+        onenddrag,
         onopenfolder,
         ondownload,
         ondelete,
@@ -86,7 +98,14 @@
     onpreview={(keys) => onmarquee?.(keys)}
 >
     <section class="mt-6 flex min-h-0 flex-1 flex-col gap-6" aria-labelledby="files-heading">
-        <FolderTiles {folders} {disabled} onopen={onopenfolder} onmenu={onfoldermenu} />
+        <FolderTiles
+            {folders}
+            {disabled}
+            {dragging}
+            onopen={onopenfolder}
+            onmenu={onfoldermenu}
+            ondropfiles={(folder) => onmovefiles(folder.path)}
+        />
 
         {#if files.length}
             {#if layout === FileLayout.List}
@@ -102,6 +121,8 @@
                     {onselectall}
                     {oncontextselect}
                     {onselectionmenu}
+                    {onstartdrag}
+                    {onenddrag}
                     partial={hasMore}
                     {ondownload}
                     {ondelete}
@@ -129,6 +150,8 @@
                                 {onselect}
                                 {oncontextselect}
                                 {onselectionmenu}
+                                {onstartdrag}
+                                {onenddrag}
                                 {ondownload}
                                 {ondelete}
                                 {onrestore}

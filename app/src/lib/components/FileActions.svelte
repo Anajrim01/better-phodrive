@@ -110,7 +110,6 @@
         <Button
             variant="text"
             size="xs"
-            title={restoreLabel}
             {disabled}
             loading={working === FileActionKind.Restore}
             loadingAriaLabel={`Restoring ${item.name}`}
@@ -122,7 +121,6 @@
         <Button
             variant="text"
             size="xs"
-            title={deleteForeverLabel}
             {disabled}
             loading={working === FileActionKind.DeleteForever}
             loadingAriaLabel={`Deleting ${item.name} forever`}
@@ -136,7 +134,6 @@
             <Button
                 variant="text"
                 size="xs"
-                title={restoreLabel}
                 {disabled}
                 loading={working === FileActionKind.Restore}
                 loadingAriaLabel={`Restoring ${item.name}`}
@@ -150,7 +147,6 @@
             <Button
                 variant="text"
                 size="xs"
-                title={`Download ${item.name}`}
                 {disabled}
                 loading={working === FileActionKind.Download}
                 loadingAriaLabel={`Downloading ${item.name}`}
@@ -163,7 +159,6 @@
         <Button
             variant="text"
             size="xs"
-            title={deleteLabel}
             {disabled}
             loading={working === FileActionKind.Delete}
             loadingAriaLabel={`Deleting ${item.name}`}

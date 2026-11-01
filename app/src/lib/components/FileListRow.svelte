@@ -20,7 +20,11 @@
         trash: boolean;
         partial: boolean;
         working: FileActionKind | null;
-        onselect?: (item: FileGroup, event: MouseEvent | KeyboardEvent) => void;
+        onselect?: (
+            item: FileGroup,
+            event: MouseEvent | KeyboardEvent,
+            mode?: 'toggle' | 'point'
+        ) => void;
         oncontextselect?: (item: FileGroup) => void;
         onselectionmenu?: (anchor: MenuAnchor) => void;
         ondownload?: (item: FileGroup) => void;
@@ -28,6 +32,8 @@
         onrestore?: (item: FileGroup) => void;
         ondeleteforever?: (item: FileGroup) => void;
         onmenu?: (item: FileGroup, anchor: MenuAnchor) => void;
+        onstartdrag?: (item: FileGroup, event: DragEvent) => void;
+        onenddrag?: (event: DragEvent) => void;
     }
 
     let {
@@ -47,9 +53,12 @@
         ondelete,
         onrestore,
         ondeleteforever,
-        onmenu
+        onmenu,
+        onstartdrag,
+        onenddrag
     }: Props = $props();
     let isChecked = $state(false);
+    let dragOrigin: EventTarget | null = null;
 
     $effect(() => {
         isChecked = selected;
@@ -58,7 +67,9 @@
     function interactive(target: EventTarget | null): boolean {
         return (
             target instanceof Element &&
-            target.closest('button, a, input, select, textarea') !== null
+            target.closest(
+                'button, a, input, label, select, textarea, [role="button"], [role="checkbox"], [role="menuitem"], [role="tooltip"]'
+            ) !== null
         );
     }
 
@@ -75,17 +86,31 @@
     }
 
     function rowClick(event: MouseEvent): void {
-        if (!event.shiftKey && !event.ctrlKey && !event.metaKey) return;
         if (interactive(event.target)) return;
 
-        onselect?.(item, event);
+        onselect?.(item, event, 'point');
     }
 
     function rowKeydown(event: KeyboardEvent): void {
         if (event.key !== ' ' || event.target !== event.currentTarget) return;
 
         event.preventDefault();
-        onselect?.(item, event);
+        onselect?.(item, event, 'toggle');
+    }
+
+    function startDrag(event: DragEvent): void {
+        if (event.altKey || interactive(event.target) || interactive(dragOrigin)) {
+            event.preventDefault();
+
+            return;
+        }
+
+        onstartdrag?.(item, event);
+    }
+
+    function endDrag(event: DragEvent): void {
+        dragOrigin = null;
+        onenddrag?.(event);
     }
 </script>
 
@@ -93,9 +118,13 @@
     class:selected
     data-file-key={fileKey(item)}
     tabindex="0"
+    draggable={!disabled}
     onclick={rowClick}
     onkeydown={rowKeydown}
     oncontextmenu={contextMenu}
+    onpointerdowncapture={(event) => (dragOrigin = event.target)}
+    ondragstart={startDrag}
+    ondragend={endDrag}
 >
     <td class="select-column">
         <div class="select-cell">
@@ -103,9 +132,10 @@
                 aria-label={`Select ${item.name}`}
                 bind:checked={isChecked}
                 {disabled}
+                --np-checkbox-margin="7px"
                 onclick={(event) => {
                     event.stopPropagation();
-                    onselect?.(item, event);
+                    onselect?.(item, event, 'toggle');
                     if (event.shiftKey) {
                         const input = event.currentTarget;
                         queueMicrotask(() => {
@@ -223,6 +253,14 @@
         display: flex;
         align-items: center;
         justify-content: center;
+        opacity: 0;
+        transition: opacity var(--np-motion-standard-fast-effects);
+    }
+
+    tr:hover .select-cell,
+    tr:focus-within .select-cell,
+    tr.selected .select-cell {
+        opacity: 1;
     }
 
     .file-name {
@@ -233,10 +271,10 @@
     }
 
     .date-column {
-        width: 180px;
+        width: 170px;
     }
     .size-column {
-        width: 100px;
+        width: 92px;
         font-variant-numeric: tabular-nums;
         text-align: end;
         white-space: nowrap;
@@ -258,10 +296,10 @@
         align-items: center;
     }
 
-    @media (width < 800px) {
+    @container (width < 820px) {
         td {
             height: 56px;
-            padding-inline: 4px;
+            padding-inline: 8px;
         }
         .date-column {
             display: none;
@@ -269,11 +307,17 @@
         .mobile-date {
             display: block;
         }
-        .size-column {
-            width: 76px;
-        }
         .file-name {
             gap: 8px;
+        }
+    }
+
+    @container (width < 560px) {
+        td {
+            padding-inline: 4px;
+        }
+        .size-column {
+            display: none;
         }
         .actions-column {
             width: 56px;
@@ -281,15 +325,15 @@
         .inline-actions {
             display: none;
         }
-    }
-
-    @media (width < 520px) {
-        .size-column {
-            display: none;
-        }
         .select-column {
             width: 48px;
             padding-inline: 0;
+        }
+    }
+
+    @media (hover: none), (pointer: coarse) {
+        .select-cell {
+            opacity: 1;
         }
     }
 </style>

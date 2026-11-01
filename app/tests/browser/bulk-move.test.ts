@@ -65,6 +65,42 @@ test('bulk move uses one destination, routes each owner and reports partial fail
     expect(feedback).toHaveBeenCalledWith(expect.stringContaining('No access'));
 });
 
+test('a dragged multi-file move routes every file to its owner', async () => {
+    const first = file({ name: 'first.bin', folder: 'Old' });
+    const second = file({
+        email: 'second@example.com',
+        fileId: 'b'.repeat(64),
+        name: 'second.bin',
+        folder: 'Old'
+    });
+    vi.mocked(manageApi.moveFile).mockReturnValue(ok(manageResponse()));
+    const { bulk, selection, setFiles } = makeBulk({
+        groupMode: () => true,
+        routeMembers: () => [ownerRoute('first@example.com'), ownerRoute('second@example.com')]
+    });
+    setFiles([first, second]);
+    selection.selectAll([fileKey(first), fileKey(second)]);
+
+    await bulk.moveTo([first, second], 'New');
+
+    expect(manageApi.moveFile).toHaveBeenNthCalledWith(
+        1,
+        'first@example.com',
+        'token-first@example.com',
+        first.fileId,
+        'New'
+    );
+    expect(manageApi.moveFile).toHaveBeenNthCalledWith(
+        2,
+        'second@example.com',
+        'token-second@example.com',
+        second.fileId,
+        'New'
+    );
+    expect(selection.size).toBe(0);
+    expect(bulk.moveOpen).toBe(false);
+});
+
 test('a move that fails for every file keeps the destination dialog open', async () => {
     const first = file({ name: 'first.bin' });
     vi.mocked(manageApi.moveFile).mockReturnValue(failed<ManageResponse>('No access'));

@@ -1,5 +1,23 @@
 import { SvelteSet } from 'svelte/reactivity';
 
+export function applySelectionGesture(
+    selection: DriveSelection,
+    key: string,
+    event: MouseEvent | KeyboardEvent,
+    mode: 'toggle' | 'point',
+    visibleKeys: readonly string[]
+): void {
+    if (event.shiftKey) {
+        selection.extendTo(key, visibleKeys);
+
+        return;
+    }
+
+    if (mode === 'toggle' || event.ctrlKey || event.metaKey || event.type === 'keydown')
+        selection.toggle(key);
+    else selection.selectOnly(key);
+}
+
 export class DriveSelection {
     private readonly keys = new SvelteSet<string>();
     private anchor: string | null = null;

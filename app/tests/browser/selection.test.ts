@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 import { FileSort } from '@madkarmaa/phodrive-core/models';
 import type { FileGroup, UploadedChunk } from '@madkarmaa/phodrive-core/files';
 import { fileKey } from '@madkarmaa/phodrive-core/files';
-import { DriveSelection } from '#browser/drive/selection.svelte';
+import { applySelectionGesture, DriveSelection } from '#browser/drive/selection.svelte';
 import {
     bulkMoveDestinations,
     selectedFiles,
@@ -98,6 +98,34 @@ test('a marquee preview replaces the selection with exactly its keys', () => {
     selection.set(new Set(['b', 'd']));
 
     expect([...selection.selectedKeys]).toEqual(['b', 'd']);
+});
+
+test('point clicks replace, Ctrl toggles, and Shift extends', () => {
+    const selection = new DriveSelection();
+    const event = (overrides: Partial<MouseEvent> = {}) =>
+        ({
+            shiftKey: false,
+            ctrlKey: false,
+            metaKey: false,
+            type: 'click',
+            ...overrides
+        }) as MouseEvent;
+
+    applySelectionGesture(selection, 'b', event(), 'point', visible);
+    expect([...selection.selectedKeys]).toEqual(['b']);
+
+    applySelectionGesture(selection, 'b', event(), 'point', visible);
+    expect([...selection.selectedKeys]).toEqual(['b']);
+
+    applySelectionGesture(selection, 'c', event({ ctrlKey: true }), 'point', visible);
+    expect([...selection.selectedKeys]).toEqual(['b', 'c']);
+
+    applySelectionGesture(selection, 'b', event({ ctrlKey: true }), 'point', visible);
+    expect([...selection.selectedKeys]).toEqual(['c']);
+
+    selection.selectOnly('c');
+    applySelectionGesture(selection, 'd', event({ shiftKey: true }), 'point', visible);
+    expect([...selection.selectedKeys]).toEqual(['c', 'd']);
 });
 
 test('the selection scope covers folder navigation and every filter', () => {
