@@ -153,7 +153,13 @@ export function writeProbe(
 }
 
 export function clearProbeCache(): void {
+    if (flushTimer) {
+        clearTimeout(flushTimer);
+        flushTimer = null;
+    }
+
     PROBE_CACHE.clear();
     loaded = false;
     dirty = false;
+    lastFlushAt = 0;
 }

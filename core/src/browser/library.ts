@@ -2,7 +2,12 @@ import type { ApplicationError } from '../errors';
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import { LibraryResponseSchema, type LibraryResponse, type RemoteBmp } from '../models';
 import type { UploadedChunk } from '../files';
-import { mergeGroupLibrary, type GroupAccountState, type GroupPage } from '../groups';
+import {
+    mergeGroupLibrary,
+    type GroupAccountState,
+    type GroupPage,
+    type GroupPageError
+} from '../groups';
 import { schemaResult } from '../validation';
 import { apiJson } from './api';
 
@@ -90,6 +95,15 @@ export function readLibraryUpdates(
     });
 }
 
+function readPageResult(
+    received: Result<LibraryResponse, ApplicationError>
+): { page: LibraryResponse } | { error: GroupPageError } {
+    return received.match<{ page: LibraryResponse } | { error: GroupPageError }>({
+        Ok: (page) => ({ page }),
+        Err: (error) => ({ error })
+    });
+}
+
 async function readMemberPages(email: string, token: string): Promise<GroupPage> {
     const items = new Map<string, RemoteBmp>();
     const pageTokens = new Set<string>();
@@ -99,9 +113,10 @@ async function readMemberPages(email: string, token: string): Promise<GroupPage>
         pageTokens.add(pageToken);
 
         const received = await readLibraryPage(email, token, pageToken);
-        if (received.isErr()) return { email, error: received.unwrapErr() };
+        const read = readPageResult(received);
+        if ('error' in read) return { email, error: read.error };
 
-        const page = received.unwrap();
+        const page = read.page;
         if (page.nextPageToken && pageTokens.has(page.nextPageToken))
             return {
                 email,
@@ -120,9 +135,10 @@ async function readMemberPages(email: string, token: string): Promise<GroupPage>
 
 async function readMemberPage(email: string, token: string): Promise<GroupPage> {
     const received = await readLibraryPage(email, token);
-    if (received.isErr()) return { email, error: received.unwrapErr() };
+    const read = readPageResult(received);
+    if ('error' in read) return { email, error: read.error };
 
-    return { email, items: received.unwrap().items };
+    return { email, items: read.page.items };
 }
 
 function missingMemberPage(email: string): GroupPage {
@@ -205,7 +221,7 @@ export function readGroupLibraryUpdates(
         );
         const kept: GroupPage[] = members.map((member) => ({
             email: member.email,
-            items: loaded.filter((item) => item.email === member.email)
+            items: loaded.filter((item) => item.email.toLowerCase() === member.email.toLowerCase())
         }));
 
         return Ok(groupSnapshot([...updates, ...kept]));

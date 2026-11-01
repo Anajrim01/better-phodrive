@@ -241,6 +241,27 @@ test('a throttled stage is logged once per pause with only its host', async () =
     );
 });
 
+test.each(['Authentication', 'Library list', 'Prepare download', 'Media fetch', 'Move to trash'])(
+    'the %s stage is named with its host',
+    async (stage) => {
+        const warn = vi.mocked(console.warn);
+        const fetcher: Fetcher = async () => new Response(null, { status: 429 });
+
+        await guardedSend(
+            EMAIL,
+            fetcher,
+            'https://photosdata-pa.googleapis.com/resource?token=secret',
+            {},
+            stage
+        );
+
+        expect(warn).toHaveBeenCalledWith(
+            `Google Photos rate limited ${stage} on photosdata-pa.googleapis.com`
+        );
+        expect(String(warn.mock.calls[0][0])).not.toContain('secret');
+    }
+);
+
 test('a successful response is returned unchanged and resets the breaker', async () => {
     recordServerFailure(EMAIL, NO_JITTER);
     recordServerFailure(EMAIL, NO_JITTER);
