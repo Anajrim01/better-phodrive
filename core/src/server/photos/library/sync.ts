@@ -4,6 +4,7 @@ import { SERVER_ERRORS, type ServerError } from '../../errors';
 import { photosFetch, type Fetcher } from '../../fetcher';
 import { applyDelta } from './apply-delta';
 import { fetchDelta, type DeltaResult } from './delta';
+import { applyFolderHints } from './folder-hints';
 import { readLibraryPage, type LibraryPage } from './page';
 import {
     LIBRARY_STATE_LOG_MAX_AGE_MS,
@@ -59,6 +60,8 @@ function fetchFullSync(
             syncToken ??= read.page.syncToken;
             pageToken = read.page.nextPageToken;
         } while (pageToken);
+
+        applyFolderHints(items);
 
         return Ok({
             items: [...items.values()],

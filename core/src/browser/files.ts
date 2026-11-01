@@ -20,8 +20,11 @@ const FILES_API_URL = '/api/files';
 
 function chunksFor(item: FileGroup, action: FileActionKind): UploadedChunk[] {
     if (action === FileActionKind.Delete) return [...item.chunks, ...item.duplicates];
-    if (action === FileActionKind.Restore || action === FileActionKind.DeleteForever)
-        return item.trashedChunks;
+    if (action === FileActionKind.Restore)
+        return item.trashedChunks.filter(
+            (trashed) => !item.chunks.some((active) => active.chunkIndex === trashed.chunkIndex)
+        );
+    if (action === FileActionKind.DeleteForever) return item.trashedChunks;
 
     return item.chunks;
 }

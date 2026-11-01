@@ -167,7 +167,12 @@ export function trashedChunkItem(
     folderHint?: string
 ): RemoteBmp | null {
     const cached = readProbe(email, candidate);
-    if (cached) return { ...cached, trashedAt: cached.trashedAt ?? Date.now() };
+    if (cached) {
+        const expected = expectedChunkCount(candidate.fileName);
+        const item = expected === undefined ? cached : { ...cached, chunkCount: expected };
+
+        return { ...item, trashedAt: item.trashedAt ?? Date.now() };
+    }
 
     const parsed = parseChunkName(candidate.fileName);
     if (!parsed) return null;

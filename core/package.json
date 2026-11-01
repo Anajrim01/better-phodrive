@@ -217,6 +217,10 @@
             "@madkarmaa/phodrive-core": "./src/server/photos/library/delta.ts",
             "default": "./dist/server/photos/library/delta.js"
         },
+        "./server/photos/library/folder-hints": {
+            "@madkarmaa/phodrive-core": "./src/server/photos/library/folder-hints.ts",
+            "default": "./dist/server/photos/library/folder-hints.js"
+        },
         "./server/photos/library/metadata": {
             "@madkarmaa/phodrive-core": "./src/server/photos/library/metadata.ts",
             "default": "./dist/server/photos/library/metadata.js"
@@ -420,6 +424,7 @@
             "./server/photos/library": "./dist/server/photos/library/index.js",
             "./server/photos/library/apply-delta": "./dist/server/photos/library/apply-delta.js",
             "./server/photos/library/delta": "./dist/server/photos/library/delta.js",
+            "./server/photos/library/folder-hints": "./dist/server/photos/library/folder-hints.js",
             "./server/photos/library/metadata": "./dist/server/photos/library/metadata.js",
             "./server/photos/library/metadata-page": "./dist/server/photos/library/metadata-page.js",
             "./server/photos/library/page": "./dist/server/photos/library/page.js",

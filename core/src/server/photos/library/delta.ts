@@ -3,6 +3,7 @@ import type { RemoteBmp } from '../../../models';
 import { SERVER_ERRORS, type ServerError } from '../../errors';
 import type { Fetcher } from '../../fetcher';
 import { readLibraryPage, type LibraryPage } from './page';
+import { applyFolderHints } from './folder-hints';
 
 export type DeltaResult = {
     items: RemoteBmp[];
@@ -51,6 +52,8 @@ export function fetchDelta(
             nextSyncToken ??= read.page.syncToken;
             pageToken = read.page.nextPageToken;
         } while (pageToken);
+
+        applyFolderHints(items);
 
         return Ok({
             items: [...items.values()],

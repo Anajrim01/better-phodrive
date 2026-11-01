@@ -1,5 +1,5 @@
-import { SERVER_ERRORS, type ServerError } from '../../errors';
-import { Err, Ok, type Result } from 'results-ts';
+import type { ServerError } from '../../errors';
+import { Ok, type Result } from 'results-ts';
 import { Sha1HexSchema } from '../../../models';
 import { MAX_PHOTOS_BMP_BYTES, BMP_HEADER_BYTES } from '../../bmp/index';
 import { bytes, parse, nested, integer, utf8, optional, type Field } from '../../protobuf';
@@ -68,10 +68,7 @@ function libraryItem(value: Buffer): Result<ParsedLibraryItem | null, ServerErro
                 const candidate = candidateFrom(metadata.unwrap(), !visible);
                 if (candidate) return Ok(candidate);
             }
-            if (visible)
-                return Err(
-                    metadata.isErr() ? metadata.unwrapErr() : SERVER_ERRORS.INVALID_LIBRARY_ITEM
-                );
+            if (visible) return Ok(null);
 
             return itemMediaKey(item).map((mediaKey) =>
                 mediaKey ? { hiddenMediaKey: mediaKey } : null
@@ -82,8 +79,7 @@ function libraryItem(value: Buffer): Result<ParsedLibraryItem | null, ServerErro
 
 function visibleInLibrary(details: Field[]): Result<boolean, ServerError> {
     const trashed = optional(details, 16);
-    if (!trashed) return Ok(true);
-    if (typeof trashed.value === 'number') return Err(SERVER_ERRORS.INVALID_PROTOBUF_FIELD_TYPE);
+    if (!trashed || typeof trashed.value === 'number') return Ok(true);
 
     return parse(trashed.value).map((state) => !optional(state, 3)?.value);
 }
@@ -112,18 +108,18 @@ function libraryMetadata(
     return dated.andThen((metadata) =>
         bytes(item, 1)
             .andThen(utf8)
-            .andThen((mediaKey) =>
-                fileName(details).map((name) => ({ ...metadata, mediaKey, ...name }))
-            )
+            .map((mediaKey) => ({ ...metadata, mediaKey, ...fileName(details) }))
     );
 }
 
-function fileName(details: Field[]): Result<{ fileName?: string }, ServerError> {
+function fileName(details: Field[]): { fileName?: string } {
     const field = optional(details, 4);
-    if (!field) return Ok({});
-    if (typeof field.value === 'number') return Err(SERVER_ERRORS.INVALID_PROTOBUF_FIELD_TYPE);
+    if (!field || typeof field.value === 'number') return {};
 
-    return utf8(field.value).map((value) => (value ? { fileName: value } : {}));
+    return utf8(field.value).match({
+        Ok: (value) => (value ? { fileName: value } : {}),
+        Err: () => ({})
+    });
 }
 
 export type ParsedLibraryPage = {
@@ -155,7 +151,7 @@ export function parseLibraryPage(data: Buffer): Result<ParsedLibraryPage, Server
     return parse(data)
         .andThen((fields) => bytes(fields, 1))
         .andThen(parse)
-        .andThen<ParsedLibraryPage, ServerError>((fields) => {
+        .map((fields) => {
             const items: LibraryCandidate[] = [];
             const hiddenMediaKeys: string[] = [];
             const deletedMediaKeys: string[] = [];
@@ -163,27 +159,25 @@ export function parseLibraryPage(data: Buffer): Result<ParsedLibraryPage, Server
             for (const entry of fields) {
                 if (entry.number === 2 && typeof entry.value !== 'number') {
                     const parsed = libraryItem(entry.value);
-                    if (parsed.isErr()) return Err(parsed.unwrapErr());
-
-                    const item = parsed.unwrap();
-                    if (item === null) continue;
-                    if ('hiddenMediaKey' in item) hiddenMediaKeys.push(item.hiddenMediaKey);
-                    else items.push(item.candidate);
+                    parsed.inspect((item) => {
+                        if (!item) return;
+                        if ('hiddenMediaKey' in item) hiddenMediaKeys.push(item.hiddenMediaKey);
+                        else items.push(item.candidate);
+                    });
                 }
 
                 if (entry.number === 9 && typeof entry.value !== 'number') {
                     const parsed = deletionMediaKey(entry.value);
-                    if (parsed.isErr()) return Err(parsed.unwrapErr());
-
-                    const mediaKey = parsed.unwrap();
-                    if (mediaKey) deletedMediaKeys.push(mediaKey);
+                    parsed.inspect((mediaKey) => {
+                        if (mediaKey) deletedMediaKeys.push(mediaKey);
+                    });
                 }
             }
 
             const next = optional(fields, 1);
             const sync = optional(fields, 6);
 
-            return Ok({
+            return {
                 items,
                 hiddenMediaKeys,
                 nextPageToken:
@@ -192,6 +186,6 @@ export function parseLibraryPage(data: Buffer): Result<ParsedLibraryPage, Server
                     ? { syncToken: sync.value }
                     : {}),
                 deletedMediaKeys
-            });
+            };
         });
 }

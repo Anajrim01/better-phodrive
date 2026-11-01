@@ -32,10 +32,6 @@ export const SERVER_ERRORS = {
         message: 'The received file is incomplete.'
     },
     INVALID_PAGE_TOKEN: { code: 'INVALID_PAGE_TOKEN', message: 'Invalid page token' },
-    INVALID_LIBRARY_ITEM: {
-        code: 'INVALID_LIBRARY_ITEM',
-        message: 'Invalid library item'
-    },
     REPEATED_LIBRARY_PAGE: {
         code: 'REPEATED_LIBRARY_PAGE',
         message: 'Google Photos repeated a library page. Refresh to try again.'
