@@ -1,6 +1,12 @@
 import { expect, test } from 'vitest';
 import { createUploadJobs, type UploadJob } from '#browser/files';
-import { retryRemainingSeconds, uploadJobDetail } from '#browser/upload-status';
+import {
+    ETA_STALE_MS,
+    retryRemainingSeconds,
+    uploadJobDetail,
+    uploadPercent,
+    uploadRate
+} from '#browser/upload-status';
 import { UploadJobStatus, UploadPhase, UploadStatus } from '@madkarmaa/phodrive-core/models';
 
 function job(overrides: Partial<UploadJob> = {}): UploadJob {
@@ -25,18 +31,22 @@ test('a paused upload shows the throttle state and the remaining wait', () => {
 });
 
 test('an active upload appends a measured estimate or names the uncertainty', () => {
+    const now = Date.now();
     const withEstimate = uploadJobDetail(
         job({
             status: UploadJobStatus.Active,
             etaSeconds: 80,
+            etaUpdatedAt: now,
             progress: { phase: UploadPhase.Uploading, completed: 2, reused: 0, total: 4 }
-        })
+        }),
+        now
     );
     const withoutEstimate = uploadJobDetail(
         job({
             status: UploadJobStatus.Active,
             progress: { phase: UploadPhase.Uploading, completed: 2, reused: 0, total: 4 }
-        })
+        }),
+        now
     );
 
     expect(withEstimate).toBe('Uploading 50%, about 1 min 20 s left');
@@ -44,15 +54,56 @@ test('an active upload appends a measured estimate or names the uncertainty', ()
 });
 
 test('a sub-second estimate never reads as zero seconds left', () => {
+    const now = Date.now();
     const detail = uploadJobDetail(
         job({
             status: UploadJobStatus.Active,
             etaSeconds: 0.2,
+            etaUpdatedAt: now,
             progress: { phase: UploadPhase.Uploading, completed: 2, reused: 0, total: 4 }
-        })
+        }),
+        now
     );
 
     expect(detail).toBe('Uploading 50%, about 1 s left');
+});
+
+test('an unfinished multi-chunk upload never rounds up to 100 percent', () => {
+    const total = 318_000_000;
+    const completed = Math.round(total * 0.996);
+    const now = Date.now();
+    const pending = job({
+        status: UploadJobStatus.Active,
+        etaSeconds: 2,
+        etaUpdatedAt: now,
+        progress: { phase: UploadPhase.Uploading, completed, reused: 0, total }
+    });
+
+    expect(uploadPercent(pending)).toBe(99);
+    expect(uploadJobDetail(pending, now)).toBe('Uploading 99%, about 2 s left');
+
+    const finished = job({
+        status: UploadJobStatus.Active,
+        progress: { phase: UploadPhase.Uploading, completed: total, reused: 0, total }
+    });
+    expect(uploadPercent(finished)).toBe(100);
+    expect(uploadJobDetail(finished, now)).toBe('Finishing upload');
+});
+
+test('a silent upload expires its estimate instead of keeping a stale number', () => {
+    const now = Date.now();
+    const running = job({
+        status: UploadJobStatus.Active,
+        bytesPerSecond: 100,
+        etaSeconds: 8,
+        etaUpdatedAt: now,
+        progress: { phase: UploadPhase.Uploading, completed: 2, reused: 0, total: 4 }
+    });
+
+    expect(uploadRate(running, now)).toBe(100);
+    expect(uploadJobDetail(running, now)).toBe('Uploading 50%, about 8 s left');
+    expect(uploadRate(running, now + ETA_STALE_MS + 1)).toBe(0);
+    expect(uploadJobDetail(running, now + ETA_STALE_MS + 1)).toBe('Uploading 50%, estimating...');
 });
 
 test('completed and deduplicated uploads keep their existing wording', () => {

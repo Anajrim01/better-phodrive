@@ -6,6 +6,7 @@
     import { fade } from 'svelte/transition';
     import { prefersReducedMotion } from 'svelte/motion';
     import type { UploadJob } from '#browser/files';
+    import { uploadRate } from '#browser/upload-status';
     import UploadStatusRow from '#components/UploadStatusRow.svelte';
     import IconClose from '~icons/material-symbols/close';
     import IconExpandMore from '~icons/material-symbols/expand-more';
@@ -44,18 +45,18 @@
             return sum + Math.max(0, progress.total - processed);
         }, 0)
     );
+    let now = $state(Date.now());
     const aggregateRate = $derived(
         jobs.reduce(
-            (sum, job) => sum + (job.status === UploadJobStatus.Active ? job.bytesPerSecond : 0),
+            (sum, job) => sum + (job.status === UploadJobStatus.Active ? uploadRate(job, now) : 0),
             0
         )
     );
     const eta = $derived(busy ? remainingSeconds(remainingBytes, aggregateRate) : null);
     const paused = $derived(pending.filter((job) => job.retryAt !== null));
-    let now = $state(Date.now());
 
     $effect(() => {
-        if (!busy || !paused.length) return;
+        if (!busy) return;
 
         now = Date.now();
         const timer = setInterval(() => (now = Date.now()), 1_000);

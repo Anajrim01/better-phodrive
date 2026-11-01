@@ -21,6 +21,7 @@ export interface UploadJob {
     result: UploadResponse | null;
     bytesPerSecond: number;
     etaSeconds: number | null;
+    etaUpdatedAt?: number;
     retryAt: number | null;
     account?: string;
 }
@@ -40,6 +41,7 @@ export function createUploadJobs(files: readonly File[]): UploadJob[] {
         result: null,
         bytesPerSecond: 0,
         etaSeconds: null,
+        etaUpdatedAt: 0,
         retryAt: null
     }));
 }
@@ -128,7 +130,7 @@ export function createUploadEventHandler(
         ) {
             jobSamples.length = 0;
 
-            return { ...job, bytesPerSecond: 0, etaSeconds: null };
+            return { ...job, bytesPerSecond: 0, etaSeconds: null, etaUpdatedAt: 0 };
         }
 
         const { completed, reused, total } = job.progress;
@@ -136,12 +138,14 @@ export function createUploadEventHandler(
         trimRateSamples(jobSamples);
 
         const rate = estimatedRate(jobSamples);
-        if (rate === null) return { ...job, bytesPerSecond: 0, etaSeconds: null };
+        if (rate === null)
+            return { ...job, bytesPerSecond: 0, etaSeconds: null, etaUpdatedAt: Date.now() };
 
         return {
             ...job,
             bytesPerSecond: rate,
-            etaSeconds: remainingSeconds(total - completed - reused, rate)
+            etaSeconds: remainingSeconds(total - completed - reused, rate),
+            etaUpdatedAt: Date.now()
         };
     }
 
