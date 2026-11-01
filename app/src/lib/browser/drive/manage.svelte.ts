@@ -1,4 +1,4 @@
-import type { FolderEntry } from '@madkarmaa/phodrive-core/files';
+import type { FileGroup, FolderEntry } from '@madkarmaa/phodrive-core/files';
 import { FileNameSchema } from '@madkarmaa/phodrive-core/models';
 import {
     deleteFolder,
@@ -119,6 +119,10 @@ export class DriveManage {
 
     openDetails(target: EntryTarget, trigger?: HTMLElement | null): void {
         this.openDialog('details', target, trigger);
+    }
+
+    openFilePreview(item: FileGroup, trigger?: HTMLElement | null): void {
+        this.openPreview({ kind: 'file', item }, trigger);
     }
 
     openPreview(target: EntryTarget, trigger?: HTMLElement | null): void {
