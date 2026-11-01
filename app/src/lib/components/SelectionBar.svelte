@@ -59,7 +59,7 @@
 <div
     class="selection-bar"
     role="toolbar"
-    aria-label="Selected files"
+    aria-label="Selection actions"
     in:fade={{ duration: prefersReducedMotion.current ? 0 : 120 }}
 >
     <span class="count" aria-live="polite">{countLabel}</span>
@@ -191,6 +191,12 @@
         --np-button-gap: 8px;
         --np-text-button-label-text-color: var(--app-text);
         white-space: nowrap;
+    }
+
+    @media (width > 800px) {
+        .selection-bar {
+            left: calc(50% + 120px);
+        }
     }
 
     @media (width < 800px) {

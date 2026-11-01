@@ -57,7 +57,7 @@ test('every list row and the header expose a direct checkbox', () => {
     });
 
     expect(screen.getAllByRole('checkbox')).toHaveLength(3);
-    expect(screen.getByRole('checkbox', { name: 'Select all files' })).toBeTruthy();
+    expect(screen.getByRole('checkbox', { name: 'Select all visible files' })).toBeTruthy();
     expect(screen.getByRole('checkbox', { name: 'Select first.bin' })).toBeTruthy();
     expect(screen.getByRole('checkbox', { name: 'Select second.bin' })).toBeTruthy();
 });
@@ -95,7 +95,7 @@ test('the header checkbox is indeterminate for a partial selection and checked f
         }
     });
     const header = screen.getByRole('checkbox', {
-        name: 'Select all files'
+        name: 'Select all visible files'
     }) as HTMLInputElement;
 
     expect(header.indeterminate).toBe(true);
@@ -111,7 +111,7 @@ test('the header checkbox is indeterminate for a partial selection and checked f
     });
 
     const all = screen.getByRole('checkbox', {
-        name: 'Select all files'
+        name: 'Select all visible files'
     }) as HTMLInputElement;
     expect(all.indeterminate).toBe(false);
     expect(all.checked).toBe(true);
@@ -130,7 +130,7 @@ test('the header checkbox requests select all and then clears the visible files'
         }
     });
 
-    await fireEvent.click(screen.getByRole('checkbox', { name: 'Select all files' }));
+    await fireEvent.click(screen.getByRole('checkbox', { name: 'Select all visible files' }));
     expect(props.onselectall).toHaveBeenCalledWith(true);
 
     view.rerender({
@@ -141,7 +141,7 @@ test('the header checkbox requests select all and then clears the visible files'
         selected: new Set([fileKey(item)]),
         ...props
     });
-    await fireEvent.click(screen.getByRole('checkbox', { name: 'Select all files' }));
+    await fireEvent.click(screen.getByRole('checkbox', { name: 'Select all visible files' }));
     expect(props.onselectall).toHaveBeenLastCalledWith(false);
 });
 
@@ -231,7 +231,7 @@ test('the row checkbox is hidden at rest and shown on the selected row', () => {
 
     expect(row?.classList.contains('selected')).toBe(true);
     expect(getComputedStyle(cell).opacity).toBe('1');
-    expect(screen.getByRole('checkbox', { name: 'Select all files' })).toBeTruthy();
+    expect(screen.getByRole('checkbox', { name: 'Select all visible files' })).toBeTruthy();
 });
 
 test('Space on a focused row toggles it', async () => {

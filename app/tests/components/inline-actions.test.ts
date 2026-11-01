@@ -216,7 +216,7 @@ test('a file card keeps quick actions in a wrapper the narrow layout can hide', 
     });
 
     expect(view.container.querySelector('.card-inline-actions')).not.toBeNull();
-    const download = screen.getByRole('button', { name: 'Download' });
+    const download = screen.getByRole('button', { name: 'Download proof.bin' });
     await fireEvent.click(download);
 
     expect(props.ondownload).toHaveBeenCalledTimes(1);
