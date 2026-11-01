@@ -122,6 +122,19 @@ function applyFullSync(
     });
 }
 
+const syncLocks = new Map<string, Promise<unknown>>();
+
+function withAccountLock<T>(email: string, task: () => Promise<T>): Promise<T> {
+    const previous = syncLocks.get(email) ?? Promise.resolve();
+    const run = previous.then(task, task);
+    syncLocks.set(
+        email,
+        run.catch(() => undefined)
+    );
+
+    return run;
+}
+
 /** Apply the changes since the last stored sync, or rebuild the index from a full read. */
 export function syncLibrary(
     email: string,
@@ -129,42 +142,44 @@ export function syncLibrary(
     force = false,
     fetcher: Fetcher = photosFetch
 ): AsyncResult<LibrarySyncResult, ServerError> {
-    return Ok(undefined).andThenAsync(async () => {
-        const stored = force ? undefined : readAccountState(email);
-        if (!stored) return await applyFullSync(email, token, fetcher);
+    return Ok(undefined).andThenAsync(() =>
+        withAccountLock(email.toLowerCase(), async () => {
+            const stored = force ? undefined : readAccountState(email);
+            if (!stored) return await applyFullSync(email, token, fetcher);
 
-        const received = await fetchDelta(email, token, stored.syncToken, fetcher);
-        const read = received.match<
-            | { value: { items: RemoteBmp[]; deleted: string[]; syncToken: Buffer } }
-            | { error: ServerError }
-        >({
-            Ok: (value) => ({ value }),
-            Err: (error) => ({ error })
-        });
-        if ('error' in read) {
-            if (!rejectedState(read.error)) return Err(read.error);
+            const received = await fetchDelta(email, token, stored.syncToken, fetcher);
+            const read = received.match<
+                | { value: { items: RemoteBmp[]; deleted: string[]; syncToken: Buffer } }
+                | { error: ServerError }
+            >({
+                Ok: (value) => ({ value }),
+                Err: (error) => ({ error })
+            });
+            if ('error' in read) {
+                if (!rejectedState(read.error)) return Err(read.error);
 
-            deleteAccountState(email);
+                deleteAccountState(email);
 
-            return await applyFullSync(email, token, fetcher);
-        }
+                return await applyFullSync(email, token, fetcher);
+            }
 
-        if (read.value.items.length === 0 && read.value.deleted.length === 0) {
-            updateAccountSyncToken(email, read.value.syncToken);
+            if (read.value.items.length === 0 && read.value.deleted.length === 0) {
+                updateAccountSyncToken(email, read.value.syncToken);
 
-            return Ok({ items: [], deleted: [], full: false });
-        }
+                return Ok({ items: [], deleted: [], full: false });
+            }
 
-        const items = new Map(stored.items);
-        for (const mediaKey of read.value.deleted) items.delete(mediaKey);
-        for (const item of read.value.items) items.set(item.mediaKey, item);
+            const items = new Map(stored.items);
+            for (const mediaKey of read.value.deleted) items.delete(mediaKey);
+            for (const item of read.value.items) items.set(item.mediaKey, item);
 
-        writeAccountState(email, read.value.syncToken, items.values());
+            writeAccountState(email, read.value.syncToken, items.values());
 
-        return Ok({
-            items: read.value.items,
-            deleted: read.value.deleted,
-            full: false
-        });
-    });
+            return Ok({
+                items: read.value.items,
+                deleted: read.value.deleted,
+                full: false
+            });
+        })
+    );
 }
