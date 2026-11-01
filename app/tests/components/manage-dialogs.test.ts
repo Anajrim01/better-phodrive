@@ -6,6 +6,7 @@ import RenameDialog from '#components/RenameDialog.svelte';
 import MoveDialog from '#components/MoveDialog.svelte';
 import DetailsDialog from '#components/DetailsDialog.svelte';
 import DeleteFolderDialog from '#components/DeleteFolderDialog.svelte';
+import ConfirmDialog from '#components/ConfirmDialog.svelte';
 
 vi.hoisted(() => {
     Object.defineProperty(window, 'matchMedia', {
@@ -229,6 +230,107 @@ test('folder delete warns about the count, Trash, and confirms', async () => {
 
     await fireEvent.click(screen.getByRole('button', { name: 'Move to trash' }));
     expect(ondelete).toHaveBeenCalled();
+});
+
+test('bulk details summarise the selection with size, owners, and incomplete count', () => {
+    const complete = file();
+    const incomplete = file({
+        fileId: 'c'.repeat(64),
+        email: 'second@example.com',
+        complete: false
+    });
+    render(DetailsDialog, {
+        props: {
+            open: true,
+            target: null,
+            files: [],
+            owners: [],
+            selection: [complete, incomplete],
+            onclose: vi.fn()
+        }
+    });
+
+    expect(screen.getByText('Total size')).toBeTruthy();
+    expect(screen.getByText('4 B known')).toBeTruthy();
+    expect(screen.getByText('owner@example.com, second@example.com')).toBeTruthy();
+    expect(screen.getByText('Incomplete')).toBeTruthy();
+});
+
+test('a bulk move keeps the Move button available for My files and submits once', async () => {
+    const onmove = vi.fn();
+    render(MoveDialog, {
+        props: {
+            open: true,
+            target: null,
+            destinations: [
+                { value: '', label: 'My files' },
+                { value: 'Shared', label: 'Shared' }
+            ],
+            value: '',
+            busy: false,
+            headline: 'Move 3 files',
+            note: 'This moves 3 files in Phodrive only. Google Photos albums are unchanged.',
+            disableWhenUnchanged: false,
+            onmove,
+            onclose: vi.fn()
+        }
+    });
+
+    expect(screen.getByText('Move 3 files')).toBeTruthy();
+    expect(
+        screen.getByText('This moves 3 files in Phodrive only. Google Photos albums are unchanged.')
+    ).toBeTruthy();
+    const submit = screen.getByRole('button', { name: 'Move' }) as HTMLButtonElement;
+    expect(submit.disabled).toBe(false);
+
+    await fireEvent.click(submit);
+    expect(onmove).toHaveBeenCalledWith('');
+});
+
+test('bulk delete confirms the count, Google Photos trash, and restore path', async () => {
+    const onconfirm = vi.fn();
+    render(ConfirmDialog, {
+        props: {
+            open: true,
+            target: {
+                kind: 'selection',
+                files: [file(), file({ fileId: 'b'.repeat(64), complete: false })],
+                permanent: false
+            },
+            onconfirm
+        }
+    });
+
+    expect(screen.getByText('Move 2 files to trash?')).toBeTruthy();
+    expect(
+        screen.getByText(
+            'This moves 2 files to Google Photos trash. You can restore them from Trash. 1 incomplete file moves only the remaining chunks.'
+        )
+    ).toBeTruthy();
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Move to trash' }));
+    expect(onconfirm).toHaveBeenCalledTimes(1);
+});
+
+test('bulk delete forever warns that it cannot be undone', async () => {
+    const onconfirm = vi.fn();
+    render(ConfirmDialog, {
+        props: {
+            open: true,
+            target: {
+                kind: 'selection',
+                files: [file()],
+                permanent: true
+            },
+            onconfirm
+        }
+    });
+
+    expect(screen.getByText('Delete 1 file forever?')).toBeTruthy();
+    expect(screen.getByText('This deletes 1 file forever. This cannot be undone.')).toBeTruthy();
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Delete forever' }));
+    expect(onconfirm).toHaveBeenCalledTimes(1);
 });
 
 test('an empty folder delete cannot be confirmed', () => {

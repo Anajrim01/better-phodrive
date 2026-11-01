@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/sv
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import type { FileGroup, FolderEntry, UploadedChunk } from '@madkarmaa/phodrive-core/files';
 import type { MenuAction } from '#lib/menus';
-import type { EntryTarget } from '#browser/drive/menu-types';
+import type { MenuTarget } from '#browser/drive/menu-types';
 import EntryMenu from '#components/EntryMenu.svelte';
 
 vi.hoisted(() => {
@@ -106,7 +106,7 @@ function file(overrides: Partial<FileGroup> = {}): FileGroup {
 }
 
 function mount(
-    target: EntryTarget,
+    target: MenuTarget,
     callbacks: { onclose?: () => void; onaction?: (action: MenuAction) => void } = {}
 ) {
     const onclose = callbacks.onclose ?? vi.fn();
@@ -171,6 +171,21 @@ test('the trash and folder menus show their own actions', async () => {
         'Delete folder and files',
         'Details'
     ]);
+});
+
+test('the bulk menu has no rename and swaps to trash actions in Trash', async () => {
+    mount({ kind: 'selection', files: [file()], trash: false });
+    await waitFor(() => expect(screen.getAllByRole('menuitem', { hidden: true })).toHaveLength(4));
+    expect(
+        screen.getAllByRole('menuitem', { hidden: true }).map((item) => item.textContent?.trim())
+    ).toEqual(['Download', 'Move to folder', 'Delete', 'Details']);
+
+    cleanup();
+    mount({ kind: 'selection', files: [file({ trashed: true })], trash: true });
+    await waitFor(() => expect(screen.getAllByRole('menuitem', { hidden: true })).toHaveLength(3));
+    expect(
+        screen.getAllByRole('menuitem', { hidden: true }).map((item) => item.textContent?.trim())
+    ).toEqual(['Restore', 'Delete forever', 'Details']);
 });
 
 test('arrow keys move focus between menu items', async () => {
