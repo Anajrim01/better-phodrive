@@ -179,7 +179,12 @@ export class DriveLibrary {
 
         const loaded = full
             ? await readGroupLibrary(group.members, group.missing)
-            : await readGroupLibraryUpdates(group.members, group.missing, this.chunks);
+            : await readGroupLibraryUpdates(
+                  group.members,
+                  group.missing,
+                  this.chunks,
+                  this.accounts
+              );
         if (request !== this.libraryRequest) return;
 
         loaded.match({

@@ -209,15 +209,23 @@ export function readGroupLibrary(
     });
 }
 
-/** Read only each member's newest page and keep the items already loaded. */
+/** Read page zero for loaded members and a full read for members that were not loaded. */
 export function readGroupLibraryUpdates(
     members: readonly { email: string; token: string; pausedUntil?: number }[],
     missing: readonly string[] = [],
-    loaded: readonly UploadedChunk[] = []
+    loaded: readonly UploadedChunk[] = [],
+    previousAccounts: readonly GroupAccountState[] = []
 ): AsyncResult<GroupLibrarySnapshot, ApplicationError> {
     return Ok(undefined).andThenAsync(async () => {
+        const complete = new Set(
+            previousAccounts
+                .filter((account) => account.status === 'ok')
+                .map((account) => account.email.toLowerCase())
+        );
         const updates = await collectGroupPages(members, missing, (member) =>
-            readMemberPage(member.email, member.token)
+            complete.has(member.email.toLowerCase())
+                ? readMemberPage(member.email, member.token)
+                : readMemberPages(member.email, member.token)
         );
         const kept: GroupPage[] = members.map((member) => ({
             email: member.email,
