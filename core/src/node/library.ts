@@ -6,7 +6,7 @@ import type { Fetcher } from '../server/fetcher';
 import { SERVER_ERRORS, type ServerError } from '../server/errors';
 import { listBmps } from '../server/photos/index';
 
-/** Read every library page and group the chunks into files. */
+/** Read every library page and return the main list without fully trashed files. */
 export function readLibrary(
     email: string,
     token: string,
