@@ -1,8 +1,5 @@
-import type { FileGroup, FolderEntry } from '@madkarmaa/phodrive-core/files';
+import type { FolderEntry } from '@madkarmaa/phodrive-core/files';
 import { FileNameSchema } from '@madkarmaa/phodrive-core/models';
-import type { ApplicationError } from '@madkarmaa/phodrive-core/errors';
-import { downloadRoute } from '@madkarmaa/phodrive-core/groups';
-import { Err, Ok, type Result } from 'results-ts';
 import {
     deleteFolder,
     moveFile,
@@ -40,6 +37,7 @@ import {
     renameNavigation
 } from '#browser/drive/manage-navigation';
 import { runManage } from '#browser/drive/manage-run';
+import { previewRoute } from '#browser/drive/preview-route';
 
 export type { ManageDialog, MoveDestination } from '#browser/drive/manage-types';
 
@@ -127,7 +125,7 @@ export class DriveManage {
         if (this.deps.busy() || this.deps.loading() || this.dialogBusy) return;
         if (target.kind !== 'file') return;
 
-        const routed = this.previewRoute(target.item);
+        const routed = previewRoute(target.item, this.deps);
         if (routed.isErr()) {
             this.deps.feedback(routed.unwrapErr().message);
 
@@ -233,20 +231,6 @@ export class DriveManage {
 
         this.closeDialog();
         navigate(this.deps, deleteNavigation(target));
-    }
-
-    private previewRoute(item: FileGroup): Result<string, ApplicationError> {
-        if (this.deps.groupMode())
-            return downloadRoute(item, this.deps.routeMembers()).map((route) => route.token);
-
-        const { email, token } = this.deps.account();
-        if (item.email !== email || !token)
-            return Err({
-                code: 'REQUEST_FAILED',
-                message: 'Select the connected account for this file before previewing it.'
-            } as const);
-
-        return Ok(token);
     }
 
     private openDialog(

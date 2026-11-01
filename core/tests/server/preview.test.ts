@@ -1,26 +1,14 @@
-import { createHash } from 'node:crypto';
 import { beforeEach, expect, test, vi } from 'vitest';
 import { Err, Ok } from 'results-ts';
-import {
-    SPLIT_FLAG_COMPRESSED,
-    SPLIT_FLAG_LAST,
-    type RemoteBmp,
-    type SplitHeader
-} from '@madkarmaa/phodrive-core/models';
+import { downloadBmp } from '@madkarmaa/phodrive-core/server/photos';
+import { throttleError } from '@madkarmaa/phodrive-core/server/errors';
+import { previewFile } from '@madkarmaa/phodrive-core/server/preview';
 import {
     MAX_IMAGE_PREVIEW_BYTES,
-    PREVIEW_TEXT_BYTES,
-    PREVIEW_TEXT_LINES,
     PreviewMode,
-    PreviewUnavailableReason,
-    type FilePreviewRequest
+    PreviewUnavailableReason
 } from '@madkarmaa/phodrive-core/preview';
-import { encodeSplitBmp } from '@madkarmaa/phodrive-core/server/bmp';
-import { compressPayload } from '@madkarmaa/phodrive-core/server/compress';
-import { previewFile } from '@madkarmaa/phodrive-core/server/preview';
-import { downloadBmp } from '@madkarmaa/phodrive-core/server/photos';
-import { SERVER_ERRORS, throttleError } from '@madkarmaa/phodrive-core/server/errors';
-import { bmpResponse } from '../helpers/download';
+import { fixture, serve } from '../helpers/preview';
 
 vi.mock('@madkarmaa/phodrive-core/server/photos', () => ({
     downloadBmp: vi.fn()
@@ -28,128 +16,6 @@ vi.mock('@madkarmaa/phodrive-core/server/photos', () => ({
 
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const PNG_IEND = Buffer.from([0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82]);
-
-function sha256(bytes: Uint8Array): string {
-    return createHash('sha256').update(bytes).digest('hex');
-}
-
-function sha1(bytes: Uint8Array): string {
-    return createHash('sha1').update(bytes).digest('hex');
-}
-
-async function fixture(
-    name: string,
-    mode: PreviewMode,
-    parts: Uint8Array[],
-    compress = false
-): Promise<{ input: FilePreviewRequest; bmps: Uint8Array[] }> {
-    const fileHash = sha256(parts[0] ?? new Uint8Array());
-    const fileId = sha256(Buffer.from(`${name}:${fileHash}`));
-    const bmps: Uint8Array[] = [];
-    const chunks: RemoteBmp[] = [];
-
-    for (const [index, part] of parts.entries()) {
-        const stored = compress
-            ? (await compressPayload(part)).unwrap()
-            : {
-                  data: part,
-                  compressed: false,
-                  originalSize: part.length,
-                  storedSize: part.length
-              };
-        const header: SplitHeader = {
-            fileHash,
-            fileId,
-            chunkIndex: index,
-            flags:
-                (index === parts.length - 1 ? SPLIT_FLAG_LAST : 0) |
-                (stored.compressed ? SPLIT_FLAG_COMPRESSED : 0),
-            payloadSize: stored.storedSize,
-            originalSize: stored.compressed ? stored.originalSize : undefined,
-            fileName: index === 0 ? name : undefined
-        };
-        const bmp = encodeSplitBmp(stored.data, header).unwrap();
-        bmps.push(bmp);
-        chunks.push({
-            fileHash,
-            fileId,
-            chunkIndex: index,
-            isLast: index === parts.length - 1,
-            originalName: index === 0 ? name : undefined,
-            size: stored.originalSize,
-            storedSize: stored.storedSize,
-            compressed: stored.compressed,
-            at: 1,
-            mediaKey: `chunk-${index}`,
-            sha1: sha1(bmp)
-        });
-    }
-
-    return {
-        input: {
-            mode,
-            email: 'test@example.com',
-            token: 'aas_et/test',
-            name,
-            fileHash,
-            fileId,
-            chunks
-        },
-        bmps
-    };
-}
-
-function malformedCompressedTextFixture(): { input: FilePreviewRequest; bmp: Uint8Array } {
-    const name = 'notes.txt';
-    const stored = Buffer.alloc(1_000_000, 0xff);
-    const fileHash = sha256(Buffer.from('malformed-compressed-text'));
-    const fileId = sha256(Buffer.from(`malformed:${fileHash}`));
-    const bmp = encodeSplitBmp(stored, {
-        fileHash,
-        fileId,
-        chunkIndex: 0,
-        flags: SPLIT_FLAG_LAST | SPLIT_FLAG_COMPRESSED,
-        payloadSize: stored.length,
-        originalSize: 2_000_000,
-        fileName: name
-    }).unwrap();
-
-    return {
-        input: {
-            mode: PreviewMode.Text,
-            email: 'test@example.com',
-            token: 'aas_et/test',
-            name,
-            fileHash,
-            fileId,
-            chunks: [
-                {
-                    fileHash,
-                    fileId,
-                    chunkIndex: 0,
-                    isLast: true,
-                    originalName: name,
-                    size: 2_000_000,
-                    storedSize: stored.length,
-                    compressed: true,
-                    at: 1,
-                    mediaKey: 'chunk-0',
-                    sha1: sha1(bmp)
-                }
-            ]
-        },
-        bmp
-    };
-}
-
-function serve(bmps: Uint8Array[]): void {
-    vi.mocked(downloadBmp).mockImplementation((_email, _token, key) => {
-        const bmp = bmps[Number(key.slice(-1))];
-        if (!bmp) return Ok(undefined).andThenAsync(async () => Err(throttleError(1)));
-
-        return Ok(bmpResponse(bmp)).andThenAsync(async (response) => Ok(response));
-    });
-}
 
 beforeEach(() => {
     vi.clearAllMocks();
@@ -238,145 +104,6 @@ test('an image with an incomplete container falls back', async () => {
     });
 });
 
-test('a text preview stops at 64 KiB and reports truncation', async () => {
-    const bytes = Buffer.alloc(PREVIEW_TEXT_BYTES + 10, 0x61);
-    const { input, bmps } = await fixture('notes.txt', PreviewMode.Text, [bytes]);
-    serve(bmps);
-
-    const result = (await previewFile(input)).unwrap();
-    expect(result.kind).toBe('text');
-    if (result.kind !== 'text') return;
-
-    expect(result.text.length).toBe(PREVIEW_TEXT_BYTES);
-    expect(result.truncated).toBe(true);
-});
-
-test('a text preview stops at 200 lines and reports truncation', async () => {
-    const lines = Array.from({ length: PREVIEW_TEXT_LINES + 50 }, (_, index) => `line ${index}`);
-    const { input, bmps } = await fixture('notes.txt', PreviewMode.Text, [
-        Buffer.from(lines.join('\n'))
-    ]);
-    serve(bmps);
-
-    const result = (await previewFile(input)).unwrap();
-    expect(result.kind).toBe('text');
-    if (result.kind !== 'text') return;
-
-    expect(result.text.split('\n')).toHaveLength(PREVIEW_TEXT_LINES);
-    expect(result.truncated).toBe(true);
-});
-
-test('an empty text file previews as empty text', async () => {
-    const { input, bmps } = await fixture('notes.txt', PreviewMode.Text, [new Uint8Array()]);
-    serve(bmps);
-
-    expect((await previewFile(input)).unwrap()).toEqual({
-        kind: 'text',
-        text: '',
-        truncated: false
-    });
-});
-
-test('a multi-chunk text preview reads only chunk zero and marks the result truncated', async () => {
-    const { input, bmps } = await fixture('notes.txt', PreviewMode.Text, [
-        Buffer.from('first\n'),
-        Buffer.from('second\n')
-    ]);
-    serve(bmps);
-
-    const result = (await previewFile(input)).unwrap();
-    expect(result).toEqual({ kind: 'text', text: 'first\n', truncated: true });
-    expect(downloadBmp).toHaveBeenCalledOnce();
-    expect(vi.mocked(downloadBmp).mock.calls[0]?.[2]).toBe('chunk-0');
-});
-
-test('a compressed large text prefix is bounded without buffering the chunk', async () => {
-    const bytes = Buffer.alloc(PREVIEW_TEXT_BYTES * 4, 0x61);
-    const { input, bmps } = await fixture('notes.txt', PreviewMode.Text, [bytes], true);
-    serve(bmps);
-
-    const result = (await previewFile(input)).unwrap();
-    expect(result.kind).toBe('text');
-    if (result.kind !== 'text') return;
-
-    expect(result.text.length).toBe(PREVIEW_TEXT_BYTES);
-    expect(result.truncated).toBe(true);
-});
-
-test('malformed compressed text stops reading after the decoder fails', async () => {
-    const { input, bmp } = malformedCompressedTextFixture();
-    let received = 0;
-    const cancelled = vi.fn();
-    vi.mocked(downloadBmp).mockImplementation(() =>
-        Ok(
-            bmpResponse(bmp, 1024, {
-                onRead: (bytes) => {
-                    received += bytes;
-                },
-                onCancel: cancelled
-            })
-        ).andThenAsync(async (response) => Ok(response))
-    );
-
-    const result = await previewFile(input);
-
-    expect(result.unwrapErr()).toEqual(SERVER_ERRORS.DECOMPRESSION_FAILED);
-    expect(received).toBeLessThan(bmp.length / 2);
-    expect(cancelled).toHaveBeenCalledOnce();
-});
-
-test('a small compressed text file decodes completely', async () => {
-    const bytes = Buffer.from('hello from a compressed note\n');
-    const { input, bmps } = await fixture('notes.txt', PreviewMode.Text, [bytes], true);
-    serve(bmps);
-
-    const result = (await previewFile(input)).unwrap();
-    expect(result).toEqual({
-        kind: 'text',
-        text: bytes.toString('utf8'),
-        truncated: false
-    });
-});
-
-test.each([
-    ['binary zeros', Buffer.from([0x00, 0x01, 0x02, 0x03])],
-    ['invalid UTF-8', Buffer.from([0xff, 0xfe, 0xfd, 0xfc])]
-])('a text file with %s falls back', async (_label, bytes) => {
-    const { input, bmps } = await fixture('notes.txt', PreviewMode.Text, [bytes]);
-    serve(bmps);
-
-    const result = (await previewFile(input)).unwrap();
-    expect(result).toEqual({ kind: 'unavailable', reason: PreviewUnavailableReason.Binary });
-});
-
-test('invalid UTF-8 at the end of a complete file is rejected, not trimmed', async () => {
-    const { input, bmps } = await fixture('notes.txt', PreviewMode.Text, [
-        Buffer.from([0x61, 0x62, 0x63, 0xff])
-    ]);
-    serve(bmps);
-
-    expect((await previewFile(input)).unwrap()).toEqual({
-        kind: 'unavailable',
-        reason: PreviewUnavailableReason.Binary
-    });
-});
-
-test('a multibyte character split by the byte cap is trimmed at the prefix boundary', async () => {
-    const bytes = Buffer.concat([
-        Buffer.alloc(PREVIEW_TEXT_BYTES - 1, 0x61),
-        Buffer.from('é', 'utf8')
-    ]);
-    const { input, bmps } = await fixture('notes.txt', PreviewMode.Text, [bytes]);
-    serve(bmps);
-
-    const result = (await previewFile(input)).unwrap();
-    expect(result.kind).toBe('text');
-    if (result.kind !== 'text') return;
-
-    expect(result.text).toBe('a'.repeat(PREVIEW_TEXT_BYTES - 1));
-    expect(result.truncated).toBe(true);
-});
-
 test('unsupported names and mismatched modes do not contact Photos', async () => {
     const pdf = await fixture('report.pdf', PreviewMode.Text, [Buffer.from('not a pdf')]);
     expect((await previewFile(pdf.input)).unwrap()).toEqual({
@@ -393,9 +120,8 @@ test('unsupported names and mismatched modes do not contact Photos', async () =>
 });
 
 test('a throttled chunk fetch stays a retryable error', async () => {
-    const { input } = await fixture('photo.png', PreviewMode.Image, [
-        Buffer.concat([PNG_SIGNATURE, Buffer.from('photo'), PNG_IEND])
-    ]);
+    const png = Buffer.concat([PNG_SIGNATURE, Buffer.from('photo'), PNG_IEND]);
+    const { input } = await fixture('photo.png', PreviewMode.Image, [png]);
     vi.mocked(downloadBmp).mockImplementation(() =>
         Ok(undefined).andThenAsync(async () => Err(throttleError(120)))
     );

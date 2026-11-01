@@ -1,14 +1,9 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
+import { cleanup, fireEvent, screen, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import type { ComponentProps } from 'svelte';
-import { Err, Ok, type Result } from 'results-ts';
-import type { ApplicationError } from '@madkarmaa/phodrive-core/errors';
-import { PreviewMode } from '@madkarmaa/phodrive-core/preview';
-import type { FileGroup, UploadedChunk } from '@madkarmaa/phodrive-core/files';
 import * as previewApi from '#browser/preview';
 import * as cacheApi from '#browser/preview-cache';
-import FilePreviewDialog from '#components/FilePreviewDialog.svelte';
+import { chunk, fail, file, mount, serve } from './file-preview-fixtures';
 
 vi.mock('#browser/preview', () => ({ fetchFilePreview: vi.fn() }));
 vi.mock('#browser/preview-cache', () => ({
@@ -16,133 +11,6 @@ vi.mock('#browser/preview-cache', () => ({
     getCachedPreview: vi.fn(() => null),
     cachePreview: vi.fn()
 }));
-
-vi.hoisted(() => {
-    Object.defineProperty(window, 'matchMedia', {
-        configurable: true,
-        value: (query: string) => ({
-            matches: false,
-            media: query,
-            onchange: null,
-            addListener: () => {},
-            removeListener: () => {},
-            addEventListener: () => {},
-            removeEventListener: () => {},
-            dispatchEvent: () => false
-        })
-    });
-    Object.defineProperty(Element.prototype, 'animate', {
-        configurable: true,
-        value: () => ({
-            cancel: () => {},
-            finish: () => {},
-            finished: Promise.resolve(),
-            addEventListener: () => {},
-            removeEventListener: () => {}
-        })
-    });
-    Object.defineProperty(globalThis, 'ResizeObserver', {
-        configurable: true,
-        value: class {
-            observe() {}
-            unobserve() {}
-            disconnect() {}
-        }
-    });
-    Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
-        configurable: true,
-        value: function (this: HTMLDialogElement) {
-            this.setAttribute('open', '');
-            const event = new Event('toggle');
-            Object.defineProperty(event, 'newState', { value: 'open' });
-            this.dispatchEvent(event);
-            this.querySelector<HTMLElement>('[autofocus]')?.focus();
-        }
-    });
-    Object.defineProperty(HTMLDialogElement.prototype, 'close', {
-        configurable: true,
-        value: function (this: HTMLDialogElement) {
-            this.removeAttribute('open');
-            const event = new Event('toggle');
-            Object.defineProperty(event, 'newState', { value: 'closed' });
-            this.dispatchEvent(event);
-        }
-    });
-    Object.defineProperty(URL, 'createObjectURL', {
-        configurable: true,
-        value: vi.fn(() => 'blob:preview')
-    });
-    Object.defineProperty(URL, 'revokeObjectURL', {
-        configurable: true,
-        value: vi.fn()
-    });
-});
-
-function chunk(overrides: Partial<UploadedChunk> = {}): UploadedChunk {
-    return {
-        email: 'owner@example.com',
-        fileHash: 'a'.repeat(64),
-        fileId: 'a'.repeat(64),
-        chunkIndex: 0,
-        isLast: true,
-        originalName: 'photo.png',
-        folder: '',
-        size: 4,
-        at: 1,
-        mediaKey: 'media-0',
-        sha1: 'b'.repeat(40),
-        ...overrides
-    };
-}
-
-function file(overrides: Partial<FileGroup> = {}): FileGroup {
-    return {
-        email: 'owner@example.com',
-        fileHash: 'a'.repeat(64),
-        fileId: 'a'.repeat(64),
-        name: 'photo.png',
-        folder: '',
-        at: 1,
-        chunkCount: 1,
-        chunks: [chunk()],
-        duplicates: [],
-        trashedChunks: [],
-        trashed: false,
-        complete: true,
-        ...overrides
-    };
-}
-
-function serve(payload: previewApi.PreviewPayload) {
-    vi.mocked(previewApi.fetchFilePreview).mockReturnValue(
-        Ok(undefined).andThenAsync(async () => Ok(payload))
-    );
-}
-
-function fail(message: string) {
-    vi.mocked(previewApi.fetchFilePreview).mockReturnValue(
-        Ok(undefined).andThenAsync(async () => Err({ code: 'REQUEST_FAILED', message } as const))
-    );
-}
-
-function mount(item: FileGroup, overrides: Partial<ComponentProps<typeof FilePreviewDialog>> = {}) {
-    const callbacks = {
-        ondownload: vi.fn(),
-        ondetails: vi.fn(),
-        onclose: vi.fn()
-    };
-    const view = render(FilePreviewDialog, {
-        props: {
-            open: true,
-            target: { kind: 'file', item },
-            token: 'aas_et/test',
-            ...callbacks,
-            ...overrides
-        }
-    });
-
-    return { ...callbacks, view };
-}
 
 beforeEach(() => {
     cleanup();
@@ -187,24 +55,6 @@ test('a multi-chunk image shows the fallback without fetching', async () => {
     expect(previewApi.fetchFilePreview).not.toHaveBeenCalled();
 });
 
-test('the owner is shown only where the app shows owners', async () => {
-    serve({ kind: 'text', text: '', truncated: false });
-    const { view } = mount(file({ name: 'notes.txt' }), { showOwner: true });
-    await screen.findByText('owner@example.com · 4 B');
-
-    await view.rerender({
-        open: true,
-        target: { kind: 'file', item: file({ name: 'notes.txt' }) },
-        token: 'aas_et/test',
-        showOwner: false,
-        ondownload: vi.fn(),
-        ondetails: vi.fn(),
-        onclose: vi.fn()
-    });
-    expect(screen.queryByText('owner@example.com · 4 B')).toBeNull();
-    expect(screen.getByText('4 B')).toBeTruthy();
-});
-
 test('an incomplete file shows the incomplete fallback without fetching', async () => {
     mount(file({ name: 'photo.png', complete: false, chunkCount: 2 }));
 
@@ -235,31 +85,6 @@ test('text is rendered as text, never as markup, with a truncation note', async 
     ).toBeTruthy();
 });
 
-test('an image preview uses an object URL and revokes it on close', async () => {
-    serve({
-        kind: 'image',
-        blob: new Blob([Uint8Array.from([1, 2, 3])], { type: 'image/png' }),
-        contentType: 'image/png'
-    });
-    const { view } = mount(file());
-
-    const image = (await view.findByRole('img', {
-        name: 'Preview of photo.png'
-    })) as HTMLImageElement;
-    expect(image.getAttribute('src')).toBe('blob:preview');
-
-    await view.rerender({
-        open: false,
-        target: { kind: 'file', item: file() },
-        token: 'aas_et/test',
-        ondownload: vi.fn(),
-        ondetails: vi.fn(),
-        onclose: vi.fn()
-    });
-
-    await waitFor(() => expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:preview'));
-});
-
 test('an error can be retried', async () => {
     fail('Google Photos is limiting requests');
     mount(file());
@@ -285,51 +110,29 @@ test('the dialog is labelled, focuses Close, and reports Escape through cancel',
     expect(onclose).toHaveBeenCalled();
 });
 
-test('closing while loading does not apply a late result', async () => {
-    let resolve: (value: Result<previewApi.PreviewPayload, ApplicationError>) => void = () => {};
-    const pending = new Promise<Result<previewApi.PreviewPayload, ApplicationError>>((done) => {
-        resolve = done;
-    });
-    vi.mocked(previewApi.fetchFilePreview).mockReturnValue(
-        Ok(undefined).andThenAsync(() => pending)
-    );
-
-    const { view } = mount(file({ name: 'notes.txt' }));
-    await screen.findByText('Loading preview');
+test('the owner is shown only where the app shows owners', async () => {
+    serve({ kind: 'text', text: '', truncated: false });
+    const { view } = mount(file({ name: 'notes.txt' }), { showOwner: true });
+    await screen.findByText('owner@example.com · 4 B');
 
     await view.rerender({
-        open: false,
+        open: true,
         target: { kind: 'file', item: file({ name: 'notes.txt' }) },
         token: 'aas_et/test',
+        showOwner: false,
         ondownload: vi.fn(),
         ondetails: vi.fn(),
         onclose: vi.fn()
     });
-
-    resolve(Ok({ kind: 'text', text: 'late', truncated: false }));
-    await new Promise((done) => setTimeout(done, 0));
-
-    expect(view.container.querySelector('pre')).toBeNull();
-    expect(screen.queryByText('late')).toBeNull();
+    expect(screen.queryByText('owner@example.com · 4 B')).toBeNull();
+    expect(screen.getByText('4 B')).toBeTruthy();
 });
 
-test('a cached payload is applied without a request', async () => {
-    vi.mocked(cacheApi.getCachedPreview).mockReturnValue({
-        kind: 'text',
-        text: 'cached',
-        truncated: false
-    });
-
-    mount(file({ name: 'notes.txt' }));
-
-    expect(await screen.findByText('cached')).toBeTruthy();
-    expect(previewApi.fetchFilePreview).not.toHaveBeenCalled();
-});
-
-test('preview requests use the file mode', async () => {
+test('the close action calls the close callback', async () => {
     serve({ kind: 'text', text: 'hello', truncated: false });
-    mount(file({ name: 'notes.txt' }));
-
+    const { onclose } = mount(file());
     await screen.findByText('hello');
-    expect(vi.mocked(previewApi.fetchFilePreview).mock.calls[0]?.[2]).toBe(PreviewMode.Text);
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(onclose).toHaveBeenCalled();
 });
