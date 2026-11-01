@@ -100,10 +100,12 @@ test('switching accounts during pending library requests ignores stale responses
         'second@example.com'
     ]);
 
-    secondAccountPage.resolve(Ok({ items: [chunk('second-current')], nextPageToken: '' }));
+    secondAccountPage.resolve(
+        Ok({ items: [chunk('second-current')], nextPageToken: '', revision: 1 })
+    );
     await secondLoad;
 
-    firstAccountPage.resolve(Ok({ items: [chunk('first-stale')], nextPageToken: '' }));
+    firstAccountPage.resolve(Ok({ items: [chunk('first-stale')], nextPageToken: '', revision: 1 }));
     await firstLoad;
     await vi.waitFor(() => expect(drive.library.loading).toBe(false));
 
@@ -129,13 +131,15 @@ test('manual refresh replaces completed initial data and clears the loading stat
 
     drive.ready = true;
     const initialLoad = drive.library.load();
-    initialPage.resolve(Ok({ items: [chunk('initial')], nextPageToken: '' }));
+    initialPage.resolve(Ok({ items: [chunk('initial')], nextPageToken: '', revision: 1 }));
     await initialLoad;
     expect(drive.library.loading).toBe(false);
 
     const olderRefresh = drive.library.refresh(true);
     expect(drive.library.loading).toBe(true);
-    firstRefresh.resolve(Ok({ items: [chunk('refreshed')], nextPageToken: '', pages: 1 }));
+    firstRefresh.resolve(
+        Ok({ items: [chunk('refreshed')], nextPageToken: '', revision: 1, pages: 1 })
+    );
     await olderRefresh;
 
     expect(drive.library.loading).toBe(false);
@@ -171,7 +175,7 @@ test('file selection during refresh shows feedback and can be submitted again af
         'Files are refreshing. Wait for the refresh to finish, then select your files again.'
     );
 
-    pendingRefresh.resolve(Ok({ items: [], nextPageToken: '', pages: 1 }));
+    pendingRefresh.resolve(Ok({ items: [], nextPageToken: '', revision: 1, pages: 1 }));
     await refresh;
     expect(drive.library.loading).toBe(false);
     expect(drive.feedbackMessage).toContain('Files are refreshing.');

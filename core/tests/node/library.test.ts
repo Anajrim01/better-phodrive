@@ -13,9 +13,11 @@ function pages(...responses: { items: number[]; nextPageToken: string }[]) {
     const { input } = downloadFixture();
     for (const { items, nextPageToken } of responses)
         vi.mocked(listBmps).mockImplementationOnce(() =>
-            Ok({ items: items.map((index) => input.chunks[index]), nextPageToken }).andThenAsync(
-                async (page) => Ok(page)
-            )
+            Ok({
+                items: items.map((index) => input.chunks[index]),
+                nextPageToken,
+                revision: 1
+            }).andThenAsync(async (page) => Ok(page))
         );
 
     return input;

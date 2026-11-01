@@ -21,10 +21,25 @@ export function parseAccountState(value: unknown): LibraryAccountState | null {
     const parsed = PersistedAccountSchema.safeParse(value);
     if (!parsed.success) return null;
 
+    const log: typeof parsed.data.log = [];
+    let lastRevision = 0;
+    for (const entry of parsed.data.log) {
+        if (entry.revision <= lastRevision || entry.revision > parsed.data.revision)
+            return {
+                syncToken: Buffer.from(parsed.data.syncToken, 'base64url'),
+                revision: parsed.data.revision,
+                items: new Map(parsed.data.items.map((item) => [item.mediaKey, item])),
+                log: []
+            };
+
+        lastRevision = entry.revision;
+        log.push(entry);
+    }
+
     return {
         syncToken: Buffer.from(parsed.data.syncToken, 'base64url'),
         revision: parsed.data.revision,
         items: new Map(parsed.data.items.map((item) => [item.mediaKey, item])),
-        log: parsed.data.log
+        log
     };
 }

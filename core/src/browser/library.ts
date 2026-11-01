@@ -48,7 +48,7 @@ export function readLibrarySnapshot(
         const pageTokens = new Set<string>();
         let nextPageToken = '';
         let pages = 0;
-        let revision: number | undefined;
+        let revision = 0;
 
         for (let index = 0; index < Math.max(1, pageCount); index++) {
             pageTokens.add(nextPageToken);
@@ -65,7 +65,7 @@ export function readLibrarySnapshot(
 
                 for (const item of page.items) items.set(item.mediaKey, item);
                 nextPageToken = page.nextPageToken;
-                revision ??= page.revision;
+                if (pages === 0) revision = page.revision;
                 pages++;
 
                 return Ok(undefined);
@@ -79,7 +79,7 @@ export function readLibrarySnapshot(
             items: [...items.values()],
             nextPageToken,
             pages,
-            ...(revision !== undefined ? { revision } : {})
+            revision
         });
     });
 }
@@ -130,7 +130,8 @@ async function readMemberPages(email: string, token: string): Promise<GroupPage>
     const items = new Map<string, RemoteBmp>();
     const pageTokens = new Set<string>();
     let pageToken = '';
-    let revision: number | undefined;
+    let revision = 0;
+    let first = true;
 
     do {
         pageTokens.add(pageToken);
@@ -150,11 +151,14 @@ async function readMemberPages(email: string, token: string): Promise<GroupPage>
             };
 
         for (const item of page.items) items.set(item.mediaKey, item);
-        revision ??= page.revision;
+        if (first) {
+            revision = page.revision;
+            first = false;
+        }
         pageToken = page.nextPageToken;
     } while (pageToken);
 
-    return { email, items: [...items.values()], ...(revision !== undefined ? { revision } : {}) };
+    return { email, items: [...items.values()], revision };
 }
 
 async function readMemberSync(

@@ -8,7 +8,7 @@ import type { UploadedChunk } from '@madkarmaa/phodrive-core/files';
 import type { RemoteBmp } from '@madkarmaa/phodrive-core/models';
 import { nextRetryAt } from '#browser/drive/group-target';
 
-export type LibraryState = {
+type LibraryState = {
     chunks: UploadedChunk[];
     accounts: GroupAccountState[];
     partial: boolean;
@@ -84,7 +84,7 @@ export function applyLibrarySnapshot(
         items: readonly RemoteBmp[];
         nextPageToken: string;
         pages: number;
-        revision?: number;
+        revision: number;
     },
     pageTokens: Set<string>,
     hasFolder: (path: string) => boolean
@@ -96,8 +96,7 @@ export function applyLibrarySnapshot(
     state.loadedPages = snapshot.pages;
     pageTokens.clear();
     if (snapshot.nextPageToken) pageTokens.add(snapshot.nextPageToken);
-    if (snapshot.revision !== undefined)
-        state.revisions.set(email.toLowerCase(), snapshot.revision);
+    state.revisions.set(email.toLowerCase(), snapshot.revision);
     if (state.folder && !hasFolder(state.folder)) state.folder = '';
 }
 
@@ -125,7 +124,7 @@ export function applyGroupSnapshot(
     state.loadedPages = 1;
     onAccounts(snapshot.accounts);
     state.retryAt = nextRetryAt(snapshot.accounts);
-    for (const [email, revision] of Object.entries(snapshot.revisions ?? {})) {
+    for (const [email, revision] of Object.entries(snapshot.revisions)) {
         state.revisions.set(email.toLowerCase(), revision);
     }
     if (state.folder && !hasFolder(state.folder)) state.folder = '';

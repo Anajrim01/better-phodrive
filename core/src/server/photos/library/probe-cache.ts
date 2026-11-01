@@ -6,7 +6,6 @@ import type { LibraryCandidate } from './metadata';
 
 const PROBE_CACHE_LIMIT = 100_000;
 const PROBE_CACHE_NEGATIVE_TTL_MS = 60 * 60 * 1_000;
-const PROBE_CACHE_VERSION = 2;
 const PROBE_CACHE_FLUSH_DELAY_MS = 1_000;
 const PROBE_CACHE_FLUSH_INTERVAL_MS = 30_000;
 
@@ -18,7 +17,6 @@ const CachedProbeSchema = z.object({
     item: RemoteBmpSchema.nullable()
 });
 const ProbeCacheSchema = z.object({
-    version: z.literal(PROBE_CACHE_VERSION),
     entries: z.array(CachedProbeSchema)
 });
 
@@ -30,8 +28,15 @@ let lastFlushAt = 0;
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 
 export function configureProbeCache(path: string | null): void {
+    if (flushTimer) {
+        clearTimeout(flushTimer);
+        flushTimer = null;
+    }
+
     cacheFile = path;
     loaded = false;
+    dirty = false;
+    lastFlushAt = 0;
 }
 
 function probeKey(email: string, candidate: LibraryCandidate): string {
@@ -73,9 +78,7 @@ export function flushProbeCache(): void {
         const temp = `${cacheFile}.tmp`;
 
         mkdirSync(dirname(cacheFile), { recursive: true, mode: 0o700 });
-        writeFileSync(temp, JSON.stringify({ version: PROBE_CACHE_VERSION, entries }), {
-            mode: 0o600
-        });
+        writeFileSync(temp, JSON.stringify({ entries }), { mode: 0o600 });
         renameSync(temp, cacheFile);
         dirty = false;
         lastFlushAt = Date.now();

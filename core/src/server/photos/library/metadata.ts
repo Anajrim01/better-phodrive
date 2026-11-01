@@ -1,5 +1,5 @@
 import type { ServerError } from '../../errors';
-import { Ok, type Result } from 'results-ts';
+import type { Result } from 'results-ts';
 import { LIBRARY_PAGE_REQUEST, LIBRARY_STATE_REQUEST } from './requests';
 import { bytes, parse, encodeFields, type Field } from '../../protobuf';
 

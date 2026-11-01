@@ -64,7 +64,7 @@ function remote(email: string, name: string, at = 1): RemoteBmp {
 }
 
 function page(items: RemoteBmp[]) {
-    const value = { items, nextPageToken: '' };
+    const value = { items, nextPageToken: '', revision: 1 };
 
     return Ok(value).andThenAsync(async () => Ok(value));
 }
@@ -123,7 +123,9 @@ test('a paused member leaves a partial listing and does not block the other owne
                   code: 'THROTTLED',
                   message: 'Google Photos is limiting requests',
                   retryAfterSeconds: 30
-              } as const).andThenAsync(async () => Ok({ items: [], nextPageToken: '' }))
+              } as const).andThenAsync(async () =>
+                  Ok({ items: [], nextPageToken: '', revision: 1 })
+              )
             : page([remote(FIRST, 'first.bin')])
     );
 

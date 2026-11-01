@@ -97,7 +97,7 @@ function assignment(index: number) {
 
 test('uploaded folders become albums and reuse the remembered album key', async () => {
     vi.spyOn(libraryApi, 'readLibraryPage').mockReturnValue(
-        Ok({ items: [], nextPageToken: '' }).andThenAsync(async (page) => Ok(page))
+        Ok({ items: [], nextPageToken: '', revision: 1 }).andThenAsync(async (page) => Ok(page))
     );
     const assigned = vi
         .spyOn(albumsApi, 'assignFolderAlbum')
@@ -129,7 +129,7 @@ test('uploaded folders become albums and reuse the remembered album key', async 
 
 test('a failed album assignment keeps the upload and reports the folder', async () => {
     vi.spyOn(libraryApi, 'readLibraryPage').mockReturnValue(
-        Ok({ items: [], nextPageToken: '' }).andThenAsync(async (page) => Ok(page))
+        Ok({ items: [], nextPageToken: '', revision: 1 }).andThenAsync(async (page) => Ok(page))
     );
     vi.spyOn(albumsApi, 'assignFolderAlbum').mockReturnValue(
         Err({
@@ -151,7 +151,7 @@ test('a failed album assignment keeps the upload and reports the folder', async 
 
 test('retrying an upload keeps its original folder', async () => {
     vi.spyOn(libraryApi, 'readLibraryPage').mockReturnValue(
-        Ok({ items: [], nextPageToken: '' }).andThenAsync(async (page) => Ok(page))
+        Ok({ items: [], nextPageToken: '', revision: 1 }).andThenAsync(async (page) => Ok(page))
     );
     const folders: (string | undefined)[] = [];
     vi.spyOn(filesApi, 'uploadFiles').mockImplementation(

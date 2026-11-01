@@ -26,7 +26,7 @@ import {
 
 const POST_UPLOAD_COOLDOWN_MS = 2 * 60 * 1_000;
 
-export type LibraryGroup = {
+type LibraryGroup = {
     members: readonly { email: string; token: string; pausedUntil?: number }[];
     missing: readonly string[];
 } | null;
@@ -89,6 +89,7 @@ export class DriveLibrary {
         this.loading = false;
         this.accounts = [];
         this.partial = false;
+        this.retryAt = 0;
     }
 
     openFolder(path: string) {
@@ -156,8 +157,7 @@ export class DriveLibrary {
                     this.feedback('Google Photos repeated a library page. Refresh to try again.');
                 }
                 if (this.nextPageToken) this.libraryPageTokens.add(this.nextPageToken);
-                if (firstPage && data.revision !== undefined)
-                    this.revisions.set(email.toLowerCase(), data.revision);
+                if (firstPage) this.revisions.set(email.toLowerCase(), data.revision);
 
                 this.loadedPages++;
             },

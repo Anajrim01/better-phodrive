@@ -33,7 +33,9 @@ vi.mock('esm-env', () => ({ BROWSER: true, DEV: true }));
 vi.mock('#browser/drive/refresh.svelte', () => ({ useAutomaticRefresh: vi.fn() }));
 
 function emptySnapshot() {
-    return Ok({ items: [], nextPageToken: '', pages: 0 }).andThenAsync(async (page) => Ok(page));
+    return Ok({ items: [], nextPageToken: '', pages: 0, revision: 1 }).andThenAsync(async (page) =>
+        Ok(page)
+    );
 }
 
 beforeEach(() => {
@@ -97,7 +99,7 @@ test('loading a throttled page arms the retry timer', async () => {
             code: 'THROTTLED',
             message: 'Google Photos is limiting requests, retrying in about 2 min',
             retryAfterSeconds: 120
-        } as const).andThenAsync(async () => Ok({ items: [], nextPageToken: '' }))
+        } as const).andThenAsync(async () => Ok({ items: [], nextPageToken: '', revision: 1 }))
     );
     const drive = new DriveController();
     drive.initialize();

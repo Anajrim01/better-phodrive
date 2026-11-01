@@ -123,13 +123,14 @@ test('confirming a file after switching accounts refuses the old account target'
 
 test('refresh removing a chunk invalidates the stale file confirmation', async () => {
     const refreshed = [chunk(HASH_A, FIRST, 0, 'alpha-chunk-0')];
-    const load = vi
-        .spyOn(libraryApi, 'readLibrarySnapshot')
-        .mockReturnValue(
-            Ok({ items: refreshed, nextPageToken: '', pages: 1 }).andThenAsync(async (value) =>
-                Ok(value)
-            )
-        );
+    const load = vi.spyOn(libraryApi, 'readLibrarySnapshot').mockReturnValue(
+        Ok({
+            items: refreshed,
+            nextPageToken: '',
+            pages: 1,
+            revision: 1
+        }).andThenAsync(async (value) => Ok(value))
+    );
     const deletion = vi
         .spyOn(filesApi, 'deleteFile')
         .mockReturnValue(Ok(undefined).andThenAsync(async () => Ok(undefined)));

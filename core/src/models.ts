@@ -226,7 +226,7 @@ export const RemoteBmpSchema = z.object({
 export const LibraryResponseSchema = z.object({
     items: z.array(RemoteBmpSchema),
     nextPageToken: z.string(),
-    revision: z.int().nonnegative().optional()
+    revision: z.int().nonnegative()
 });
 
 export const UploadResponseSchema = z.object({
@@ -235,7 +235,6 @@ export const UploadResponseSchema = z.object({
     sha1: Sha1HexSchema
 });
 
-export const DeleteResponseSchema = z.object({ deleted: z.literal(true) });
 export const ErrorResponseSchema = z.object({
     error: z.string(),
     retryAfterSeconds: z.int().nonnegative().optional()
@@ -323,7 +322,7 @@ export const UploadRequestSchema = AccountSchema.extend({
     file: UploadFileSchema,
     chunkIndex: z.int().nonnegative(),
     sha1: Sha1HexSchema,
-    compress: z.boolean().default(false)
+    compress: z.boolean()
 });
 export const MAX_ALBUM_BATCH_SIZE = 500;
 export const AlbumAssignRequestSchema = AccountRequestSchema.extend({
@@ -335,7 +334,6 @@ export const AlbumAssignResponseSchema = z.object({ albumKey: AlbumKeySchema });
 export type UploadFile = z.infer<typeof UploadFileSchema>;
 export type ChunkUploadRequest = z.infer<typeof UploadRequestSchema>;
 export type AlbumAssignRequest = z.infer<typeof AlbumAssignRequestSchema>;
-export type AlbumAssignResponse = z.infer<typeof AlbumAssignResponseSchema>;
 
 export type RemoteBmp = z.infer<typeof RemoteBmpSchema>;
 export type LibraryResponse = z.infer<typeof LibraryResponseSchema>;
@@ -344,10 +342,7 @@ export type UploadResponse = z.infer<typeof UploadResponseSchema>;
 export type UploadEvent = z.infer<typeof UploadEventSchema>;
 export type UploadProgress = z.infer<typeof UploadProgressSchema>;
 export type FileRequest = z.infer<typeof FileRequestSchema>;
-export type RefreshInterval = z.infer<typeof RefreshIntervalSchema>;
-export type ConcurrentWorkers = z.infer<typeof ConcurrentWorkersSchema>;
 export type PreferencesDefaults = z.infer<typeof PreferencesDefaultsSchema>;
-export type AccountConnection = z.infer<typeof AccountConnectionSchema>;
 
 export const DEFAULT_FILE_SORT = FileSort.ModifiedDescending;
 export const DEFAULT_PREFERENCES_DEFAULTS: PreferencesDefaults = {
