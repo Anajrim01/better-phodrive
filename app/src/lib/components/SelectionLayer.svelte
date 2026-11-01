@@ -29,6 +29,8 @@
         trash={selection.trash}
         disabled={actionsDisabled || drive.library.loading}
         running={drive.bulk.runningAction}
+        progressDone={drive.bulk.progressDone}
+        progressTotal={drive.bulk.progressTotal}
         ondownload={() => void drive.bulk.download(selection.selected)}
         onmove={() => drive.bulk.openMove(selection.selected)}
         ondelete={() => selection.confirm(selection.selected, false)}

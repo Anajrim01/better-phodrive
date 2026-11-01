@@ -16,6 +16,8 @@
         trash: boolean;
         disabled: boolean;
         running: FileActionKind | null;
+        progressDone?: number;
+        progressTotal?: number;
         ondownload: () => void;
         onmove: () => void;
         ondelete: () => void;
@@ -30,6 +32,8 @@
         trash,
         disabled,
         running,
+        progressDone = 0,
+        progressTotal = 0,
         ondownload,
         onmove,
         ondelete,
@@ -38,6 +42,18 @@
         ondetails,
         onclear
     }: Props = $props();
+
+    const PROGRESS_LABEL: Record<FileActionKind, string> = {
+        [FileActionKind.Download]: 'Downloading',
+        [FileActionKind.Delete]: 'Deleting',
+        [FileActionKind.Restore]: 'Restoring',
+        [FileActionKind.DeleteForever]: 'Deleting'
+    };
+    const countLabel = $derived(
+        running !== null && progressTotal > 0
+            ? `${PROGRESS_LABEL[running]} ${progressDone} of ${progressTotal}`
+            : `${count} selected`
+    );
 </script>
 
 <div
@@ -46,7 +62,7 @@
     aria-label="Selected files"
     in:fade={{ duration: prefersReducedMotion.current ? 0 : 120 }}
 >
-    <span class="count" aria-live="polite">{count} selected</span>
+    <span class="count" aria-live="polite">{countLabel}</span>
     <div class="actions">
         {#if trash}
             <Button

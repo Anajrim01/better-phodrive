@@ -102,6 +102,14 @@ test('bar actions call their bulk handlers and reflect a running action', async 
     ).toBe(true);
 });
 
+test('bulk progress replaces the selected count while an action runs', () => {
+    render(SelectionBar, {
+        props: props({ running: FileActionKind.Delete, progressDone: 1, progressTotal: 3 })
+    });
+
+    expect(screen.getByText('Deleting 1 of 3')).toBeTruthy();
+});
+
 test('every action keeps an accessible name when the mobile layout hides its label', () => {
     const view = render(SelectionBar, { props: props() });
     const labels = [...view.container.querySelectorAll('.action-label')];
