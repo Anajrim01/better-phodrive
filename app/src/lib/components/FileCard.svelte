@@ -2,7 +2,7 @@
     import { Card, Checkbox } from 'noph-ui';
     import type { FileActionKind } from '@madkarmaa/phodrive-core/models';
     import type { FileGroup } from '@madkarmaa/phodrive-core/files';
-    import { fileType } from '@madkarmaa/phodrive-core/files';
+    import { fileKey, fileType } from '@madkarmaa/phodrive-core/files';
     import FileActions from '#components/FileActions.svelte';
     import MoreButton from '#components/MoreButton.svelte';
     import FileIncompleteWarning from '#components/FileIncompleteWarning.svelte';
@@ -66,6 +66,7 @@
     class:selected
     role="group"
     aria-label={item.name}
+    data-file-key={fileKey(item)}
     oncontextmenu={contextMenu}
 >
     <Card type="text" variant="filled" class="file-card">

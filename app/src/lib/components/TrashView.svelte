@@ -6,6 +6,7 @@
     import type { GroupAccountState } from '@madkarmaa/phodrive-core/groups';
     import { sortFiles, type FileAction, type FileGroup } from '@madkarmaa/phodrive-core/files';
     import FileList from '#components/FileList.svelte';
+    import MarqueeSelect from '#components/MarqueeSelect.svelte';
     import GroupListingStatus from '#components/GroupListingStatus.svelte';
     import type { MenuAnchor } from '#browser/drive/menu-types';
 
@@ -27,6 +28,7 @@
         onselectall?: (select: boolean) => void;
         oncontextselect?: (item: FileGroup) => void;
         onselectionmenu?: (anchor: MenuAnchor) => void;
+        onmarquee?: (keys: ReadonlySet<string>) => void;
         onrestore: (item: FileGroup) => void;
         ondeleteforever: (item: FileGroup) => void;
         onmenu: (item: FileGroup, anchor: MenuAnchor) => void;
@@ -51,6 +53,7 @@
         onselectall,
         oncontextselect,
         onselectionmenu,
+        onmarquee,
         onrestore,
         ondeleteforever,
         onmenu,
@@ -75,53 +78,60 @@
         <GroupListingStatus {groupName} {total} {accounts} />
     {/if}
 
-    {#if files.length}
-        <FileList
-            files={sorted}
-            bind:sort
-            {disabled}
-            {action}
-            {selected}
-            {onselect}
-            {onselectall}
-            {oncontextselect}
-            {onselectionmenu}
-            showFolder
-            {showOwner}
-            trash
-            partial={more}
-            headingId="trash-heading"
-            {onrestore}
-            {ondeleteforever}
-            {onmenu}
-        />
-    {:else}
-        <div
-            class="grid min-h-90 flex-1 place-items-center px-6 py-12 text-center text-sm text-muted"
-        >
-            {#if loading}
-                <LoadingIndicator aria-label="Loading trash" />
-            {:else if loadFailed}
-                <p>Use Refresh to load your files again</p>
-            {:else if more}
-                <p role="status">No trashed files in the loaded pages.</p>
-            {:else}
-                <p role="status">Trash is empty</p>
-            {/if}
-        </div>
-    {/if}
-
-    {#if hasMore}
-        <div class="mt-6 flex justify-center">
-            <Button
-                variant="outlined"
-                {loading}
-                loadingAriaLabel="Loading more trash"
+    <MarqueeSelect
+        class="flex min-h-0 flex-1 flex-col"
+        {selected}
+        disabled={disabled || !files.length}
+        onpreview={(keys) => onmarquee?.(keys)}
+    >
+        {#if files.length}
+            <FileList
+                files={sorted}
+                bind:sort
                 {disabled}
-                onclick={onmore}
+                {action}
+                {selected}
+                {onselect}
+                {onselectall}
+                {oncontextselect}
+                {onselectionmenu}
+                showFolder
+                {showOwner}
+                trash
+                partial={more}
+                headingId="trash-heading"
+                {onrestore}
+                {ondeleteforever}
+                {onmenu}
+            />
+        {:else}
+            <div
+                class="grid min-h-90 flex-1 place-items-center px-6 py-12 text-center text-sm text-muted"
             >
-                Load more
-            </Button>
-        </div>
-    {/if}
+                {#if loading}
+                    <LoadingIndicator aria-label="Loading trash" />
+                {:else if loadFailed}
+                    <p>Use Refresh to load your files again</p>
+                {:else if more}
+                    <p role="status">No trashed files in the loaded pages.</p>
+                {:else}
+                    <p role="status">Trash is empty</p>
+                {/if}
+            </div>
+        {/if}
+
+        {#if hasMore}
+            <div class="mt-6 flex justify-center">
+                <Button
+                    variant="outlined"
+                    {loading}
+                    loadingAriaLabel="Loading more trash"
+                    {disabled}
+                    onclick={onmore}
+                >
+                    Load more
+                </Button>
+            </div>
+        {/if}
+    </MarqueeSelect>
 </div>

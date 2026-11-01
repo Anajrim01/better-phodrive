@@ -191,6 +191,7 @@
                 onselectall={selection.selectAll}
                 oncontextselect={selection.selectOnly}
                 onselectionmenu={selection.openMenu}
+                onmarquee={selection.replace}
                 onrestore={restore}
                 ondeleteforever={confirmPermanentDelete}
                 onmenu={openFileMenu}
@@ -230,6 +231,7 @@
                 onselectall={selection.selectAll}
                 oncontextselect={selection.selectOnly}
                 onselectionmenu={selection.openMenu}
+                onmarquee={selection.replace}
                 onupload={upload}
                 ondownload={download}
                 ondelete={confirmTrash}

@@ -18,6 +18,7 @@
         onselectall: (select: boolean) => void;
         oncontextselect: (item: FileGroup) => void;
         onselectionmenu: (anchor: MenuAnchor) => void;
+        onmarquee: (keys: ReadonlySet<string>) => void;
         onupload: (files: File[]) => void;
         ondownload: (item: FileGroup) => void;
         ondelete: (item: FileGroup) => void;
@@ -34,6 +35,7 @@
         onselectall,
         oncontextselect,
         onselectionmenu,
+        onmarquee,
         onupload,
         ondownload,
         ondelete,
@@ -115,6 +117,7 @@
             {onselectall}
             {oncontextselect}
             {onselectionmenu}
+            {onmarquee}
             onopenfolder={(path) => drive.library.openFolder(path)}
             {ondownload}
             {ondelete}

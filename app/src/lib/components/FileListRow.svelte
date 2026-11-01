@@ -92,6 +92,7 @@
 
 <tr
     class:selected
+    data-file-key={fileKey(item)}
     tabindex="0"
     onclick={rowClick}
     onkeydown={rowKeydown}

@@ -59,6 +59,12 @@ export class DriveSelection {
         if (this.anchor === key) this.anchor = null;
     }
 
+    set(keys: ReadonlySet<string>): void {
+        this.keys.clear();
+        for (const key of keys) this.keys.add(key);
+        this.anchor = null;
+    }
+
     clear(): void {
         this.keys.clear();
         this.anchor = null;

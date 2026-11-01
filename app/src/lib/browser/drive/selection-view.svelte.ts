@@ -51,6 +51,10 @@ export function createSelectionView(
         drive.selection.selectOnly(fileKey(item));
     }
 
+    function replace(keys: ReadonlySet<string>): void {
+        drive.selection.set(keys);
+    }
+
     function openMenu(anchor: MenuAnchor): void {
         manage.openBulkMenu(
             { kind: 'selection', files: selected, trash: view() === AppView.Trash },
@@ -100,6 +104,7 @@ export function createSelectionView(
         selectFile,
         selectAll,
         selectOnly,
+        replace,
         openMenu,
         confirm,
         run,
