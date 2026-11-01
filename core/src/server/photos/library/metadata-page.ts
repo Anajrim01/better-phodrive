@@ -64,10 +64,11 @@ function libraryItem(value: Buffer): Result<ParsedLibraryItem | null, ServerErro
     return visibility.andThen<ParsedLibraryItem | null, ServerError>(
         ({ item, details, visible }) => {
             const metadata = libraryMetadata(item, details);
-            if (metadata.isOk()) {
-                const candidate = candidateFrom(metadata.unwrap(), !visible);
-                if (candidate) return Ok(candidate);
-            }
+            const candidate = metadata.match({
+                Ok: (value) => candidateFrom(value, !visible),
+                Err: () => null
+            });
+            if (candidate) return Ok(candidate);
             if (visible) return Ok(null);
 
             return itemMediaKey(item).map((mediaKey) =>

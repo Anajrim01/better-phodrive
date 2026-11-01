@@ -142,3 +142,17 @@ test('restore and delete forever reject chunks that are not trashed', async () =
     expect(restoreFromTrash).not.toHaveBeenCalled();
     expect(deletePermanently).not.toHaveBeenCalled();
 });
+
+test('an empty trash action is rejected before any request', async () => {
+    save(chunks());
+    const { input } = downloadFixture();
+
+    const restored = await restoreFile({
+        ...input,
+        action: FileActionKind.Restore,
+        chunks: []
+    });
+
+    expect(restored.unwrapErr().code).toBe('INVALID_FILE_METADATA');
+    expect(restoreFromTrash).not.toHaveBeenCalled();
+});

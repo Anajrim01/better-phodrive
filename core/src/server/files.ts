@@ -33,7 +33,11 @@ function validateChunks(input: FileRequest): Result<RemoteBmp[], ServerError> {
     )
         return Err(SERVER_ERRORS.INVALID_FILE_METADATA);
 
-    if (input.action !== FileActionKind.Download) return Ok(chunks);
+    if (input.action !== FileActionKind.Download) {
+        if (chunks.length === 0) return Err(SERVER_ERRORS.INVALID_FILE_METADATA);
+
+        return Ok(chunks);
+    }
     if (
         chunks.length === 0 ||
         chunks.some(
@@ -125,11 +129,12 @@ export function restoreFile(
         .andThenAsync(async (chunks) => {
             const sha1s = [...new Set(chunks.map((chunk) => chunk.sha1))];
             const restored = await restoreFromTrash(input.email, input.token, sha1s);
-            if (restored.isErr()) return Err(restored.unwrapErr());
 
-            markChunksRestored(input.email, chunks);
+            return restored.map(() => {
+                markChunksRestored(input.email, chunks);
 
-            return Ok({ restored: chunks.map(untrashed) });
+                return { restored: chunks.map(untrashed) };
+            });
         });
 }
 
@@ -142,10 +147,11 @@ export function deleteForeverFile(
         .andThenAsync(async (chunks) => {
             const sha1s = [...new Set(chunks.map((chunk) => chunk.sha1))];
             const removed = await deletePermanently(input.email, input.token, sha1s);
-            if (removed.isErr()) return Err(removed.unwrapErr());
 
-            removeChunks(input.email, chunks);
+            return removed.map(() => {
+                removeChunks(input.email, chunks);
 
-            return Ok({ deleted: chunks });
+                return { deleted: chunks };
+            });
         });
 }

@@ -207,13 +207,13 @@ export function syncLibrary(
             }
 
             const applied = await applyDelta(stored, read.value);
-            if (applied.isErr()) return Err(applied.unwrapErr());
 
-            const { state, shouldWrite } = applied.unwrap();
-            if (shouldWrite) writeAccountState(email, state);
-            else updateAccountSyncToken(email, state.syncToken);
+            return applied.map(({ state, shouldWrite }) => {
+                if (shouldWrite) writeAccountState(email, state);
+                else updateAccountSyncToken(email, state.syncToken);
 
-            return Ok(revisionResult(state, revision));
+                return revisionResult(state, revision);
+            });
         })
     );
 }
