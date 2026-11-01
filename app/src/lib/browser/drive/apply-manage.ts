@@ -15,6 +15,9 @@ export function applyManageItems(
     revision: number
 ): void {
     state.chunks = applyLibraryDelta(state.chunks, email, { items, deleted: [] });
+    // An empty response applies nothing, and its revision can still cover changes the client never received.
+    if (items.length === 0) return;
+
     const key = email.toLowerCase();
     const previous = state.revisions.get(key) ?? 0;
     const next = nextRevision(previous, revision);
