@@ -74,7 +74,7 @@
         {/if}
 
         <div class="flex flex-wrap items-center justify-end gap-1 px-2 pb-2">
-            <span class="card-inline-actions">
+            <div class="card-inline-actions">
                 <FileActions
                     {item}
                     {disabled}
@@ -85,7 +85,7 @@
                     {ondelete}
                     {onrestore}
                 />
-            </span>
+            </div>
             <MoreButton label={item.name} {disabled} onopen={(element) => onmenu(item, element)} />
         </div>
     </Card>

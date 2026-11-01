@@ -152,7 +152,7 @@
                 </td>
                 <td class="actions-column">
                     <div class="actions-cell">
-                        <span class="inline-actions">
+                        <div class="inline-actions">
                             <FileActions
                                 {item}
                                 {disabled}
@@ -165,7 +165,7 @@
                                 {onrestore}
                                 {ondeleteforever}
                             />
-                        </span>
+                        </div>
                         <MoreButton
                             label={item.name}
                             {disabled}
