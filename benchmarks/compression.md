@@ -60,26 +60,25 @@ CPU.
 The repository performance suite is the end-to-end check. `bmp-stream` enables
 compression, so it measures that path. The upload cases keep the default off, so
 they measure the raw streaming path. The fixtures are repeated bytes; use the
-per-type table above for realistic media. The raw and compressed runs used the
+per-type table above for realistic media. The before and after runs used the
 same machine, Node v24.11.1, two warm-ups and five samples. The raw run is kept
-with the session artifacts. These columns are a fresh pair from the current
-harness; they are not comparable to baseline.md because the harness and cases
-changed after that baseline.
+with the session artifacts. Only `bmp-stream` enables compression; the upload
+cases keep it off in both columns, so their change is harness noise.
 
-| Case                |  Raw ms | Compressed ms | Change | Compressed throughput |
-| ------------------- | ------: | ------------: | -----: | --------------------: |
-| `bmp-stream`        |  217.12 |        214.62 |  -1.2% |             866 MiB/s |
-| `upload-many`       |  333.41 |        310.13 |  -7.0% |              60 MiB/s |
-| `upload-large`      | 2721.87 |       2645.61 |  -2.8% |             141 MiB/s |
-| `upload-boundaries` | 7250.13 |       6984.61 |  -3.7% |             133 MiB/s |
-| `upload-mixed-1`    | 1974.62 |       1684.66 | -14.7% |             132 MiB/s |
-| `upload-mixed-4`    | 1681.87 |       1684.97 |  +0.2% |             133 MiB/s |
-| `upload-mixed-8`    | 1721.68 |       1705.48 |  -1.0% |             131 MiB/s |
-| `upload-mixed-32`   | 1719.26 |       1711.71 |  -0.4% |             130 MiB/s |
-| `upload-tiny`       |    3.59 |          3.76 |  +4.7% |             0.3 MiB/s |
+| Case                | Before ms | After ms | Change | After throughput |
+| ------------------- | --------: | -------: | -----: | ---------------: |
+| `bmp-stream`        |    217.12 |   214.62 |  -1.2% |        866 MiB/s |
+| `upload-many`       |    333.41 |   310.13 |  -7.0% |         60 MiB/s |
+| `upload-large`      |   2721.87 |  2645.61 |  -2.8% |        141 MiB/s |
+| `upload-boundaries` |   7250.13 |  6984.61 |  -3.7% |        133 MiB/s |
+| `upload-mixed-1`    |   1974.62 |  1684.66 | -14.7% |        132 MiB/s |
+| `upload-mixed-4`    |   1681.87 |  1684.97 |  +0.2% |        133 MiB/s |
+| `upload-mixed-8`    |   1721.68 |  1705.48 |  -1.0% |        131 MiB/s |
+| `upload-mixed-32`   |   1719.26 |  1711.71 |  -0.4% |        130 MiB/s |
+| `upload-tiny`       |      3.59 |     3.76 |  +4.7% |        0.3 MiB/s |
 
 `bmp-stream` runs with `compress: true` so it measures the compression path.
-The upload cases run with the default off and stay close to the raw run.
+The upload cases run with the default off and stay close to the before run.
 Throughput counts original input bytes, so a compressing upload moves fewer
 bytes over the network than the number suggests.
 
