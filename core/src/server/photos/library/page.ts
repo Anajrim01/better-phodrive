@@ -6,7 +6,7 @@ import { authenticatedHeaders, type PhotosHeaders } from '../auth';
 import { photosFetch, type Fetcher } from '../../fetcher';
 import { guardedSend, readBody } from '../transport';
 import { bodyBytes } from '../../protobuf';
-import { pageRequest, parseLibraryPage, type ParsedLibraryPage } from './metadata';
+import { pageRequest, parseLibraryPage, stateRequest, type ParsedLibraryPage } from './metadata';
 import { LIBRARY_STATE_REQUEST } from './requests';
 import { namedAsNonPhodrive, probeLibraryItem } from './probe';
 
@@ -50,9 +50,11 @@ export function readLibraryPage(
 ): AsyncResult<LibraryPage, ServerError> {
     return authenticatedHeaders(email, token, fetcher).andThenAsync(async (headers) => {
         const request =
-            pageToken || syncToken
-                ? pageRequest(Buffer.from(pageToken, 'base64url'), syncToken)
-                : Ok(Buffer.from(LIBRARY_STATE_REQUEST, 'base64'));
+            syncToken && !pageToken
+                ? stateRequest(syncToken)
+                : pageToken
+                  ? pageRequest(Buffer.from(pageToken, 'base64url'), syncToken)
+                  : Ok(Buffer.from(LIBRARY_STATE_REQUEST, 'base64'));
         const received = await request.andThenAsync((body) =>
             guardedSend(
                 email,

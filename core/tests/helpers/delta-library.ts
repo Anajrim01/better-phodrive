@@ -125,13 +125,19 @@ function prepareResponse(item: Item): Buffer {
     );
 }
 
-async function requestTokens(
-    body: BodyInit | null | undefined
-): Promise<{ resume: string; sync: string }> {
+export type LibraryRequestTokens = {
+    resume: string;
+    hasResume: boolean;
+    sync: string;
+};
+
+async function requestTokens(body: BodyInit | null | undefined): Promise<LibraryRequestTokens> {
     const raw = Buffer.from(await new Response(body).arrayBuffer());
+    const resume = nested(raw, 1, 4);
 
     return {
-        resume: nested(raw, 1, 4).match({ Ok: (value) => value.toString(), Err: () => '' }),
+        resume: resume.match({ Ok: (value) => value.toString(), Err: () => '' }),
+        hasResume: resume.isOk(),
         sync: nested(raw, 1, 6).match({ Ok: (value) => value.toString(), Err: () => '' })
     };
 }
@@ -140,7 +146,11 @@ export function fetcherFor(
     items: readonly Item[],
     pages: readonly Buffer[],
     counts: Counts,
-    options: { delta: Buffer; deltaStatus?: number; prepareStatus?: number }
+    options: {
+        delta: Buffer | ((tokens: LibraryRequestTokens) => Buffer);
+        deltaStatus?: number;
+        prepareStatus?: number;
+    }
 ): Fetcher {
     const byKey = new Map(items.map((item) => [item.mediaKey, item]));
 
@@ -163,7 +173,10 @@ export function fetcherFor(
                         headers: { 'retry-after': '9' }
                     });
 
-                return new Response(new Uint8Array(options.delta));
+                const delta =
+                    typeof options.delta === 'function' ? options.delta(tokens) : options.delta;
+
+                return new Response(new Uint8Array(delta));
             }
 
             counts.page++;
