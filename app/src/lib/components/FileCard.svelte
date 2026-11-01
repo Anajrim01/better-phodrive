@@ -155,7 +155,6 @@
                     }
                 }}
             />
-            <IconDescriptionOutline aria-hidden="true" class="size-5 shrink-0 text-muted" />
             <h3 class="min-w-0 flex-1 truncate text-sm font-medium" title={item.name}>
                 {item.name}
             </h3>
@@ -168,12 +167,9 @@
             class="file-preview mx-2 mb-2 grid place-items-center rounded bg-preview"
             aria-hidden="true"
         >
-            <div class="relative size-22 text-muted">
-                <IconDescriptionOutline class="size-22" />
-                <span
-                    class="absolute top-13 left-3 w-16 truncate rounded bg-preview text-center text-xs font-medium"
-                    >{fileType(item.name)}</span
-                >
+            <div class="flex flex-col items-center gap-2 text-muted">
+                <IconDescriptionOutline class="size-10" />
+                <span class="text-xs font-medium">{fileType(item.name)}</span>
             </div>
         </div>
 
@@ -203,6 +199,7 @@
 
 <style>
     .file-card-shell {
+        height: 100%;
         min-width: 0;
         border-radius: 12px;
     }
@@ -239,22 +236,28 @@
     }
 
     :global(:root .file-card.np-card-container) {
+        display: flex;
+        flex-direction: column;
         width: 100%;
-        container-type: inline-size;
+        height: 100%;
         min-width: 0;
         overflow: hidden;
+        container-type: inline-size;
         --np-filled-card-container-color: var(--app-card);
         --np-filled-card-container-shape: 12px;
     }
 
     :global(:root .file-card.np-card-container .np-card-content) {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
         margin: 0;
         gap: 0;
         min-width: 0;
         width: 100%;
     }
     .file-preview {
-        height: calc(100cqi - 96px);
+        flex: 1;
         min-height: 150px;
     }
 

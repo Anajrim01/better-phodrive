@@ -86,7 +86,8 @@
             width: rect.width,
             height: rect.height,
             viewportWidth: window.innerWidth,
-            viewportHeight: window.innerHeight
+            viewportHeight: window.innerHeight,
+            margin: 12
         });
         menuElement.style.position = 'fixed';
         menuElement.style.setProperty('position-area', 'none');

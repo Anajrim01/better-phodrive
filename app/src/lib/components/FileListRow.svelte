@@ -128,6 +128,7 @@
 
 <tr
     class:selected
+    class:trash
     data-file-key={fileKey(item)}
     tabindex="0"
     draggable={!disabled}
@@ -196,7 +197,7 @@
                 <FileActions
                     {item}
                     {disabled}
-                    compact
+                    compact={!trash}
                     {trash}
                     {partial}
                     {working}
@@ -296,6 +297,9 @@
         width: 144px;
         padding-inline: 4px;
     }
+    .trash .actions-column {
+        width: 248px;
+    }
 
     .actions-cell {
         display: flex;
@@ -307,6 +311,15 @@
     .inline-actions {
         display: flex;
         align-items: center;
+    }
+
+    @container (width < 900px) {
+        .trash .actions-column {
+            width: 56px;
+        }
+        .trash .inline-actions {
+            display: none;
+        }
     }
 
     @container (width < 820px) {

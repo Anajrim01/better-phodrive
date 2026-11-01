@@ -157,7 +157,7 @@ test('folder tiles open from the tile and expose a separate More button', async 
     await fireEvent.click(open);
     expect(onopen).toHaveBeenCalledWith('A');
 
-    const more = screen.getByRole('button', { name: 'More actions for folder A' });
+    const more = screen.getByRole('button', { name: 'More actions for A' });
     expect(more).not.toBe(open);
     await fireEvent.click(more);
     expect(onmenu).toHaveBeenLastCalledWith(folder, more);

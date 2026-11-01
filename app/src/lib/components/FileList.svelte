@@ -83,13 +83,13 @@
 </script>
 
 <div class="file-list-wrap">
-    <table class="file-list" aria-labelledby={headingId}>
+    <table class="file-list" class:trash aria-labelledby={headingId}>
         <thead>
             <tr>
                 <th scope="col" class="select-column">
                     <div class="select-cell">
                         <Checkbox
-                            aria-label="Select all files"
+                            aria-label="Select all visible files"
                             bind:checked={headerChecked}
                             bind:indeterminate={headerMixed}
                             disabled={disabled || files.length === 0}
@@ -228,6 +228,9 @@
         width: 144px;
         padding-inline: 4px;
     }
+    .file-list.trash .actions-column {
+        width: 248px;
+    }
 
     .file-list :global(.column-sort) {
         --np-button-padding: 12px;
@@ -235,6 +238,12 @@
         --np-text-button-label-text-color: var(--np-color-on-surface);
         margin-inline: -12px;
         font-size: 14px;
+    }
+
+    @container (width < 900px) {
+        .file-list.trash .actions-column {
+            width: 56px;
+        }
     }
 
     @container (width < 820px) {
