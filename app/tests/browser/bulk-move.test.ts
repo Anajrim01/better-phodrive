@@ -118,7 +118,7 @@ test('a move that fails for every file keeps the destination dialog open', async
 
 test('a cached no-op after a recovered move keeps the unseen change pending', async () => {
     const first = file({ name: 'first.bin', folder: 'Docs' });
-    const second = file({ name: 'second.bin', folder: 'Docs' });
+    const second = file({ fileId: 'b'.repeat(64), name: 'second.bin', folder: 'Docs' });
     const revisions = new Map([['first@example.com', 5]]);
     const state = { chunks: [] as UploadedChunk[], revisions };
     vi.mocked(manageApi.moveFile)
@@ -133,5 +133,19 @@ test('a cached no-op after a recovered move keeps the unseen change pending', as
     bulk.openMove([first, second]);
     await bulk.move('Docs');
 
+    expect(manageApi.moveFile).toHaveBeenNthCalledWith(
+        1,
+        'first@example.com',
+        'token-first',
+        first.fileId,
+        'Docs'
+    );
+    expect(manageApi.moveFile).toHaveBeenNthCalledWith(
+        2,
+        'first@example.com',
+        'token-first',
+        second.fileId,
+        'Docs'
+    );
     expect(revisions.get('first@example.com')).toBe(5);
 });
