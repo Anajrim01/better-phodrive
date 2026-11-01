@@ -39,6 +39,9 @@ function file(): FileGroup {
         chunkCount: 1,
         chunks: [chunk],
         duplicates: [],
+        trashedChunks: [],
+        trashed: false,
+        trashedAt: null,
         complete: true
     };
 }

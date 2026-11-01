@@ -28,7 +28,7 @@ test('incomplete groups return an error and a failed later chunk aborts the down
     const { input, bmps } = setup();
     const incomplete = await downloadFile({ ...input, chunks: input.chunks.slice(1) });
     expect(incomplete.isErr()).toBe(true);
-    expect(incomplete.unwrapErr().message).toContain('remaining');
+    expect(incomplete.unwrapErr().message).toContain('1 of 2 chunks is missing');
     expect(downloadBmp).not.toHaveBeenCalled();
 
     const failure = { code: 'REQUEST_FAILED', message: 'remote chunk unavailable' } as const;

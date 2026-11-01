@@ -44,6 +44,9 @@ function file(email: string): FileGroup {
         chunkCount: 1,
         chunks: [chunk],
         duplicates: [],
+        trashedChunks: [],
+        trashed: false,
+        trashedAt: null,
         complete: true
     };
 }
@@ -56,7 +59,9 @@ function driveFiles(feedback: string[]) {
         files: () => [],
         workers: () => 1,
         feedback: (message) => feedback.push(message),
-        onDeleted: vi.fn(),
+        onTrashed: vi.fn(),
+        onRestored: vi.fn(),
+        onRemoved: vi.fn(),
         closeUploads: vi.fn(),
         reload: vi.fn(),
         reloadGroup: vi.fn(),

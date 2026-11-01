@@ -92,7 +92,10 @@ test('incomplete files are not downloaded', async () => {
 
     const saved = await downloadFile(partial, 'aas_et/test', join(folder, item.name));
 
-    expect(saved.unwrapErr()).toMatchObject({ code: 'INCOMPLETE_DOWNLOAD_CHUNKS' });
+    expect(saved.unwrapErr()).toMatchObject({
+        code: 'INCOMPLETE_DOWNLOAD_CHUNKS',
+        message: '1 of 2 chunks is missing. This file cannot be downloaded.'
+    });
 });
 
 test('delete moves every chunk to the trash', async () => {

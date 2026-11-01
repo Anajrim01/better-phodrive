@@ -76,7 +76,8 @@ export function fixture(name: string, payload: string) {
         sha1: createHash('sha1').update(bmp).digest('hex'),
         size: bmp.length,
         at: 1,
-        bmp
+        bmp,
+        trashed: false
     };
 }
 
