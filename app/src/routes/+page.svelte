@@ -1,6 +1,6 @@
 <script lang="ts">
     import { AppView, ConfirmKind, FileActionKind } from '@madkarmaa/phodrive-core/models';
-    import type { FileGroup, FolderEntry } from '@madkarmaa/phodrive-core/files';
+    import type { FileGroup } from '@madkarmaa/phodrive-core/files';
 
     import { onMount, untrack } from 'svelte';
     import type { PageData } from './$types';
@@ -9,7 +9,7 @@
     import { DriveController } from '#browser/drive/index.svelte';
     import { createDriveManage } from '#browser/drive/manage-factory';
     import { createSelectionView } from '#browser/drive/selection-view.svelte';
-    import type { MenuAnchor } from '#browser/drive/menu-types';
+    import { createDriveDrag } from '#browser/drive/drag-move.svelte';
     import AppHeader from '#components/AppHeader.svelte';
     import AccountMenu from '#components/AccountMenu.svelte';
     import AccountSetup from '#components/AccountSetup.svelte';
@@ -40,6 +40,11 @@
         drive.busy || !!drive.fileAction || manage.busy || drive.bulk.running || drive.bulk.moveBusy
     );
     const stats = $derived(libraryStats(drive.library.files));
+    const drag = createDriveDrag(
+        drive,
+        () => selection.selected,
+        () => actionsDisabled
+    );
     let navigationOpen = $state(false);
     let accountButton = $state<HTMLElement>();
 
@@ -73,14 +78,6 @@
     function confirmPermanentDelete(item: FileGroup) {
         drive.confirmTarget = { kind: ConfirmKind.PermanentDelete, item };
         drive.confirmOpen = true;
-    }
-
-    function openFileMenu(item: FileGroup, anchor: MenuAnchor) {
-        manage.openMenu({ kind: 'file', item }, anchor);
-    }
-
-    function openFolderMenu(folder: FolderEntry, anchor: MenuAnchor) {
-        manage.openMenu({ kind: 'folder', entry: folder }, anchor);
     }
 
     function navigate(nextView: AppView): void {
@@ -198,7 +195,7 @@
                 onmarquee={selection.replace}
                 onrestore={restore}
                 ondeleteforever={confirmPermanentDelete}
-                onmenu={openFileMenu}
+                onmenu={(item, anchor) => manage.openMenu({ kind: 'file', item }, anchor)}
                 onmore={() => {
                     void drive.library.load(false);
                 }}
@@ -236,16 +233,23 @@
                 oncontextselect={selection.selectOnly}
                 onselectionmenu={selection.openMenu}
                 onmarquee={selection.replace}
+                onmovefiles={drag.moveTo}
+                dragging={drag.active}
+                onstartdrag={drag.start}
+                onenddrag={drag.end}
                 onupload={upload}
                 ondownload={download}
                 ondelete={confirmTrash}
                 onrestore={restore}
-                onfilemenu={openFileMenu}
-                onfoldermenu={openFolderMenu}
+                onfilemenu={(item, anchor) => manage.openMenu({ kind: 'file', item }, anchor)}
+                onfoldermenu={(folder, anchor) =>
+                    manage.openMenu({ kind: 'folder', entry: folder }, anchor)}
             />
         {/if}
     </main>
 </div>
+
+<svelte:window onclick={(event) => selection.backgroundClick(event, actionsDisabled)} />
 
 <SelectionLayer {drive} {selection} {actionsDisabled} />
 

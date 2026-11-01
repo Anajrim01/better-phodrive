@@ -23,10 +23,16 @@
         headingId?: string;
         action?: FileAction | null;
         selected?: ReadonlySet<string>;
-        onselect?: (item: FileGroup, event: MouseEvent | KeyboardEvent) => void;
+        onselect?: (
+            item: FileGroup,
+            event: MouseEvent | KeyboardEvent,
+            mode?: 'toggle' | 'point'
+        ) => void;
         onselectall?: (select: boolean) => void;
         oncontextselect?: (item: FileGroup) => void;
         onselectionmenu?: (anchor: MenuAnchor) => void;
+        onstartdrag?: (item: FileGroup, event: DragEvent) => void;
+        onenddrag?: () => void;
         ondownload?: (item: FileGroup) => void;
         ondelete?: (item: FileGroup) => void;
         onrestore?: (item: FileGroup) => void;
@@ -49,6 +55,8 @@
         onselectall,
         oncontextselect,
         onselectionmenu,
+        onstartdrag,
+        onenddrag,
         ondownload,
         ondelete,
         onrestore,
@@ -72,101 +80,111 @@
     });
 </script>
 
-<table class="file-list" aria-labelledby={headingId}>
-    <thead>
-        <tr>
-            <th scope="col" class="select-column">
-                <div class="select-cell">
-                    <Checkbox
-                        aria-label="Select all files"
-                        bind:checked={headerChecked}
-                        bind:indeterminate={headerMixed}
-                        disabled={disabled || files.length === 0}
-                        onclick={() => {
-                            onselectall?.(!allSelected);
-                        }}
-                    />
-                </div>
-            </th>
-            <th
-                scope="col"
-                aria-sort={nameSort ? (ascending ? 'ascending' : 'descending') : 'none'}
-            >
-                <Button
-                    class="column-sort"
-                    size="xs"
-                    variant="text"
-                    onclick={() =>
-                        (sort =
-                            sort === FileSort.NameAscending
-                                ? FileSort.NameDescending
-                                : FileSort.NameAscending)}
+<div class="file-list-wrap">
+    <table class="file-list" aria-labelledby={headingId}>
+        <thead>
+            <tr>
+                <th scope="col" class="select-column">
+                    <div class="select-cell">
+                        <Checkbox
+                            aria-label="Select all files"
+                            bind:checked={headerChecked}
+                            bind:indeterminate={headerMixed}
+                            disabled={disabled || files.length === 0}
+                            onclick={() => {
+                                onselectall?.(!allSelected);
+                            }}
+                        />
+                    </div>
+                </th>
+                <th
+                    scope="col"
+                    aria-sort={nameSort ? (ascending ? 'ascending' : 'descending') : 'none'}
                 >
-                    Name
-                    {#snippet end()}
-                        {#if nameSort}
-                            {#if ascending}<IconArrowUp aria-hidden="true" />{:else}<IconArrowDown
-                                    aria-hidden="true"
-                                />{/if}
-                        {/if}
-                    {/snippet}
-                </Button>
-            </th>
-            <th
-                scope="col"
-                class="date-column"
-                aria-sort={!nameSort ? (ascending ? 'ascending' : 'descending') : 'none'}
-            >
-                <Button
-                    class="column-sort"
-                    size="xs"
-                    variant="text"
-                    onclick={() =>
-                        (sort =
-                            sort === FileSort.ModifiedDescending
-                                ? FileSort.ModifiedAscending
-                                : FileSort.ModifiedDescending)}
+                    <Button
+                        class="column-sort"
+                        size="xs"
+                        variant="text"
+                        onclick={() =>
+                            (sort =
+                                sort === FileSort.NameAscending
+                                    ? FileSort.NameDescending
+                                    : FileSort.NameAscending)}
+                    >
+                        Name
+                        {#snippet end()}
+                            {#if nameSort}
+                                {#if ascending}<IconArrowUp
+                                        aria-hidden="true"
+                                    />{:else}<IconArrowDown aria-hidden="true" />{/if}
+                            {/if}
+                        {/snippet}
+                    </Button>
+                </th>
+                <th
+                    scope="col"
+                    class="date-column"
+                    aria-sort={!nameSort ? (ascending ? 'ascending' : 'descending') : 'none'}
                 >
-                    Date modified
-                    {#snippet end()}
-                        {#if !nameSort}
-                            {#if ascending}<IconArrowUp aria-hidden="true" />{:else}<IconArrowDown
-                                    aria-hidden="true"
-                                />{/if}
-                        {/if}
-                    {/snippet}
-                </Button>
-            </th>
-            <th scope="col" class="size-column">File size</th>
-            <th scope="col" class="actions-column"><span class="sr-only">Actions</span></th>
-        </tr>
-    </thead>
-    <tbody>
-        {#each files as item (fileKey(item))}
-            <FileListRow
-                {item}
-                selected={selectedKeys.has(fileKey(item))}
-                {selectedCount}
-                {disabled}
-                {showFolder}
-                {showOwner}
-                {trash}
-                {partial}
-                working={fileActionKind(action, item)}
-                {onselect}
-                {oncontextselect}
-                {onselectionmenu}
-                {ondownload}
-                {ondelete}
-                {onrestore}
-                {ondeleteforever}
-                {onmenu}
-            />
-        {/each}
-    </tbody>
-</table>
+                    <Button
+                        class="column-sort"
+                        size="xs"
+                        variant="text"
+                        onclick={() =>
+                            (sort =
+                                sort === FileSort.ModifiedDescending
+                                    ? FileSort.ModifiedAscending
+                                    : FileSort.ModifiedDescending)}
+                    >
+                        Date modified
+                        {#snippet end()}
+                            {#if !nameSort}
+                                {#if ascending}<IconArrowUp
+                                        aria-hidden="true"
+                                    />{:else}<IconArrowDown aria-hidden="true" />{/if}
+                            {/if}
+                        {/snippet}
+                    </Button>
+                </th>
+                <th scope="col" class="size-column">File size</th>
+                <th scope="col" class="actions-column"><span class="sr-only">Actions</span></th>
+            </tr>
+        </thead>
+        <tbody>
+            {#each files as item (fileKey(item))}
+                <FileListRow
+                    {item}
+                    selected={selectedKeys.has(fileKey(item))}
+                    {selectedCount}
+                    {disabled}
+                    {showFolder}
+                    {showOwner}
+                    {trash}
+                    {partial}
+                    working={fileActionKind(action, item)}
+                    {onselect}
+                    {oncontextselect}
+                    {onselectionmenu}
+                    {onstartdrag}
+                    {onenddrag}
+                    {ondownload}
+                    {ondelete}
+                    {onrestore}
+                    {ondeleteforever}
+                    {onmenu}
+                />
+            {/each}
+        </tbody>
+    </table>
+</div>
 
 <style>
+    .file-list-wrap {
+        width: 100%;
+        min-width: 0;
+        container-type: inline-size;
+    }
+
     .file-list {
         width: 100%;
         table-layout: fixed;
@@ -181,6 +199,7 @@
         font-weight: 500;
         text-align: start;
         vertical-align: middle;
+        white-space: nowrap;
     }
 
     .select-column {
@@ -195,10 +214,10 @@
     }
 
     .date-column {
-        width: 180px;
+        width: 170px;
     }
     .size-column {
-        width: 100px;
+        width: 92px;
         text-align: end;
         white-space: nowrap;
     }
@@ -215,24 +234,24 @@
         font-size: 14px;
     }
 
-    @media (width < 800px) {
+    @container (width < 820px) {
         th {
-            padding-inline: 4px;
+            padding-inline: 8px;
         }
         .date-column {
             display: none;
         }
+    }
+
+    @container (width < 560px) {
+        th {
+            padding-inline: 4px;
+        }
         .size-column {
-            width: 76px;
+            display: none;
         }
         .actions-column {
             width: 56px;
-        }
-    }
-
-    @media (width < 520px) {
-        .size-column {
-            display: none;
         }
         .select-column {
             width: 48px;

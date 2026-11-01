@@ -145,7 +145,7 @@ test('the header checkbox requests select all and then clears the visible files'
     expect(props.onselectall).toHaveBeenLastCalledWith(false);
 });
 
-test('a row checkbox reports its file and the click event', async () => {
+test('a row checkbox reports its file and a toggle gesture', async () => {
     const item = file({ name: 'first.bin' });
     const props = selectionCallbacks();
     render(FileList, {
@@ -162,6 +162,76 @@ test('a row checkbox reports its file and the click event', async () => {
 
     expect(props.onselect).toHaveBeenCalledTimes(1);
     expect(props.onselect.mock.calls[0]?.[0]).toBe(item);
+    expect(props.onselect.mock.calls[0]?.[2]).toBe('toggle');
+});
+
+test('clicking the row body sends a point gesture but action buttons do not', async () => {
+    const item = file({ name: 'first.bin' });
+    const props = selectionCallbacks();
+    render(FileList, {
+        props: {
+            files: [item],
+            sort: FileSort.NameAscending,
+            disabled: false,
+            action: null,
+            ...props
+        }
+    });
+    const row = screen.getByText('first.bin').closest('tr');
+    if (!row) throw new Error('Expected a row');
+
+    await fireEvent.click(row);
+    expect(props.onselect).toHaveBeenLastCalledWith(item, expect.any(MouseEvent), 'point');
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Delete first.bin' }));
+    expect(props.onselect).toHaveBeenCalledTimes(1);
+});
+
+test('dragging a row starts a file drag and Alt-drag is left for marquee', async () => {
+    const item = file({ name: 'first.bin' });
+    const onstartdrag = vi.fn();
+    render(FileList, {
+        props: {
+            files: [item],
+            sort: FileSort.NameAscending,
+            disabled: false,
+            action: null,
+            onstartdrag,
+            ...selectionCallbacks()
+        }
+    });
+    const row = screen.getByText('first.bin').closest('tr');
+    if (!row) throw new Error('Expected a row');
+
+    await fireEvent.dragStart(row);
+    expect(onstartdrag).toHaveBeenCalledTimes(1);
+    expect(onstartdrag.mock.calls[0]?.[0]).toBe(item);
+
+    row.dispatchEvent(
+        new MouseEvent('dragstart', { bubbles: true, cancelable: true, altKey: true })
+    );
+    expect(onstartdrag).toHaveBeenCalledTimes(1);
+});
+
+test('the row checkbox is hidden at rest and shown on the selected row', () => {
+    const item = file({ name: 'first.bin' });
+    const view = render(FileList, {
+        props: {
+            files: [item],
+            sort: FileSort.NameAscending,
+            disabled: false,
+            action: null,
+            selected: new Set([fileKey(item)]),
+            ...selectionCallbacks()
+        }
+    });
+    const row = screen.getByText('first.bin').closest('tr');
+    const cell = row?.querySelector('.select-cell');
+    if (!cell) throw new Error('Expected a select cell');
+
+    expect(row?.classList.contains('selected')).toBe(true);
+    expect(getComputedStyle(cell).opacity).toBe('1');
+    expect(screen.getByRole('checkbox', { name: 'Select all files' })).toBeTruthy();
 });
 
 test('Space on a focused row toggles it', async () => {

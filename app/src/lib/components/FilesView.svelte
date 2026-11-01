@@ -3,6 +3,7 @@
     import { prefersReducedMotion } from 'svelte/motion';
     import type { FileGroup, FolderEntry } from '@madkarmaa/phodrive-core/files';
     import type { DriveController } from '#browser/drive/index.svelte';
+    import { FILE_DRAG_TYPE } from '#browser/drive/drag-types';
     import type { MenuAnchor } from '#browser/drive/menu-types';
     import FileFilters from '#components/FileFilters.svelte';
     import GroupListingStatus from '#components/GroupListingStatus.svelte';
@@ -14,11 +15,19 @@
         drive: DriveController;
         actionsDisabled: boolean;
         selected: ReadonlySet<string>;
-        onselect: (item: FileGroup, event: MouseEvent | KeyboardEvent) => void;
+        onselect: (
+            item: FileGroup,
+            event: MouseEvent | KeyboardEvent,
+            mode?: 'toggle' | 'point'
+        ) => void;
         onselectall: (select: boolean) => void;
         oncontextselect: (item: FileGroup) => void;
         onselectionmenu: (anchor: MenuAnchor) => void;
         onmarquee: (keys: ReadonlySet<string>) => void;
+        onmovefiles: (destination: string) => void;
+        dragging: boolean;
+        onstartdrag: (item: FileGroup, event: DragEvent) => void;
+        onenddrag: () => void;
         onupload: (files: File[]) => void;
         ondownload: (item: FileGroup) => void;
         ondelete: (item: FileGroup) => void;
@@ -36,6 +45,10 @@
         oncontextselect,
         onselectionmenu,
         onmarquee,
+        onmovefiles,
+        dragging,
+        onstartdrag,
+        onenddrag,
         onupload,
         ondownload,
         ondelete,
@@ -43,6 +56,41 @@
         onfilemenu,
         onfoldermenu
     }: Props = $props();
+
+    let dropCrumb = $state<string | null>(null);
+
+    function canDrop(path: string, event: DragEvent): boolean {
+        return (
+            path !== drive.library.folder &&
+            (dragging || event.dataTransfer?.types.includes(FILE_DRAG_TYPE) === true)
+        );
+    }
+
+    function crumbOver(path: string, event: DragEvent): void {
+        if (!canDrop(path, event)) return;
+
+        event.preventDefault();
+        if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+        dropCrumb = path;
+    }
+
+    function crumbLeave(path: string, event: DragEvent): void {
+        if (
+            event.currentTarget instanceof Node &&
+            event.relatedTarget instanceof Node &&
+            event.currentTarget.contains(event.relatedTarget)
+        )
+            return;
+        if (dropCrumb === path) dropCrumb = null;
+    }
+
+    function crumbDrop(path: string, event: DragEvent): void {
+        if (!canDrop(path, event)) return;
+
+        event.preventDefault();
+        dropCrumb = null;
+        onmovefiles(path);
+    }
 </script>
 
 <div class="flex flex-1 flex-col" in:fade={{ duration: prefersReducedMotion.current ? 0 : 160 }}>
@@ -53,8 +101,12 @@
                     type="button"
                     class="crumb"
                     class:current={!drive.library.folder}
+                    class:selection-drop={dropCrumb === ''}
                     aria-current={!drive.library.folder ? 'page' : undefined}
                     onclick={() => drive.library.openFolder('')}
+                    ondragover={(event) => crumbOver('', event)}
+                    ondragleave={(event) => crumbLeave('', event)}
+                    ondrop={(event) => crumbDrop('', event)}
                 >
                     My files
                 </button>
@@ -64,14 +116,18 @@
                         type="button"
                         class="crumb"
                         class:current={drive.library.folder === crumb.path}
+                        class:selection-drop={dropCrumb === crumb.path}
                         aria-current={drive.library.folder === crumb.path ? 'page' : undefined}
                         onclick={() => drive.library.openFolder(crumb.path)}
+                        ondragover={(event) => crumbOver(crumb.path, event)}
+                        ondragleave={(event) => crumbLeave(crumb.path, event)}
+                        ondrop={(event) => crumbDrop(crumb.path, event)}
                     >
                         {crumb.name}
                     </button>
                 {/each}
+                <span class="text-subtle tabular-nums">({drive.library.visibleFiles.length})</span>
             </span>
-            <span class="text-subtle tabular-nums">({drive.library.visibleFiles.length})</span>
         </h1>
         <LayoutToggle bind:layout={drive.settings.fileLayout} />
     </div>
@@ -118,6 +174,10 @@
             {oncontextselect}
             {onselectionmenu}
             {onmarquee}
+            {onmovefiles}
+            {dragging}
+            {onstartdrag}
+            {onenddrag}
             onopenfolder={(path) => drive.library.openFolder(path)}
             {ondownload}
             {ondelete}
@@ -132,16 +192,33 @@
 </div>
 
 <style>
+    .workspace-heading {
+        height: auto;
+        min-height: 40px;
+        align-items: flex-start;
+        padding-block: 4px;
+    }
+
+    .workspace-heading h1 {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 2px 8px;
+        min-width: 0;
+    }
+
     .crumbs {
         display: inline-flex;
         flex-wrap: wrap;
         align-items: baseline;
         column-gap: 8px;
         row-gap: 0;
+        min-width: 0;
+        max-width: 100%;
     }
 
     .crumb {
-        max-width: 100%;
+        max-width: min(22rem, 100%);
         min-width: 0;
         padding: 4px 0;
         overflow: hidden;
@@ -168,15 +245,13 @@
         outline-offset: 2px;
     }
 
-    .crumb-separator {
-        color: var(--app-subtle);
+    .crumb.selection-drop {
+        background: color-mix(in srgb, var(--app-primary) 12%, transparent);
+        box-shadow: inset 0 0 0 2px var(--app-primary);
+        color: var(--app-text);
     }
 
-    @media (width < 800px) {
-        .workspace-heading {
-            height: auto;
-            min-height: 40px;
-            align-items: flex-start;
-        }
+    .crumb-separator {
+        color: var(--app-subtle);
     }
 </style>

@@ -95,6 +95,18 @@ export class DriveBulk {
         await this.runAction(files, FileActionKind.DeleteForever, 'delete');
     }
 
+    async moveTo(files: readonly FileGroup[], destination: string): Promise<void> {
+        if (this.moveBusy || this.blocked() || files.length === 0) return;
+
+        this.moveFiles = [...files];
+        this.moveValue = destination;
+        this.moveError = '';
+        this.moveOpen = false;
+        await this.move(destination);
+        this.moveFiles = [];
+        this.moveError = '';
+    }
+
     async move(destination: string): Promise<void> {
         if (this.moveBusy || this.blocked()) return;
 

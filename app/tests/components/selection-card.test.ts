@@ -65,6 +65,46 @@ test('a card exposes a direct checkbox next to its name', async () => {
 
     await fireEvent.click(checkbox);
     expect(props.onselect).toHaveBeenCalledTimes(1);
+    expect(props.onselect.mock.calls[0]?.[2]).toBe('toggle');
+});
+
+test('clicking the card body sends a point gesture and actions do not', async () => {
+    const item = file({ name: 'card.bin' });
+    const props = selectionCallbacks();
+    render(FileCard, {
+        props: {
+            item,
+            disabled: false,
+            working: null,
+            selected: false,
+            ...props
+        }
+    });
+    const card = screen.getByRole('group', { name: 'card.bin' });
+
+    await fireEvent.click(card);
+    expect(props.onselect).toHaveBeenLastCalledWith(item, expect.any(MouseEvent), 'point');
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Download' }));
+    expect(props.onselect).toHaveBeenCalledTimes(1);
+});
+
+test('the card checkbox is hidden at rest and shown when selected', () => {
+    const item = file({ name: 'card.bin' });
+    const props = selectionCallbacks();
+    const view = render(FileCard, {
+        props: {
+            item,
+            disabled: false,
+            working: null,
+            selected: true,
+            ...props
+        }
+    });
+    const checkbox = view.container.querySelector('.np-checkbox-container.card-select');
+
+    if (!checkbox) throw new Error('Expected a card select checkbox');
+    expect(getComputedStyle(checkbox).opacity).toBe('1');
 });
 
 test('right-clicking a selected card in a multi selection opens the bulk menu', async () => {

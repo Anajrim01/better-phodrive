@@ -79,6 +79,10 @@ function mountList(selected = new Set<string>()) {
             showFolder: false,
             selected,
             onmarquee,
+            onmovefiles: vi.fn(),
+            dragging: false,
+            onstartdrag: vi.fn(),
+            onenddrag: vi.fn(),
             ...callbacks()
         }
     });
@@ -92,7 +96,7 @@ function mountList(selected = new Set<string>()) {
     const surface = view.container.querySelector('section');
     if (!surface) throw new Error('Expected a grid surface');
 
-    return { onmarquee, surface };
+    return { onmarquee, surface, rows, container: view.container };
 }
 
 beforeEach(() => cleanup());
@@ -168,7 +172,7 @@ test('Escape cancels a list drag and restores the pre-drag selection', async () 
     expect(onmarquee).toHaveBeenLastCalledWith(new Set([fileKey(second)]));
 });
 
-test('a drag under the 4px threshold does not start a marquee', async () => {
+test('a click under the 4px threshold clears the selection without a marquee', async () => {
     const { onmarquee, surface } = mountList();
 
     await fireEvent.pointerDown(surface, {
@@ -187,6 +191,48 @@ test('a drag under the 4px threshold does not start a marquee', async () => {
     await fireEvent.pointerUp(surface, {
         clientX: 2,
         clientY: 91,
+        pointerId: 1,
+        pointerType: 'mouse'
+    });
+
+    expect(onmarquee).toHaveBeenLastCalledWith(new Set());
+});
+
+test('Alt-drag over a full list row starts a marquee', async () => {
+    const { onmarquee, rows } = mountList();
+
+    await fireEvent.pointerDown(rows[0], {
+        clientX: 0,
+        clientY: 100,
+        button: 0,
+        pointerId: 1,
+        pointerType: 'mouse',
+        altKey: true
+    });
+    await fireEvent.pointerMove(rows[0], {
+        clientX: 300,
+        clientY: 135,
+        pointerId: 1,
+        pointerType: 'mouse',
+        altKey: true
+    });
+
+    expect(onmarquee).toHaveBeenLastCalledWith(new Set([fileKey(first)]));
+});
+
+test('a plain drag on a row does not start a marquee', async () => {
+    const { onmarquee, rows } = mountList();
+
+    await fireEvent.pointerDown(rows[0], {
+        clientX: 0,
+        clientY: 100,
+        button: 0,
+        pointerId: 1,
+        pointerType: 'mouse'
+    });
+    await fireEvent.pointerMove(rows[0], {
+        clientX: 300,
+        clientY: 135,
         pointerId: 1,
         pointerType: 'mouse'
     });
