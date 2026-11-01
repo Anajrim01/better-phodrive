@@ -121,9 +121,9 @@ export class DriveManage {
         this.openDialog('details', target, trigger);
     }
 
-    openFilePreview(item: FileGroup, trigger?: HTMLElement | null): void {
+    openFilePreview = (item: FileGroup, trigger?: HTMLElement | null): void => {
         this.openPreview({ kind: 'file', item }, trigger);
-    }
+    };
 
     openPreview(target: EntryTarget, trigger?: HTMLElement | null): void {
         if (this.deps.busy() || this.deps.loading() || this.dialogBusy) return;
