@@ -4,7 +4,7 @@
     import { fade } from 'svelte/transition';
     import { flip } from 'svelte/animate';
     import { prefersReducedMotion } from 'svelte/motion';
-    import type { FileGroup, FolderEntry } from '@madkarmaa/phodrive-core/files';
+    import type { FileAction, FileGroup, FolderEntry } from '@madkarmaa/phodrive-core/files';
     import { fileKey } from '@madkarmaa/phodrive-core/files';
     import FileCard from '#components/FileCard.svelte';
     import FileList from '#components/FileList.svelte';
@@ -25,7 +25,11 @@
         disabled: boolean;
         showFolder: boolean;
         showOwner?: boolean;
+        action?: FileAction | null;
         onopenfolder: (path: string) => void;
+        ondownload: (item: FileGroup) => void;
+        ondelete: (item: FileGroup) => void;
+        onrestore: (item: FileGroup) => void;
         onfilemenu: (item: FileGroup, anchor: MenuAnchor) => void;
         onfoldermenu: (folder: FolderEntry, anchor: MenuAnchor) => void;
         onmore: () => void;
@@ -44,7 +48,11 @@
         disabled,
         showFolder,
         showOwner = false,
+        action = null,
         onopenfolder,
+        ondownload,
+        ondelete,
+        onrestore,
         onfilemenu,
         onfoldermenu,
         onmore
@@ -62,7 +70,11 @@
                 {disabled}
                 {showFolder}
                 {showOwner}
+                {action}
                 partial={hasMore}
+                {ondownload}
+                {ondelete}
+                {onrestore}
                 onmenu={onfilemenu}
             />
         {:else}
@@ -80,6 +92,10 @@
                             {disabled}
                             {showOwner}
                             partial={hasMore}
+                            working={action?.fileId === item.fileId ? action.kind : null}
+                            {ondownload}
+                            {ondelete}
+                            {onrestore}
                             onmenu={onfilemenu}
                         />
                     </li>

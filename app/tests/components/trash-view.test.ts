@@ -42,6 +42,9 @@ test('an empty first page offers Load more instead of claiming Trash is empty', 
             loading: false,
             loadFailed: false,
             hasMore: true,
+            action: null,
+            onrestore: vi.fn(),
+            ondeleteforever: vi.fn(),
             onmenu: vi.fn(),
             onmore: vi.fn()
         }

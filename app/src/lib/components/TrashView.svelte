@@ -4,7 +4,7 @@
     import { prefersReducedMotion } from 'svelte/motion';
     import { FileSort } from '@madkarmaa/phodrive-core/models';
     import type { GroupAccountState } from '@madkarmaa/phodrive-core/groups';
-    import { sortFiles, type FileGroup } from '@madkarmaa/phodrive-core/files';
+    import { sortFiles, type FileAction, type FileGroup } from '@madkarmaa/phodrive-core/files';
     import FileList from '#components/FileList.svelte';
     import GroupListingStatus from '#components/GroupListingStatus.svelte';
     import type { MenuAnchor } from '#browser/drive/menu-types';
@@ -21,6 +21,9 @@
         total?: number;
         accounts?: readonly GroupAccountState[];
         partial?: boolean;
+        action?: FileAction | null;
+        onrestore: (item: FileGroup) => void;
+        ondeleteforever: (item: FileGroup) => void;
         onmenu: (item: FileGroup, anchor: MenuAnchor) => void;
         onmore: () => void;
     }
@@ -37,6 +40,9 @@
         total = 0,
         accounts = [],
         partial = false,
+        action = null,
+        onrestore,
+        ondeleteforever,
         onmenu,
         onmore
     }: Props = $props();
@@ -64,11 +70,14 @@
             files={sorted}
             bind:sort
             {disabled}
+            {action}
             showFolder
             {showOwner}
             trash
             partial={more}
             headingId="trash-heading"
+            {onrestore}
+            {ondeleteforever}
             {onmenu}
         />
     {:else}

@@ -1,7 +1,9 @@
 <script lang="ts">
     import { Card } from 'noph-ui';
+    import type { FileActionKind } from '@madkarmaa/phodrive-core/models';
     import type { FileGroup } from '@madkarmaa/phodrive-core/files';
     import { fileType } from '@madkarmaa/phodrive-core/files';
+    import FileActions from '#components/FileActions.svelte';
     import MoreButton from '#components/MoreButton.svelte';
     import FileIncompleteWarning from '#components/FileIncompleteWarning.svelte';
     import IconDescriptionOutline from '~icons/material-symbols/description-outline';
@@ -10,12 +12,26 @@
     interface Props {
         item: FileGroup;
         disabled: boolean;
+        working?: FileActionKind | null;
         showOwner?: boolean;
         partial?: boolean;
+        ondownload?: (item: FileGroup) => void;
+        ondelete?: (item: FileGroup) => void;
+        onrestore?: (item: FileGroup) => void;
         onmenu: (item: FileGroup, anchor: MenuAnchor) => void;
     }
 
-    let { item, disabled, showOwner = false, partial = false, onmenu }: Props = $props();
+    let {
+        item,
+        disabled,
+        working = null,
+        showOwner = false,
+        partial = false,
+        ondownload,
+        ondelete,
+        onrestore,
+        onmenu
+    }: Props = $props();
 </script>
 
 <div
@@ -33,7 +49,6 @@
             <h3 class="min-w-0 flex-1 truncate text-sm font-medium" title={item.name}>
                 {item.name}
             </h3>
-            <MoreButton label={item.name} {disabled} onopen={(element) => onmenu(item, element)} />
         </div>
         {#if showOwner}
             <p class="m-0 truncate px-3 pb-1 text-xs text-muted" title={item.email}>{item.email}</p>
@@ -57,6 +72,20 @@
                 <FileIncompleteWarning {item} {partial} />
             </div>
         {/if}
+
+        <div class="flex flex-wrap items-center justify-end gap-1 px-2 pb-2">
+            <FileActions
+                {item}
+                {disabled}
+                {working}
+                {partial}
+                shortDelete
+                {ondownload}
+                {ondelete}
+                {onrestore}
+            />
+            <MoreButton label={item.name} {disabled} onopen={(element) => onmenu(item, element)} />
+        </div>
     </Card>
 </div>
 
