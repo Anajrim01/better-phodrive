@@ -28,6 +28,7 @@
         onopenfolder: (path: string) => void;
         ondownload: (item: FileGroup) => void;
         ondelete: (item: FileGroup) => void;
+        onrestore: (item: FileGroup) => void;
         onmore: () => void;
     }
 
@@ -48,6 +49,7 @@
         onopenfolder,
         ondownload,
         ondelete,
+        onrestore,
         onmore
     }: Props = $props();
 </script>
@@ -66,6 +68,7 @@
                 {showOwner}
                 {ondownload}
                 {ondelete}
+                {onrestore}
             />
         {:else}
             <ul
@@ -84,6 +87,7 @@
                             working={action?.fileId === item.fileId ? action.kind : null}
                             {ondownload}
                             {ondelete}
+                            {onrestore}
                         />
                     </li>
                 {/each}

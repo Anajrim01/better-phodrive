@@ -6,10 +6,18 @@ import {
     type FileGroup,
     type UploadedChunk
 } from '@madkarmaa/phodrive-core/files';
-import { deleteFile, downloadFile, saveDownloadedFile } from '#browser/files';
+import {
+    deleteFile,
+    deleteForeverFile,
+    downloadFile,
+    restoreFile,
+    saveDownloadedFile
+} from '#browser/files';
 
 export type ConfirmTarget =
-    { kind: ConfirmKind.Account; email: string } | { kind: ConfirmKind.File; item: FileGroup };
+    | { kind: ConfirmKind.Account; email: string }
+    | { kind: ConfirmKind.File; item: FileGroup }
+    | { kind: ConfirmKind.PermanentDelete; item: FileGroup };
 
 export type FileDeps = {
     account: () => { email: string; token: string | undefined };
@@ -18,7 +26,9 @@ export type FileDeps = {
     files: () => readonly FileGroup[];
     workers: () => number;
     feedback: (message: string) => void;
-    onDeleted: (item: FileGroup, chunk: UploadedChunk) => void;
+    onTrashed: (item: FileGroup, chunk: UploadedChunk) => void;
+    onRestored: (item: FileGroup, chunk: UploadedChunk) => void;
+    onRemoved: (item: FileGroup, chunk: UploadedChunk) => void;
     closeUploads: () => void;
     reload: (email: string, token: string) => void;
     reloadGroup: () => void;
@@ -47,6 +57,10 @@ export class DriveFiles {
         }
 
         const item = target.item;
+        const action =
+            target.kind === ConfirmKind.PermanentDelete
+                ? FileActionKind.DeleteForever
+                : FileActionKind.Delete;
         const current = this.deps.files().find((file) => fileKey(file) === fileKey(item));
         const owner = this.deps.groupMode() ? item.email : this.deps.account().email;
         if (
@@ -64,12 +78,12 @@ export class DriveFiles {
                     )
             )
         ) {
-            this.deps.feedback('The file changed. Review its current chunks before deleting.');
+            this.deps.feedback('The file changed. Review its current chunks before continuing.');
 
             return;
         }
 
-        void this.act(current, FileActionKind.Delete);
+        void this.act(current, action);
     }
 
     async act(item: FileGroup, action: FileActionKind): Promise<void> {
@@ -81,9 +95,9 @@ export class DriveFiles {
         if (this.deps.groupMode()) {
             const members = this.deps.routeMembers();
             const routed =
-                action === FileActionKind.Delete
-                    ? deleteRoute(item, members)
-                    : downloadRoute(item, members);
+                action === FileActionKind.Download
+                    ? downloadRoute(item, members)
+                    : deleteRoute(item, members);
             if (routed.isErr()) {
                 this.deps.feedback(routed.unwrapErr().message);
 
@@ -106,7 +120,7 @@ export class DriveFiles {
             const deleted = await deleteFile(
                 item,
                 token,
-                (chunk) => this.deps.onDeleted(item, chunk),
+                (chunk) => this.deps.onTrashed(item, chunk),
                 this.deps.workers()
             );
 
@@ -114,10 +128,38 @@ export class DriveFiles {
                 this.deps.feedback(error.message);
             });
 
-            this.deps.closeUploads();
-            this.action = null;
-            if (this.deps.groupMode()) this.deps.reloadGroup();
-            else this.deps.reload(item.email, token);
+            this.finish(item, token);
+
+            return;
+        }
+
+        if (action === FileActionKind.Restore) {
+            const restored = await restoreFile(item, token, (chunk) =>
+                this.deps.onRestored(item, chunk)
+            );
+
+            restored.inspectErr((error) => {
+                this.deps.feedback(error.message);
+            });
+
+            this.finish(item, token);
+
+            return;
+        }
+
+        if (action === FileActionKind.DeleteForever) {
+            const removed = await deleteForeverFile(
+                item,
+                token,
+                (chunk) => this.deps.onRemoved(item, chunk),
+                this.deps.workers()
+            );
+
+            removed.inspectErr((error) => {
+                this.deps.feedback(error.message);
+            });
+
+            this.finish(item, token);
 
             return;
         }
@@ -130,6 +172,13 @@ export class DriveFiles {
                 this.deps.feedback(error.message);
             });
 
+        this.action = null;
+        if (this.deps.groupMode()) this.deps.reloadGroup();
+        else this.deps.reload(item.email, token);
+    }
+
+    private finish(item: FileGroup, token: string): void {
+        this.deps.closeUploads();
         this.action = null;
         if (this.deps.groupMode()) this.deps.reloadGroup();
         else this.deps.reload(item.email, token);

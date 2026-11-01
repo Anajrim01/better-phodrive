@@ -5,6 +5,7 @@
     import type { FileGroup } from '@madkarmaa/phodrive-core/files';
     import { fileType } from '@madkarmaa/phodrive-core/files';
     import FileActions from '#components/FileActions.svelte';
+    import FileIncompleteWarning from '#components/FileIncompleteWarning.svelte';
     import IconDescriptionOutline from '~icons/material-symbols/description-outline';
 
     interface Props {
@@ -14,9 +15,18 @@
         showOwner?: boolean;
         ondownload: (item: FileGroup) => void;
         ondelete: (item: FileGroup) => void;
+        onrestore: (item: FileGroup) => void;
     }
 
-    let { item, disabled, working, showOwner = false, ondownload, ondelete }: Props = $props();
+    let {
+        item,
+        disabled,
+        working,
+        showOwner = false,
+        ondownload,
+        ondelete,
+        onrestore
+    }: Props = $props();
 </script>
 
 <Card type="text" variant="filled" class="file-card">
@@ -42,13 +52,13 @@
     </div>
 
     <div class="flex justify-end px-2 pb-2">
-        <FileActions {item} {disabled} {working} {ondownload} {ondelete} />
+        <FileActions {item} {disabled} {working} {ondownload} {ondelete} {onrestore} />
     </div>
 
     {#if !item.complete}
-        <p class="m-0 px-3 pb-2 text-xs text-muted">
-            {item.chunks.length}/{item.chunkCount ?? '?'} chunks
-        </p>
+        <div class="px-3 pb-2">
+            <FileIncompleteWarning {item} />
+        </div>
     {/if}
 </Card>
 
