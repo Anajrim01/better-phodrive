@@ -1,4 +1,5 @@
-import { previewModeFor, type FileGroup, type FolderEntry } from '@madkarmaa/phodrive-core/files';
+import type { FileGroup, FolderEntry } from '@madkarmaa/phodrive-core/files';
+import { previewModeFor } from '@madkarmaa/phodrive-core/preview';
 
 export type MenuAction =
     | 'preview'

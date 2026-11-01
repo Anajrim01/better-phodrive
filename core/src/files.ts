@@ -1,4 +1,4 @@
-import { FileSort, FileActionKind, FolderPathSchema, PreviewMode, type RemoteBmp } from './models';
+import { FileSort, FileActionKind, FolderPathSchema, type RemoteBmp } from './models';
 import { MAX_CHUNK_PAYLOAD_BYTES } from './bmp/format';
 import { expectedChunks, missingChunks } from './incomplete';
 
@@ -210,105 +210,6 @@ export function fileType(name: string): string {
     if (!name.includes('.') || !extension) return 'FILE';
 
     return extension.slice(0, 5).toUpperCase();
-}
-
-export const PREVIEW_TEXT_BYTES = 64 * 1024;
-export const PREVIEW_TEXT_LINES = 200;
-export const MAX_IMAGE_PREVIEW_BYTES = 32 * 1024 * 1024;
-
-const IMAGE_EXTENSIONS = new Set(['gif', 'jpeg', 'jpg', 'png', 'webp']);
-const TEXT_EXTENSIONS = new Set([
-    'astro',
-    'bash',
-    'bat',
-    'c',
-    'cc',
-    'cfg',
-    'cjs',
-    'clj',
-    'cljs',
-    'cmd',
-    'conf',
-    'cpp',
-    'cs',
-    'css',
-    'csv',
-    'cts',
-    'cxx',
-    'dart',
-    'diff',
-    'env',
-    'erl',
-    'ex',
-    'exs',
-    'fish',
-    'gql',
-    'gitignore',
-    'go',
-    'graphql',
-    'h',
-    'hpp',
-    'hrl',
-    'hs',
-    'ini',
-    'java',
-    'js',
-    'json',
-    'jsonl',
-    'jsx',
-    'kt',
-    'kts',
-    'less',
-    'log',
-    'lua',
-    'md',
-    'mdx',
-    'markdown',
-    'mjs',
-    'ml',
-    'mli',
-    'mts',
-    'ndjson',
-    'nim',
-    'php',
-    'properties',
-    'proto',
-    'ps1',
-    'py',
-    'r',
-    'rb',
-    'rs',
-    'sass',
-    'scala',
-    'scss',
-    'sh',
-    'sql',
-    'svelte',
-    'swift',
-    'text',
-    'toml',
-    'ts',
-    'tsv',
-    'tsx',
-    'txt',
-    'vue',
-    'xml',
-    'yaml',
-    'yml',
-    'zig',
-    'zsh'
-]);
-
-/** Only listed extensions are previewable; HTML and SVG stay out of the renderer entirely. */
-export function previewModeFor(name: string): PreviewMode | null {
-    const dot = name.lastIndexOf('.');
-    if (dot < 0 || dot === name.length - 1) return null;
-
-    const extension = name.slice(dot + 1).toLowerCase();
-    if (IMAGE_EXTENSIONS.has(extension)) return PreviewMode.Image;
-    if (TEXT_EXTENSIONS.has(extension)) return PreviewMode.Text;
-
-    return null;
 }
 
 export function sortFiles(files: readonly FileGroup[], order: FileSort): FileGroup[] {

@@ -5,7 +5,7 @@ import {
     PreviewTextResponseSchema,
     PreviewUnavailableResponseSchema as UnavailableSchema,
     type PreviewUnavailableReason
-} from '@madkarmaa/phodrive-core/models';
+} from '@madkarmaa/phodrive-core/preview';
 import { request } from '@madkarmaa/phodrive-core/browser/api';
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 

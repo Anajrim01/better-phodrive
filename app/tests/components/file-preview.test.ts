@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/sv
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import type { ComponentProps } from 'svelte';
 import { Err, Ok } from 'results-ts';
-import { PreviewMode } from '@madkarmaa/phodrive-core/models';
+import { PreviewMode } from '@madkarmaa/phodrive-core/preview';
 import type { FileGroup, UploadedChunk } from '@madkarmaa/phodrive-core/files';
 import * as previewApi from '#browser/preview';
 import * as cacheApi from '#browser/preview-cache';

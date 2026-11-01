@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { tick } from 'svelte';
+    import { tick, type Component } from 'svelte';
     import { Divider, Menu, MenuItem } from 'noph-ui';
     import type { MenuAction } from '#lib/menus';
     import { fileMenu, folderMenu, selectionMenu } from '#lib/menus';
@@ -19,6 +19,19 @@
     import IconDeleteForever from '~icons/material-symbols/delete-forever-outline';
     import IconDetails from '~icons/material-symbols/info';
     import IconOpen from '~icons/material-symbols/folder-open-outline';
+
+    const MENU_ICONS: Partial<Record<MenuAction, Component>> = {
+        preview: IconPreview,
+        download: IconDownload,
+        rename: IconRename,
+        move: IconMove,
+        'move-contents': IconMove,
+        restore: IconRestore,
+        delete: IconDelete,
+        'delete-folder': IconDelete,
+        'delete-forever': IconDeleteForever,
+        open: IconOpen
+    };
 
     interface Props {
         open: boolean;
@@ -216,23 +229,10 @@
     }}
 >
     {#each entries as entry (entry.action)}
+        {@const Icon = MENU_ICONS[entry.action] ?? IconDetails}
         {#if entry.divider}<Divider />{/if}
         <MenuItem {disabled} onclick={() => choose(entry.action)}>
-            {#snippet start()}
-                {#if entry.action === 'preview'}<IconPreview aria-hidden="true" />
-                {:else if entry.action === 'download'}<IconDownload aria-hidden="true" />
-                {:else if entry.action === 'rename'}<IconRename aria-hidden="true" />
-                {:else if entry.action === 'move' || entry.action === 'move-contents'}<IconMove
-                        aria-hidden="true"
-                    />
-                {:else if entry.action === 'restore'}<IconRestore aria-hidden="true" />
-                {:else if entry.action === 'delete' || entry.action === 'delete-folder'}<IconDelete
-                        aria-hidden="true"
-                    />
-                {:else if entry.action === 'delete-forever'}<IconDeleteForever aria-hidden="true" />
-                {:else if entry.action === 'open'}<IconOpen aria-hidden="true" />
-                {:else}<IconDetails aria-hidden="true" />{/if}
-            {/snippet}
+            {#snippet start()}<Icon aria-hidden="true" />{/snippet}
             {entry.label}
         </MenuItem>
     {/each}

@@ -1,15 +1,18 @@
 <script lang="ts">
-    import { Button, Dialog, LoadingIndicator } from 'noph-ui';
+    import { Button, Dialog } from 'noph-ui';
     import prettyBytes from 'pretty-bytes';
+    import type { FileGroup } from '@madkarmaa/phodrive-core/files';
     import {
         MAX_IMAGE_PREVIEW_BYTES,
-        previewModeFor,
-        type FileGroup
-    } from '@madkarmaa/phodrive-core/files';
-    import { PreviewMode, PreviewUnavailableReason } from '@madkarmaa/phodrive-core/models';
+        PreviewMode,
+        PreviewUnavailableReason,
+        previewModeFor
+    } from '@madkarmaa/phodrive-core/preview';
     import type { EntryTarget } from '#browser/drive/menu-types';
     import { fetchFilePreview, type PreviewPayload } from '#browser/preview';
     import { cachePreview, getCachedPreview, previewCacheKey } from '#browser/preview-cache';
+    import { previewReason, type PreviewState } from '#browser/preview-copy';
+    import FilePreviewContent from '#components/FilePreviewContent.svelte';
 
     interface Props {
         open?: boolean;
@@ -31,13 +34,6 @@
         onclose
     }: Props = $props();
 
-    type PreviewState =
-        | { kind: 'loading' }
-        | { kind: 'image'; url: string }
-        | { kind: 'text'; text: string; truncated: boolean }
-        | { kind: 'unavailable'; reason: PreviewUnavailableReason }
-        | { kind: 'error'; message: string };
-
     let previewState = $state<PreviewState>({ kind: 'loading' });
     let attempt = $state(0);
     let objectUrl: string | null = null;
@@ -54,27 +50,8 @@
         file === null ? '' : showOwner ? `${file.email} · ${sizeLabel}` : sizeLabel
     );
     const reason = $derived(
-        previewState.kind === 'unavailable' ? reasonText(previewState.reason) : ''
+        previewState.kind === 'unavailable' ? previewReason(previewState.reason) : ''
     );
-
-    function reasonText(value: PreviewUnavailableReason): string {
-        if (value === PreviewUnavailableReason.MultiChunk)
-            return 'This image is split across several chunks, so it cannot be shown here. Download it to view the full file.';
-        if (value === PreviewUnavailableReason.TooLarge)
-            return 'This image is too large to preview here. Download it to view the full file.';
-        if (value === PreviewUnavailableReason.UnsupportedImage)
-            return 'This file is not a JPEG, PNG, WebP or GIF image. Download it to view it.';
-        if (value === PreviewUnavailableReason.IncompleteImage)
-            return 'This image looks incomplete. Download it to check the file.';
-        if (value === PreviewUnavailableReason.DecodeFailed)
-            return 'This image could not be decoded. Download it to view it.';
-        if (value === PreviewUnavailableReason.Binary)
-            return 'This file does not look like text. Download it to view it.';
-        if (value === PreviewUnavailableReason.Incomplete)
-            return 'Load the remaining chunks before previewing this file.';
-
-        return 'This file type cannot be previewed here. Download it to view it.';
-    }
 
     function clearImage(): void {
         if (!objectUrl) return;
@@ -199,39 +176,13 @@
     }}
 >
     {#if file}
-        <div class="preview-surface">
-            {#if previewState.kind === 'loading'}
-                <div class="preview-state" role="status">
-                    <LoadingIndicator aria-label="Loading preview" />
-                    <p>Loading preview</p>
-                </div>
-            {:else if previewState.kind === 'image'}
-                <img
-                    class="preview-image"
-                    src={previewState.url}
-                    alt={`Preview of ${file.name}`}
-                    onerror={imageFailed}
-                />
-            {:else if previewState.kind === 'text'}
-                <pre class="preview-text">{previewState.text}</pre>
-                {#if previewState.truncated}
-                    <p class="preview-note">
-                        Showing the start of this file. Download it to see everything.
-                    </p>
-                {/if}
-            {:else if previewState.kind === 'unavailable'}
-                <div class="preview-state">
-                    <p class="preview-title">Preview not available</p>
-                    <p class="preview-note">{reason}</p>
-                </div>
-            {:else}
-                <div class="preview-state" role="alert">
-                    <p class="preview-title">Preview failed</p>
-                    <p class="preview-note">{previewState.message}</p>
-                    <Button variant="text" onclick={() => attempt++}>Retry</Button>
-                </div>
-            {/if}
-        </div>
+        <FilePreviewContent
+            state={previewState}
+            {file}
+            {reason}
+            onretry={() => attempt++}
+            onimageerror={imageFailed}
+        />
     {/if}
 
     {#snippet actions()}
@@ -254,78 +205,3 @@
         <Button autofocus variant="text" onclick={onclose}>Close</Button>
     {/snippet}
 </Dialog>
-
-<style>
-    .preview-surface {
-        display: grid;
-        min-height: 240px;
-        max-height: 68vh;
-        margin-top: 16px;
-        padding: 16px;
-        overflow: auto;
-        border-radius: 12px;
-        background: var(--app-preview);
-    }
-
-    .preview-image {
-        max-width: 100%;
-        max-height: 62vh;
-        margin: auto;
-        object-fit: contain;
-    }
-
-    .preview-text {
-        max-height: 60vh;
-        margin: 0;
-        overflow: auto;
-        color: var(--app-text);
-        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-        font-size: 12px;
-        line-height: 1.55;
-        overflow-wrap: anywhere;
-        white-space: pre-wrap;
-    }
-
-    .preview-state {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-        max-width: 44ch;
-        margin: auto;
-        color: var(--app-muted);
-        text-align: center;
-    }
-
-    .preview-state p,
-    .preview-note {
-        margin: 0;
-    }
-
-    .preview-title {
-        color: var(--app-text);
-        font-size: 16px;
-        font-weight: 500;
-    }
-
-    .preview-note {
-        font-size: 13px;
-        line-height: 1.5;
-    }
-
-    .preview-surface .preview-note {
-        margin-top: 12px;
-    }
-
-    @media (width < 520px) {
-        .preview-surface {
-            min-height: 200px;
-            padding: 12px;
-        }
-
-        .preview-text {
-            font-size: 12px;
-        }
-    }
-</style>

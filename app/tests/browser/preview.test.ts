@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, expect, test, vi } from 'vitest';
 import type { FileGroup, UploadedChunk } from '@madkarmaa/phodrive-core/files';
-import { PreviewMode } from '@madkarmaa/phodrive-core/models';
+import { PreviewMode } from '@madkarmaa/phodrive-core/preview';
 import { fetchFilePreview } from '#browser/preview';
 import {
     cachePreview,

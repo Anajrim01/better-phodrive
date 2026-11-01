@@ -1,5 +1,5 @@
 import type { FileGroup } from '@madkarmaa/phodrive-core/files';
-import type { PreviewMode } from '@madkarmaa/phodrive-core/models';
+import type { PreviewMode } from '@madkarmaa/phodrive-core/preview';
 import type { PreviewPayload } from '#browser/preview';
 
 const MAX_PREVIEW_CACHE_ENTRIES = 12;

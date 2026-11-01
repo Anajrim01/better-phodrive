@@ -149,6 +149,10 @@
             "@madkarmaa/phodrive-core": "./src/preferences-models.ts",
             "default": "./dist/preferences-models.js"
         },
+        "./preview": {
+            "@madkarmaa/phodrive-core": "./src/preview.ts",
+            "default": "./dist/preview.js"
+        },
         "./server": {
             "@madkarmaa/phodrive-core": "./src/server/index.ts",
             "default": "./dist/server/index.js"
@@ -341,6 +345,22 @@
             "@madkarmaa/phodrive-core": "./src/server/preview.ts",
             "default": "./dist/server/preview.js"
         },
+        "./server/preview/image": {
+            "@madkarmaa/phodrive-core": "./src/server/preview/image.ts",
+            "default": "./dist/server/preview/image.js"
+        },
+        "./server/preview/payload": {
+            "@madkarmaa/phodrive-core": "./src/server/preview/payload.ts",
+            "default": "./dist/server/preview/payload.js"
+        },
+        "./server/preview/text": {
+            "@madkarmaa/phodrive-core": "./src/server/preview/text.ts",
+            "default": "./dist/server/preview/text.js"
+        },
+        "./server/preview/text-prefix": {
+            "@madkarmaa/phodrive-core": "./src/server/preview/text-prefix.ts",
+            "default": "./dist/server/preview/text-prefix.js"
+        },
         "./server/protobuf": {
             "@madkarmaa/phodrive-core": "./src/server/protobuf.ts",
             "default": "./dist/server/protobuf.js"
@@ -463,6 +483,7 @@
             "./node/upload": "./dist/node/upload.js",
             "./preferences": "./dist/preferences.js",
             "./preferences-models": "./dist/preferences-models.js",
+            "./preview": "./dist/preview.js",
             "./server": "./dist/server/index.js",
             "./server/aas": "./dist/server/aas.js",
             "./server/accounts": "./dist/server/accounts.js",
@@ -511,6 +532,10 @@
             "./server/photos/upload/lookup": "./dist/server/photos/upload/lookup.js",
             "./server/photos/upload/transfer": "./dist/server/photos/upload/transfer.js",
             "./server/preview": "./dist/server/preview.js",
+            "./server/preview/image": "./dist/server/preview/image.js",
+            "./server/preview/payload": "./dist/server/preview/payload.js",
+            "./server/preview/text": "./dist/server/preview/text.js",
+            "./server/preview/text-prefix": "./dist/server/preview/text-prefix.js",
             "./server/protobuf": "./dist/server/protobuf.js",
             "./server/request": "./dist/server/request.js",
             "./server/upload": "./dist/server/upload/index.js",

@@ -1,6 +1,6 @@
 import { expect, test, vi } from 'vitest';
 import { Err, Ok } from 'results-ts';
-import { PreviewMode, PreviewUnavailableReason } from '@madkarmaa/phodrive-core/models';
+import { PreviewMode, PreviewUnavailableReason } from '@madkarmaa/phodrive-core/preview';
 import * as previewApi from '@madkarmaa/phodrive-core/server/preview';
 import { POST } from '../../src/routes/api/files/preview/+server';
 

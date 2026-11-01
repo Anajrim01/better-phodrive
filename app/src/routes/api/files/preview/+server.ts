@@ -1,4 +1,4 @@
-import { FilePreviewRequestSchema } from '@madkarmaa/phodrive-core/models';
+import { FilePreviewRequestSchema } from '@madkarmaa/phodrive-core/preview';
 import { previewFile, type PreviewResult } from '@madkarmaa/phodrive-core/server/preview';
 import { errorResponse, jsonResponse, readJsonRequest } from '#server/api';
 import type { RequestHandler } from './$types';

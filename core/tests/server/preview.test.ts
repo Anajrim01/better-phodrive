@@ -2,19 +2,19 @@ import { createHash } from 'node:crypto';
 import { beforeEach, expect, test, vi } from 'vitest';
 import { Err, Ok } from 'results-ts';
 import {
-    PreviewMode,
-    PreviewUnavailableReason,
     SPLIT_FLAG_COMPRESSED,
     SPLIT_FLAG_LAST,
-    type FilePreviewRequest,
     type RemoteBmp,
     type SplitHeader
 } from '@madkarmaa/phodrive-core/models';
 import {
     MAX_IMAGE_PREVIEW_BYTES,
     PREVIEW_TEXT_BYTES,
-    PREVIEW_TEXT_LINES
-} from '@madkarmaa/phodrive-core/files';
+    PREVIEW_TEXT_LINES,
+    PreviewMode,
+    PreviewUnavailableReason,
+    type FilePreviewRequest
+} from '@madkarmaa/phodrive-core/preview';
 import { encodeSplitBmp } from '@madkarmaa/phodrive-core/server/bmp';
 import { compressPayload } from '@madkarmaa/phodrive-core/server/compress';
 import { previewFile } from '@madkarmaa/phodrive-core/server/preview';
