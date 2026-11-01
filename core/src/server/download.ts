@@ -26,8 +26,8 @@ function openChunk(
         flags: (chunk.isLast ? SPLIT_FLAG_LAST : 0) | (compressed ? SPLIT_FLAG_COMPRESSED : 0),
         payloadSize: storedSize,
         originalSize: compressed ? chunk.size : undefined,
-        fileName: chunk.chunkIndex === 0 ? input.name : undefined,
-        folder: chunk.folder
+        fileName: chunk.chunkIndex === 0 ? (chunk.sourceName ?? input.name) : undefined,
+        folder: chunk.sourceFolder !== undefined ? chunk.sourceFolder || undefined : chunk.folder
     };
 
     return splitHeaderByteLength(expected)

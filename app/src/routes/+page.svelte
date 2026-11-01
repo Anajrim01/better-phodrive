@@ -1,16 +1,19 @@
 <script lang="ts">
     import { AppView, ConfirmKind, FileActionKind } from '@madkarmaa/phodrive-core/models';
-    import type { FileGroup } from '@madkarmaa/phodrive-core/files';
+    import type { FileGroup, FolderEntry } from '@madkarmaa/phodrive-core/files';
 
     import { onMount, untrack } from 'svelte';
     import type { PageData } from './$types';
     import { fade } from 'svelte/transition';
     import { prefersReducedMotion } from 'svelte/motion';
     import { DriveController } from '#browser/drive/index.svelte';
+    import { createDriveManage } from '#browser/drive/manage-factory';
+    import type { MenuAnchor } from '#browser/drive/menu-types';
     import AppHeader from '#components/AppHeader.svelte';
     import AccountMenu from '#components/AccountMenu.svelte';
     import AccountSetup from '#components/AccountSetup.svelte';
     import ConfirmDialog from '#components/ConfirmDialog.svelte';
+    import ManageLayer from '#components/ManageLayer.svelte';
     import UploadSidebar from '#components/UploadSidebar.svelte';
     import UploadPanel from '#components/UploadPanel.svelte';
     import FilesView from '#components/FilesView.svelte';
@@ -27,7 +30,8 @@
     let { data }: Props = $props();
 
     const drive = new DriveController(untrack(() => data.preferencesDefaults));
-    const actionsDisabled = $derived(drive.busy || !!drive.fileAction);
+    const manage = createDriveManage(drive);
+    const actionsDisabled = $derived(drive.busy || !!drive.fileAction || manage.busy);
     const stats = $derived(libraryStats(drive.library.files));
     let view = $state<AppView>(AppView.Files);
     let navigationOpen = $state(false);
@@ -63,6 +67,14 @@
         drive.confirmTarget = { kind: ConfirmKind.PermanentDelete, item };
         drive.confirmOpen = true;
     }
+
+    function openFileMenu(item: FileGroup, anchor: MenuAnchor) {
+        manage.openMenu({ kind: 'file', item }, anchor);
+    }
+
+    function openFolderMenu(folder: FolderEntry, anchor: MenuAnchor) {
+        manage.openMenu({ kind: 'folder', entry: folder }, anchor);
+    }
 </script>
 
 {#if !drive.ready || !drive.selectedEmail || drive.accountEditor.adding || view !== AppView.Files}
@@ -76,6 +88,16 @@
         bind:open={drive.confirmOpen}
         target={drive.confirmTarget}
         onconfirm={() => drive.confirmAction()}
+    />
+
+    <ManageLayer
+        {manage}
+        {actionsDisabled}
+        ondownload={download}
+        onrestore={restore}
+        ondelete={confirmTrash}
+        ondeleteforever={confirmPermanentDelete}
+        onopenfolder={(path) => drive.library.openFolder(path)}
     />
 
     <AppHeader
@@ -141,14 +163,12 @@
                 loading={drive.library.loading}
                 loadFailed={drive.library.loadFailed}
                 hasMore={!!drive.library.nextPageToken}
-                action={drive.fileAction}
                 showOwner={drive.groupMode.target !== null}
                 groupName={drive.groupMode.target?.group.name}
                 total={drive.groupMode.target?.group.accounts.length ?? 0}
                 accounts={drive.library.accounts}
                 partial={drive.library.partial}
-                onrestore={restore}
-                ondeleteforever={confirmPermanentDelete}
+                onmenu={openFileMenu}
                 onmore={() => {
                     void drive.library.load(false);
                 }}
@@ -181,9 +201,8 @@
                 {drive}
                 {actionsDisabled}
                 onupload={upload}
-                ondownload={download}
-                ondelete={confirmTrash}
-                onrestore={restore}
+                onfilemenu={openFileMenu}
+                onfoldermenu={openFolderMenu}
             />
         {/if}
     </main>

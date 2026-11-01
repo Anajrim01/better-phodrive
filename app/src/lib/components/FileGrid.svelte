@@ -4,12 +4,13 @@
     import { fade } from 'svelte/transition';
     import { flip } from 'svelte/animate';
     import { prefersReducedMotion } from 'svelte/motion';
-    import type { FileGroup, FileAction, FolderEntry } from '@madkarmaa/phodrive-core/files';
+    import type { FileGroup, FolderEntry } from '@madkarmaa/phodrive-core/files';
     import { fileKey } from '@madkarmaa/phodrive-core/files';
     import FileCard from '#components/FileCard.svelte';
     import FileList from '#components/FileList.svelte';
     import EmptyFiles from '#components/EmptyFiles.svelte';
     import FolderTiles from '#components/FolderTiles.svelte';
+    import type { MenuAnchor } from '#browser/drive/menu-types';
 
     interface Props {
         files: FileGroup[];
@@ -24,11 +25,9 @@
         disabled: boolean;
         showFolder: boolean;
         showOwner?: boolean;
-        action: FileAction | null;
         onopenfolder: (path: string) => void;
-        ondownload: (item: FileGroup) => void;
-        ondelete: (item: FileGroup) => void;
-        onrestore: (item: FileGroup) => void;
+        onfilemenu: (item: FileGroup, anchor: MenuAnchor) => void;
+        onfoldermenu: (folder: FolderEntry, anchor: MenuAnchor) => void;
         onmore: () => void;
     }
 
@@ -45,17 +44,15 @@
         disabled,
         showFolder,
         showOwner = false,
-        action,
         onopenfolder,
-        ondownload,
-        ondelete,
-        onrestore,
+        onfilemenu,
+        onfoldermenu,
         onmore
     }: Props = $props();
 </script>
 
 <section class="mt-6 flex min-h-0 flex-1 flex-col gap-6" aria-labelledby="files-heading">
-    <FolderTiles {folders} {disabled} onopen={onopenfolder} />
+    <FolderTiles {folders} {disabled} onopen={onopenfolder} onmenu={onfoldermenu} />
 
     {#if files.length}
         {#if layout === FileLayout.List}
@@ -63,13 +60,10 @@
                 {files}
                 bind:sort
                 {disabled}
-                {action}
                 {showFolder}
                 {showOwner}
                 partial={hasMore}
-                {ondownload}
-                {ondelete}
-                {onrestore}
+                onmenu={onfilemenu}
             />
         {:else}
             <ul
@@ -86,10 +80,7 @@
                             {disabled}
                             {showOwner}
                             partial={hasMore}
-                            working={action?.fileId === item.fileId ? action.kind : null}
-                            {ondownload}
-                            {ondelete}
-                            {onrestore}
+                            onmenu={onfilemenu}
                         />
                     </li>
                 {/each}

@@ -196,10 +196,8 @@ test('a merged file row shows its owner', () => {
             ],
             sort: FileSort.NameAscending,
             disabled: false,
-            action: null,
             showOwner: true,
-            ondownload: vi.fn(),
-            ondelete: vi.fn()
+            onmenu: vi.fn()
         }
     });
 

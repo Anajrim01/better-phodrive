@@ -143,6 +143,30 @@ export const SERVER_ERRORS = {
         message: 'Invalid UTF-8 in response'
     },
     INVALID_FILE_METADATA: { code: 'INVALID_FILE_METADATA', message: 'Invalid file metadata.' },
+    LIBRARY_STATE_REQUIRED: {
+        code: 'LIBRARY_STATE_REQUIRED',
+        message: 'Load your files before changing them.'
+    },
+    FILE_NOT_FOUND: {
+        code: 'FILE_NOT_FOUND',
+        message: 'This file is no longer in the library. Refresh and try again.'
+    },
+    FOLDER_NOT_FOUND: {
+        code: 'FOLDER_NOT_FOUND',
+        message: 'This folder no longer exists. Refresh and try again.'
+    },
+    FILE_NAME_EXISTS: {
+        code: 'FILE_NAME_EXISTS',
+        message: 'A file with that name already exists in this folder.'
+    },
+    FOLDER_EXISTS: {
+        code: 'FOLDER_EXISTS',
+        message: 'A folder with that name already exists here.'
+    },
+    INVALID_FOLDER_DESTINATION: {
+        code: 'INVALID_FOLDER_DESTINATION',
+        message: 'Choose a different destination folder.'
+    },
     INCOMPLETE_DOWNLOAD_CHUNKS: {
         code: 'INCOMPLETE_DOWNLOAD_CHUNKS',
         message: 'Load the remaining chunks before downloading.'
@@ -196,4 +220,7 @@ export type ServerError =
           readonly retryAfterSeconds?: number;
       }
     | { readonly code: 'INCOMPLETE_DOWNLOAD_CHUNKS'; readonly message: string }
+    | { readonly code: 'FILE_NAME_EXISTS'; readonly message: string }
+    | { readonly code: 'FOLDER_EXISTS'; readonly message: string }
+    | { readonly code: 'INVALID_FOLDER_DESTINATION'; readonly message: string }
     | { readonly code: 'THROTTLED'; readonly message: string; readonly retryAfterSeconds: number };

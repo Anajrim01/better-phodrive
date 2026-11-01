@@ -2,44 +2,37 @@
     import { Button } from 'noph-ui';
     import prettyBytes from 'pretty-bytes';
     import { FileSort } from '@madkarmaa/phodrive-core/models';
-    import { fileKey, type FileGroup, type FileAction } from '@madkarmaa/phodrive-core/files';
+    import { fileKey, type FileGroup } from '@madkarmaa/phodrive-core/files';
     import LocalizedDate from '#components/LocalizedDate.svelte';
-    import FileActions from '#components/FileActions.svelte';
+    import MoreButton from '#components/MoreButton.svelte';
     import FileIncompleteWarning from '#components/FileIncompleteWarning.svelte';
     import IconDescription from '~icons/material-symbols/description-outline';
     import IconArrowUp from '~icons/material-symbols/arrow-upward';
     import IconArrowDown from '~icons/material-symbols/arrow-downward';
+    import type { MenuAnchor } from '#browser/drive/menu-types';
 
     interface Props {
         files: FileGroup[];
         sort: FileSort;
         disabled: boolean;
-        action: FileAction | null;
         showFolder?: boolean;
         showOwner?: boolean;
         trash?: boolean;
         partial?: boolean;
         headingId?: string;
-        ondownload?: (item: FileGroup) => void;
-        ondelete?: (item: FileGroup) => void;
-        onrestore?: (item: FileGroup) => void;
-        ondeleteforever?: (item: FileGroup) => void;
+        onmenu?: (item: FileGroup, anchor: MenuAnchor) => void;
     }
 
     let {
         files,
         sort = $bindable(),
         disabled,
-        action,
         showFolder = false,
         showOwner = false,
         trash = false,
         partial = false,
         headingId = 'files-heading',
-        ondownload,
-        ondelete,
-        onrestore,
-        ondeleteforever
+        onmenu
     }: Props = $props();
     const nameSort = $derived(sort === FileSort.NameAscending || sort === FileSort.NameDescending);
     const ascending = $derived(
@@ -105,7 +98,12 @@
     </thead>
     <tbody>
         {#each files as item (fileKey(item))}
-            <tr>
+            <tr
+                oncontextmenu={(event) => {
+                    event.preventDefault();
+                    onmenu?.(item, { x: event.clientX, y: event.clientY });
+                }}
+            >
                 <td>
                     <div class="file-name">
                         <IconDescription aria-hidden="true" class="size-5 shrink-0 text-muted" />
@@ -142,17 +140,10 @@
                         >{/if}
                 </td>
                 <td class="actions-column">
-                    <FileActions
-                        {item}
+                    <MoreButton
+                        label={item.name}
                         {disabled}
-                        compact
-                        {trash}
-                        {partial}
-                        working={action?.fileId === item.fileId ? action.kind : null}
-                        {ondownload}
-                        {ondelete}
-                        {onrestore}
-                        {ondeleteforever}
+                        onopen={(element) => onmenu?.(item, element)}
                     />
                 </td>
             </tr>
@@ -218,7 +209,7 @@
         white-space: nowrap;
     }
     .actions-column {
-        width: 72px;
+        width: 56px;
         padding-inline: 4px;
     }
 

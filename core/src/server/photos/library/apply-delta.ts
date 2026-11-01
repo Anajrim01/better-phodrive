@@ -2,6 +2,7 @@ import { Ok, type AsyncResult } from 'results-ts';
 import type { RemoteBmp } from '../../../models';
 import type { ServerError } from '../../errors';
 import type { DeltaResult } from './delta';
+import { applyOverrides, type LibraryOverrides } from './overrides';
 import { trimChangeLog, type LibraryAccountState } from './state';
 
 export type DeltaApplyResult = {
@@ -13,12 +14,14 @@ export type DeltaApplyResult = {
 export function applyDelta(
     stored: LibraryAccountState,
     delta: DeltaResult,
+    overrides: LibraryOverrides,
     now = Date.now()
 ): AsyncResult<DeltaApplyResult, ServerError> {
     return Ok(undefined).andThenAsync(async () => {
         const items = new Map(stored.items);
         const changeItems = new Map<string, RemoteBmp>();
-        for (const item of delta.items) {
+        for (const raw of delta.items) {
+            const item = applyOverrides(raw, overrides);
             const existing = items.get(item.mediaKey);
             if (item.trashedAt !== undefined && existing) {
                 const merged = {

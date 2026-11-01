@@ -1,15 +1,18 @@
 <script lang="ts">
     import type { FolderEntry } from '@madkarmaa/phodrive-core/files';
     import { folderCount } from '#lib/folders';
+    import MoreButton from '#components/MoreButton.svelte';
+    import type { MenuAnchor } from '#browser/drive/menu-types';
     import IconFolder from '~icons/material-symbols/folder-outline';
 
     interface Props {
         folders: FolderEntry[];
         disabled: boolean;
         onopen: (path: string) => void;
+        onmenu: (folder: FolderEntry, anchor: MenuAnchor) => void;
     }
 
-    let { folders, disabled, onopen }: Props = $props();
+    let { folders, disabled, onopen, onmenu }: Props = $props();
 </script>
 
 {#if folders.length}
@@ -20,13 +23,29 @@
             class="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(min(100%,220px),1fr))] gap-4 p-0"
         >
             {#each folders as folder (folder.path)}
-                <li class="min-w-0">
+                <li
+                    class="folder-tile"
+                    oncontextmenu={(event) => {
+                        event.preventDefault();
+                        onmenu(folder, { x: event.clientX, y: event.clientY });
+                    }}
+                >
                     <button
                         type="button"
-                        class="folder-tile"
+                        class="folder-open"
                         aria-label={`Open folder ${folder.name}`}
                         {disabled}
                         onclick={() => onopen(folder.path)}
+                        onkeydown={(event) => {
+                            if (
+                                event.key !== 'ContextMenu' &&
+                                !(event.shiftKey && event.key === 'F10')
+                            )
+                                return;
+
+                            event.preventDefault();
+                            onmenu(folder, event.currentTarget);
+                        }}
                     >
                         <IconFolder aria-hidden="true" class="size-5 shrink-0 text-muted" />
                         <span class="folder-text">
@@ -36,6 +55,13 @@
                             </span>
                         </span>
                     </button>
+                    <span class="folder-more">
+                        <MoreButton
+                            label={`folder ${folder.name}`}
+                            {disabled}
+                            onopen={(element) => onmenu(folder, element)}
+                        />
+                    </span>
                 </li>
             {/each}
         </ul>
@@ -51,43 +77,62 @@
     }
 
     .folder-tile {
+        position: relative;
         display: flex;
-        align-items: center;
-        gap: 12px;
-        width: 100%;
+        align-items: stretch;
         min-width: 0;
         min-height: 64px;
-        padding: 12px 16px;
-        border: none;
         border-radius: 12px;
         background: var(--app-card);
         color: var(--app-text);
-        font: inherit;
-        text-align: start;
-        cursor: pointer;
         transition:
             background-color var(--np-motion-standard-fast-effects),
             transform var(--np-motion-standard-fast-effects);
     }
 
     @media (prefers-reduced-motion: no-preference) {
-        .folder-tile:active:not(:disabled) {
+        .folder-tile:active {
             transform: scale(0.98);
         }
     }
 
-    .folder-tile:hover:not(:disabled) {
+    .folder-tile:hover {
         background: var(--app-hover);
     }
 
-    .folder-tile:focus-visible {
-        outline: 3px solid var(--app-primary);
-        outline-offset: 2px;
+    .folder-open {
+        display: flex;
+        flex: 1;
+        align-items: center;
+        gap: 12px;
+        min-width: 0;
+        min-height: 64px;
+        padding: 12px 44px 12px 16px;
+        border: none;
+        border-radius: 12px;
+        background: none;
+        color: inherit;
+        font: inherit;
+        text-align: start;
+        cursor: pointer;
     }
 
-    .folder-tile:disabled {
+    .folder-open:focus-visible {
+        outline: 3px solid var(--app-primary);
+        outline-offset: -3px;
+    }
+
+    .folder-open:disabled {
         opacity: 0.6;
         cursor: default;
+    }
+
+    .folder-more {
+        position: absolute;
+        top: 50%;
+        right: 8px;
+        display: flex;
+        transform: translateY(-50%);
     }
 
     .folder-text {
