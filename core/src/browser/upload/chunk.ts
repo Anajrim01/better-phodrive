@@ -33,7 +33,8 @@ export function uploadChunk(
     onChunk: (
         chunk: UploadEvent & { type: UploadEventType.Chunk }
     ) => Result<void, ApplicationError>,
-    compress = false
+    compress = false,
+    folder = ''
 ): AsyncResult<UploadResponse, ApplicationError> {
     const start = header.chunkIndex * MAX_CHUNK_PAYLOAD_BYTES;
     const payload = file.slice(start, start + header.payloadSize);
@@ -44,7 +45,7 @@ export function uploadChunk(
             token,
             file: {
                 name: file.name,
-                folder: header.folder,
+                folder: folder || undefined,
                 size: file.size,
                 fileHash: header.fileHash
             },

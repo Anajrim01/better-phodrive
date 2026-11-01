@@ -78,7 +78,8 @@ export function uploadSource(
                 transport,
                 chunkLimit,
                 handle,
-                options.compress === true
+                options.compress === true,
+                folder
             )
         );
     });
@@ -91,7 +92,8 @@ export function uploadPlannedFile(
     transport: ChunkTransport,
     chunkLimit: ReturnType<typeof pLimit>,
     handle: (event: UploadEvent) => Result<void, ApplicationError>,
-    compress = false
+    compress = false,
+    folder = ''
 ): AsyncResult<void, ApplicationError> {
     return Ok(undefined).andThenAsync(async () => {
         const total = sizes.reduce((sum, size) => sum + size, 0);
@@ -129,7 +131,8 @@ export function uploadPlannedFile(
                     });
                 },
                 (event) => handle({ ...event, id }),
-                compress
+                compress,
+                folder
             );
 
             result.match({
