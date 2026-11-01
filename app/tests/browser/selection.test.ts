@@ -1,10 +1,12 @@
 import { expect, test } from 'vitest';
+import { FileSort } from '@madkarmaa/phodrive-core/models';
 import type { FileGroup, UploadedChunk } from '@madkarmaa/phodrive-core/files';
 import { fileKey } from '@madkarmaa/phodrive-core/files';
 import { DriveSelection } from '#browser/drive/selection.svelte';
 import {
     bulkMoveDestinations,
     selectedFiles,
+    selectionFiles,
     selectionScope,
     selectionSummary
 } from '#browser/drive/selection-files';
@@ -97,6 +99,20 @@ test('the selection scope covers folder navigation and every filter', () => {
     expect(selectionScope({ ...parts, searchTerm: 'proof' })).not.toBe(initial);
     expect(selectionScope({ ...parts, typeFilter: 'png' })).not.toBe(initial);
     expect(selectionScope({ ...parts, modifiedDays: '7' })).not.toBe(initial);
+});
+
+test('selection follows the Trash display sort, not the raw library order', () => {
+    const first = file({ name: 'a.bin', fileId: 'a'.repeat(64) });
+    const second = file({ name: 'b.bin', fileId: 'b'.repeat(64) });
+    const third = file({ name: 'c.bin', fileId: 'c'.repeat(64) });
+    const rawTrash = [third, first, second];
+
+    expect(
+        selectionFiles(true, [], rawTrash, FileSort.NameAscending).map((item) => item.name)
+    ).toEqual(['a.bin', 'b.bin', 'c.bin']);
+    expect(
+        selectionFiles(true, [], rawTrash, FileSort.NameDescending).map((item) => item.name)
+    ).toEqual(['c.bin', 'b.bin', 'a.bin']);
 });
 
 test('selected files follow their visible order', () => {

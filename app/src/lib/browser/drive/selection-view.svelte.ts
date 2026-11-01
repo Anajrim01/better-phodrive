@@ -3,7 +3,7 @@ import { fileKey, type FileGroup } from '@madkarmaa/phodrive-core/files';
 import type { DriveController } from '#browser/drive/index.svelte';
 import type { DriveManage } from '#browser/drive/manage.svelte';
 import type { MenuAnchor } from '#browser/drive/menu-types';
-import { selectedFiles, selectionScope } from '#browser/drive/selection-files';
+import { selectionFiles, selectedFiles, selectionScope } from '#browser/drive/selection-files';
 import type { MenuAction } from '#lib/menus';
 
 export function createSelectionView(
@@ -12,7 +12,12 @@ export function createSelectionView(
     view: () => AppView
 ) {
     const available = $derived(
-        view() === AppView.Trash ? drive.library.trashFiles : drive.library.visibleFiles
+        selectionFiles(
+            view() === AppView.Trash,
+            drive.library.visibleFiles,
+            drive.library.trashFiles,
+            drive.settings.fileSort
+        )
     );
     const selected = $derived(selectedFiles(available, drive.selection.selectedKeys));
     const count = $derived(selected.length);

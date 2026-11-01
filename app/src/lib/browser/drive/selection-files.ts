@@ -1,4 +1,5 @@
-import { fileKey, type FileGroup } from '@madkarmaa/phodrive-core/files';
+import { fileKey, sortFiles, type FileGroup } from '@madkarmaa/phodrive-core/files';
+import type { FileSort } from '@madkarmaa/phodrive-core/models';
 import type { MoveDestination } from '#browser/drive/manage-types';
 import { folderPaths } from '#lib/folders';
 
@@ -8,6 +9,15 @@ export type SelectionSummary = {
     incomplete: number;
     owners: string[];
 };
+
+export function selectionFiles(
+    trash: boolean,
+    visibleFiles: readonly FileGroup[],
+    trashFiles: readonly FileGroup[],
+    sort: FileSort
+): readonly FileGroup[] {
+    return trash ? sortFiles(trashFiles, sort) : visibleFiles;
+}
 
 export function selectionScope(parts: {
     folder: string;
