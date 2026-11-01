@@ -98,12 +98,85 @@ test('delta deletions remove indexed chunks', async () => {
     expect(readAccountState(EMAIL)?.items.size).toBe(39);
 });
 
+test('a chunk renamed without the marker is removed by the delta', async () => {
+    const items = Array.from({ length: 40 }, (_, index) => chunkItem(index));
+    const counts = emptyCounts();
+    const delta = pageBytes([{ ...items[0], fileName: 'renamed.jpg' }], '', {
+        syncToken: SYNC_TWO
+    });
+    const fetcher = fetcherFor(items, [pageBytes(items, '', { syncToken: SYNC_ONE })], counts, {
+        delta
+    });
+
+    await syncLibrary(EMAIL, TOKEN, false, fetcher);
+    const warm = await syncLibrary(EMAIL, TOKEN, false, fetcher);
+
+    expect(warm.unwrap().deleted).toEqual(['chunk-0']);
+    expect(readAccountState(EMAIL)?.items.has('chunk-0')).toBe(false);
+});
+
+test('a 429 delta propagates without a full re-crawl', async () => {
+    const items = Array.from({ length: 40 }, (_, index) => chunkItem(index));
+    const counts = emptyCounts();
+    const options = {
+        delta: pageBytes([], '', { syncToken: SYNC_TWO }),
+        deltaStatus: undefined as number | undefined
+    };
+    const fetcher = fetcherFor(
+        items,
+        [pageBytes(items, '', { syncToken: SYNC_ONE })],
+        counts,
+        options
+    );
+
+    await syncLibrary(EMAIL, TOKEN, false, fetcher);
+    options.deltaStatus = 429;
+    counts.page = 0;
+    counts.prepare = 0;
+    counts.range = 0;
+
+    const throttled = await syncLibrary(EMAIL, TOKEN, false, fetcher);
+
+    expect(throttled.unwrapErr().code).toBe('THROTTLED');
+    expect(counts).toMatchObject({ page: 0, delta: 1, prepare: 0, range: 0 });
+    expect(readAccountState(EMAIL)?.syncToken.toString()).toBe(SYNC_ONE);
+});
+
+test('a probe 404 during a delta does not trigger a full re-crawl', async () => {
+    const items = Array.from({ length: 40 }, (_, index) => chunkItem(index));
+    const changed = chunkItem(100);
+    const counts = emptyCounts();
+    const options = {
+        delta: pageBytes([changed], '', { syncToken: SYNC_TWO }),
+        prepareStatus: undefined as number | undefined
+    };
+    const fetcher = fetcherFor(
+        [...items, changed],
+        [pageBytes(items, '', { syncToken: SYNC_ONE })],
+        counts,
+        options
+    );
+
+    await syncLibrary(EMAIL, TOKEN, false, fetcher);
+    options.prepareStatus = 404;
+    counts.page = 0;
+    counts.delta = 0;
+    counts.prepare = 0;
+    counts.range = 0;
+
+    const failed = await syncLibrary(EMAIL, TOKEN, false, fetcher);
+
+    expect(failed.unwrapErr()).toMatchObject({ code: 'REQUEST_FAILED', status: 404 });
+    expect(counts).toMatchObject({ page: 0, delta: 1, prepare: 1, range: 0 });
+    expect(readAccountState(EMAIL)?.syncToken.toString()).toBe(SYNC_ONE);
+});
+
 test('a rejected token falls back to a full sync', async () => {
     const items = Array.from({ length: 40 }, (_, index) => chunkItem(index));
     const counts = emptyCounts();
     const fetcher = fetcherFor(items, [pageBytes(items, '', { syncToken: SYNC_ONE })], counts, {
         delta: pageBytes([], '', { syncToken: SYNC_TWO }),
-        rejectDelta: true
+        deltaStatus: 400
     });
 
     await syncLibrary(EMAIL, TOKEN, false, fetcher);

@@ -126,7 +126,6 @@ export type ParsedLibraryPage = {
     nextPageToken: string;
     syncToken?: Buffer;
     deletedMediaKeys: string[];
-    moreSync: boolean;
 };
 
 function deletionMediaKey(value: Buffer): Result<string | null, ServerError> {
@@ -172,7 +171,6 @@ export function parseLibraryPage(data: Buffer): Result<ParsedLibraryPage, Server
 
             const next = optional(fields, 1);
             const sync = optional(fields, 6);
-            const more = optional(fields, 7);
 
             return {
                 items,
@@ -181,8 +179,7 @@ export function parseLibraryPage(data: Buffer): Result<ParsedLibraryPage, Server
                 ...(sync && typeof sync.value !== 'number' && sync.value.length
                     ? { syncToken: sync.value }
                     : {}),
-                deletedMediaKeys,
-                moreSync: more !== undefined && typeof more.value === 'number' && more.value === 2
+                deletedMediaKeys
             };
         });
 }

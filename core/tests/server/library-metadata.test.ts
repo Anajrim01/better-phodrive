@@ -36,7 +36,7 @@ test('a sync token without a resume token does not advertise another library pag
     expect(page.syncToken?.toString()).toBe('next-sync-cycle');
 });
 
-test('delta pages parse deletions and the next sync cycle flag', () => {
+test('delta pages parse deletions and the next sync token', () => {
     const deletion = bytesField(
         9,
         message(
@@ -48,13 +48,12 @@ test('delta pages parse deletions and the next sync cycle flag', () => {
     );
     const response = bytesField(
         1,
-        message(bytesField(1, ''), bytesField(6, 'next-sync'), deletion, numberField(7, 2))
+        message(bytesField(1, ''), bytesField(6, 'next-sync'), deletion)
     );
     const page = parseLibraryPage(response).unwrap();
 
     expect(page.deletedMediaKeys).toEqual(['media-removed']);
     expect(page.syncToken?.toString()).toBe('next-sync');
-    expect(page.moreSync).toBe(true);
 });
 
 test('an empty resume token ends pagination even when the sync token remains', () => {

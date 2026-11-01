@@ -130,7 +130,7 @@ export function fetcherFor(
     items: readonly Item[],
     pages: readonly Buffer[],
     counts: Counts,
-    options: { delta: Buffer; rejectDelta?: boolean }
+    options: { delta: Buffer; deltaStatus?: number; prepareStatus?: number }
 ): Fetcher {
     const byKey = new Map(items.map((item) => [item.mediaKey, item]));
 
@@ -147,7 +147,11 @@ export function fetcherFor(
             const tokens = await requestTokens(init?.body);
             if (tokens.sync) {
                 counts.delta++;
-                if (options.rejectDelta) return new Response(null, { status: 400 });
+                if (options.deltaStatus)
+                    return new Response(null, {
+                        status: options.deltaStatus,
+                        headers: { 'retry-after': '9' }
+                    });
 
                 return new Response(new Uint8Array(options.delta));
             }
@@ -160,6 +164,8 @@ export function fetcherFor(
 
         if (url.includes(PREPARE_URL)) {
             counts.prepare++;
+            if (options.prepareStatus) return new Response(null, { status: options.prepareStatus });
+
             const request = Buffer.from(await new Response(init?.body).arrayBuffer());
             const mediaKey = nested(request, 1, 1, 1).andThen(utf8).unwrap();
             const item = byKey.get(mediaKey);

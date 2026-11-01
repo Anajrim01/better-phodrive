@@ -102,8 +102,8 @@ export function applyLibraryDelta(
         if (item.email.toLowerCase() === email.toLowerCase()) items.set(item.mediaKey, item);
     }
 
-    for (const mediaKey of update.deleted) items.delete(mediaKey);
     for (const item of update.items) items.set(item.mediaKey, { ...item, email });
+    for (const mediaKey of update.deleted) items.delete(mediaKey);
 
     return [...items.values()];
 }

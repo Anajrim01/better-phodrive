@@ -18,17 +18,6 @@ export type LibrarySyncResult = {
 
 type PageRead = { page: LibraryPage } | { error: ServerError };
 
-const REJECTED_STATE_CODES = new Set([
-    'INVALID_PROTOBUF_FIELD',
-    'INVALID_PROTOBUF_FIELD_TYPE',
-    'INVALID_PROTOBUF_INTEGER',
-    'TRUNCATED_PROTOBUF_FIELD',
-    'UNSUPPORTED_PROTOBUF_FIELD',
-    'MISSING_OR_AMBIGUOUS_PROTOBUF_FIELD',
-    'OVERSIZED_PROTOBUF_INTEGER',
-    'INVALID_UTF_8_IN_RESPONSE'
-]);
-
 function pageRead(received: Result<LibraryPage, ServerError>): PageRead {
     return received.match<PageRead>({
         Ok: (page) => ({ page }),
@@ -37,13 +26,7 @@ function pageRead(received: Result<LibraryPage, ServerError>): PageRead {
 }
 
 function rejectedState(error: ServerError): boolean {
-    if (error.code === 'REQUEST_FAILED') {
-        const status = error.status;
-
-        return status !== undefined && status >= 400 && status < 500 && status !== 429;
-    }
-
-    return REJECTED_STATE_CODES.has(error.code);
+    return error.code === 'LIBRARY_SYNC_REJECTED';
 }
 
 function fetchFullSync(
@@ -163,15 +146,19 @@ export function syncLibrary(
                 return await applyFullSync(email, token, fetcher);
             }
 
-            if (read.value.items.length === 0 && read.value.deleted.length === 0) {
+            const indexChanged =
+                read.value.items.length > 0 ||
+                read.value.deleted.some((mediaKey) => stored.items.has(mediaKey));
+
+            if (!indexChanged) {
                 updateAccountSyncToken(email, read.value.syncToken);
 
-                return Ok({ items: [], deleted: [], full: false });
+                return Ok({ items: [], deleted: read.value.deleted, full: false });
             }
 
             const items = new Map(stored.items);
-            for (const mediaKey of read.value.deleted) items.delete(mediaKey);
             for (const item of read.value.items) items.set(item.mediaKey, item);
+            for (const mediaKey of read.value.deleted) items.delete(mediaKey);
 
             writeAccountState(email, read.value.syncToken, items.values());
 

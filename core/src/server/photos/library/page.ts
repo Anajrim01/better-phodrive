@@ -12,13 +12,33 @@ import { namedAsNonPhodrive, probeLibraryItem } from './probe';
 
 const LIBRARY_URL = 'https://photosdata-pa.googleapis.com/6439526531001121323/18047484249733410717';
 const LIBRARY_PROBE_CONCURRENCY = 2;
+const REJECTED_SYNC_CODES = new Set([
+    'INVALID_PROTOBUF_FIELD',
+    'INVALID_PROTOBUF_FIELD_TYPE',
+    'INVALID_PROTOBUF_INTEGER',
+    'TRUNCATED_PROTOBUF_FIELD',
+    'UNSUPPORTED_PROTOBUF_FIELD',
+    'MISSING_OR_AMBIGUOUS_PROTOBUF_FIELD',
+    'OVERSIZED_PROTOBUF_INTEGER',
+    'INVALID_UTF_8_IN_RESPONSE'
+]);
+const REJECTED_SYNC_STATUSES = new Set([400, 404, 410]);
+
+function classifyDeltaError(error: ServerError): ServerError {
+    if (error.code === 'REQUEST_FAILED' && error.status !== undefined) {
+        return REJECTED_SYNC_STATUSES.has(error.status)
+            ? SERVER_ERRORS.LIBRARY_SYNC_REJECTED
+            : error;
+    }
+
+    return REJECTED_SYNC_CODES.has(error.code) ? SERVER_ERRORS.LIBRARY_SYNC_REJECTED : error;
+}
 
 export type LibraryPage = {
     items: RemoteBmp[];
     nextPageToken: string;
     syncToken?: Buffer;
     deletedMediaKeys: string[];
-    moreSync: boolean;
 };
 
 export function readLibraryPage(
@@ -49,8 +69,22 @@ export function readLibraryPage(
                 .andThenAsync((response) => readBody(response, 'Library list'))
                 .andThen(parseLibraryPage)
         );
+        const classified = syncToken ? received.mapErr(classifyDeltaError) : received;
 
-        return received.andThenAsync((page) => scanLibraryPage(email, page, headers, fetcher));
+        return classified.andThenAsync(async (page) => {
+            const scanned = await scanLibraryPage(email, page, headers, fetcher);
+            if (!syncToken) return scanned;
+
+            return scanned.map((result) => ({
+                ...result,
+                deletedMediaKeys: [
+                    ...result.deletedMediaKeys,
+                    ...page.items
+                        .filter((item) => namedAsNonPhodrive(item))
+                        .map((item) => item.mediaKey)
+                ]
+            }));
+        });
     });
 }
 
@@ -81,8 +115,7 @@ function scanLibraryPage(
             items,
             nextPageToken: page.nextPageToken,
             ...(page.syncToken ? { syncToken: page.syncToken } : {}),
-            deletedMediaKeys: page.deletedMediaKeys,
-            moreSync: page.moreSync
+            deletedMediaKeys: page.deletedMediaKeys
         });
     });
 }

@@ -10,6 +10,9 @@ export function isRemoteBmp(value: unknown): value is RemoteBmp {
         typeof item.fileId === 'string' &&
         typeof item.mediaKey === 'string' &&
         typeof item.sha1 === 'string' &&
-        typeof item.size === 'number'
+        typeof item.size === 'number' &&
+        typeof item.chunkIndex === 'number' &&
+        typeof item.isLast === 'boolean' &&
+        typeof item.at === 'number'
     );
 }
