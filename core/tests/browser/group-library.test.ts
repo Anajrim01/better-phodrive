@@ -151,6 +151,22 @@ test('a group refresh reads one page per member and keeps items already loaded',
     expect(snapshot.partial).toBe(false);
 });
 
+test('a group refresh matches loaded items regardless of email case', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+        Response.json({ items: [remote('fresh')], nextPageToken: '' })
+    );
+    const loaded = [{ ...remote('kept'), email: 'owner@example.com' }];
+
+    const updated = await readGroupLibraryUpdates(
+        [{ email: 'Owner@Example.com', token: 'aas_et/owner' }],
+        [],
+        loaded
+    );
+    const snapshot = updated.unwrap();
+
+    expect(snapshot.chunks.map((chunk) => chunk.mediaKey).toSorted()).toEqual(['fresh', 'kept']);
+});
+
 test('a failed group member keeps its loaded items and reports the pause', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch');
     fetchMock.mockImplementation(async (_input, init) => {
