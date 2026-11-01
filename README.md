@@ -133,7 +133,7 @@ The navigation sidebar totals My files: the original size of the loaded chunks, 
 
 ## File and folder actions
 
-Right-click a file or folder, press the context-menu key, or choose **More** to open its actions. File rows and cards keep their one-click **Download** and **Delete** buttons, and Trash keeps **Restore** and **Delete forever**. The menu adds **Rename**, **Move**, **Details**, and the folder actions **Move folder**, **Move contents to My files**, and **Delete folder and files**.
+Right-click a file or folder, press the context-menu key, or choose **More** to open its actions. File rows and cards keep their quick **Download** and **Delete** buttons, and Trash keeps **Restore** and **Delete forever**. The menu adds **Rename**, **Move**, **Details**, and the folder actions **Move folder**, **Move contents to My files**, and **Delete folder and files**.
 
 Renames and moves are Phodrive listing metadata only. They are saved by the server and survive reloads, another browser using the same server, and a full index rebuild, but they do not change Google Photos item names, albums, or the names and folders stored in chunk headers. Downloads still return the original file. Renaming a folder changes its path prefix, including files in subfolders. A rename or move is rejected instead of merged when the destination already has that file name or folder, or when a folder would move into itself.
 
