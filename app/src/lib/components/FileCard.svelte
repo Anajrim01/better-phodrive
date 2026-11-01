@@ -27,6 +27,7 @@
         ondownload?: (item: FileGroup) => void;
         ondelete?: (item: FileGroup) => void;
         onrestore?: (item: FileGroup) => void;
+        onopenpreview?: (item: FileGroup, trigger: HTMLElement) => void;
         onmenu: (item: FileGroup, anchor: MenuAnchor) => void;
         onstartdrag?: (item: FileGroup, event: DragEvent) => void;
         onenddrag?: (event: DragEvent) => void;
@@ -46,6 +47,7 @@
         ondownload,
         ondelete,
         onrestore,
+        onopenpreview,
         onmenu,
         onstartdrag,
         onenddrag
@@ -67,7 +69,7 @@
     }
 
     function cardClick(event: MouseEvent): void {
-        if (interactive(event.target)) return;
+        if (event.detail > 1 || interactive(event.target)) return;
 
         onselect?.(item, event, 'point');
     }
@@ -105,6 +107,16 @@
         if (!selected) oncontextselect?.(item);
         onmenu(item, { x: event.clientX, y: event.clientY });
     }
+
+    function cardDoubleClick(event: MouseEvent): void {
+        if (disabled || interactive(event.target)) return;
+
+        const shell = event.currentTarget;
+        if (!(shell instanceof HTMLElement)) return;
+
+        shell.focus();
+        onopenpreview?.(item, shell);
+    }
 </script>
 
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions, a11y_no_noninteractive_tabindex -->
@@ -113,10 +125,11 @@
     class:selected
     role="group"
     aria-label={item.name}
-    data-file-key={fileKey(item)}
     tabindex="0"
     draggable={!disabled}
+    data-file-key={fileKey(item)}
     onclick={cardClick}
+    ondblclick={cardDoubleClick}
     onkeydown={cardKeydown}
     oncontextmenu={contextMenu}
     onpointerdowncapture={(event) => (dragOrigin = event.target)}

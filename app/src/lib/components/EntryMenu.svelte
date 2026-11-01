@@ -10,6 +10,7 @@
         type MenuPoint,
         type MenuTarget
     } from '#browser/drive/menu-types';
+    import IconPreview from '~icons/material-symbols/visibility';
     import IconDownload from '~icons/material-symbols/download';
     import IconRename from '~icons/material-symbols/drive-file-rename-outline';
     import IconMove from '~icons/material-symbols/drive-file-move-outline';
@@ -218,7 +219,8 @@
         {#if entry.divider}<Divider />{/if}
         <MenuItem {disabled} onclick={() => choose(entry.action)}>
             {#snippet start()}
-                {#if entry.action === 'download'}<IconDownload aria-hidden="true" />
+                {#if entry.action === 'preview'}<IconPreview aria-hidden="true" />
+                {:else if entry.action === 'download'}<IconDownload aria-hidden="true" />
                 {:else if entry.action === 'rename'}<IconRename aria-hidden="true" />
                 {:else if entry.action === 'move' || entry.action === 'move-contents'}<IconMove
                         aria-hidden="true"

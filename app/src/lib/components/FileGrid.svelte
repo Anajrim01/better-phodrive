@@ -50,6 +50,7 @@
         ondownload: (item: FileGroup) => void;
         ondelete: (item: FileGroup) => void;
         onrestore: (item: FileGroup) => void;
+        onopenpreview?: (item: FileGroup, trigger: HTMLElement) => void;
         onfilemenu: (item: FileGroup, anchor: MenuAnchor) => void;
         onfoldermenu: (folder: FolderEntry, anchor: MenuAnchor) => void;
         onmore: () => void;
@@ -83,6 +84,7 @@
         ondownload,
         ondelete,
         onrestore,
+        onopenpreview,
         onfilemenu,
         onfoldermenu,
         onmore
@@ -127,6 +129,7 @@
                     {ondownload}
                     {ondelete}
                     {onrestore}
+                    {onopenpreview}
                     onmenu={onfilemenu}
                 />
             {:else}
@@ -155,6 +158,7 @@
                                 {ondownload}
                                 {ondelete}
                                 {onrestore}
+                                {onopenpreview}
                                 onmenu={onfilemenu}
                             />
                         </li>

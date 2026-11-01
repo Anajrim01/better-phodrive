@@ -80,6 +80,10 @@
         drive.confirmOpen = true;
     }
 
+    function openPreview(item: FileGroup, trigger: HTMLElement) {
+        manage.openPreview({ kind: 'file', item }, trigger);
+    }
+
     function navigate(nextView: AppView): void {
         view = nextView;
         selection.clear();
@@ -241,6 +245,7 @@
                 ondownload={download}
                 ondelete={confirmTrash}
                 onrestore={restore}
+                onopenpreview={openPreview}
                 onfilemenu={(item, anchor) => manage.openMenu({ kind: 'file', item }, anchor)}
                 onfoldermenu={(folder, anchor) =>
                     manage.openMenu({ kind: 'folder', entry: folder }, anchor)}

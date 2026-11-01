@@ -1,5 +1,8 @@
-import type { FolderEntry } from '@madkarmaa/phodrive-core/files';
+import type { FileGroup, FolderEntry } from '@madkarmaa/phodrive-core/files';
 import { FileNameSchema } from '@madkarmaa/phodrive-core/models';
+import type { ApplicationError } from '@madkarmaa/phodrive-core/errors';
+import { downloadRoute } from '@madkarmaa/phodrive-core/groups';
+import { Err, Ok, type Result } from 'results-ts';
 import {
     deleteFolder,
     moveFile,
@@ -49,6 +52,7 @@ export class DriveManage {
     dialogTarget = $state<EntryTarget | null>(null);
     dialogError = $state('');
     dialogBusy = $state(false);
+    previewToken = $state('');
 
     private returnFocus: HTMLElement | null = null;
 
@@ -76,6 +80,14 @@ export class DriveManage {
 
     get detailOwners(): string[] {
         return detailOwners(this.deps.files(), this.dialogTarget);
+    }
+
+    get menuTrigger(): HTMLElement | null {
+        return this.returnFocus;
+    }
+
+    get showOwner(): boolean {
+        return this.deps.groupMode();
     }
 
     openMenu(target: MenuTarget, anchor: MenuAnchor): void {
@@ -111,18 +123,42 @@ export class DriveManage {
         this.openDialog('details', target);
     }
 
+    openPreview(target: EntryTarget, trigger?: HTMLElement | null): void {
+        if (this.deps.busy() || this.deps.loading() || this.dialogBusy) return;
+        if (target.kind !== 'file') return;
+
+        const routed = this.previewRoute(target.item);
+        if (routed.isErr()) {
+            this.deps.feedback(routed.unwrapErr().message);
+
+            return;
+        }
+
+        this.menuOpen = false;
+        this.dialog = 'preview';
+        this.dialogTarget = target;
+        this.dialogError = '';
+        this.previewToken = routed.unwrap();
+        this.returnFocus =
+            trigger ??
+            (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+    }
+
     openFolderDelete(entry: FolderEntry): void {
         this.openDialog('delete-folder', { kind: 'folder', entry });
     }
 
-    closeDialog(): void {
+    closeDialog(restoreFocus = true): void {
         if (this.dialogBusy) return;
 
         this.dialog = null;
         this.dialogTarget = null;
         this.dialogError = '';
+        this.previewToken = '';
         const focus = this.returnFocus;
         this.returnFocus = null;
+        if (!restoreFocus) return;
+
         queueMicrotask(() => {
             if (focus?.isConnected) focus.focus();
         });
@@ -199,6 +235,20 @@ export class DriveManage {
         navigate(this.deps, deleteNavigation(target));
     }
 
+    private previewRoute(item: FileGroup): Result<string, ApplicationError> {
+        if (this.deps.groupMode())
+            return downloadRoute(item, this.deps.routeMembers()).map((route) => route.token);
+
+        const { email, token } = this.deps.account();
+        if (item.email !== email || !token)
+            return Err({
+                code: 'REQUEST_FAILED',
+                message: 'Select the connected account for this file before previewing it.'
+            } as const);
+
+        return Ok(token);
+    }
+
     private openDialog(dialog: ManageDialog, target: EntryTarget): void {
         if (this.deps.busy() || this.deps.loading() || this.dialogBusy) return;
 
@@ -206,6 +256,7 @@ export class DriveManage {
         this.dialog = dialog;
         this.dialogTarget = target;
         this.dialogError = '';
+        this.previewToken = '';
     }
 
     private async run(target: EntryTarget, action: ManageAction): Promise<boolean> {
