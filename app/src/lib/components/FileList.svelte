@@ -2,7 +2,12 @@
     import { Button } from 'noph-ui';
     import prettyBytes from 'pretty-bytes';
     import { FileSort } from '@madkarmaa/phodrive-core/models';
-    import { fileKey, type FileAction, type FileGroup } from '@madkarmaa/phodrive-core/files';
+    import {
+        fileActionKind,
+        fileKey,
+        type FileAction,
+        type FileGroup
+    } from '@madkarmaa/phodrive-core/files';
     import LocalizedDate from '#components/LocalizedDate.svelte';
     import FileActions from '#components/FileActions.svelte';
     import MoreButton from '#components/MoreButton.svelte';
@@ -159,7 +164,7 @@
                                 compact
                                 {trash}
                                 {partial}
-                                working={action?.fileId === item.fileId ? action.kind : null}
+                                working={fileActionKind(action, item)}
                                 {ondownload}
                                 {ondelete}
                                 {onrestore}

@@ -4,7 +4,12 @@
     import { fade } from 'svelte/transition';
     import { flip } from 'svelte/animate';
     import { prefersReducedMotion } from 'svelte/motion';
-    import type { FileAction, FileGroup, FolderEntry } from '@madkarmaa/phodrive-core/files';
+    import {
+        fileActionKind,
+        type FileAction,
+        type FileGroup,
+        type FolderEntry
+    } from '@madkarmaa/phodrive-core/files';
     import { fileKey } from '@madkarmaa/phodrive-core/files';
     import FileCard from '#components/FileCard.svelte';
     import FileList from '#components/FileList.svelte';
@@ -92,7 +97,7 @@
                             {disabled}
                             {showOwner}
                             partial={hasMore}
-                            working={action?.fileId === item.fileId ? action.kind : null}
+                            working={fileActionKind(action, item)}
                             {ondownload}
                             {ondelete}
                             {onrestore}
