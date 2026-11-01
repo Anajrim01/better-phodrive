@@ -125,21 +125,19 @@ export class DriveManage {
         if (this.deps.busy() || this.deps.loading() || this.dialogBusy) return;
         if (target.kind !== 'file') return;
 
-        const routed = previewRoute(target.item, this.deps);
-        if (routed.isErr()) {
-            this.deps.feedback(routed.unwrapErr().message);
-
-            return;
-        }
-
-        this.menuOpen = false;
-        this.dialog = 'preview';
-        this.dialogTarget = target;
-        this.dialogError = '';
-        this.previewToken = routed.unwrap();
-        this.returnFocus =
-            trigger ??
-            (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+        previewRoute(target.item, this.deps).match({
+            Ok: (token) => {
+                this.menuOpen = false;
+                this.dialog = 'preview';
+                this.dialogTarget = target;
+                this.dialogError = '';
+                this.previewToken = token;
+                this.returnFocus =
+                    trigger ??
+                    (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+            },
+            Err: (error) => this.deps.feedback(error.message)
+        });
     }
 
     openFolderDelete(entry: FolderEntry): void {
