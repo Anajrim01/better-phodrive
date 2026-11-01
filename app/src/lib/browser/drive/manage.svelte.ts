@@ -119,8 +119,8 @@ export class DriveManage {
         this.openDialog('move', target);
     }
 
-    openDetails(target: EntryTarget): void {
-        this.openDialog('details', target);
+    openDetails(target: EntryTarget, trigger?: HTMLElement | null): void {
+        this.openDialog('details', target, trigger);
     }
 
     openPreview(target: EntryTarget, trigger?: HTMLElement | null): void {
@@ -249,7 +249,11 @@ export class DriveManage {
         return Ok(token);
     }
 
-    private openDialog(dialog: ManageDialog, target: EntryTarget): void {
+    private openDialog(
+        dialog: ManageDialog,
+        target: EntryTarget,
+        trigger?: HTMLElement | null
+    ): void {
         if (this.deps.busy() || this.deps.loading() || this.dialogBusy) return;
 
         this.menuOpen = false;
@@ -257,6 +261,7 @@ export class DriveManage {
         this.dialogTarget = target;
         this.dialogError = '';
         this.previewToken = '';
+        if (trigger !== undefined) this.returnFocus = trigger;
     }
 
     private async run(target: EntryTarget, action: ManageAction): Promise<boolean> {

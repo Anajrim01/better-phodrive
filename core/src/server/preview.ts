@@ -58,19 +58,14 @@ export function previewFile(
                 return unavailable(PreviewUnavailableReason.TooLarge);
         }
 
-        const opened = await openChunk(input, first, signal, throttle);
-        if (opened.isErr()) return Err(opened.unwrapErr());
+        return openChunk(input, first, signal, throttle).andThenAsync(async (reader) => {
+            const read =
+                mode === PreviewMode.Image
+                    ? await readImage(reader, first)
+                    : await readText(reader, first, chunks.length > 1);
+            const closed = await reader.close();
 
-        const reader = opened.unwrap();
-        const read =
-            mode === PreviewMode.Image
-                ? await readImage(reader, first)
-                : await readText(reader, first, chunks.length > 1);
-        const closed = await reader.close();
-
-        if (read.isErr()) return read;
-        if (closed.isErr()) return Err(closed.unwrapErr());
-
-        return read;
+            return closed.andThen<PreviewResult, ServerError>(() => read);
+        });
     });
 }

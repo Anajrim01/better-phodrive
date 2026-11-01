@@ -1,4 +1,4 @@
-import { Err, Ok, type Result } from 'results-ts';
+import { Ok, type AsyncResult } from 'results-ts';
 import type { RemoteBmp } from '../../models';
 import { PreviewUnavailableReason, type PreviewResult } from '../../preview';
 import type { SplitBmpReader } from '../bmp/stream';
@@ -62,25 +62,28 @@ function imageIsComplete(contentType: string, bytes: Uint8Array): boolean {
     return false;
 }
 
-export async function readImage(
+export function readImage(
     reader: SplitBmpReader,
     chunk: RemoteBmp
-): Promise<Result<PreviewResult, ServerError>> {
-    const stored = await readStoredPayload(reader);
-    if (stored.isErr()) return Err(stored.unwrapErr());
+): AsyncResult<PreviewResult, ServerError> {
+    return readStoredPayload(reader).andThenAsync(async (stored) => {
+        const bytes =
+            chunk.compressed === true ? await decompressPayload(stored, chunk.size) : Ok(stored);
 
-    const bytes: Result<Uint8Array, ServerError> =
-        chunk.compressed === true
-            ? await decompressPayload(stored.unwrap(), chunk.size)
-            : Ok(stored.unwrap());
-    if (bytes.isErr()) return Err(bytes.unwrapErr());
+        return bytes.andThen<PreviewResult, ServerError>((image) => {
+            const contentType = detectImageType(image);
+            if (contentType === null)
+                return Ok({
+                    kind: 'unavailable',
+                    reason: PreviewUnavailableReason.UnsupportedImage
+                });
+            if (!imageIsComplete(contentType, image))
+                return Ok({
+                    kind: 'unavailable',
+                    reason: PreviewUnavailableReason.IncompleteImage
+                });
 
-    const image = bytes.unwrap();
-    const contentType = detectImageType(image);
-    if (contentType === null)
-        return Ok({ kind: 'unavailable', reason: PreviewUnavailableReason.UnsupportedImage });
-    if (!imageIsComplete(contentType, image))
-        return Ok({ kind: 'unavailable', reason: PreviewUnavailableReason.IncompleteImage });
-
-    return Ok({ kind: 'image', bytes: image, contentType });
+            return Ok({ kind: 'image', bytes: image, contentType });
+        });
+    });
 }

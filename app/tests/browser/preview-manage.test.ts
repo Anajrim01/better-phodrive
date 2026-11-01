@@ -79,6 +79,25 @@ test('opening a preview routes the owner token and closing restores focus', asyn
     trigger.remove();
 });
 
+test('Details from a preview keeps the original trigger for focus return', async () => {
+    const trigger = document.createElement('button');
+    document.body.append(trigger);
+    trigger.focus();
+    const { manage } = makeManage();
+
+    manage.openPreview({ kind: 'file', item: file() }, trigger);
+    const previewTrigger = manage.menuTrigger;
+    manage.closeDialog(false);
+    manage.openDetails({ kind: 'file', item: file() }, previewTrigger);
+    expect(manage.dialog).toBe('details');
+
+    manage.closeDialog();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(document.activeElement).toBe(trigger);
+    trigger.remove();
+});
+
 test('a group member preview uses that member token', () => {
     const { manage } = makeManage({
         groupMode: () => true,

@@ -1,4 +1,4 @@
-import { Err, Ok, type Result } from 'results-ts';
+import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import type { RemoteBmp } from '../../models';
 import { PREVIEW_TEXT_LINES, PreviewUnavailableReason, type PreviewResult } from '../../preview';
 import type { SplitBmpReader } from '../bmp/stream';
@@ -17,12 +17,13 @@ function looksBinary(bytes: Uint8Array): boolean {
     return controls > 0 && controls / bytes.length > 0.02;
 }
 
-function decodeText(bytes: Uint8Array): Result<string, void> {
+function decodeText(bytes: Uint8Array, prefixBoundary: boolean): Result<string, void> {
     if (bytes.length === 0) return Ok('');
     if (looksBinary(bytes)) return Err(undefined);
 
     const decoder = new TextDecoder('utf-8', { fatal: true });
-    for (let trim = 0; trim <= 3 && trim < bytes.length; trim++) {
+    const trims = prefixBoundary ? 3 : 0;
+    for (let trim = 0; trim <= trims && trim < bytes.length; trim++) {
         try {
             return Ok(decoder.decode(bytes.subarray(0, bytes.length - trim)));
         } catch {
@@ -40,23 +41,25 @@ function boundLines(text: string): { text: string; truncated: boolean } {
     return { text: lines.slice(0, PREVIEW_TEXT_LINES).join('\n'), truncated: true };
 }
 
-export async function readText(
+export function readText(
     reader: SplitBmpReader,
     chunk: RemoteBmp,
     moreChunks: boolean
-): Promise<Result<PreviewResult, ServerError>> {
-    const prefix = await readTextPrefix(reader, chunk);
-    if (prefix.isErr()) return Err(prefix.unwrapErr());
+): AsyncResult<PreviewResult, ServerError> {
+    return readTextPrefix(reader, chunk).andThen(({ bytes, truncated }) => {
+        const decoded = decodeText(bytes, truncated || moreChunks).match<PreviewResult>({
+            Ok: (value) => {
+                const bounded = boundLines(value);
 
-    const { bytes, truncated } = prefix.unwrap();
-    const text = decodeText(bytes);
-    if (text.isErr()) return Ok({ kind: 'unavailable', reason: PreviewUnavailableReason.Binary });
+                return {
+                    kind: 'text',
+                    text: bounded.text,
+                    truncated: truncated || bounded.truncated || moreChunks
+                };
+            },
+            Err: () => ({ kind: 'unavailable', reason: PreviewUnavailableReason.Binary })
+        });
 
-    const bounded = boundLines(text.unwrap());
-
-    return Ok({
-        kind: 'text',
-        text: bounded.text,
-        truncated: truncated || bounded.truncated || moreChunks
+        return Ok(decoded);
     });
 }

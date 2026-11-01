@@ -1,4 +1,4 @@
-import { Err, Ok, type Result } from 'results-ts';
+import { Err, Ok, type AsyncResult } from 'results-ts';
 import type { SplitBmpReader } from '../bmp/stream';
 import type { ServerError } from '../errors';
 
@@ -14,22 +14,29 @@ export function concat(parts: readonly Uint8Array[], total: number): Uint8Array 
     return bytes;
 }
 
-export async function readStoredPayload(
-    reader: SplitBmpReader
-): Promise<Result<Uint8Array, ServerError>> {
-    const parts: Uint8Array[] = [];
-    let total = 0;
+export function readStoredPayload(reader: SplitBmpReader): AsyncResult<Uint8Array, ServerError> {
+    return Ok(undefined).andThenAsync(async () => {
+        const parts: Uint8Array[] = [];
+        let total = 0;
 
-    while (true) {
-        const next = await reader.readPayload();
-        if (next.isErr()) return Err(next.unwrapErr());
+        while (true) {
+            const next = await reader.readPayload();
+            let failure: ServerError | null = null;
+            const part = next.match({
+                Ok: (value) => value,
+                Err: (error) => {
+                    failure = error;
 
-        const part = next.unwrap();
-        if (part === null) break;
+                    return null;
+                }
+            });
+            if (failure !== null) return Err(failure);
+            if (part === null) break;
 
-        parts.push(part);
-        total += part.length;
-    }
+            parts.push(part);
+            total += part.length;
+        }
 
-    return Ok(concat(parts, total));
+        return Ok(concat(parts, total));
+    });
 }

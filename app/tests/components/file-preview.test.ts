@@ -2,7 +2,8 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import type { ComponentProps } from 'svelte';
-import { Err, Ok } from 'results-ts';
+import { Err, Ok, type Result } from 'results-ts';
+import type { ApplicationError } from '@madkarmaa/phodrive-core/errors';
 import { PreviewMode } from '@madkarmaa/phodrive-core/preview';
 import type { FileGroup, UploadedChunk } from '@madkarmaa/phodrive-core/files';
 import * as previewApi from '#browser/preview';
@@ -282,6 +283,34 @@ test('the dialog is labelled, focuses Close, and reports Escape through cancel',
     dialog.dispatchEvent(new Event('cancel'));
 
     expect(onclose).toHaveBeenCalled();
+});
+
+test('closing while loading does not apply a late result', async () => {
+    let resolve: (value: Result<previewApi.PreviewPayload, ApplicationError>) => void = () => {};
+    const pending = new Promise<Result<previewApi.PreviewPayload, ApplicationError>>((done) => {
+        resolve = done;
+    });
+    vi.mocked(previewApi.fetchFilePreview).mockReturnValue(
+        Ok(undefined).andThenAsync(() => pending)
+    );
+
+    const { view } = mount(file({ name: 'notes.txt' }));
+    await screen.findByText('Loading preview');
+
+    await view.rerender({
+        open: false,
+        target: { kind: 'file', item: file({ name: 'notes.txt' }) },
+        token: 'aas_et/test',
+        ondownload: vi.fn(),
+        ondetails: vi.fn(),
+        onclose: vi.fn()
+    });
+
+    resolve(Ok({ kind: 'text', text: 'late', truncated: false }));
+    await new Promise((done) => setTimeout(done, 0));
+
+    expect(view.container.querySelector('pre')).toBeNull();
+    expect(screen.queryByText('late')).toBeNull();
 });
 
 test('a cached payload is applied without a request', async () => {

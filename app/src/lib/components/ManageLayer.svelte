@@ -120,8 +120,9 @@
         ondownload(item);
     }}
     ondetails={(item) => {
+        const trigger = manage.menuTrigger;
         manage.closeDialog(false);
-        manage.openDetails({ kind: 'file', item });
+        manage.openDetails({ kind: 'file', item }, trigger);
     }}
     onclose={() => {
         if (manage.dialog === 'preview') manage.closeDialog();

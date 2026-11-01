@@ -7,7 +7,7 @@ import {
     type PreviewUnavailableReason
 } from '@madkarmaa/phodrive-core/preview';
 import { request } from '@madkarmaa/phodrive-core/browser/api';
-import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
+import { Err, Ok, type AsyncResult } from 'results-ts';
 
 const PREVIEW_API_URL = '/api/files/preview';
 
@@ -38,40 +38,44 @@ function previewRequest(
     };
 }
 
-async function readPayload(
+function readPayload(
     response: Response,
     mode: PreviewMode
-): Promise<Result<PreviewPayload, ApplicationError>> {
+): AsyncResult<PreviewPayload, ApplicationError> {
     if (mode === PreviewMode.Image) {
         const contentType = response.headers.get('content-type') ?? '';
-        if (contentType.startsWith('image/')) {
-            try {
-                const blob = await response.blob();
+        if (contentType.startsWith('image/'))
+            return Ok(undefined).andThenAsync<PreviewPayload, ApplicationError>(async () => {
+                try {
+                    const blob = await response.blob();
 
-                return Ok({ kind: 'image', blob, contentType });
-            } catch {
-                return Err({
-                    code: 'REQUEST_FAILED',
-                    message: 'Preview was interrupted. Try again.'
-                } as const);
-            }
+                    return Ok({ kind: 'image', blob, contentType });
+                } catch {
+                    return Err({
+                        code: 'REQUEST_FAILED',
+                        message: 'Preview was interrupted. Try again.'
+                    } as const);
+                }
+            });
+    }
+
+    return Ok(undefined).andThenAsync<PreviewPayload, ApplicationError>(async () => {
+        let data: unknown;
+        try {
+            data = await response.json();
+        } catch {
+            return Err({ code: 'REQUEST_FAILED', message: 'Preview failed' } as const);
         }
-    }
 
-    let data: unknown;
-    try {
-        data = await response.json();
-    } catch {
+        const unavailable = UnavailableSchema.safeParse(data);
+        if (unavailable.success)
+            return Ok({ kind: 'unavailable', reason: unavailable.data.reason });
+
+        const text = PreviewTextResponseSchema.safeParse(data);
+        if (text.success) return Ok({ kind: 'text', ...text.data });
+
         return Err({ code: 'REQUEST_FAILED', message: 'Preview failed' } as const);
-    }
-
-    const unavailable = UnavailableSchema.safeParse(data);
-    if (unavailable.success) return Ok({ kind: 'unavailable', reason: unavailable.data.reason });
-
-    const text = PreviewTextResponseSchema.safeParse(data);
-    if (text.success) return Ok({ kind: 'text', ...text.data });
-
-    return Err({ code: 'REQUEST_FAILED', message: 'Preview failed' } as const);
+    });
 }
 
 export function fetchFilePreview(

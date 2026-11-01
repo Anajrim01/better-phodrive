@@ -19,7 +19,7 @@ import { encodeSplitBmp } from '@madkarmaa/phodrive-core/server/bmp';
 import { compressPayload } from '@madkarmaa/phodrive-core/server/compress';
 import { previewFile } from '@madkarmaa/phodrive-core/server/preview';
 import { downloadBmp } from '@madkarmaa/phodrive-core/server/photos';
-import { throttleError } from '@madkarmaa/phodrive-core/server/errors';
+import { SERVER_ERRORS, throttleError } from '@madkarmaa/phodrive-core/server/errors';
 import { bmpResponse } from '../helpers/download';
 
 vi.mock('@madkarmaa/phodrive-core/server/photos', () => ({
@@ -96,6 +96,49 @@ async function fixture(
             chunks
         },
         bmps
+    };
+}
+
+function malformedCompressedTextFixture(): { input: FilePreviewRequest; bmp: Uint8Array } {
+    const name = 'notes.txt';
+    const stored = Buffer.alloc(1_000_000, 0xff);
+    const fileHash = sha256(Buffer.from('malformed-compressed-text'));
+    const fileId = sha256(Buffer.from(`malformed:${fileHash}`));
+    const bmp = encodeSplitBmp(stored, {
+        fileHash,
+        fileId,
+        chunkIndex: 0,
+        flags: SPLIT_FLAG_LAST | SPLIT_FLAG_COMPRESSED,
+        payloadSize: stored.length,
+        originalSize: 2_000_000,
+        fileName: name
+    }).unwrap();
+
+    return {
+        input: {
+            mode: PreviewMode.Text,
+            email: 'test@example.com',
+            token: 'aas_et/test',
+            name,
+            fileHash,
+            fileId,
+            chunks: [
+                {
+                    fileHash,
+                    fileId,
+                    chunkIndex: 0,
+                    isLast: true,
+                    originalName: name,
+                    size: 2_000_000,
+                    storedSize: stored.length,
+                    compressed: true,
+                    at: 1,
+                    mediaKey: 'chunk-0',
+                    sha1: sha1(bmp)
+                }
+            ]
+        },
+        bmp
     };
 }
 
@@ -260,6 +303,28 @@ test('a compressed large text prefix is bounded without buffering the chunk', as
     expect(result.truncated).toBe(true);
 });
 
+test('malformed compressed text stops reading after the decoder fails', async () => {
+    const { input, bmp } = malformedCompressedTextFixture();
+    let received = 0;
+    const cancelled = vi.fn();
+    vi.mocked(downloadBmp).mockImplementation(() =>
+        Ok(
+            bmpResponse(bmp, 1024, {
+                onRead: (bytes) => {
+                    received += bytes;
+                },
+                onCancel: cancelled
+            })
+        ).andThenAsync(async (response) => Ok(response))
+    );
+
+    const result = await previewFile(input);
+
+    expect(result.unwrapErr()).toEqual(SERVER_ERRORS.DECOMPRESSION_FAILED);
+    expect(received).toBeLessThan(bmp.length / 2);
+    expect(cancelled).toHaveBeenCalledOnce();
+});
+
 test('a small compressed text file decodes completely', async () => {
     const bytes = Buffer.from('hello from a compressed note\n');
     const { input, bmps } = await fixture('notes.txt', PreviewMode.Text, [bytes], true);
@@ -282,6 +347,34 @@ test.each([
 
     const result = (await previewFile(input)).unwrap();
     expect(result).toEqual({ kind: 'unavailable', reason: PreviewUnavailableReason.Binary });
+});
+
+test('invalid UTF-8 at the end of a complete file is rejected, not trimmed', async () => {
+    const { input, bmps } = await fixture('notes.txt', PreviewMode.Text, [
+        Buffer.from([0x61, 0x62, 0x63, 0xff])
+    ]);
+    serve(bmps);
+
+    expect((await previewFile(input)).unwrap()).toEqual({
+        kind: 'unavailable',
+        reason: PreviewUnavailableReason.Binary
+    });
+});
+
+test('a multibyte character split by the byte cap is trimmed at the prefix boundary', async () => {
+    const bytes = Buffer.concat([
+        Buffer.alloc(PREVIEW_TEXT_BYTES - 1, 0x61),
+        Buffer.from('é', 'utf8')
+    ]);
+    const { input, bmps } = await fixture('notes.txt', PreviewMode.Text, [bytes]);
+    serve(bmps);
+
+    const result = (await previewFile(input)).unwrap();
+    expect(result.kind).toBe('text');
+    if (result.kind !== 'text') return;
+
+    expect(result.text).toBe('a'.repeat(PREVIEW_TEXT_BYTES - 1));
+    expect(result.truncated).toBe(true);
 });
 
 test('unsupported names and mismatched modes do not contact Photos', async () => {
