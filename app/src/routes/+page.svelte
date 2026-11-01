@@ -1,5 +1,6 @@
 <script lang="ts">
     import { AppView, ConfirmKind, FileActionKind } from '@madkarmaa/phodrive-core/models';
+    import type { FileGroup } from '@madkarmaa/phodrive-core/files';
 
     import { onMount, untrack } from 'svelte';
     import type { PageData } from './$types';
@@ -12,11 +13,9 @@
     import ConfirmDialog from '#components/ConfirmDialog.svelte';
     import UploadSidebar from '#components/UploadSidebar.svelte';
     import UploadPanel from '#components/UploadPanel.svelte';
-    import FileFilters from '#components/FileFilters.svelte';
-    import GroupListingStatus from '#components/GroupListingStatus.svelte';
-    import FileGrid from '#components/FileGrid.svelte';
-    import LayoutToggle from '#components/LayoutToggle.svelte';
+    import FilesView from '#components/FilesView.svelte';
     import SettingsView from '#components/SettingsView.svelte';
+    import TrashView from '#components/TrashView.svelte';
     import ErrorFeedback from '#components/ErrorFeedback.svelte';
     import FileDrop from '#components/FileDrop.svelte';
     import { libraryStats } from '@madkarmaa/phodrive-core/stats';
@@ -46,6 +45,24 @@
         drive.accountEditor.adding = false;
         void drive.upload(files);
     }
+
+    function download(item: FileGroup) {
+        void drive.actOnFile(item, FileActionKind.Download);
+    }
+
+    function restore(item: FileGroup) {
+        void drive.actOnFile(item, FileActionKind.Restore);
+    }
+
+    function confirmTrash(item: FileGroup) {
+        drive.confirmTarget = { kind: ConfirmKind.File, item };
+        drive.confirmOpen = true;
+    }
+
+    function confirmPermanentDelete(item: FileGroup) {
+        drive.confirmTarget = { kind: ConfirmKind.PermanentDelete, item };
+        drive.confirmOpen = true;
+    }
 </script>
 
 {#if !drive.ready || !drive.selectedEmail || drive.accountEditor.adding || view !== AppView.Files}
@@ -74,6 +91,7 @@
             void drive.library.refresh(true);
         }}
         ontheme={(mode) => drive.settings.chooseTheme(mode)}
+        searchDisabled={view !== AppView.Files}
         bind:accountButton
     />
 
@@ -115,6 +133,22 @@
     >
         {#if drive.ready && view === AppView.Settings}
             <SettingsView {drive} defaults={data.preferencesDefaults} />
+        {:else if drive.ready && view === AppView.Trash && drive.selectedEmail}
+            <TrashView
+                files={drive.library.trashFiles}
+                bind:sort={drive.settings.fileSort}
+                disabled={actionsDisabled || drive.library.loading}
+                loading={drive.library.loading}
+                loadFailed={drive.library.loadFailed}
+                hasMore={!!drive.library.nextPageToken}
+                action={drive.fileAction}
+                showOwner={drive.groupMode.target !== null}
+                onrestore={restore}
+                ondeleteforever={confirmPermanentDelete}
+                onmore={() => {
+                    void drive.library.load(false);
+                }}
+            />
         {:else if drive.ready && (!drive.selectedEmail || drive.accountEditor.adding)}
             <div in:fade={{ duration: prefersReducedMotion.current ? 0 : 160 }}>
                 <div class="workspace-heading">
@@ -139,94 +173,14 @@
                 />
             </div>
         {:else if drive.ready}
-            <div
-                class="flex flex-1 flex-col"
-                in:fade={{ duration: prefersReducedMotion.current ? 0 : 160 }}
-            >
-                <div class="workspace-heading">
-                    <h1 id="files-heading" class="min-w-0">
-                        <span class="crumbs">
-                            <button
-                                type="button"
-                                class="crumb"
-                                class:current={!drive.library.folder}
-                                aria-current={!drive.library.folder ? 'page' : undefined}
-                                onclick={() => drive.library.openFolder('')}
-                            >
-                                My files
-                            </button>
-                            {#each drive.library.trail as crumb (crumb.path)}
-                                <span class="crumb-separator" aria-hidden="true">/</span>
-                                <button
-                                    type="button"
-                                    class="crumb"
-                                    class:current={drive.library.folder === crumb.path}
-                                    aria-current={drive.library.folder === crumb.path
-                                        ? 'page'
-                                        : undefined}
-                                    onclick={() => drive.library.openFolder(crumb.path)}
-                                >
-                                    {crumb.name}
-                                </button>
-                            {/each}
-                        </span>
-                        <span class="text-subtle tabular-nums"
-                            >({drive.library.visibleFiles.length})</span
-                        >
-                    </h1>
-                    <LayoutToggle bind:layout={drive.settings.fileLayout} />
-                </div>
-
-                {#if drive.groupMode.target}
-                    {@const target = drive.groupMode.target}
-                    <GroupListingStatus
-                        groupName={target.group.name}
-                        total={target.group.accounts.length}
-                        accounts={drive.library.accounts}
-                    />
-                {/if}
-
-                <FileFilters
-                    types={drive.library.availableTypes}
-                    bind:type={drive.library.typeFilter}
-                    bind:days={drive.library.modifiedDays}
-                    bind:sort={drive.settings.fileSort}
-                />
-                <FileDrop
-                    disabled={actionsDisabled ||
-                        drive.library.loading ||
-                        drive.confirmOpen ||
-                        drive.accountMenuOpen}
-                    onupload={upload}
-                >
-                    <FileGrid
-                        files={drive.library.visibleFiles}
-                        folders={drive.library.filtering ? [] : drive.library.folders}
-                        layout={drive.settings.fileLayout}
-                        bind:sort={drive.settings.fileSort}
-                        loading={drive.library.loading}
-                        loadFailed={drive.library.loadFailed}
-                        filtered={drive.library.filtering}
-                        hasFiles={!!drive.library.files.length}
-                        hasMore={!!drive.library.nextPageToken}
-                        disabled={actionsDisabled || drive.library.loading}
-                        showFolder={drive.library.filtering}
-                        showOwner={drive.groupMode.target !== null}
-                        action={drive.fileAction}
-                        onopenfolder={(path) => drive.library.openFolder(path)}
-                        ondownload={(item) => {
-                            void drive.actOnFile(item, FileActionKind.Download);
-                        }}
-                        ondelete={(item) => {
-                            drive.confirmTarget = { kind: ConfirmKind.File, item };
-                            drive.confirmOpen = true;
-                        }}
-                        onmore={() => {
-                            void drive.library.load(false);
-                        }}
-                    />
-                </FileDrop>
-            </div>
+            <FilesView
+                {drive}
+                {actionsDisabled}
+                onupload={upload}
+                ondownload={download}
+                ondelete={confirmTrash}
+                onrestore={restore}
+            />
         {/if}
     </main>
 </div>
@@ -240,45 +194,3 @@
         void drive.retryUpload(id);
     }}
 />
-
-<style>
-    .crumbs {
-        display: inline-flex;
-        flex-wrap: wrap;
-        align-items: baseline;
-        column-gap: 8px;
-        row-gap: 0;
-    }
-
-    .crumb {
-        max-width: 100%;
-        min-width: 0;
-        padding: 4px 0;
-        overflow: hidden;
-        border-radius: 8px;
-        color: var(--app-muted);
-        font: inherit;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        transition: color var(--np-motion-standard-fast-effects);
-    }
-
-    .crumb:hover {
-        color: var(--app-text);
-        text-decoration: underline;
-        text-underline-offset: 6px;
-    }
-
-    .crumb.current {
-        color: var(--app-text);
-    }
-
-    .crumb:focus-visible {
-        outline: 3px solid var(--app-primary);
-        outline-offset: 2px;
-    }
-
-    .crumb-separator {
-        color: var(--app-subtle);
-    }
-</style>

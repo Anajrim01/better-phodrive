@@ -189,6 +189,8 @@ test('a merged file row shows its owner', () => {
                         }
                     ],
                     duplicates: [],
+                    trashedChunks: [],
+                    trashed: false,
                     complete: true
                 }
             ],

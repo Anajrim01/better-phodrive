@@ -13,6 +13,8 @@ function file(name: string, at: number): FileGroup {
         chunkCount: null,
         chunks: [],
         duplicates: [],
+        trashedChunks: [],
+        trashed: false,
         complete: false
     };
 }

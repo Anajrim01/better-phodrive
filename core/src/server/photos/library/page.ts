@@ -8,7 +8,7 @@ import { guardedSend, readBody } from '../transport';
 import { bodyBytes } from '../../protobuf';
 import { pageRequest, parseLibraryPage, stateRequest, type ParsedLibraryPage } from './metadata';
 import { LIBRARY_STATE_REQUEST } from './requests';
-import { namedAsNonPhodrive, probeLibraryItem } from './probe';
+import { namedAsNonPhodrive, parseChunkName, probeLibraryItem, trashedChunkItem } from './probe';
 
 const LIBRARY_URL = 'https://photosdata-pa.googleapis.com/6439526531001121323/18047484249733410717';
 const LIBRARY_PROBE_CONCURRENCY = 2;
@@ -39,6 +39,8 @@ export type LibraryPage = {
     nextPageToken: string;
     syncToken?: Buffer;
     deletedMediaKeys: string[];
+    trashedMediaKeys: string[];
+    skippedMediaKeys: string[];
 };
 
 function libraryRequest(
@@ -78,21 +80,9 @@ export function readLibraryPage(
         );
         const classified = syncToken ? received.mapErr(classifyDeltaError) : received;
 
-        return classified.andThenAsync(async (page) => {
-            const scanned = await scanLibraryPage(email, page, headers, fetcher);
-            if (!syncToken) return scanned;
-
-            return scanned.map((result) => ({
-                ...result,
-                deletedMediaKeys: [
-                    ...result.deletedMediaKeys,
-                    ...page.hiddenMediaKeys,
-                    ...page.items
-                        .filter((item) => namedAsNonPhodrive(item))
-                        .map((item) => item.mediaKey)
-                ]
-            }));
-        });
+        return classified.andThenAsync(async (page) =>
+            scanLibraryPage(email, page, headers, fetcher)
+        );
     });
 }
 
@@ -104,26 +94,59 @@ function scanLibraryPage(
 ): AsyncResult<LibraryPage, ServerError> {
     return Ok(undefined).andThenAsync(async () => {
         const candidates = page.items.filter((candidate) => !namedAsNonPhodrive(candidate));
+        const visible = candidates.filter((candidate) => !candidate.trashed);
+        const hidden = candidates.filter((candidate) => candidate.trashed);
         const limit = pLimit(LIBRARY_PROBE_CONCURRENCY);
-        const scanned = await limit.map(candidates, (candidate) =>
+        const scanned = await limit.map(visible, (candidate) =>
             probeLibraryItem(email, candidate, headers.commonHeaders, headers.rpcHeaders, fetcher)
         );
 
-        const items: RemoteBmp[] = [];
+        const itemsByKey = new Map<string, RemoteBmp>();
+        const folders = new Map<string, string>();
 
         for (const result of scanned) {
             if (result.isErr()) return result;
 
             result.inspect((item) => {
-                if (item !== null) items.push(item);
+                if (item === null) return;
+
+                itemsByKey.set(item.mediaKey, item);
+                const key = chunkKey(item.fileHash, item.originalName);
+                if (item.folder && key) folders.set(key, item.folder);
             });
         }
+
+        for (const candidate of hidden) {
+            const parsed = parseChunkName(candidate.fileName);
+            const key = parsed ? chunkKey(parsed.fileHash, parsed.originalName) : null;
+            const item = trashedChunkItem(email, candidate, key ? folders.get(key) : undefined);
+            if (item) itemsByKey.set(item.mediaKey, item);
+        }
+
+        const items = candidates.flatMap((candidate) => {
+            const item = itemsByKey.get(candidate.mediaKey);
+
+            return item ? [item] : [];
+        });
 
         return Ok({
             items,
             nextPageToken: page.nextPageToken,
             ...(page.syncToken ? { syncToken: page.syncToken } : {}),
-            deletedMediaKeys: page.deletedMediaKeys
+            deletedMediaKeys: page.deletedMediaKeys,
+            trashedMediaKeys: [
+                ...page.hiddenMediaKeys,
+                ...page.items
+                    .filter((candidate) => candidate.trashed)
+                    .map((candidate) => candidate.mediaKey)
+            ],
+            skippedMediaKeys: page.items
+                .filter((candidate) => !candidate.trashed && namedAsNonPhodrive(candidate))
+                .map((candidate) => candidate.mediaKey)
         });
     });
+}
+
+function chunkKey(fileHash: string, originalName?: string): string | null {
+    return originalName === undefined ? null : `${fileHash}\u0000${originalName}`;
 }

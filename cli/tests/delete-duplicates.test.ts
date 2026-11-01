@@ -56,6 +56,8 @@ test('cli delete sends both stored copies of the same file', async () => {
         chunkCount: 1,
         chunks: [chunks],
         duplicates: [duplicates],
+        trashedChunks: [],
+        trashed: false,
         complete: true
     };
     const output = new PassThrough();

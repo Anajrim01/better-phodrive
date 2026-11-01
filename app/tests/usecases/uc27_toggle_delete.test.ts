@@ -123,7 +123,10 @@ test('a toggle and re-upload keeps the old chunk for onChunk delete', async () =
     await vi.waitFor(() => expect(requested).toHaveLength(2));
     expect(requested.map((item) => item.mediaKey).sort()).toEqual(['compressed-copy', 'raw-copy']);
 
-    expect(drive.library.chunks).toHaveLength(0);
+    expect(drive.library.chunks).toHaveLength(2);
+    expect(drive.library.chunks.every((item) => item.trashedAt !== undefined)).toBe(true);
+    expect(drive.library.files).toHaveLength(0);
+    expect(drive.library.trashFiles).toHaveLength(1);
 });
 
 test('same-name files with the same mediaKey both stay in the library', async () => {

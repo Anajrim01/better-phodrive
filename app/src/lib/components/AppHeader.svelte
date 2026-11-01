@@ -22,6 +22,7 @@
         onrefresh: () => void;
         ontheme: (mode: ThemeMode) => void;
         accountButton?: HTMLElement;
+        searchDisabled?: boolean;
     }
 
     let {
@@ -35,7 +36,8 @@
         refreshDisabled,
         onrefresh,
         ontheme,
-        accountButton = $bindable()
+        accountButton = $bindable(),
+        searchDisabled = false
     }: Props = $props();
 
     let mounted = $state(false);
@@ -82,7 +84,7 @@
             label="Search files"
             placeholder="Search in Phodrive"
             bind:value={searchTerm}
-            inputAttributes={{ disabled: !email }}
+            inputAttributes={{ disabled: !email || searchDisabled }}
         />
     {/snippet}
 

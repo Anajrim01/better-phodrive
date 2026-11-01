@@ -17,6 +17,7 @@ import { DriveAccounts } from '#browser/drive/accounts.svelte';
 import { DriveGroups } from '#browser/drive/groups.svelte';
 import { DriveUploads } from '#browser/drive/uploads.svelte';
 import { DriveFiles, type ConfirmTarget } from '#browser/drive/files.svelte';
+import { markChunkRestored, markChunkTrashed, removeChunk } from '#browser/drive/library-chunks';
 import { DriveSession } from '#browser/drive/session.svelte';
 import { DriveView } from '#browser/drive/view.svelte';
 
@@ -118,16 +119,17 @@ export class DriveController extends DriveView {
             account: () => this.account(),
             busy: () => this.uploads.busy,
             loading: () => this.library.loading,
-            files: () => this.library.files,
+            files: () => [...this.library.files, ...this.library.trashFiles],
             workers: () => this.settings.concurrentWorkers,
             feedback,
-            onDeleted: (item, chunk) => {
-                this.library.chunks = this.library.chunks.filter(
-                    (saved) =>
-                        saved.email !== item.email ||
-                        saved.mediaKey !== chunk.mediaKey ||
-                        saved.sha1 !== chunk.sha1
-                );
+            onTrashed: (item, chunk) => {
+                this.library.chunks = markChunkTrashed(this.library.chunks, item, chunk);
+            },
+            onRestored: (item, chunk) => {
+                this.library.chunks = markChunkRestored(this.library.chunks, item, chunk);
+            },
+            onRemoved: (item, chunk) => {
+                this.library.chunks = removeChunk(this.library.chunks, item, chunk);
             },
             closeUploads: () => {
                 this.uploads.panelOpen = false;

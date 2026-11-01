@@ -1,5 +1,4 @@
 import {
-    groupChunks,
     sortFiles,
     filterFiles,
     fileType,
@@ -7,6 +6,7 @@ import {
     folderTrail,
     type UploadedChunk
 } from '@madkarmaa/phodrive-core/files';
+import { partitionFileGroups } from '@madkarmaa/phodrive-core/trash';
 import { FileSort } from '@madkarmaa/phodrive-core/models';
 import {
     readGroupLibrary,
@@ -51,7 +51,9 @@ export class DriveLibrary {
     retryAt = $state(0);
     cooldownUntil = $state(0);
 
-    files = $derived(groupChunks(this.chunks));
+    private grouped = $derived(partitionFileGroups(this.chunks));
+    files = $derived(this.grouped.files);
+    trashFiles = $derived(this.grouped.trashed);
     availableTypes = $derived([...new Set(this.files.map((item) => fileType(item.name)))].sort());
     filtering = $derived(!!(this.searchTerm || this.typeFilter || this.modifiedDays));
     folders = $derived(childFolders(this.files, this.folder));

@@ -2,12 +2,14 @@ import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import type { RemoteBmp } from '../../../models';
 import { SERVER_ERRORS, type ServerError } from '../../errors';
 import { photosFetch, type Fetcher } from '../../fetcher';
+import { applyDelta } from './apply-delta';
+import { fetchDelta, type DeltaResult } from './delta';
+import { applyFolderHints } from './folder-hints';
 import { readLibraryPage, type LibraryPage } from './page';
 import {
     LIBRARY_STATE_LOG_MAX_AGE_MS,
     deleteAccountState,
     readAccountState,
-    trimChangeLog,
     updateAccountSyncToken,
     writeAccountState,
     type LibraryAccountState
@@ -37,9 +39,10 @@ function fetchFullSync(
     email: string,
     token: string,
     fetcher: Fetcher
-): AsyncResult<{ items: RemoteBmp[]; syncToken?: Buffer }, ServerError> {
+): AsyncResult<{ items: RemoteBmp[]; trashed: string[]; syncToken?: Buffer }, ServerError> {
     return Ok(undefined).andThenAsync(async () => {
         const items = new Map<string, RemoteBmp>();
+        const trashed = new Set<string>();
         const pages = new Set<string>();
         let pageToken = '';
         let syncToken: Buffer | undefined;
@@ -53,45 +56,17 @@ function fetchFullSync(
             if ('error' in read) return Err(read.error);
 
             for (const item of read.page.items) items.set(item.mediaKey, item);
+            for (const mediaKey of read.page.trashedMediaKeys) trashed.add(mediaKey);
             syncToken ??= read.page.syncToken;
             pageToken = read.page.nextPageToken;
         } while (pageToken);
 
-        return Ok({ items: [...items.values()], ...(syncToken ? { syncToken } : {}) });
-    });
-}
-
-function fetchDelta(
-    email: string,
-    token: string,
-    syncToken: Buffer,
-    fetcher: Fetcher
-): AsyncResult<{ items: RemoteBmp[]; deleted: string[]; syncToken: Buffer }, ServerError> {
-    return Ok(undefined).andThenAsync(async () => {
-        const items = new Map<string, RemoteBmp>();
-        const deleted = new Set<string>();
-        const pages = new Set<string>();
-        let pageToken = '';
-        let nextSyncToken: Buffer | undefined;
-
-        do {
-            if (pages.has(pageToken)) return Err(SERVER_ERRORS.REPEATED_LIBRARY_PAGE);
-            pages.add(pageToken);
-
-            const received = await readLibraryPage(email, token, pageToken, syncToken, fetcher);
-            const read = pageRead(received);
-            if ('error' in read) return Err(read.error);
-
-            for (const item of read.page.items) items.set(item.mediaKey, item);
-            for (const mediaKey of read.page.deletedMediaKeys) deleted.add(mediaKey);
-            nextSyncToken ??= read.page.syncToken;
-            pageToken = read.page.nextPageToken;
-        } while (pageToken);
+        applyFolderHints(items);
 
         return Ok({
             items: [...items.values()],
-            deleted: [...deleted],
-            syncToken: nextSyncToken ?? syncToken
+            trashed: [...trashed],
+            ...(syncToken ? { syncToken } : {})
         });
     });
 }
@@ -104,7 +79,8 @@ function applyFullSync(
     email: string,
     token: string,
     revision: number,
-    fetcher: Fetcher
+    fetcher: Fetcher,
+    previous?: LibraryAccountState
 ): AsyncResult<LibrarySyncResult, ServerError> {
     return fetchFullSync(email, token, fetcher).map((value) => {
         if (!value.syncToken) {
@@ -113,15 +89,31 @@ function applyFullSync(
             return fullResult(revision, value.items);
         }
 
+        const items = new Map(value.items.map((item) => [item.mediaKey, item]));
+        const now = Date.now();
+        for (const [mediaKey, item] of items) {
+            if (item.trashedAt === undefined) continue;
+
+            const known = previous?.items.get(mediaKey);
+            if (known)
+                items.set(mediaKey, { ...known, trashedAt: known.trashedAt ?? item.trashedAt });
+        }
+        for (const mediaKey of value.trashed) {
+            if (items.has(mediaKey)) continue;
+
+            const known = previous?.items.get(mediaKey);
+            if (known) items.set(mediaKey, { ...known, trashedAt: known.trashedAt ?? now });
+        }
+
         const state: LibraryAccountState = {
             syncToken: value.syncToken,
             revision,
-            items: new Map(value.items.map((item) => [item.mediaKey, item])),
+            items,
             log: []
         };
         writeAccountState(email, state);
 
-        return fullResult(revision, value.items);
+        return fullResult(revision, [...items.values()]);
     });
 }
 
@@ -197,14 +189,12 @@ export function syncLibrary(
                     email,
                     token,
                     previous ? previous.revision + 1 : Date.now(),
-                    fetcher
+                    fetcher,
+                    previous
                 );
 
             const received = await fetchDelta(email, token, stored.syncToken, fetcher);
-            const read = received.match<
-                | { value: { items: RemoteBmp[]; deleted: string[]; syncToken: Buffer } }
-                | { error: ServerError }
-            >({
+            const read = received.match<{ value: DeltaResult } | { error: ServerError }>({
                 Ok: (value) => ({ value }),
                 Err: (error) => ({ error })
             });
@@ -213,39 +203,17 @@ export function syncLibrary(
 
                 deleteAccountState(email);
 
-                return await applyFullSync(email, token, stored.revision + 1, fetcher);
+                return await applyFullSync(email, token, stored.revision + 1, fetcher, stored);
             }
 
-            const indexChanged = read.value.items.length > 0 || read.value.deleted.length > 0;
+            const applied = await applyDelta(stored, read.value);
 
-            if (!indexChanged) {
-                updateAccountSyncToken(email, read.value.syncToken);
+            return applied.map(({ state, shouldWrite }) => {
+                if (shouldWrite) writeAccountState(email, state);
+                else updateAccountSyncToken(email, state.syncToken);
 
-                return Ok(revisionResult(stored, revision));
-            }
-
-            const items = new Map(stored.items);
-            for (const item of read.value.items) items.set(item.mediaKey, item);
-            for (const mediaKey of read.value.deleted) items.delete(mediaKey);
-
-            const nextRevision = stored.revision + 1;
-            const state: LibraryAccountState = {
-                syncToken: read.value.syncToken,
-                revision: nextRevision,
-                items,
-                log: trimChangeLog([
-                    ...stored.log,
-                    {
-                        revision: nextRevision,
-                        at: Date.now(),
-                        items: read.value.items,
-                        deleted: read.value.deleted
-                    }
-                ])
-            };
-            writeAccountState(email, state);
-
-            return Ok(revisionResult(state, revision));
+                return revisionResult(state, revision);
+            });
         })
     );
 }

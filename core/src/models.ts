@@ -1,4 +1,30 @@
 import { z } from 'zod';
+import {
+    ConcurrentWorkersSchema,
+    DEFAULT_CONCURRENT_WORKERS,
+    DEFAULT_REFRESH_INTERVAL_SECONDS,
+    FileSort,
+    FileSortSchema,
+    RefreshIntervalSchema,
+    ThemeMode,
+    ThemeSchema
+} from './preferences-models';
+
+export {
+    ConcurrentWorkersSchema,
+    DEFAULT_CONCURRENT_WORKERS,
+    DEFAULT_FILE_LAYOUT,
+    DEFAULT_REFRESH_INTERVAL_SECONDS,
+    FileLayout,
+    FileLayoutSchema,
+    FileSort,
+    FileSortSchema,
+    MAX_CONCURRENT_WORKERS,
+    MAX_REFRESH_INTERVAL_SECONDS,
+    RefreshIntervalSchema,
+    ThemeMode,
+    ThemeSchema
+} from './preferences-models';
 
 export enum UploadJobStatus {
     Queued = 'queued',
@@ -30,49 +56,23 @@ export enum UploadEventType {
 
 export enum FileActionKind {
     Download = 'download',
-    Delete = 'delete'
+    Delete = 'delete',
+    Restore = 'restore',
+    DeleteForever = 'delete-forever'
 }
 
 export enum AppView {
     Files = 'files',
+    Trash = 'trash',
     Settings = 'settings'
 }
 
 export enum ConfirmKind {
     Account = 'account',
-    File = 'file'
+    File = 'file',
+    PermanentDelete = 'permanent-delete'
 }
 
-export enum ThemeMode {
-    Light = 'light',
-    Dark = 'dark',
-    Auto = 'auto'
-}
-
-export enum FileSort {
-    NameAscending = 'name-asc',
-    NameDescending = 'name-desc',
-    ModifiedDescending = 'modified-desc',
-    ModifiedAscending = 'modified-asc'
-}
-
-export enum FileLayout {
-    List = 'list',
-    Grid = 'grid'
-}
-
-export const DEFAULT_FILE_LAYOUT = FileLayout.List;
-export const FileLayoutSchema = z.enum(FileLayout);
-
-export const DEFAULT_REFRESH_INTERVAL_SECONDS = 60;
-export const MAX_REFRESH_INTERVAL_SECONDS = 86_400;
-export const DEFAULT_CONCURRENT_WORKERS = 8;
-export const MAX_CONCURRENT_WORKERS = 32;
-
-export const ThemeSchema = z.enum(ThemeMode);
-export const FileSortSchema = z.enum(FileSort);
-export const RefreshIntervalSchema = z.int().min(0).max(MAX_REFRESH_INTERVAL_SECONDS);
-export const ConcurrentWorkersSchema = z.int().min(1).max(MAX_CONCURRENT_WORKERS);
 /** Servers limit requested workers to their own processors, so any positive count is accepted. */
 export const WorkerCountSchema = z.int().positive();
 export const PreferencesDefaultsSchema = z.object({
@@ -210,6 +210,7 @@ export const RemoteBmpSchema = z.object({
     fileHash: Sha256HexSchema,
     fileId: Sha256HexSchema,
     chunkIndex: z.int().nonnegative(),
+    chunkCount: z.int().positive().optional(),
     isLast: z.boolean(),
     originalName: z.string().min(1).optional(),
     folder: FolderPathSchema.optional(),
@@ -218,7 +219,8 @@ export const RemoteBmpSchema = z.object({
     compressed: z.boolean().optional(),
     at: z.int().nonnegative(),
     mediaKey: z.string().min(1),
-    sha1: Sha1HexSchema
+    sha1: Sha1HexSchema,
+    trashedAt: z.int().nonnegative().optional()
 });
 
 export const LibraryResponseSchema = z.object({
@@ -307,6 +309,9 @@ export const FileDeleteResponseSchema = z.object({
     deleted: z.array(RemoteBmpSchema),
     error: z.string().optional(),
     retryAfterSeconds: z.int().positive().optional()
+});
+export const FileRestoreResponseSchema = z.object({
+    restored: z.array(RemoteBmpSchema)
 });
 export const UploadFileSchema = z.object({
     name: FileNameSchema,

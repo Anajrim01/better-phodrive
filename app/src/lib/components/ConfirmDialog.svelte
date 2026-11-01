@@ -11,30 +11,58 @@
 
     let { open = $bindable(false), target, onconfirm }: Props = $props();
     let cancelButton = $state<HTMLElement>();
+
+    const file = $derived(
+        target?.kind === ConfirmKind.File || target?.kind === ConfirmKind.PermanentDelete
+            ? target.item
+            : null
+    );
+    const permanent = $derived(target?.kind === ConfirmKind.PermanentDelete);
+    const deletingRemaining = $derived(file !== null && !file.complete);
+    const headline = $derived(
+        target?.kind === ConfirmKind.Account
+            ? 'Sign out?'
+            : permanent
+              ? 'Delete forever?'
+              : deletingRemaining
+                ? 'Delete remaining chunks?'
+                : 'Move file to trash?'
+    );
+    const body = $derived(
+        target?.kind === ConfirmKind.Account
+            ? `Sign out of ${target.email} on this browser? Files in Google Photos will stay online.`
+            : file === null
+              ? ''
+              : permanent
+                ? `This deletes ${file.name}. This cannot be undone.`
+                : deletingRemaining
+                  ? `This moves the remaining chunks of ${file.name} to Google Photos trash. You can restore the file from Trash.`
+                  : `This moves ${file.name} to Google Photos trash. You can restore it from Trash.`
+    );
 </script>
 
 <Dialog
     style="transition-property: opacity"
     bind:open
-    aria-label={target?.kind === ConfirmKind.Account ? 'Sign out?' : 'Move file to trash?'}
-    headline={target?.kind === ConfirmKind.Account ? 'Sign out?' : 'Move file to trash?'}
+    aria-label={headline}
+    {headline}
+    supportingText={body}
     ontoggle={(event) => {
         if (event.newState === 'open') cancelButton?.focus();
     }}
 >
-    {#if target?.kind === ConfirmKind.Account}
-        Sign out of {target.email} on this browser? Files in Google Photos will stay online.
-    {:else if target?.kind === ConfirmKind.File}
-        Move {target.item.name} and its {target.item.chunks.length}
-        {target.item.chunks.length === 1 ? 'chunk' : 'chunks'} to Google Photos trash?
-    {/if}
-
     {#snippet actions()}
         <Button bind:element={cancelButton} autofocus variant="text" onclick={() => (open = false)}>
             Cancel
         </Button>
         <Button variant="text" onclick={onconfirm}>
-            {target?.kind === ConfirmKind.Account ? 'Sign out' : 'Move to trash'}
+            {target?.kind === ConfirmKind.Account
+                ? 'Sign out'
+                : permanent
+                  ? 'Delete forever'
+                  : deletingRemaining
+                    ? 'Delete remaining chunks'
+                    : 'Move to trash'}
         </Button>
     {/snippet}
 </Dialog>

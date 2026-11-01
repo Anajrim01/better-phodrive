@@ -103,10 +103,15 @@ test('partial delete retains exact confirmations, retries remaining chunks, and 
         { chunks: [{ mediaKey: 'shared-media-key' }, { mediaKey: 'remaining-media-key' }] },
         { chunks: [{ mediaKey: 'remaining-media-key' }] }
     ]);
-    expect(afterPartial.map((item) => `${item.email}:${item.mediaKey}`)).toEqual([
+    expect(afterPartial.map((item) => `${item.email}:${item.mediaKey}`).sort()).toEqual([
+        'other@example.com:shared-media-key',
         'owner@example.com:remaining-media-key',
-        'other@example.com:shared-media-key'
+        'owner@example.com:shared-media-key'
     ]);
-    expect(drive.library.chunks).toEqual([{ ...unrelated, email: 'other@example.com' }]);
+    expect(afterPartial.find((item) => item.mediaKey === 'shared-media-key')?.trashedAt).toEqual(
+        expect.any(Number)
+    );
+    expect(drive.library.files.map((item) => item.name)).toEqual(['other-account.bin']);
+    expect(drive.library.trashFiles).toHaveLength(1);
     expect(drive.feedbackMessage).toBe('');
 });

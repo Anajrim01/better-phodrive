@@ -1,5 +1,6 @@
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
-import { groupChunks, type FileGroup } from '@madkarmaa/phodrive-core/files';
+import type { FileGroup } from '@madkarmaa/phodrive-core/files';
+import { partitionFileGroups } from '@madkarmaa/phodrive-core/trash';
 import {
     GroupsSchema,
     mergeGroupLibrary,
@@ -155,7 +156,7 @@ export function readGroupLibrary(
         }
 
         return Ok({
-            files: groupChunks(merged.items),
+            files: partitionFileGroups(merged.items).files,
             members,
             accounts: merged.accounts,
             partial: merged.partial

@@ -1,13 +1,14 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import type { RemoteBmp } from '../../../models';
-import { isRemoteBmp } from './validation';
+import { parseAccountState } from './state-parse';
 
-const LIBRARY_STATE_VERSION = 2;
+const LIBRARY_STATE_VERSION = 4;
 const LIBRARY_STATE_FLUSH_DELAY_MS = 1_000;
 const LIBRARY_STATE_FLUSH_INTERVAL_MS = 30_000;
+const LIBRARY_STATE_DAY_MS = 24 * 60 * 60 * 1_000;
 export const LIBRARY_STATE_LOG_LIMIT = 64;
-export const LIBRARY_STATE_LOG_MAX_AGE_MS = 24 * 60 * 60 * 1_000;
+export const LIBRARY_STATE_LOG_MAX_AGE_MS = LIBRARY_STATE_DAY_MS;
 export const LIBRARY_STATE_LOG_MAX_ITEMS = 10_000;
 
 export type LibraryChange = {
@@ -62,90 +63,8 @@ function load(): void {
             return;
 
         for (const [email, value] of Object.entries(stored.accounts)) {
-            if (!value || typeof value !== 'object') continue;
-
-            const { syncToken, revision, items, log } = value as {
-                syncToken?: unknown;
-                revision?: unknown;
-                items?: unknown;
-                log?: unknown;
-            };
-            if (
-                typeof syncToken !== 'string' ||
-                !syncToken ||
-                !Array.isArray(items) ||
-                typeof revision !== 'number' ||
-                !Number.isSafeInteger(revision) ||
-                revision < 0
-            )
-                continue;
-
-            const saved = new Map<string, RemoteBmp>();
-            for (const item of items) {
-                if (isRemoteBmp(item)) saved.set(item.mediaKey, item);
-            }
-
-            const changes: LibraryChange[] = [];
-            let lastRevision = 0;
-            if (Array.isArray(log)) {
-                for (const entry of log) {
-                    if (!entry || typeof entry !== 'object') {
-                        changes.length = 0;
-                        break;
-                    }
-
-                    const {
-                        revision: entryRevision,
-                        at,
-                        items: changed,
-                        deleted
-                    } = entry as {
-                        revision?: unknown;
-                        at?: unknown;
-                        items?: unknown;
-                        deleted?: unknown;
-                    };
-                    if (
-                        typeof entryRevision !== 'number' ||
-                        !Number.isSafeInteger(entryRevision) ||
-                        entryRevision <= lastRevision ||
-                        entryRevision > revision ||
-                        typeof at !== 'number' ||
-                        !Array.isArray(changed) ||
-                        !Array.isArray(deleted)
-                    ) {
-                        changes.length = 0;
-                        break;
-                    }
-
-                    const changedItems = changed.filter(isRemoteBmp);
-                    const deletedKeys = deleted.filter(
-                        (mediaKey): mediaKey is string => typeof mediaKey === 'string'
-                    );
-                    if (
-                        changedItems.length !== changed.length ||
-                        deletedKeys.length !== deleted.length
-                    ) {
-                        changes.length = 0;
-                        break;
-                    }
-
-                    lastRevision = entryRevision;
-                    changes.push({
-                        revision: entryRevision,
-                        at,
-                        items: changedItems,
-                        deleted: deletedKeys
-                    });
-                }
-            }
-
-            accounts.set(email.toLowerCase(), {
-                syncToken: Buffer.from(syncToken, 'base64url'),
-                revision,
-                items: saved,
-                log: changes
-            });
+            const account = parseAccountState(value);
+            if (account) accounts.set(email.toLowerCase(), account);
         }
     } catch {
         // A corrupt state file falls back to a full sync.
@@ -218,7 +137,11 @@ export function updateAccountSyncToken(email: string, syncToken: Buffer): void {
     load();
 
     const account = accounts.get(email.toLowerCase());
-    if (account) account.syncToken = syncToken;
+    if (!account) return;
+
+    account.syncToken = syncToken;
+    dirty = true;
+    scheduleFlush();
 }
 
 export function trimChangeLog(log: readonly LibraryChange[], now = Date.now()): LibraryChange[] {
@@ -238,6 +161,88 @@ export function trimChangeLog(log: readonly LibraryChange[], now = Date.now()): 
     }
 
     return kept;
+}
+
+function recordChange(
+    state: LibraryAccountState,
+    items: RemoteBmp[],
+    deleted: string[],
+    now: number
+): void {
+    if (items.length === 0 && deleted.length === 0) return;
+
+    const revision = state.revision + 1;
+    state.revision = revision;
+    state.log = trimChangeLog([...state.log, { revision, at: now, items, deleted }]);
+    dirty = true;
+    scheduleFlush();
+}
+
+/** Mark chunks as trashed so the app moves the file without waiting for a delta. */
+export function markChunksTrashed(
+    email: string,
+    chunks: readonly { mediaKey: string }[],
+    now = Date.now()
+): void {
+    load();
+
+    const state = accounts.get(email.toLowerCase());
+    if (!state) return;
+
+    const changed: RemoteBmp[] = [];
+    for (const chunk of chunks) {
+        const item = state.items.get(chunk.mediaKey);
+        if (!item || item.trashedAt !== undefined) continue;
+
+        const trashed = { ...item, trashedAt: now };
+        state.items.set(chunk.mediaKey, trashed);
+        changed.push(trashed);
+    }
+
+    recordChange(state, changed, [], now);
+}
+
+/** Clear the trashed mark after a successful restore from Google Photos trash. */
+export function markChunksRestored(
+    email: string,
+    chunks: readonly { mediaKey: string }[],
+    now = Date.now()
+): void {
+    load();
+
+    const state = accounts.get(email.toLowerCase());
+    if (!state) return;
+
+    const changed: RemoteBmp[] = [];
+    for (const chunk of chunks) {
+        const item = state.items.get(chunk.mediaKey);
+        if (!item || item.trashedAt === undefined) continue;
+
+        const { trashedAt, ...restored } = item;
+        state.items.set(chunk.mediaKey, restored);
+        changed.push(restored);
+    }
+
+    recordChange(state, changed, [], now);
+}
+
+/** Remove chunks after Google Photos permanently deletes them. */
+export function removeChunks(
+    email: string,
+    chunks: readonly { mediaKey: string }[],
+    now = Date.now()
+): void {
+    load();
+
+    const state = accounts.get(email.toLowerCase());
+    if (!state) return;
+
+    const removed: string[] = [];
+    for (const chunk of chunks) {
+        if (state.items.delete(chunk.mediaKey)) removed.push(chunk.mediaKey);
+    }
+
+    recordChange(state, [], removed, now);
 }
 
 export function deleteAccountState(email: string): void {

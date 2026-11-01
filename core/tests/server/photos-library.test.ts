@@ -78,6 +78,7 @@ test('library returns one page per request and leaves empty continuations to the
             fileHash,
             fileId: fileHash,
             chunkIndex: 0,
+            chunkCount: 2,
             isLast: false,
             folder: undefined,
             size: 2,
@@ -111,10 +112,27 @@ test('library returns one page per request and leaves empty continuations to the
     );
     expect(secondResult.unwrap().items).toEqual([
         {
+            originalName: 'original.bin',
+            fileHash,
+            fileId: fileHash,
+            chunkIndex: 0,
+            chunkCount: 2,
+            isLast: false,
+            folder: undefined,
+            size: 2,
+            storedSize: 2,
+            compressed: false,
+            at: 42,
+            mediaKey: 'renamed-first',
+            sha1: fingerprint(first).toString('hex'),
+            trashedAt: expect.any(Number)
+        },
+        {
             originalName: undefined,
             fileHash,
             fileId: fileHash,
             chunkIndex: 1,
+            chunkCount: 2,
             isLast: true,
             folder: undefined,
             size: 1,

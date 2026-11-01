@@ -44,3 +44,13 @@ test('a repeated page token stops the read', async () => {
 
     expect(library.unwrapErr()).toBe(SERVER_ERRORS.REPEATED_LIBRARY_PAGE);
 });
+
+test('trashed chunks do not appear in the CLI library', async () => {
+    const input = pages({ items: [0, 1], nextPageToken: '' });
+    input.chunks[0].trashedAt = 1;
+    input.chunks[1].trashedAt = 1;
+
+    const library = await readLibrary('test@example.com', 'aas_et/test');
+
+    expect(library.unwrap()).toHaveLength(0);
+});

@@ -9,7 +9,7 @@ import {
 } from '@madkarmaa/phodrive-core/server/bmp';
 import { decodeSplitBmp } from './helpers/bmp';
 import { chunkFileName } from '@madkarmaa/phodrive-core/server/chunks';
-import { groupChunks } from '@madkarmaa/phodrive-core/files';
+import { groupChunks, incompleteFileMessage, missingChunks } from '@madkarmaa/phodrive-core/files';
 import {
     SplitHeaderSchema,
     type SplitHeader,
@@ -200,6 +200,52 @@ test('prefix encoding preserves original protocol bytes for Unicode and multibyt
             '800100c0edfd5c'
     );
     expect([later.totalSize, later.paddingSize]).toEqual([195011766, 11633]);
+});
+
+test('a missing middle chunk keeps the group visible and marks it incomplete', () => {
+    const base = {
+        email: 'test@example.com',
+        fileHash: FILE_HASH,
+        fileId: FILE_HASH,
+        sha1: 'a'.repeat(40),
+        size: 100,
+        at: 1
+    };
+    const chunks = [
+        {
+            ...base,
+            mediaKey: 'first',
+            chunkIndex: 0,
+            chunkCount: 3,
+            isLast: false,
+            originalName: 'archive.zip'
+        },
+        { ...base, mediaKey: 'last', chunkIndex: 2, chunkCount: 3, isLast: true, at: 2 }
+    ];
+    const [group] = groupChunks(chunks);
+
+    expect(group).toMatchObject({ name: 'archive.zip', chunkCount: 3, complete: false });
+    expect(missingChunks(group.chunks, 3)).toBe(1);
+    expect(incompleteFileMessage(group)).toBe(
+        '1 of 3 chunks is missing. This file cannot be downloaded.'
+    );
+});
+
+test('legacy chunks without a declared count are complete when the last chunk is present', () => {
+    const base = {
+        email: 'test@example.com',
+        fileHash: FILE_HASH,
+        fileId: FILE_HASH,
+        sha1: 'a'.repeat(40),
+        size: 100,
+        at: 1
+    };
+    const [group] = groupChunks([
+        { ...base, mediaKey: 'first', chunkIndex: 0, isLast: false, originalName: 'legacy.bin' },
+        { ...base, mediaKey: 'last', chunkIndex: 1, isLast: true }
+    ]);
+
+    expect(group).toMatchObject({ chunkCount: 2, complete: true });
 });
 
 test('grouping retains newest duplicate, tie replacement, group time and first-chunk naming', () => {

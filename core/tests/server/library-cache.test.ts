@@ -152,7 +152,8 @@ test('a named ordinary item beside a chunk is skipped', async () => {
         sha1: 'a'.repeat(40),
         size: 1_000,
         at: 1,
-        fileName: 'IMG_0001.jpg'
+        fileName: 'IMG_0001.jpg',
+        trashed: false
     };
     const counts: ProbeCounts = { prepare: 0, range: 0 };
     const fetcher = fetcherFor(

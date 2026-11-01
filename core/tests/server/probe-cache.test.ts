@@ -17,7 +17,8 @@ const CANDIDATE: LibraryCandidate = {
     size: 1_000,
     at: 1,
     mediaKey: 'media-key',
-    sha1: 'a'.repeat(40)
+    sha1: 'a'.repeat(40),
+    trashed: false
 };
 const ITEM: RemoteBmp = {
     fileHash: 'b'.repeat(64),

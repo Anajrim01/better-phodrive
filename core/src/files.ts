@@ -1,5 +1,13 @@
 import { FileSort, FileActionKind, FolderPathSchema, type RemoteBmp } from './models';
 import { MAX_CHUNK_PAYLOAD_BYTES } from './bmp/format';
+import { expectedChunks, missingChunks } from './incomplete';
+
+export {
+    expectedChunks,
+    incompleteChunkMessage,
+    incompleteFileMessage,
+    missingChunks
+} from './incomplete';
 
 export type UploadedChunk = RemoteBmp & { email: string };
 
@@ -24,6 +32,8 @@ export type FileGroup = {
     chunkCount: number | null;
     chunks: UploadedChunk[];
     duplicates: UploadedChunk[];
+    trashedChunks: UploadedChunk[];
+    trashed: boolean;
     complete: boolean;
 };
 
@@ -138,6 +148,8 @@ export function groupChunks(items: UploadedChunk[]): FileGroup[] {
                 chunkCount: null,
                 chunks: [chunk],
                 duplicates: [],
+                trashedChunks: [],
+                trashed: false,
                 complete: false
             };
             groups.set(key, { file });
@@ -181,12 +193,12 @@ export function groupChunks(items: UploadedChunk[]): FileGroup[] {
     return [...groups.values()].map(({ file: group }) => {
         group.chunks.sort((first, second) => first.chunkIndex - second.chunkIndex);
 
-        const last = group.chunks.find((chunk) => chunk.isLast);
-        group.chunkCount = last ? last.chunkIndex + 1 : null;
+        const expected = expectedChunks(group.chunks);
+        group.chunkCount = expected;
         group.complete =
-            group.chunkCount !== null &&
-            group.chunks.length === group.chunkCount &&
-            group.chunks.every((chunk, index) => chunk.chunkIndex === index);
+            expected !== null &&
+            group.chunks.every((chunk) => chunk.chunkIndex < expected) &&
+            missingChunks(group.chunks, expected) === 0;
 
         return group;
     });

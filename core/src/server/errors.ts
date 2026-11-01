@@ -147,6 +147,10 @@ export const SERVER_ERRORS = {
         code: 'INCOMPLETE_DOWNLOAD_CHUNKS',
         message: 'Load the remaining chunks before downloading.'
     },
+    NOT_TRASHED: {
+        code: 'NOT_TRASHED',
+        message: 'Only trashed chunks can be restored or deleted forever.'
+    },
     DOWNLOAD_CHUNK_MISMATCH: {
         code: 'DOWNLOAD_CHUNK_MISMATCH',
         message: 'Downloaded chunks do not match this file.'
@@ -201,4 +205,5 @@ export type ServerError =
           readonly status?: number;
           readonly retryAfterSeconds?: number;
       }
+    | { readonly code: 'INCOMPLETE_DOWNLOAD_CHUNKS'; readonly message: string }
     | { readonly code: 'THROTTLED'; readonly message: string; readonly retryAfterSeconds: number };

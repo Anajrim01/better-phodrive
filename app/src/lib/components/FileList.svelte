@@ -5,6 +5,7 @@
     import { fileKey, type FileGroup, type FileAction } from '@madkarmaa/phodrive-core/files';
     import LocalizedDate from '#components/LocalizedDate.svelte';
     import FileActions from '#components/FileActions.svelte';
+    import FileIncompleteWarning from '#components/FileIncompleteWarning.svelte';
     import IconDescription from '~icons/material-symbols/description-outline';
     import IconArrowUp from '~icons/material-symbols/arrow-upward';
     import IconArrowDown from '~icons/material-symbols/arrow-downward';
@@ -16,8 +17,13 @@
         action: FileAction | null;
         showFolder?: boolean;
         showOwner?: boolean;
-        ondownload: (item: FileGroup) => void;
-        ondelete: (item: FileGroup) => void;
+        trash?: boolean;
+        partial?: boolean;
+        headingId?: string;
+        ondownload?: (item: FileGroup) => void;
+        ondelete?: (item: FileGroup) => void;
+        onrestore?: (item: FileGroup) => void;
+        ondeleteforever?: (item: FileGroup) => void;
     }
 
     let {
@@ -27,8 +33,13 @@
         action,
         showFolder = false,
         showOwner = false,
+        trash = false,
+        partial = false,
+        headingId = 'files-heading',
         ondownload,
-        ondelete
+        ondelete,
+        onrestore,
+        ondeleteforever
     }: Props = $props();
     const nameSort = $derived(sort === FileSort.NameAscending || sort === FileSort.NameDescending);
     const ascending = $derived(
@@ -36,7 +47,7 @@
     );
 </script>
 
-<table class="file-list" aria-labelledby="files-heading">
+<table class="file-list" aria-labelledby={headingId}>
     <thead>
         <tr>
             <th
@@ -113,9 +124,7 @@
                                 >
                             {/if}
                             {#if !item.complete}
-                                <span class="text-xs text-muted"
-                                    >{item.chunks.length}/{item.chunkCount ?? '?'} chunks</span
-                                >
+                                <FileIncompleteWarning {item} {partial} />
                             {:else}
                                 <span class="mobile-date text-xs text-muted"
                                     ><LocalizedDate timestamp={item.at} /></span
@@ -128,16 +137,22 @@
                 <td class="size-column">
                     {#if item.complete}
                         {prettyBytes(item.chunks.reduce((sum, chunk) => sum + chunk.size, 0))}
-                    {:else}<span title="Available once all chunks are loaded">Unknown</span>{/if}
+                    {:else}<span title="Size is unknown while not all chunks are available"
+                            >Unknown</span
+                        >{/if}
                 </td>
                 <td class="actions-column">
                     <FileActions
                         {item}
                         {disabled}
                         compact
+                        {trash}
+                        {partial}
                         working={action?.fileId === item.fileId ? action.kind : null}
                         {ondownload}
                         {ondelete}
+                        {onrestore}
+                        {ondeleteforever}
                     />
                 </td>
             </tr>

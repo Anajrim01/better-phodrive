@@ -1,16 +1,26 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import type { RemoteBmp } from '../../../models';
+import { z } from 'zod';
+import { RemoteBmpSchema, type RemoteBmp } from '../../../models';
 import type { LibraryCandidate } from './metadata';
-import { isRemoteBmp } from './validation';
 
 const PROBE_CACHE_LIMIT = 100_000;
 const PROBE_CACHE_NEGATIVE_TTL_MS = 60 * 60 * 1_000;
-const PROBE_CACHE_VERSION = 1;
+const PROBE_CACHE_VERSION = 2;
 const PROBE_CACHE_FLUSH_DELAY_MS = 1_000;
 const PROBE_CACHE_FLUSH_INTERVAL_MS = 30_000;
 
 type CachedProbe = { item: RemoteBmp | null; at: number };
+
+const CachedProbeSchema = z.object({
+    key: z.string().min(1),
+    at: z.number(),
+    item: RemoteBmpSchema.nullable()
+});
+const ProbeCacheSchema = z.object({
+    version: z.literal(PROBE_CACHE_VERSION),
+    entries: z.array(CachedProbeSchema)
+});
 
 const PROBE_CACHE = new Map<string, CachedProbe>();
 let cacheFile: string | null = null;
@@ -35,19 +45,11 @@ function load(): void {
 
     try {
         const data: unknown = JSON.parse(readFileSync(cacheFile, 'utf8'));
-        if (!data || typeof data !== 'object') return;
+        const parsed = ProbeCacheSchema.safeParse(data);
+        if (!parsed.success) return;
 
-        const stored = data as { version?: unknown; entries?: unknown };
-        if (stored.version !== PROBE_CACHE_VERSION || !Array.isArray(stored.entries)) return;
-
-        for (const entry of stored.entries) {
-            if (!entry || typeof entry !== 'object') continue;
-
-            const { key, at, item } = entry as { key?: unknown; at?: unknown; item?: unknown };
-            if (typeof key !== 'string' || typeof at !== 'number') continue;
-            if (item !== null && !isRemoteBmp(item)) continue;
-
-            PROBE_CACHE.set(key, { item, at });
+        for (const entry of parsed.data.entries) {
+            PROBE_CACHE.set(entry.key, { item: entry.item, at: entry.at });
         }
 
         while (PROBE_CACHE.size > PROBE_CACHE_LIMIT) {
