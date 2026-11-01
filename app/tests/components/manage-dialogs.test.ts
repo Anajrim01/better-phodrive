@@ -223,7 +223,7 @@ test('folder delete warns about the count, Trash, and confirms', async () => {
 
     expect(
         screen.getByText(
-            'Reports and 2 files will move to Google Photos trash. You can restore them from Trash.'
+            'Reports and 2 loaded files will move to Google Photos trash. Every file under the folder is included, and you can restore them from Trash.'
         )
     ).toBeTruthy();
 

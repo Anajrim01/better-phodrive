@@ -24,3 +24,30 @@ test('a folder chunk round-trips through the download stream', async () => {
 
     expect(Buffer.from(bytes)).toEqual(original);
 });
+
+test('a renamed and moved listing still downloads with its raw header', async () => {
+    const original = Buffer.from([1, 2, 3, 4]);
+    const { input, bmps } = downloadFixture(original, 'nested.bin', undefined, 'photos/2024');
+    const chunks = input.chunks.map((chunk) => ({
+        ...chunk,
+        ...(chunk.chunkIndex === 0
+            ? {
+                  originalName: 'renamed.bin',
+                  folder: 'archive',
+                  sourceName: 'nested.bin',
+                  sourceFolder: 'photos/2024'
+              }
+            : { sourceFolder: '' })
+    }));
+
+    vi.mocked(downloadBmp).mockImplementation((_email, _token, key) =>
+        Ok(bmpResponse(bmps[Number(key.slice(-1))], 32)).andThenAsync(async (response) =>
+            Ok(response)
+        )
+    );
+
+    const downloaded = await downloadFile({ ...input, name: 'renamed.bin', chunks });
+    const bytes = await downloaded.unwrap().arrayBuffer();
+
+    expect(Buffer.from(bytes)).toEqual(original);
+});

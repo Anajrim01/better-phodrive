@@ -75,6 +75,24 @@ export function withListingFolder(item: RemoteBmp, folder: string): RemoteBmp {
     return copy;
 }
 
+export function withListingName(item: RemoteBmp, name: string): RemoteBmp {
+    if (name === item.originalName) return item;
+
+    const sourceName = item.sourceName ?? item.originalName;
+
+    return {
+        ...item,
+        originalName: name,
+        ...(sourceName === undefined ? {} : { sourceName })
+    };
+}
+
+export function withMovedListingFolder(item: RemoteBmp, folder: string): RemoteBmp {
+    const sourceFolder = item.sourceFolder ?? item.folder ?? '';
+
+    return withListingFolder({ ...item, sourceFolder }, folder);
+}
+
 /** Apply persisted listing overrides to one raw item exactly once. */
 export function applyOverrides(item: RemoteBmp, overrides: LibraryOverrides): RemoteBmp {
     const name = overrides.fileNames[item.fileId];
@@ -82,11 +100,12 @@ export function applyOverrides(item: RemoteBmp, overrides: LibraryOverrides): Re
     const mapped = applyMappings(base, overrides.folderPrefixes);
     const override = overrides.fileFolders[item.fileId];
     const folder = override ?? mapped;
-    let result = item;
+    let result = name === undefined ? item : withListingName(item, name);
 
-    if (name !== undefined && name !== item.originalName)
-        result = { ...result, originalName: name };
-    if (folder !== base) result = withListingFolder(result, folder);
+    if (folder !== base) {
+        const sourceFolder = item.sourceFolder ?? base;
+        result = withListingFolder({ ...result, sourceFolder }, folder);
+    }
 
     return result;
 }

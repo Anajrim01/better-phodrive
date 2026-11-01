@@ -8,7 +8,7 @@ import {
     renameFile,
     renameFolder
 } from '@madkarmaa/phodrive-core/browser/manage';
-import type { EntryTarget, MenuAnchor } from '#browser/drive/menu-types';
+import { isPoint, type EntryTarget, type MenuAnchor } from '#browser/drive/menu-types';
 import type {
     ManageAction,
     ManageDeps,
@@ -44,6 +44,8 @@ export class DriveManage {
     dialogError = $state('');
     dialogBusy = $state(false);
 
+    private returnFocus: HTMLElement | null = null;
+
     constructor(private readonly deps: ManageDeps) {}
 
     get busy(): boolean {
@@ -73,6 +75,11 @@ export class DriveManage {
     openMenu(target: EntryTarget, anchor: MenuAnchor): void {
         if (this.deps.busy() || this.deps.loading() || this.dialogBusy) return;
 
+        this.returnFocus = isPoint(anchor)
+            ? document.activeElement instanceof HTMLElement
+                ? document.activeElement
+                : null
+            : anchor;
         this.menuTarget = target;
         this.menuAnchor = anchor;
         this.menuOpen = true;
@@ -104,6 +111,11 @@ export class DriveManage {
         this.dialog = null;
         this.dialogTarget = null;
         this.dialogError = '';
+        const focus = this.returnFocus;
+        this.returnFocus = null;
+        queueMicrotask(() => {
+            if (focus?.isConnected) focus.focus();
+        });
     }
 
     async rename(name: string): Promise<void> {

@@ -214,6 +214,8 @@ export const RemoteBmpSchema = z.object({
     isLast: z.boolean(),
     originalName: z.string().min(1).optional(),
     folder: FolderPathSchema.optional(),
+    sourceName: z.string().min(1).optional(),
+    sourceFolder: z.union([FolderPathSchema, z.literal('')]).optional(),
     size: z.number().nonnegative(),
     storedSize: z.int().nonnegative().optional(),
     compressed: z.boolean().optional(),

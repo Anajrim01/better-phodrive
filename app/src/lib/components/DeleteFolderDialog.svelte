@@ -28,7 +28,7 @@
             ? ''
             : count === 0
               ? `No loaded files remain in ${folder.name}. Refresh to check again.`
-              : `${folder.name} and ${count} ${count === 1 ? 'file' : 'files'} will move to Google Photos trash. You can restore them from Trash.`
+              : `${folder.name} and ${count} loaded ${count === 1 ? 'file' : 'files'} will move to Google Photos trash. Every file under the folder is included, and you can restore them from Trash.`
     );
 </script>
 

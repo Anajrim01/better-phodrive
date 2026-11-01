@@ -4,6 +4,7 @@ import type { ApplicationError } from '@madkarmaa/phodrive-core/errors';
 import type { FileGroup, FolderEntry, UploadedChunk } from '@madkarmaa/phodrive-core/files';
 import type { ManageResponse } from '@madkarmaa/phodrive-core/manage';
 import * as manageApi from '@madkarmaa/phodrive-core/browser/manage';
+import { nextRevision } from '#browser/drive/manage-files';
 import { DriveManage } from '#browser/drive/manage.svelte';
 
 vi.mock('@madkarmaa/phodrive-core/browser/manage', () => ({
@@ -102,6 +103,14 @@ const folder: FolderEntry = { path: 'A', name: 'A', files: 1, subfolders: 0 };
 beforeEach(() => {
     vi.resetAllMocks();
     vi.mocked(manageApi.renameFile).mockReturnValue(ok(response()));
+});
+
+test('the revision cursor only advances when no other change can be skipped', () => {
+    expect(nextRevision(4, 5)).toBe(5);
+    expect(nextRevision(5, 5)).toBe(5);
+    expect(nextRevision(4, 7)).toBeUndefined();
+    expect(nextRevision(0, 8)).toBeUndefined();
+    expect(nextRevision(9, 8)).toBeUndefined();
 });
 
 test('renaming a file routes to the selected account and applies the response', async () => {

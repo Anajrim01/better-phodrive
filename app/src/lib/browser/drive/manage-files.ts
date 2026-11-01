@@ -3,6 +3,13 @@ import type { EntryTarget } from '#browser/drive/menu-types';
 import type { MoveDestination } from '#browser/drive/manage-types';
 import { filesUnderPath, folderParent, folderPaths, isInFolder } from '#lib/folders';
 
+export function nextRevision(previous: number, revision: number): number | undefined {
+    if (previous === 0) return undefined;
+    if (revision === previous || revision === previous + 1) return revision;
+
+    return undefined;
+}
+
 export function folderFileCount(files: readonly FileGroup[], target: EntryTarget | null): number {
     if (!target || target.kind !== 'folder') return 0;
 

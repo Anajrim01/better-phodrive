@@ -18,6 +18,7 @@
 <IconButton
     size="xs"
     title={`More actions for ${label}`}
+    aria-haspopup="menu"
     {disabled}
     onclick={(event) => {
         if (disabled) return;

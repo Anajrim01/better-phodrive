@@ -55,7 +55,9 @@ test('renaming a folder changes every nested path prefix', async () => {
     expect(result.unwrap().fileCount).toBe(2);
     const items = savedItems();
     expect(items.find((item) => item.fileId === loose)?.folder).toBe('Renamed');
+    expect(items.find((item) => item.fileId === loose)?.sourceFolder).toBe('A');
     expect(items.find((item) => item.fileId === nested)?.folder).toBe('Renamed/sub');
+    expect(items.find((item) => item.fileId === nested)?.sourceFolder).toBe('A/sub');
     expect(items.find((item) => item.fileId === other)?.folder).toBe('B');
     expect(overrides().fileFolders[loose]).toBe('Renamed');
     expect(overrides().fileFolders[nested]).toBe('Renamed/sub');

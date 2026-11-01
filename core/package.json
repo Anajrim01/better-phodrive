@@ -201,6 +201,10 @@
             "@madkarmaa/phodrive-core": "./src/server/manage.ts",
             "default": "./dist/server/manage.js"
         },
+        "./server/manage-auth": {
+            "@madkarmaa/phodrive-core": "./src/server/manage-auth.ts",
+            "default": "./dist/server/manage-auth.js"
+        },
         "./server/photos": {
             "@madkarmaa/phodrive-core": "./src/server/photos/index.ts",
             "default": "./dist/server/photos/index.js"
@@ -460,6 +464,7 @@
             "./server/files": "./dist/server/files.js",
             "./server/folders": "./dist/server/folders.js",
             "./server/manage": "./dist/server/manage.js",
+            "./server/manage-auth": "./dist/server/manage-auth.js",
             "./server/photos": "./dist/server/photos/index.js",
             "./server/photos/albums": "./dist/server/photos/albums.js",
             "./server/photos/auth": "./dist/server/photos/auth.js",

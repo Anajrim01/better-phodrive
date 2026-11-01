@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { RemoteBmp } from '@madkarmaa/phodrive-core/models';
+import { writeAuthHeaders } from '@madkarmaa/phodrive-core/server/photos/auth-cache';
 import {
     readAccountOverrides,
     readAccountState,
@@ -44,12 +45,25 @@ export function chunk(
     };
 }
 
+export function primeManageAuth(email = MANAGE_EMAIL, token = MANAGE_TOKEN): void {
+    writeAuthHeaders(
+        email,
+        token,
+        {
+            commonHeaders: { Authorization: 'Bearer test' },
+            rpcHeaders: { Authorization: 'Bearer test' }
+        },
+        Date.now() + 60 * 60 * 1_000
+    );
+}
+
 export function saveItems(
     items: RemoteBmp[],
     revision = 5,
     email = MANAGE_EMAIL,
     syncToken = 'sync-one'
 ): void {
+    primeManageAuth(email);
     writeAccountState(email, {
         syncToken: Buffer.from(syncToken),
         revision,

@@ -64,11 +64,15 @@ test('a full sync reapplies persisted renames and moves', async () => {
 
     expect(synced.unwrap().items[0]).toMatchObject({
         originalName: 'renamed.bin',
-        folder: 'Moved'
+        folder: 'Moved',
+        sourceName: 'file-0.bin',
+        sourceFolder: ''
     });
     expect([...(readAccountState(MANAGE_EMAIL)?.items.values() ?? [])][0]).toMatchObject({
         originalName: 'renamed.bin',
-        folder: 'Moved'
+        folder: 'Moved',
+        sourceName: 'file-0.bin',
+        sourceFolder: ''
     });
 });
 

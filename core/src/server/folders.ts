@@ -4,6 +4,7 @@ import { FolderManageAction, type FolderFailure, type FolderManageRequest } from
 import { FolderPathSchema, type RemoteBmp } from '../models';
 import { SERVER_ERRORS, isThrottleError, throttleError, type ServerError } from './errors';
 import { photosFetch, type Fetcher } from './fetcher';
+import { verifyManageAccount } from './manage-auth';
 import { ensureAccountIndex } from './photos/library/ensure';
 import {
     activeChunks,
@@ -22,7 +23,7 @@ import {
     isInFolder,
     joinFolder,
     replacePrefix,
-    withListingFolder,
+    withMovedListingFolder,
     type LibraryOverrides
 } from './photos/library/overrides';
 import { updateListingItems } from './photos/library/listing-updates';
@@ -189,43 +190,46 @@ export function manageFolder(
     input: FolderManageRequest,
     fetcher: Fetcher = photosFetch
 ): AsyncResult<FolderManageResult, ServerError> {
-    return ensureAccountIndex(input.email, input.token, fetcher).andThenAsync(() =>
-        withAccountLock(input.email, async () => {
-            const state = readAccountState(input.email);
-            if (!state) return Err(SERVER_ERRORS.LIBRARY_STATE_REQUIRED);
+    return verifyManageAccount(input.email, input.token, fetcher)
+        .andThenAsync(() => ensureAccountIndex(input.email, input.token, fetcher))
+        .andThenAsync(() =>
+            withAccountLock(input.email, async () => {
+                const state = readAccountState(input.email);
+                if (!state) return Err(SERVER_ERRORS.LIBRARY_STATE_REQUIRED);
 
-            const files = indexFiles(state.items.values());
-            const affected = filesInFolder(files, input.folder);
-            if (affected.length === 0) return Err(SERVER_ERRORS.FOLDER_NOT_FOUND);
-            if (input.action === FolderManageAction.Delete)
-                return await trashFolder(input, affected);
+                const files = indexFiles(state.items.values());
+                const affected = filesInFolder(files, input.folder);
+                if (affected.length === 0) return Err(SERVER_ERRORS.FOLDER_NOT_FOUND);
+                if (input.action === FolderManageAction.Delete)
+                    return await trashFolder(input, affected);
 
-            const target = targetFolder(input, files);
-            if (target === null) return Err(destinationError());
-            if (target === input.folder) return Ok(emptyResult(state.revision, affected.length));
-            if (target !== '' && !FolderPathSchema.safeParse(target).success)
-                return Err(SERVER_ERRORS.INVALID_FOLDER_PATH);
+                const target = targetFolder(input, files);
+                if (target === null) return Err(destinationError());
+                if (target === input.folder)
+                    return Ok(emptyResult(state.revision, affected.length));
+                if (target !== '' && !FolderPathSchema.safeParse(target).success)
+                    return Err(SERVER_ERRORS.INVALID_FOLDER_PATH);
 
-            const collision = collisionError(input, files, affected, target);
-            if (collision) return Err(collision);
+                const collision = collisionError(input, files, affected, target);
+                if (collision) return Err(collision);
 
-            writeAccountOverrides(
-                input.email,
-                nextOverrides(readAccountOverrides(input.email), input, affected, target)
-            );
-            const changed = affected.flatMap((file) => {
-                const folder = nextFolder(input, file, target);
+                writeAccountOverrides(
+                    input.email,
+                    nextOverrides(readAccountOverrides(input.email), input, affected, target)
+                );
+                const changed = affected.flatMap((file) => {
+                    const folder = nextFolder(input, file, target);
 
-                return file.items.map((item) => withListingFolder(item, folder));
-            });
-            const items = updateListingItems(input.email, changed);
+                    return file.items.map((item) => withMovedListingFolder(item, folder));
+                });
+                const items = updateListingItems(input.email, changed);
 
-            return Ok({
-                items,
-                revision: readAccountRevision(input.email),
-                fileCount: affected.length,
-                failed: []
-            });
-        })
-    );
+                return Ok({
+                    items,
+                    revision: readAccountRevision(input.email),
+                    fileCount: affected.length,
+                    failed: []
+                });
+            })
+        );
 }

@@ -1,6 +1,7 @@
 import { applyLibraryDelta } from '@madkarmaa/phodrive-core/browser/library';
 import { watch } from 'runed';
 import type { DriveController } from '#browser/drive/index.svelte';
+import { nextRevision } from '#browser/drive/manage-files';
 import { DriveManage } from '#browser/drive/manage.svelte';
 
 export function createDriveManage(drive: DriveController): DriveManage {
@@ -23,7 +24,10 @@ export function createDriveManage(drive: DriveController): DriveManage {
                 items,
                 deleted: []
             });
-            drive.library.revisions.set(email.toLowerCase(), revision);
+            const key = email.toLowerCase();
+            const previous = drive.library.revisions.get(key) ?? 0;
+            const next = nextRevision(previous, revision);
+            if (next !== undefined) drive.library.revisions.set(key, next);
         },
         openFolder: (path) => drive.library.openFolder(path),
         currentFolder: () => drive.library.folder

@@ -15,6 +15,7 @@ import {
     chunk,
     id,
     overrides,
+    primeManageAuth,
     saveItems,
     savedItems
 } from '../helpers/manage';
@@ -51,6 +52,8 @@ test('renaming a file keeps every chunk and duplicate together', async () => {
 
     expect(result.unwrap().items).toHaveLength(3);
     expect(savedItems().every((item) => item.originalName === 'new.bin')).toBe(true);
+    expect(savedItems().find((item) => item.mediaKey === 'chunk-0')?.sourceName).toBe('old.bin');
+    expect(savedItems().find((item) => item.mediaKey === 'chunk-1')?.sourceName).toBeUndefined();
     expect(overrides().fileNames[fileId]).toBe('new.bin');
 });
 
@@ -92,6 +95,7 @@ test('moving a file to My files omits the folder field', async () => {
 
     const moved = savedItems()[0];
     expect(moved?.folder).toBeUndefined();
+    expect(moved?.sourceFolder).toBe('A');
     expect(moved && RemoteBmpSchema.safeParse(moved).success).toBe(true);
 });
 
@@ -144,7 +148,27 @@ test('moving a file to an unknown folder is rejected', async () => {
     expect(result.unwrapErr().code).toBe('INVALID_FOLDER_DESTINATION');
 });
 
+test('a cached index still requires a valid token', async () => {
+    const fileId = id('auth');
+    saveItems([chunk(fileId, 'auth', { name: 'auth.bin', folder: 'A' })]);
+
+    const result = await manageFile(
+        {
+            action: FileManageAction.Rename,
+            email: MANAGE_EMAIL,
+            token: 'aas_et/wrong',
+            fileId,
+            name: 'renamed.bin'
+        },
+        async () => new Response(null, { status: 401 })
+    );
+
+    expect(result.isErr()).toBe(true);
+    expect(savedItems()[0]?.originalName).toBe('auth.bin');
+});
+
 test('management requires an indexed library first', async () => {
+    primeManageAuth();
     const result = await manageFile(
         {
             action: FileManageAction.Rename,
