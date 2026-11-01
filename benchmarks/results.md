@@ -1,6 +1,6 @@
 # Final performance results
 
-These results measure production source `e16a27c`. Later commits document experiments only. The AC measurements compare it with the unchanged [original performance baseline](./baseline.md) at production source `86cba81`. Both versions used Node v24.21.0 and the same OS, CPU, dependencies, and workloads. Each case had two warmups and five measured samples. Every case ran in a fresh process, sequentially, without competing builds, tests or browser transfers. No special compiler/CPU flags or forced GC were used. See [reproduction instructions](./README.md) and [all accepted/rejected iterations](./iterations.md).
+These results measure production source `e16a27c`, before compression, folders, groups, and delta sync. Later commits changed production code; use [compression.md](./compression.md) for the compression path and re-run the suite for current numbers. The AC measurements compare it with the unchanged [original performance baseline](./baseline.md) at production source `86cba81`. Both versions used Node v24.21.0 and the same OS, CPU, dependencies, and workloads. Each case had two warmups and five measured samples. Every case ran in a fresh process, sequentially, without competing builds, tests or browser transfers. No special compiler/CPU flags or forced GC were used. See [reproduction instructions](./README.md) and [all accepted/rejected iterations](./iterations.md).
 
 ## Original baseline and final AC run
 
