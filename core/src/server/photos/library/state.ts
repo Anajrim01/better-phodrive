@@ -89,7 +89,10 @@ function load(): void {
             let lastRevision = 0;
             if (Array.isArray(log)) {
                 for (const entry of log) {
-                    if (!entry || typeof entry !== 'object') continue;
+                    if (!entry || typeof entry !== 'object') {
+                        changes.length = 0;
+                        break;
+                    }
 
                     const {
                         revision: entryRevision,
@@ -110,17 +113,29 @@ function load(): void {
                         typeof at !== 'number' ||
                         !Array.isArray(changed) ||
                         !Array.isArray(deleted)
-                    )
-                        continue;
+                    ) {
+                        changes.length = 0;
+                        break;
+                    }
+
+                    const changedItems = changed.filter(isRemoteBmp);
+                    const deletedKeys = deleted.filter(
+                        (mediaKey): mediaKey is string => typeof mediaKey === 'string'
+                    );
+                    if (
+                        changedItems.length !== changed.length ||
+                        deletedKeys.length !== deleted.length
+                    ) {
+                        changes.length = 0;
+                        break;
+                    }
 
                     lastRevision = entryRevision;
                     changes.push({
                         revision: entryRevision,
                         at,
-                        items: changed.filter(isRemoteBmp),
-                        deleted: deleted.filter(
-                            (mediaKey): mediaKey is string => typeof mediaKey === 'string'
-                        )
+                        items: changedItems,
+                        deleted: deletedKeys
                     });
                 }
             }
