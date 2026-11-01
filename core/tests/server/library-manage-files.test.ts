@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test } from 'vitest';
 import { FileManageAction } from '@madkarmaa/phodrive-core/manage';
+import { RemoteBmpSchema } from '@madkarmaa/phodrive-core/models';
 import { manageFile } from '@madkarmaa/phodrive-core/server/manage';
 import {
     clearLibraryState,
@@ -71,9 +72,27 @@ test('moving a file keeps its chunk identity and listing folder', async () => {
     const moved = savedItems().find((item) => item.fileId === fileId);
     expect(moved?.folder).toBe('B');
     expect(moved?.fileHash).toBe(fileId);
+    expect(moved && RemoteBmpSchema.safeParse(moved).success).toBe(true);
     expect(moved?.originalName).toBe('move.bin');
     expect(overrides().fileFolders[fileId]).toBe('B');
     expect(result.unwrap().revision).toBe(6);
+});
+
+test('moving a file to My files omits the folder field', async () => {
+    const fileId = id('root-file');
+    saveItems([chunk(fileId, 'root-file', { name: 'root.bin', folder: 'A' })]);
+
+    await manageFile({
+        action: FileManageAction.Move,
+        email: MANAGE_EMAIL,
+        token: MANAGE_TOKEN,
+        fileId,
+        folder: ''
+    });
+
+    const moved = savedItems()[0];
+    expect(moved?.folder).toBeUndefined();
+    expect(moved && RemoteBmpSchema.safeParse(moved).success).toBe(true);
 });
 
 test('file rename and move collisions are rejected without changing state', async () => {

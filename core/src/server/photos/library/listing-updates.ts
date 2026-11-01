@@ -1,4 +1,5 @@
 import type { RemoteBmp } from '../../../models';
+import { withListingFolder } from './overrides';
 import { readAccountState, trimChangeLog, writeAccountState } from './state';
 
 function sameListing(first: RemoteBmp, second: RemoteBmp): boolean {
@@ -20,7 +21,8 @@ export function updateListingItems(
 
     const next = new Map(state.items);
     const changed: RemoteBmp[] = [];
-    for (const item of items) {
+    for (const raw of items) {
+        const item = withListingFolder(raw, raw.folder ?? '');
         const existing = next.get(item.mediaKey);
         if (existing && sameListing(existing, item)) continue;
 

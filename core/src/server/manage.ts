@@ -12,7 +12,7 @@ import {
 } from './photos/library/index-files';
 import { updateListingItems } from './photos/library/listing-updates';
 import { withAccountLock } from './photos/library/lock';
-import type { LibraryOverrides } from './photos/library/overrides';
+import { withListingFolder, type LibraryOverrides } from './photos/library/overrides';
 import {
     readAccountOverrides,
     readAccountRevision,
@@ -80,7 +80,9 @@ export function manageFile(
                 );
                 const items = updateListingItems(
                     input.email,
-                    file.items.map((item) => ({ ...item, originalName: input.name }))
+                    file.items.map((item) =>
+                        withListingFolder({ ...item, originalName: input.name }, file.folder)
+                    )
                 );
 
                 return Ok({ items, revision: readAccountRevision(input.email) });
@@ -98,7 +100,7 @@ export function manageFile(
             );
             const items = updateListingItems(
                 input.email,
-                file.items.map((item) => ({ ...item, folder: input.folder }))
+                file.items.map((item) => withListingFolder(item, input.folder))
             );
 
             return Ok({ items, revision: readAccountRevision(input.email) });

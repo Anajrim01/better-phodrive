@@ -64,6 +64,17 @@ export function applyMappings(folder: string, mappings: readonly FolderPrefix[])
     return mapped;
 }
 
+/** Root files omit the folder field so listings keep their existing shape. */
+export function withListingFolder(item: RemoteBmp, folder: string): RemoteBmp {
+    if (folder) return { ...item, folder };
+    if (item.folder === undefined) return item;
+
+    const copy = { ...item };
+    delete copy.folder;
+
+    return copy;
+}
+
 /** Apply persisted listing overrides to one raw item exactly once. */
 export function applyOverrides(item: RemoteBmp, overrides: LibraryOverrides): RemoteBmp {
     const name = overrides.fileNames[item.fileId];
@@ -75,7 +86,7 @@ export function applyOverrides(item: RemoteBmp, overrides: LibraryOverrides): Re
 
     if (name !== undefined && name !== item.originalName)
         result = { ...result, originalName: name };
-    if (folder !== base) result = { ...result, folder };
+    if (folder !== base) result = withListingFolder(result, folder);
 
     return result;
 }

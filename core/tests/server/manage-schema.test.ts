@@ -154,6 +154,12 @@ test('management responses validate affected items and partial failures', () => 
             ]
         }).success
     ).toBe(true);
+    expect(
+        ManageResponseSchema.safeParse({
+            items: [{ ...item, folder: undefined }],
+            revision: 9
+        }).success
+    ).toBe(true);
     expect(ManageResponseSchema.safeParse({ items: [item], revision: -1 }).success).toBe(false);
     expect(
         ManageResponseSchema.safeParse({

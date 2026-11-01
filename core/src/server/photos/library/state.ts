@@ -5,6 +5,7 @@ import type { LibraryOverrides } from './overrides';
 import {
     accountOverridesSnapshot,
     clearAccountOverrides,
+    forgetFileOverrides,
     loadAccountOverrides,
     readAccountOverrides as storedOverrides,
     setAccountOverrides
@@ -258,10 +259,25 @@ export function removeChunks(
     if (!state) return;
 
     const removed: string[] = [];
+    const removedFiles = new Set<string>();
     for (const chunk of chunks) {
-        if (state.items.delete(chunk.mediaKey)) removed.push(chunk.mediaKey);
+        const item = state.items.get(chunk.mediaKey);
+        if (!state.items.delete(chunk.mediaKey)) continue;
+
+        removed.push(chunk.mediaKey);
+        removedFiles.add(item?.fileId ?? '');
     }
 
+    const remaining = new Set([...state.items.values()].map((item) => item.fileId));
+    if (
+        forgetFileOverrides(
+            email,
+            [...removedFiles].filter((fileId) => fileId && !remaining.has(fileId))
+        )
+    ) {
+        dirty = true;
+        scheduleFlush();
+    }
     recordChange(state, [], removed, now);
 }
 

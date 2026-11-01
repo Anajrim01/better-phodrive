@@ -14,6 +14,7 @@ import {
     flushLibraryState,
     readAccountOverrides,
     readAccountState,
+    removeChunks,
     writeAccountOverrides
 } from '@madkarmaa/phodrive-core/server/photos/library/state';
 import {
@@ -128,6 +129,25 @@ test('overrides survive a state flush and reload', async () => {
         fileFolders: { [fileId]: 'Stored' },
         folderPrefixes: [{ from: 'Old', to: 'Stored' }]
     });
+});
+
+test('permanent deletion forgets a file name and folder override', () => {
+    const fileId = id('deleted');
+    saveItems([
+        chunk(fileId, 'deleted-0', { name: 'gone.bin', folder: 'A', last: false }),
+        chunk(fileId, 'deleted-1', { index: 1 })
+    ]);
+    writeAccountOverrides(MANAGE_EMAIL, {
+        fileNames: { [fileId]: 'renamed.bin' },
+        fileFolders: { [fileId]: 'B' },
+        folderPrefixes: [{ from: 'A', to: 'B' }]
+    });
+
+    removeChunks(MANAGE_EMAIL, [{ mediaKey: 'deleted-0' }, { mediaKey: 'deleted-1' }]);
+
+    expect(readAccountOverrides(MANAGE_EMAIL).fileNames).toEqual({});
+    expect(readAccountOverrides(MANAGE_EMAIL).fileFolders).toEqual({});
+    expect(readAccountOverrides(MANAGE_EMAIL).folderPrefixes).toEqual([{ from: 'A', to: 'B' }]);
 });
 
 test('the change log gives another client the renamed item', async () => {

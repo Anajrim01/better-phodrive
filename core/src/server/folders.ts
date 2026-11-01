@@ -22,6 +22,7 @@ import {
     isInFolder,
     joinFolder,
     replacePrefix,
+    withListingFolder,
     type LibraryOverrides
 } from './photos/library/overrides';
 import { updateListingItems } from './photos/library/listing-updates';
@@ -215,7 +216,7 @@ export function manageFolder(
             const changed = affected.flatMap((file) => {
                 const folder = nextFolder(input, file, target);
 
-                return file.items.map((item) => ({ ...item, folder }));
+                return file.items.map((item) => withListingFolder(item, folder));
             });
             const items = updateListingItems(input.email, changed);
 

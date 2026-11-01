@@ -30,6 +30,28 @@ export function accountOverridesSnapshot(): Record<string, LibraryOverrides> {
     return Object.fromEntries(overrides);
 }
 
+export function forgetFileOverrides(email: string, fileIds: Iterable<string>): boolean {
+    const current = overrides.get(email.toLowerCase());
+    if (!current) return false;
+
+    let changed = false;
+    const fileNames = { ...current.fileNames };
+    const fileFolders = { ...current.fileFolders };
+    for (const fileId of fileIds) {
+        if (fileId in fileNames) {
+            delete fileNames[fileId];
+            changed = true;
+        }
+        if (fileId in fileFolders) {
+            delete fileFolders[fileId];
+            changed = true;
+        }
+    }
+    if (changed) overrides.set(email.toLowerCase(), { ...current, fileNames, fileFolders });
+
+    return changed;
+}
+
 export function clearAccountOverrides(): void {
     overrides.clear();
 }

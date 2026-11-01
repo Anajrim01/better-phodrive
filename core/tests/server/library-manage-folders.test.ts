@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test } from 'vitest';
 import { FolderManageAction } from '@madkarmaa/phodrive-core/manage';
+import { RemoteBmpSchema } from '@madkarmaa/phodrive-core/models';
 import { manageFolder } from '@madkarmaa/phodrive-core/server/folders';
 import {
     clearLibraryState,
@@ -100,7 +101,9 @@ test('moving folder contents to My files clears only the folder prefix', async (
     });
 
     expect(result.unwrap().fileCount).toBe(2);
-    expect(savedItems().find((item) => item.fileId === direct)?.folder).toBe('');
+    const directItem = savedItems().find((item) => item.fileId === direct);
+    expect(directItem?.folder).toBeUndefined();
+    expect(directItem && RemoteBmpSchema.safeParse(directItem).success).toBe(true);
     expect(savedItems().find((item) => item.fileId === nested)?.folder).toBe('sub');
     expect(overrides().fileFolders[direct]).toBe('');
     expect(overrides().folderPrefixes).toContainEqual({ from: 'A', to: '' });
