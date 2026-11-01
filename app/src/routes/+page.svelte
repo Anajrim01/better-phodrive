@@ -8,12 +8,15 @@
     import { prefersReducedMotion } from 'svelte/motion';
     import { DriveController } from '#browser/drive/index.svelte';
     import { createDriveManage } from '#browser/drive/manage-factory';
+    import { createSelectionView } from '#browser/drive/selection-view.svelte';
     import type { MenuAnchor } from '#browser/drive/menu-types';
     import AppHeader from '#components/AppHeader.svelte';
     import AccountMenu from '#components/AccountMenu.svelte';
     import AccountSetup from '#components/AccountSetup.svelte';
     import ConfirmDialog from '#components/ConfirmDialog.svelte';
     import ManageLayer from '#components/ManageLayer.svelte';
+    import BulkLayer from '#components/BulkLayer.svelte';
+    import SelectionLayer from '#components/SelectionLayer.svelte';
     import UploadSidebar from '#components/UploadSidebar.svelte';
     import UploadPanel from '#components/UploadPanel.svelte';
     import FilesView from '#components/FilesView.svelte';
@@ -31,9 +34,12 @@
 
     const drive = new DriveController(untrack(() => data.preferencesDefaults));
     const manage = createDriveManage(drive);
-    const actionsDisabled = $derived(drive.busy || !!drive.fileAction || manage.busy);
-    const stats = $derived(libraryStats(drive.library.files));
     let view = $state<AppView>(AppView.Files);
+    const selection = createSelectionView(drive, manage, () => view);
+    const actionsDisabled = $derived(
+        drive.busy || !!drive.fileAction || manage.busy || drive.bulk.running || drive.bulk.moveBusy
+    );
+    const stats = $derived(libraryStats(drive.library.files));
     let navigationOpen = $state(false);
     let accountButton = $state<HTMLElement>();
 
@@ -41,6 +47,7 @@
 
     function addAccount() {
         view = AppView.Files;
+        selection.clear();
         drive.accountEditor.adding = true;
         drive.feedbackMessage = '';
     }
@@ -75,6 +82,12 @@
     function openFolderMenu(folder: FolderEntry, anchor: MenuAnchor) {
         manage.openMenu({ kind: 'folder', entry: folder }, anchor);
     }
+
+    function navigate(nextView: AppView): void {
+        view = nextView;
+        selection.clear();
+        manage.closeMenu();
+    }
 </script>
 
 {#if !drive.ready || !drive.selectedEmail || drive.accountEditor.adding || view !== AppView.Files}
@@ -98,7 +111,10 @@
         ondelete={confirmTrash}
         ondeleteforever={confirmPermanentDelete}
         onopenfolder={(path) => drive.library.openFolder(path)}
+        onbulk={selection.run}
     />
+
+    <BulkLayer bulk={drive.bulk} />
 
     <AppHeader
         bind:search={drive.library.searchTerm}
@@ -144,7 +160,7 @@
         uploadTarget={drive.groupMode.uploadTarget}
         currentEmail={drive.selectedEmail}
         unavailableTarget={drive.groupMode.unavailableTargetName}
-        onnavigate={(nextView) => (view = nextView)}
+        onnavigate={navigate}
         onuploadtarget={(id) => drive.groupMode.choose(id)}
         onconnect={addAccount}
         onupload={upload}
@@ -152,6 +168,7 @@
 
     <main
         class="mr-4 mb-4 flex min-w-0 flex-col rounded-[20px] bg-panel px-6 pt-6 pb-12 text-text max-[800px]:mx-2 max-[800px]:mb-2 max-[800px]:px-4 max-[800px]:pt-4 max-[800px]:pb-[calc(96px+env(safe-area-inset-bottom,0px))]"
+        class:has-selection={selection.count > 0}
     >
         {#if drive.ready && view === AppView.Settings}
             <SettingsView {drive} defaults={data.preferencesDefaults} />
@@ -169,6 +186,11 @@
                 accounts={drive.library.accounts}
                 partial={drive.library.partial}
                 action={drive.fileAction}
+                selected={selection.keys}
+                onselect={selection.selectFile}
+                onselectall={selection.selectAll}
+                oncontextselect={selection.selectOnly}
+                onselectionmenu={selection.openMenu}
                 onrestore={restore}
                 ondeleteforever={confirmPermanentDelete}
                 onmenu={openFileMenu}
@@ -203,6 +225,11 @@
             <FilesView
                 {drive}
                 {actionsDisabled}
+                selected={selection.keys}
+                onselect={selection.selectFile}
+                onselectall={selection.selectAll}
+                oncontextselect={selection.selectOnly}
+                onselectionmenu={selection.openMenu}
                 onupload={upload}
                 ondownload={download}
                 ondelete={confirmTrash}
@@ -214,6 +241,8 @@
     </main>
 </div>
 
+<SelectionLayer {drive} {selection} {actionsDisabled} />
+
 <UploadPanel
     bind:open={drive.uploadPanelOpen}
     busy={drive.busy}
@@ -223,3 +252,15 @@
         void drive.retryUpload(id);
     }}
 />
+
+<style>
+    main.has-selection {
+        padding-bottom: calc(72px + 88px);
+    }
+
+    @media (width < 800px) {
+        main.has-selection {
+            padding-bottom: calc(176px + env(safe-area-inset-bottom, 0px));
+        }
+    }
+</style>

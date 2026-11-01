@@ -16,6 +16,7 @@
         ondelete: (item: FileGroup) => void;
         ondeleteforever: (item: FileGroup) => void;
         onopenfolder: (path: string) => void;
+        onbulk: (action: MenuAction, files: readonly FileGroup[]) => void;
     }
 
     let {
@@ -25,7 +26,8 @@
         onrestore,
         ondelete,
         ondeleteforever,
-        onopenfolder
+        onopenfolder,
+        onbulk
     }: Props = $props();
 
     const dialogTarget = $derived(manage.dialogTarget);
@@ -35,7 +37,8 @@
         const target = manage.menuTarget;
         manage.closeMenu();
         if (!target) return;
-        if (action === 'download' && target.kind === 'file') ondownload(target.item);
+        if (target.kind === 'selection') onbulk(action, target.files);
+        else if (action === 'download' && target.kind === 'file') ondownload(target.item);
         else if (action === 'rename') manage.openRename(target);
         else if (action === 'move') manage.openMove(target);
         else if (action === 'delete' && target.kind === 'file') ondelete(target.item);

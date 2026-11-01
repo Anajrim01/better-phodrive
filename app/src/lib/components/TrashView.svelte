@@ -22,6 +22,11 @@
         accounts?: readonly GroupAccountState[];
         partial?: boolean;
         action?: FileAction | null;
+        selected?: ReadonlySet<string>;
+        onselect?: (item: FileGroup, event: MouseEvent | KeyboardEvent) => void;
+        onselectall?: (select: boolean) => void;
+        oncontextselect?: (item: FileGroup) => void;
+        onselectionmenu?: (anchor: MenuAnchor) => void;
         onrestore: (item: FileGroup) => void;
         ondeleteforever: (item: FileGroup) => void;
         onmenu: (item: FileGroup, anchor: MenuAnchor) => void;
@@ -41,6 +46,11 @@
         accounts = [],
         partial = false,
         action = null,
+        selected = new Set<string>(),
+        onselect,
+        onselectall,
+        oncontextselect,
+        onselectionmenu,
         onrestore,
         ondeleteforever,
         onmenu,
@@ -71,6 +81,11 @@
             bind:sort
             {disabled}
             {action}
+            {selected}
+            {onselect}
+            {onselectall}
+            {oncontextselect}
+            {onselectionmenu}
             showFolder
             {showOwner}
             trash

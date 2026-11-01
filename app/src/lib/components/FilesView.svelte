@@ -13,6 +13,11 @@
     interface Props {
         drive: DriveController;
         actionsDisabled: boolean;
+        selected: ReadonlySet<string>;
+        onselect: (item: FileGroup, event: MouseEvent | KeyboardEvent) => void;
+        onselectall: (select: boolean) => void;
+        oncontextselect: (item: FileGroup) => void;
+        onselectionmenu: (anchor: MenuAnchor) => void;
         onupload: (files: File[]) => void;
         ondownload: (item: FileGroup) => void;
         ondelete: (item: FileGroup) => void;
@@ -24,6 +29,11 @@
     let {
         drive,
         actionsDisabled,
+        selected,
+        onselect,
+        onselectall,
+        oncontextselect,
+        onselectionmenu,
         onupload,
         ondownload,
         ondelete,
@@ -100,6 +110,11 @@
             showFolder={drive.library.filtering}
             showOwner={drive.groupMode.target !== null}
             action={drive.fileAction}
+            {selected}
+            {onselect}
+            {onselectall}
+            {oncontextselect}
+            {onselectionmenu}
             onopenfolder={(path) => drive.library.openFolder(path)}
             {ondownload}
             {ondelete}
@@ -152,5 +167,13 @@
 
     .crumb-separator {
         color: var(--app-subtle);
+    }
+
+    @media (width < 800px) {
+        .workspace-heading {
+            height: auto;
+            min-height: 40px;
+            align-items: flex-start;
+        }
     }
 </style>

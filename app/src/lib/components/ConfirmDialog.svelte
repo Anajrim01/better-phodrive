@@ -17,27 +17,43 @@
             ? target.item
             : null
     );
-    const permanent = $derived(target?.kind === ConfirmKind.PermanentDelete);
+    const selection = $derived(target?.kind === 'selection' ? target : null);
+    const permanent = $derived(
+        target?.kind === ConfirmKind.PermanentDelete || (selection?.permanent ?? false)
+    );
     const deletingRemaining = $derived(file !== null && !file.complete);
+    const selectedCount = $derived(selection?.files.length ?? 0);
+    const selectedNoun = $derived(selectedCount === 1 ? 'file' : 'files');
+    const incompleteCount = $derived(selection?.files.filter((item) => !item.complete).length ?? 0);
     const headline = $derived(
         target?.kind === ConfirmKind.Account
             ? 'Sign out?'
-            : permanent
-              ? 'Delete forever?'
-              : deletingRemaining
-                ? 'Delete remaining chunks?'
-                : 'Move file to trash?'
+            : selection
+              ? permanent
+                  ? `Delete ${selectedCount} ${selectedNoun} forever?`
+                  : `Move ${selectedCount} ${selectedNoun} to trash?`
+              : permanent
+                ? 'Delete forever?'
+                : deletingRemaining
+                  ? 'Delete remaining chunks?'
+                  : 'Move file to trash?'
     );
     const body = $derived(
         target?.kind === ConfirmKind.Account
             ? `Sign out of ${target.email} on this browser? Files in Google Photos will stay online.`
-            : file === null
-              ? ''
-              : permanent
-                ? `This deletes ${file.name}. This cannot be undone.`
-                : deletingRemaining
-                  ? `This moves the remaining chunks of ${file.name} to Google Photos trash. You can restore the chunks that are still there from Trash.`
-                  : `This moves ${file.name} to Google Photos trash. You can restore it from Trash.`
+            : selection
+              ? permanent
+                  ? `This deletes ${selectedCount} ${selectedNoun} forever. This cannot be undone.`
+                  : `This moves ${selectedCount} ${selectedNoun} to Google Photos trash. You can restore ${
+                        selectedCount === 1 ? 'it' : 'them'
+                    } from Trash.${incompleteCount > 0 ? ` ${incompleteCount} incomplete ${incompleteCount === 1 ? 'file moves' : 'files move'} only the remaining chunks.` : ''}`
+              : file === null
+                ? ''
+                : permanent
+                  ? `This deletes ${file.name}. This cannot be undone.`
+                  : deletingRemaining
+                    ? `This moves the remaining chunks of ${file.name} to Google Photos trash. You can restore the chunks that are still there from Trash.`
+                    : `This moves ${file.name} to Google Photos trash. You can restore it from Trash.`
     );
 </script>
 

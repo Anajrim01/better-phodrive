@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { Card } from 'noph-ui';
+    import { Card, Checkbox } from 'noph-ui';
     import type { FileActionKind } from '@madkarmaa/phodrive-core/models';
     import type { FileGroup } from '@madkarmaa/phodrive-core/files';
     import { fileType } from '@madkarmaa/phodrive-core/files';
@@ -15,6 +15,11 @@
         working?: FileActionKind | null;
         showOwner?: boolean;
         partial?: boolean;
+        selected?: boolean;
+        selectedCount?: number;
+        onselect?: (item: FileGroup, event: MouseEvent | KeyboardEvent) => void;
+        oncontextselect?: (item: FileGroup) => void;
+        onselectionmenu?: (anchor: MenuAnchor) => void;
         ondownload?: (item: FileGroup) => void;
         ondelete?: (item: FileGroup) => void;
         onrestore?: (item: FileGroup) => void;
@@ -27,24 +32,60 @@
         working = null,
         showOwner = false,
         partial = false,
+        selected = false,
+        selectedCount = 0,
+        onselect,
+        oncontextselect,
+        onselectionmenu,
         ondownload,
         ondelete,
         onrestore,
         onmenu
     }: Props = $props();
+    let isChecked = $state(false);
+
+    $effect(() => {
+        isChecked = selected;
+    });
+
+    function contextMenu(event: MouseEvent): void {
+        event.preventDefault();
+        if (selectedCount > 1 && selected) {
+            onselectionmenu?.({ x: event.clientX, y: event.clientY });
+
+            return;
+        }
+
+        if (!selected) oncontextselect?.(item);
+        onmenu(item, { x: event.clientX, y: event.clientY });
+    }
 </script>
 
 <div
     class="file-card-shell"
+    class:selected
     role="group"
     aria-label={item.name}
-    oncontextmenu={(event) => {
-        event.preventDefault();
-        onmenu(item, { x: event.clientX, y: event.clientY });
-    }}
+    oncontextmenu={contextMenu}
 >
     <Card type="text" variant="filled" class="file-card">
-        <div class="flex h-12 min-w-0 items-center gap-3 px-3">
+        <div class="flex h-12 min-w-0 items-center gap-2 px-2">
+            <Checkbox
+                aria-label={`Select ${item.name}`}
+                bind:checked={isChecked}
+                {disabled}
+                --np-checkbox-margin="12px"
+                onclick={(event) => {
+                    event.stopPropagation();
+                    onselect?.(item, event);
+                    if (event.shiftKey) {
+                        const input = event.currentTarget;
+                        queueMicrotask(() => {
+                            input.checked = true;
+                        });
+                    }
+                }}
+            />
             <IconDescriptionOutline aria-hidden="true" class="size-5 shrink-0 text-muted" />
             <h3 class="min-w-0 flex-1 truncate text-sm font-medium" title={item.name}>
                 {item.name}
@@ -94,6 +135,21 @@
 <style>
     .file-card-shell {
         min-width: 0;
+        border-radius: 12px;
+    }
+
+    .file-card-shell:focus-visible {
+        outline: 2px solid var(--app-primary);
+        outline-offset: 2px;
+    }
+
+    .file-card-shell.selected :global(.file-card.np-card-container) {
+        --np-filled-card-container-color: color-mix(
+            in srgb,
+            var(--app-primary) 12%,
+            var(--app-card)
+        );
+        box-shadow: inset 0 0 0 2px var(--app-primary);
     }
 
     :global(:root .file-card.np-card-container) {

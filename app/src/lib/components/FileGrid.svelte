@@ -31,6 +31,11 @@
         showFolder: boolean;
         showOwner?: boolean;
         action?: FileAction | null;
+        selected?: ReadonlySet<string>;
+        onselect?: (item: FileGroup, event: MouseEvent | KeyboardEvent) => void;
+        onselectall?: (select: boolean) => void;
+        oncontextselect?: (item: FileGroup) => void;
+        onselectionmenu?: (anchor: MenuAnchor) => void;
         onopenfolder: (path: string) => void;
         ondownload: (item: FileGroup) => void;
         ondelete: (item: FileGroup) => void;
@@ -54,6 +59,11 @@
         showFolder,
         showOwner = false,
         action = null,
+        selected = new Set<string>(),
+        onselect,
+        onselectall,
+        oncontextselect,
+        onselectionmenu,
         onopenfolder,
         ondownload,
         ondelete,
@@ -62,6 +72,8 @@
         onfoldermenu,
         onmore
     }: Props = $props();
+    const selectedCount = $derived(files.filter((item) => selected.has(fileKey(item))).length);
+    const selectedKeys = $derived(new Set([...selected]));
 </script>
 
 <section class="mt-6 flex min-h-0 flex-1 flex-col gap-6" aria-labelledby="files-heading">
@@ -76,6 +88,11 @@
                 {showFolder}
                 {showOwner}
                 {action}
+                {selected}
+                {onselect}
+                {onselectall}
+                {oncontextselect}
+                {onselectionmenu}
                 partial={hasMore}
                 {ondownload}
                 {ondelete}
@@ -98,6 +115,11 @@
                             {showOwner}
                             partial={hasMore}
                             working={fileActionKind(action, item)}
+                            selected={selectedKeys.has(fileKey(item))}
+                            {selectedCount}
+                            {onselect}
+                            {oncontextselect}
+                            {onselectionmenu}
                             {ondownload}
                             {ondelete}
                             {onrestore}

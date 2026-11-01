@@ -2,13 +2,13 @@
     import { tick } from 'svelte';
     import { Divider, Menu, MenuItem } from 'noph-ui';
     import type { MenuAction } from '#lib/menus';
-    import { fileMenu, folderMenu } from '#lib/menus';
+    import { fileMenu, folderMenu, selectionMenu } from '#lib/menus';
     import { clampMenuPosition } from '#lib/menu-position';
     import {
         isPoint,
-        type EntryTarget,
         type MenuAnchor,
-        type MenuPoint
+        type MenuPoint,
+        type MenuTarget
     } from '#browser/drive/menu-types';
     import IconDownload from '~icons/material-symbols/download';
     import IconRename from '~icons/material-symbols/drive-file-rename-outline';
@@ -21,7 +21,7 @@
 
     interface Props {
         open: boolean;
-        target: EntryTarget | null;
+        target: MenuTarget | null;
         anchor: MenuAnchor | null;
         disabled?: boolean;
         onclose: () => void;
@@ -40,9 +40,11 @@
     const entries = $derived(
         target === null
             ? []
-            : target.kind === 'file'
-              ? fileMenu(target.item, target.item.trashed)
-              : folderMenu(target.entry)
+            : target.kind === 'selection'
+              ? selectionMenu(target.trash)
+              : target.kind === 'file'
+                ? fileMenu(target.item, target.item.trashed)
+                : folderMenu(target.entry)
     );
 
     function anchorPoint(): MenuPoint | null {
