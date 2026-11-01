@@ -141,6 +141,20 @@ Renames and moves are Phodrive listing metadata only. They are saved by the serv
 
 **Delete folder and files** moves every file under the folder to Google Photos trash, including files that were not loaded on the page. The confirmation shows how many loaded files will move, and every file under the folder is included. Files can be restored from Trash. A partly trashed file keeps the chunks that are still active. With a group selected, each change goes to the account that owns the file or folder, and failures from one member are reported without changing the others.
 
+## Selecting several files
+
+Each file row and card has a checkbox. The list header selects every visible file, and its checkbox turns indeterminate when only some visible files are selected. Shift-click extends the range from the last file you toggled, Ctrl-click or Cmd-click toggles one file, Space toggles the focused row, Ctrl+A or Cmd+A selects every visible file, and Escape clears the selection. Selection clears when you switch accounts, change folder, change view, search, or change a filter. Changing the sort order keeps it.
+
+Selecting files opens a bar with the count and the actions for the current view. My files offers Download, Move, Delete, and Details. Trash offers Restore, Delete forever, and Details. Clear removes the selection. There is no bulk rename because several files have no single sensible name. The bar stays above the mobile upload button, and the page adds space so it does not cover the last row.
+
+![Two selected files with the bulk action bar](./docs/screenshots/selection-desktop.png)
+
+The same actions open from the context menu when several files are selected.
+
+![The bulk file actions menu](./docs/screenshots/selection-menu.png)
+
+Download saves one file at a time through the same path as a single download. Browsers may ask you to allow multiple downloads. Delete asks once and moves every selected file to Google Photos trash, where you can restore it. Move asks for one destination, and with a group selected it offers only folders that every owner has. Phodrive changes each file on the account that owns it. Files that succeed leave the selection, failed files stay selected, and the message names each failing owner and file.
+
 ## Trash and incomplete files
 
 **Delete** moves a file to Google Photos trash instead of removing it. When every chunk is in the trash, the file moves to **Trash** in the navigation sidebar, where **Restore** returns it to My files and **Delete forever** removes it for good. Phodrive never restores a file on its own.
