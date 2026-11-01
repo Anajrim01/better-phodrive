@@ -58,7 +58,7 @@ export function downloadBmp(
                     headers: commonHeaders,
                     signal
                 },
-                'Download'
+                'Media fetch'
             );
         })
         .andThenAsync(async (response) => {

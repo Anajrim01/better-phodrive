@@ -4,10 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { listBmps } from '@madkarmaa/phodrive-core/server/photos';
 import { clearProbeCache } from '@madkarmaa/phodrive-core/server/photos/library';
 import { readProbe } from '@madkarmaa/phodrive-core/server/photos/library/probe-cache';
-import {
-    hasPhodriveNames,
-    namedAsNonPhodrive
-} from '@madkarmaa/phodrive-core/server/photos/library/probe';
+import { namedAsNonPhodrive } from '@madkarmaa/phodrive-core/server/photos/library/probe';
 import { encodeSplitBmp } from '@madkarmaa/phodrive-core/server/bmp';
 import {
     bytes,
@@ -251,7 +248,7 @@ test('a video without a download URL is not cached as a miss', async () => {
     expect(counts).toEqual({ prepare: 2, range: 0 });
 });
 
-test('a page with a Phodrive name skips the ordinary item', async () => {
+test('a named ordinary item beside a chunk is skipped', async () => {
     const file = fixture('note.txt', 'named probe content');
     const ordinary = {
         mediaKey: 'ordinary-photo',
@@ -276,7 +273,7 @@ test('a page with a Phodrive name skips the ordinary item', async () => {
     expect(readProbe(EMAIL, ordinary)).toBeUndefined();
 });
 
-test('a page without a Phodrive name probes every item', async () => {
+test('a named item without the marker is skipped without a request', async () => {
     const file = fixture('ordinary.bmp', 'ordinary content');
     const counts: ProbeCounts = { prepare: 0, range: 0 };
     const fetcher = fetcherFor(
@@ -288,9 +285,9 @@ test('a page without a Phodrive name probes every item', async () => {
 
     const items = (await listBmps(EMAIL, TOKEN, '', fetcher)).unwrap().items;
 
-    expect(items).toHaveLength(1);
-    expect(items[0]?.mediaKey).toBe(file.mediaKey);
-    expect(counts).toEqual({ prepare: 1, range: 1 });
+    expect(items).toEqual([]);
+    expect(counts).toEqual({ prepare: 0, range: 0 });
+    expect(readProbe(EMAIL, file)).toBeUndefined();
 });
 
 test('a name with the Phodrive marker still probes', async () => {
@@ -309,7 +306,7 @@ test('a name with the Phodrive marker still probes', async () => {
     expect(counts).toEqual({ prepare: 1, range: 1 });
 });
 
-test('the real library capture keeps the name filter page scoped', async () => {
+test('the real library capture filters every named item without the marker', async () => {
     const body = await readFile(new URL('../fixtures/library-page.bin', import.meta.url));
     const root = (await parse(body)).unwrap();
     const page = (await parse((await bytes(root, 1)).unwrap())).unwrap();
@@ -333,9 +330,7 @@ test('the real library capture keeps the name filter page scoped', async () => {
     expect(items).toHaveLength(5);
     expect(markers).toHaveLength(4);
     expect(ordinary).toBeDefined();
-    expect(hasPhodriveNames(names.map((fileName) => ({ fileName })))).toBe(true);
-    expect(namedAsNonPhodrive({ fileName: ordinary }, true)).toBe(true);
-    expect(namedAsNonPhodrive({ fileName: markers[0] }, true)).toBe(false);
-    expect(hasPhodriveNames([{ fileName: ordinary }])).toBe(false);
-    expect(namedAsNonPhodrive({ fileName: ordinary }, false)).toBe(false);
+    expect(namedAsNonPhodrive({ fileName: ordinary })).toBe(true);
+    expect(namedAsNonPhodrive({ fileName: markers[0] })).toBe(false);
+    expect(namedAsNonPhodrive({})).toBe(false);
 });

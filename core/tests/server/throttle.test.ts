@@ -25,6 +25,7 @@ beforeEach(() => {
     clearThrottleState();
     now = START;
     vi.spyOn(Date, 'now').mockImplementation(() => now);
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
 });
 
 afterEach(() => {
@@ -192,6 +193,52 @@ test('a 429 response pauses the account and returns the header wait', async () =
     expect(calls).toBe(1);
     expect(error).toMatchObject({ code: 'THROTTLED', retryAfterSeconds: 15 });
     expect(throttleWaitSeconds(EMAIL, now)).toBe(15);
+});
+
+test('a throttled stage is logged once per pause with only its host', async () => {
+    const warn = vi.mocked(console.warn);
+    const fetcher: Fetcher = async () => {
+        await Promise.resolve();
+
+        return new Response(null, { status: 429 });
+    };
+
+    await Promise.all([
+        guardedSend(
+            EMAIL,
+            fetcher,
+            'https://photosdata-pa.googleapis.com/photo?token=secret',
+            {},
+            'Library list'
+        ),
+        guardedSend(
+            EMAIL,
+            fetcher,
+            'https://photosdata-pa.googleapis.com/other?key=secret',
+            {},
+            'Library list'
+        )
+    ]);
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(
+        'Google Photos rate limited Library list on photosdata-pa.googleapis.com'
+    );
+    expect(String(warn.mock.calls[0][0])).not.toContain('secret');
+
+    recordSuccess(EMAIL);
+    await guardedSend(
+        EMAIL,
+        fetcher,
+        'https://lh3.googleusercontent.com/p/photo?token=secret',
+        {},
+        'Media fetch'
+    );
+
+    expect(warn).toHaveBeenCalledTimes(2);
+    expect(warn).toHaveBeenLastCalledWith(
+        'Google Photos rate limited Media fetch on lh3.googleusercontent.com'
+    );
 });
 
 test('a successful response is returned unchanged and resets the breaker', async () => {

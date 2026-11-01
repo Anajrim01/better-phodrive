@@ -70,6 +70,26 @@ export function readLibrarySnapshot(
     });
 }
 
+/** Merge the newest page into a loaded snapshot without reading the rest of the library. */
+export function readLibraryUpdates(
+    email: string,
+    token: string,
+    current: readonly RemoteBmp[],
+    nextPageToken: string,
+    pageCount: number
+): AsyncResult<LibrarySnapshot, ApplicationError> {
+    return readLibraryPage(email, token).map((page) => {
+        const items = new Map(current.map((item) => [item.mediaKey, item]));
+        for (const item of page.items) items.set(item.mediaKey, item);
+
+        return {
+            items: [...items.values()],
+            nextPageToken: pageCount === 0 ? page.nextPageToken : nextPageToken,
+            pages: Math.max(1, pageCount)
+        };
+    });
+}
+
 async function readMemberPages(email: string, token: string): Promise<GroupPage> {
     const items = new Map<string, RemoteBmp>();
     const pageTokens = new Set<string>();
@@ -98,47 +118,96 @@ async function readMemberPages(email: string, token: string): Promise<GroupPage>
     return { email, items: [...items.values()] };
 }
 
+async function readMemberPage(email: string, token: string): Promise<GroupPage> {
+    const received = await readLibraryPage(email, token);
+    if (received.isErr()) return { email, error: received.unwrapErr() };
+
+    return { email, items: received.unwrap().items };
+}
+
+function missingMemberPage(email: string): GroupPage {
+    return {
+        email,
+        error: { code: 'ACCOUNT_NOT_FOUND', message: `${email} is not connected.` }
+    };
+}
+
+function pausedMemberPage(email: string, retryAfterSeconds: number): GroupPage {
+    return {
+        email,
+        error: {
+            code: 'THROTTLED',
+            message: 'Google Photos is limiting requests',
+            retryAfterSeconds
+        }
+    };
+}
+
+async function collectGroupPages(
+    members: readonly { email: string; token: string; pausedUntil?: number }[],
+    missing: readonly string[],
+    readMember: (member: { email: string; token: string }) => Promise<GroupPage>
+): Promise<GroupPage[]> {
+    const pages = missing.map(missingMemberPage);
+    const now = Date.now();
+
+    for (const member of members) {
+        if (member.pausedUntil && member.pausedUntil > now) {
+            pages.push(
+                pausedMemberPage(
+                    member.email,
+                    Math.max(1, Math.ceil((member.pausedUntil - now) / 1_000))
+                )
+            );
+
+            continue;
+        }
+
+        pages.push(await readMember(member));
+    }
+
+    return pages;
+}
+
+function groupSnapshot(pages: readonly GroupPage[]): GroupLibrarySnapshot {
+    const merged = mergeGroupLibrary(pages);
+
+    return {
+        chunks: merged.items,
+        accounts: merged.accounts,
+        partial: merged.partial
+    };
+}
+
 /** Query every member, merge their items, and report a paused member instead of failing. */
 export function readGroupLibrary(
     members: readonly { email: string; token: string; pausedUntil?: number }[],
     missing: readonly string[] = []
 ): AsyncResult<GroupLibrarySnapshot, ApplicationError> {
     return Ok(undefined).andThenAsync(async () => {
-        const pages: GroupPage[] = [];
-        const now = Date.now();
+        const pages = await collectGroupPages(members, missing, (member) =>
+            readMemberPages(member.email, member.token)
+        );
 
-        for (const email of missing)
-            pages.push({
-                email,
-                error: { code: 'ACCOUNT_NOT_FOUND', message: `${email} is not connected.` }
-            });
+        return Ok(groupSnapshot(pages));
+    });
+}
 
-        for (const member of members) {
-            if (member.pausedUntil && member.pausedUntil > now) {
-                pages.push({
-                    email: member.email,
-                    error: {
-                        code: 'THROTTLED',
-                        message: 'Google Photos is limiting requests',
-                        retryAfterSeconds: Math.max(
-                            1,
-                            Math.ceil((member.pausedUntil - now) / 1_000)
-                        )
-                    }
-                });
+/** Read only each member's newest page and keep the items already loaded. */
+export function readGroupLibraryUpdates(
+    members: readonly { email: string; token: string; pausedUntil?: number }[],
+    missing: readonly string[] = [],
+    loaded: readonly UploadedChunk[] = []
+): AsyncResult<GroupLibrarySnapshot, ApplicationError> {
+    return Ok(undefined).andThenAsync(async () => {
+        const updates = await collectGroupPages(members, missing, (member) =>
+            readMemberPage(member.email, member.token)
+        );
+        const kept: GroupPage[] = members.map((member) => ({
+            email: member.email,
+            items: loaded.filter((item) => item.email === member.email)
+        }));
 
-                continue;
-            }
-
-            pages.push(await readMemberPages(member.email, member.token));
-        }
-
-        const merged = mergeGroupLibrary(pages);
-
-        return Ok({
-            chunks: merged.items,
-            accounts: merged.accounts,
-            partial: merged.partial
-        });
+        return Ok(groupSnapshot([...updates, ...kept]));
     });
 }

@@ -55,6 +55,39 @@ test('a cold process reuses persisted probes', () => {
     expect(readProbe(EMAIL, CANDIDATE)).toEqual(ITEM);
 });
 
+test('a positive probe never expires', () => {
+    writeProbe(EMAIL, CANDIDATE, ITEM, 0);
+
+    expect(readProbe(EMAIL, CANDIDATE, 400 * 24 * 60 * 60 * 1_000)).toEqual(ITEM);
+});
+
+test('a negative probe expires after one hour', () => {
+    writeProbe(EMAIL, CANDIDATE, null, 0);
+
+    expect(readProbe(EMAIL, CANDIDATE, 59 * 60 * 1_000)).toBeNull();
+    expect(readProbe(EMAIL, CANDIDATE, 61 * 60 * 1_000)).toBeUndefined();
+});
+
+test(
+    'the cache file keeps more than the old twenty thousand entry limit',
+    { timeout: 30_000 },
+    () => {
+        for (let index = 0; index < 20_001; index++) {
+            const candidate = { ...CANDIDATE, mediaKey: `media-${index}` };
+
+            writeProbe(EMAIL, candidate, { ...ITEM, mediaKey: candidate.mediaKey });
+        }
+
+        flushProbeCache();
+        clearProbeCache();
+        configureProbeCache(join(folder, 'probe-cache.json'));
+
+        expect(readProbe(EMAIL, { ...CANDIDATE, mediaKey: 'media-0' })).toMatchObject({
+            mediaKey: 'media-0'
+        });
+    }
+);
+
 test('a corrupt cache file is ignored', async () => {
     await writeFile(join(folder, 'probe-cache.json'), '{ broken');
 

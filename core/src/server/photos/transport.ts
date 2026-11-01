@@ -3,6 +3,7 @@ import { invalidateAuth } from './auth-cache';
 import { Err, Ok, type AsyncResult } from 'results-ts';
 import type { Fetcher } from '../fetcher';
 import {
+    logThrottleStage,
     parseRetryAfter,
     recordServerFailure,
     recordServerSuccess,
@@ -13,6 +14,14 @@ import {
 
 const TOO_MANY_REQUESTS = 429;
 const SERVER_ERROR_MIN_STATUS = 500;
+
+function requestHost(url: string | URL): string {
+    try {
+        return new URL(String(url)).hostname;
+    } catch {
+        return '';
+    }
+}
 
 export function send(
     fetcher: Fetcher,
@@ -78,8 +87,12 @@ export function guardedSend(
         .mapErr((error) => {
             if (error.code !== 'REQUEST_FAILED' || error.status === undefined) return error;
 
-            if (error.status === TOO_MANY_REQUESTS)
-                return throttleError(recordThrottle(email, error.retryAfterSeconds));
+            if (error.status === TOO_MANY_REQUESTS) {
+                const seconds = recordThrottle(email, error.retryAfterSeconds);
+                logThrottleStage(email, stage, requestHost(url));
+
+                return throttleError(seconds);
+            }
 
             if (error.status < SERVER_ERROR_MIN_STATUS) {
                 if (error.status === 401 || error.status === 403) invalidateAuth(email);

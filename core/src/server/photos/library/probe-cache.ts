@@ -4,11 +4,10 @@ import type { RemoteBmp } from '../../../models';
 import type { LibraryCandidate } from './metadata';
 
 const PROBE_CACHE_LIMIT = 100_000;
-const PROBE_CACHE_FILE_LIMIT = 20_000;
-const PROBE_CACHE_TTL_MS = 24 * 60 * 60 * 1_000;
 const PROBE_CACHE_NEGATIVE_TTL_MS = 60 * 60 * 1_000;
 const PROBE_CACHE_VERSION = 1;
 const PROBE_CACHE_FLUSH_DELAY_MS = 1_000;
+const PROBE_CACHE_FLUSH_INTERVAL_MS = 30_000;
 
 type CachedProbe = { item: RemoteBmp | null; at: number };
 
@@ -16,6 +15,7 @@ const PROBE_CACHE = new Map<string, CachedProbe>();
 let cacheFile: string | null = null;
 let loaded = false;
 let dirty = false;
+let lastFlushAt = 0;
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 
 export function configureProbeCache(path: string | null): void {
@@ -63,7 +63,7 @@ function load(): void {
             PROBE_CACHE.set(key, { item, at });
         }
 
-        while (PROBE_CACHE.size > PROBE_CACHE_FILE_LIMIT) {
+        while (PROBE_CACHE.size > PROBE_CACHE_LIMIT) {
             const oldest = PROBE_CACHE.keys().next().value;
             if (oldest === undefined) break;
 
@@ -79,7 +79,7 @@ export function flushProbeCache(): void {
 
     try {
         const entries = [...PROBE_CACHE]
-            .slice(-PROBE_CACHE_FILE_LIMIT)
+            .slice(-PROBE_CACHE_LIMIT)
             .map(([key, value]) => ({ key, at: value.at, item: value.item }));
         const temp = `${cacheFile}.tmp`;
 
@@ -89,18 +89,24 @@ export function flushProbeCache(): void {
         });
         renameSync(temp, cacheFile);
         dirty = false;
+        lastFlushAt = Date.now();
     } catch {
-        // The memory copy stays usable when the cache file cannot be written.
+        lastFlushAt = Date.now();
+        scheduleFlush();
     }
 }
 
 function scheduleFlush(): void {
-    if (!cacheFile || flushTimer) return;
+    if (!cacheFile || flushTimer || !dirty) return;
 
+    const wait = Math.max(
+        PROBE_CACHE_FLUSH_DELAY_MS,
+        lastFlushAt + PROBE_CACHE_FLUSH_INTERVAL_MS - Date.now()
+    );
     flushTimer = setTimeout(() => {
         flushTimer = null;
         flushProbeCache();
-    }, PROBE_CACHE_FLUSH_DELAY_MS);
+    }, wait);
     flushTimer.unref();
 }
 
@@ -116,8 +122,7 @@ export function readProbe(
     if (!cached) return undefined;
 
     PROBE_CACHE.delete(key);
-    const ttl = cached.item === null ? PROBE_CACHE_NEGATIVE_TTL_MS : PROBE_CACHE_TTL_MS;
-    if (now - cached.at > ttl) return undefined;
+    if (cached.item === null && now - cached.at > PROBE_CACHE_NEGATIVE_TTL_MS) return undefined;
 
     PROBE_CACHE.set(key, cached);
 
@@ -150,4 +155,5 @@ export function writeProbe(
 export function clearProbeCache(): void {
     PROBE_CACHE.clear();
     loaded = false;
+    dirty = false;
 }
