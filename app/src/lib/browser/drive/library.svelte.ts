@@ -13,10 +13,16 @@ import {
     readGroupLibraryUpdates,
     readLibraryPage,
     readLibrarySnapshot,
-    readLibraryUpdates
+    readLibrarySync
 } from '@madkarmaa/phodrive-core/browser/library';
 import type { GroupAccountState } from '@madkarmaa/phodrive-core/groups';
-import { applyGroupSnapshot, reportLoadFailure } from '#browser/drive/library-state';
+import {
+    applyGroupSnapshot,
+    applyLibrarySnapshot,
+    applyLibrarySync,
+    reportLoadFailure,
+    resetLibraryPages
+} from '#browser/drive/library-state';
 
 const POST_UPLOAD_COOLDOWN_MS = 2 * 60 * 1_000;
 
@@ -34,6 +40,7 @@ export class DriveLibrary {
 
     private libraryRequest = 0;
     loadedPages = 0;
+    revisions = new Map<string, number>();
     private libraryPageTokens = new Set<string>();
 
     searchTerm = $state('');
@@ -75,12 +82,9 @@ export class DriveLibrary {
         this.modifiedDays = '';
         this.folder = '';
         this.chunks = [];
-        this.nextPageToken = '';
-        this.loadedPages = 0;
-        this.libraryPageTokens.clear();
+        resetLibraryPages(this, this.libraryPageTokens);
         this.libraryRequest++;
         this.loading = false;
-        this.loadFailed = false;
         this.accounts = [];
         this.partial = false;
     }
@@ -109,13 +113,11 @@ export class DriveLibrary {
 
         const { email, token } = this.account();
         const pageToken = reset ? '' : this.nextPageToken;
+        const firstPage = pageToken === '';
         const request = ++this.libraryRequest;
         if (reset) {
             this.chunks = [];
-            this.nextPageToken = '';
-            this.loadedPages = 0;
-            this.libraryPageTokens.clear();
-            this.loadFailed = false;
+            resetLibraryPages(this, this.libraryPageTokens);
         }
 
         if (!email || !token) {
@@ -152,6 +154,8 @@ export class DriveLibrary {
                     this.feedback('Google Photos repeated a library page. Refresh to try again.');
                 }
                 if (this.nextPageToken) this.libraryPageTokens.add(this.nextPageToken);
+                if (firstPage && data.revision !== undefined)
+                    this.revisions.set(email.toLowerCase(), data.revision);
 
                 this.loadedPages++;
             },
@@ -166,10 +170,7 @@ export class DriveLibrary {
         const request = ++this.libraryRequest;
         if (reset) {
             this.chunks = [];
-            this.nextPageToken = '';
-            this.loadedPages = 0;
-            this.libraryPageTokens.clear();
-            this.loadFailed = false;
+            resetLibraryPages(this, this.libraryPageTokens);
             this.accounts = [];
             this.partial = false;
         }
@@ -183,7 +184,8 @@ export class DriveLibrary {
                   group.members,
                   group.missing,
                   this.chunks,
-                  this.accounts
+                  this.accounts,
+                  this.revisions
               );
         if (request !== this.libraryRequest) return;
 
@@ -217,28 +219,32 @@ export class DriveLibrary {
         const request = ++this.libraryRequest;
         this.loading = true;
 
-        const refreshed = manual
-            ? await readLibrarySnapshot(email, token, this.loadedPages)
-            : await readLibraryUpdates(
-                  email,
-                  token,
-                  this.chunks,
-                  this.nextPageToken,
-                  this.loadedPages
-              );
+        if (manual) {
+            const refreshed = await readLibrarySnapshot(email, token, this.loadedPages);
+            if (request !== this.libraryRequest || email !== this.account().email) return;
+
+            refreshed.match({
+                Ok: (snapshot) =>
+                    applyLibrarySnapshot(this, email, snapshot, this.libraryPageTokens, (path) =>
+                        this.hasFolder(path)
+                    ),
+                Err: (error) => reportLoadFailure(this, error, this.feedback)
+            });
+
+            this.loading = false;
+
+            return;
+        }
+
+        const cursor = this.revisions.get(email.toLowerCase()) ?? 0;
+        const synced = await readLibrarySync(email, token, false, cursor);
         if (request !== this.libraryRequest || email !== this.account().email) return;
 
-        refreshed.match({
-            Ok: (snapshot) => {
-                this.loadFailed = false;
-                this.retryAt = 0;
-                this.chunks = snapshot.items.map((item) => ({ ...item, email }));
-                if (this.folder && !this.hasFolder(this.folder)) this.folder = '';
-                this.nextPageToken = snapshot.nextPageToken;
-                this.loadedPages = snapshot.pages;
-                this.libraryPageTokens.clear();
-                if (snapshot.nextPageToken) this.libraryPageTokens.add(snapshot.nextPageToken);
-            },
+        synced.match({
+            Ok: (update) =>
+                applyLibrarySync(this, email, update, this.libraryPageTokens, (path) =>
+                    this.hasFolder(path)
+                ),
             Err: (error) => reportLoadFailure(this, error, this.feedback)
         });
 

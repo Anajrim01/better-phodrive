@@ -36,6 +36,10 @@ export const SERVER_ERRORS = {
         code: 'REPEATED_LIBRARY_PAGE',
         message: 'Google Photos repeated a library page. Refresh to try again.'
     },
+    LIBRARY_SYNC_REJECTED: {
+        code: 'LIBRARY_SYNC_REJECTED',
+        message: 'Library sync state was rejected'
+    },
     MISSING_MEDIA_KEY: { code: 'MISSING_MEDIA_KEY', message: 'Missing media key' },
     INVALID_FOLDER_PATH: { code: 'INVALID_FOLDER_PATH', message: 'Invalid folder path' },
     INVALID_ALBUM_KEY: { code: 'INVALID_ALBUM_KEY', message: 'Invalid album key' },

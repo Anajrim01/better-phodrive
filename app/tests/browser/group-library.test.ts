@@ -85,7 +85,8 @@ test('a group library merges owners, dedupes, and reports paused members', async
             Ok({
                 chunks: [chunk(FIRST, 'shared'), chunk(FIRST, 'second-copy')],
                 accounts,
-                partial: true
+                partial: true,
+                revisions: {}
             })
         )
     );

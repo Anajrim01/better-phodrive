@@ -142,10 +142,12 @@ test('dismissing a library error preserves failed-load state and repeated errors
     vi.spyOn(libraryApi, 'readLibraryPage').mockImplementationOnce(() =>
         Ok(undefined).andThenAsync(async () => Err(failure))
     );
-    vi.spyOn(libraryApi, 'readLibraryUpdates')
+    vi.spyOn(libraryApi, 'readLibrarySync')
         .mockImplementationOnce(() => Ok(undefined).andThenAsync(async () => Err(failure)))
         .mockImplementationOnce(() =>
-            Ok(undefined).andThenAsync(async () => Ok({ items: [], nextPageToken: '', pages: 0 }))
+            Ok(undefined).andThenAsync(async () =>
+                Ok({ items: [], deleted: [], full: true, revision: 1 })
+            )
         );
 
     const drive = new DriveController();
@@ -169,23 +171,56 @@ test('dismissing a library error preserves failed-load state and repeated errors
     expect(drive.library.chunks).toEqual([]);
 });
 
+test('a failed reset load discards the cursor so the next sync recovers', async () => {
+    const failure = {
+        code: 'REQUEST_FAILED',
+        message: 'Library list failed (HTTP 503)'
+    } as const;
+    const page = (items: RemoteBmp[], revision: number) =>
+        Ok(undefined).andThenAsync(async () => Ok({ items, nextPageToken: '', revision }));
+    vi.spyOn(libraryApi, 'readLibraryPage')
+        .mockImplementationOnce(() => page([remoteBmp(1, 'first.bin')], 5))
+        .mockImplementationOnce(() => Ok(undefined).andThenAsync(async () => Err(failure)));
+    const sync = vi.spyOn(libraryApi, 'readLibrarySync').mockImplementationOnce(() =>
+        Ok(undefined).andThenAsync(async () =>
+            Ok({
+                items: [remoteBmp(1, 'first.bin')],
+                deleted: [],
+                full: true,
+                revision: 6
+            })
+        )
+    );
+    const drive = new DriveController();
+    drive.initialize();
+
+    await drive.library.load();
+    expect(drive.library.revisions.get('test@example.com')).toBe(5);
+
+    await drive.library.load();
+    expect(drive.library.revisions.size).toBe(0);
+    expect(drive.library.chunks).toEqual([]);
+
+    await drive.library.refresh();
+
+    expect(sync).toHaveBeenCalledWith('test@example.com', 'aas_et/test', false, 0);
+    expect(drive.library.chunks.map((chunk) => chunk.originalName)).toEqual(['first.bin']);
+});
+
 test('automatic refresh merges the newest page and manual refresh reloads the depth', async () => {
-    const page = (items: RemoteBmp[], nextPageToken: string) =>
-        Ok(undefined).andThenAsync(async () => Ok({ items, nextPageToken }));
+    const page = (items: RemoteBmp[], nextPageToken: string, revision = 1) =>
+        Ok(undefined).andThenAsync(async () => Ok({ items, nextPageToken, revision }));
     const readPage = vi
         .spyOn(libraryApi, 'readLibraryPage')
         .mockImplementationOnce(() => page([remoteBmp(1, 'first.bin')], 'page-two'))
-        .mockImplementationOnce(() => page([remoteBmp(2, 'second.bin')], ''));
-    const updates = vi.spyOn(libraryApi, 'readLibraryUpdates').mockImplementationOnce(() =>
+        .mockImplementationOnce(() => page([remoteBmp(2, 'second.bin')], '', 2));
+    const updates = vi.spyOn(libraryApi, 'readLibrarySync').mockImplementationOnce(() =>
         Ok(undefined).andThenAsync(async () =>
             Ok({
-                items: [
-                    remoteBmp(1, 'renamed.bin'),
-                    remoteBmp(2, 'second.bin'),
-                    remoteBmp(3, 'third.bin')
-                ],
-                nextPageToken: '',
-                pages: 2
+                items: [remoteBmp(1, 'renamed.bin'), remoteBmp(3, 'third.bin')],
+                deleted: [],
+                full: false,
+                revision: 2
             })
         )
     );
@@ -211,6 +246,7 @@ test('automatic refresh merges the newest page and manual refresh reloads the de
 
     expect(readPage).toHaveBeenCalledTimes(2);
     expect(updates).toHaveBeenCalledTimes(1);
+    expect(updates).toHaveBeenCalledWith('test@example.com', 'aas_et/test', false, 1);
     expect(snapshot).not.toHaveBeenCalled();
     expect(drive.library.chunks.map((chunk) => chunk.originalName).toSorted()).toEqual([
         'renamed.bin',

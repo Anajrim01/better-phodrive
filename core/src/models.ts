@@ -223,7 +223,8 @@ export const RemoteBmpSchema = z.object({
 
 export const LibraryResponseSchema = z.object({
     items: z.array(RemoteBmpSchema),
-    nextPageToken: z.string()
+    nextPageToken: z.string(),
+    revision: z.int().nonnegative().optional()
 });
 
 export const UploadResponseSchema = z.object({
