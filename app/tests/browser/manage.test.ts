@@ -4,6 +4,7 @@ import type { ApplicationError } from '@madkarmaa/phodrive-core/errors';
 import type { FileGroup, FolderEntry, UploadedChunk } from '@madkarmaa/phodrive-core/files';
 import type { ManageResponse } from '@madkarmaa/phodrive-core/manage';
 import * as manageApi from '@madkarmaa/phodrive-core/browser/manage';
+import { applyManageItems } from '#browser/drive/apply-manage';
 import { nextRevision } from '#browser/drive/manage-files';
 import { DriveManage } from '#browser/drive/manage.svelte';
 
@@ -111,6 +112,18 @@ test('the revision cursor only advances when no other change can be skipped', ()
     expect(nextRevision(4, 7)).toBeUndefined();
     expect(nextRevision(0, 8)).toBeUndefined();
     expect(nextRevision(9, 8)).toBeUndefined();
+    expect(nextRevision(5, 0)).toBeUndefined();
+});
+
+test('a recovered response applies items without advancing the cursor', () => {
+    const revisions = new Map([['first@example.com', 5]]);
+    const state = { chunks: [] as UploadedChunk[], revisions };
+    const recovered = chunk({ mediaKey: 'recovered', originalName: 'recovered.bin' });
+
+    applyManageItems(state, 'first@example.com', [recovered], 0);
+
+    expect(state.chunks.some((item) => item.mediaKey === 'recovered')).toBe(true);
+    expect(state.revisions.get('first@example.com')).toBe(5);
 });
 
 test('renaming a file routes to the selected account and applies the response', async () => {

@@ -15,7 +15,6 @@ export function ensureAccountIndex(
     return refreshAccountIndex(email, token, fetcher);
 }
 
-/** Rebuild a stale index when an edit names a file the cached listing does not contain. */
 export function refreshAccountIndex(
     email: string,
     token: string,

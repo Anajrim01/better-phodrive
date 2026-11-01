@@ -7,11 +7,19 @@ import { FileManageAction } from '@madkarmaa/phodrive-core/manage';
 import { RemoteBmpSchema } from '@madkarmaa/phodrive-core/models';
 import { manageFile } from '@madkarmaa/phodrive-core/server/manage';
 import { fileIdentity } from '@madkarmaa/phodrive-core/server/chunks';
+import { syncLibrary } from '@madkarmaa/phodrive-core/server/photos/library/sync';
 import {
     clearLibraryState,
     configureLibraryState
 } from '@madkarmaa/phodrive-core/server/photos/library/state';
-import { SYNC_ONE, emptyCounts, fetcherFor, fileChunk, pageBytes } from '../helpers/delta-library';
+import {
+    SYNC_ONE,
+    SYNC_TWO,
+    emptyCounts,
+    fetcherFor,
+    fileChunk,
+    pageBytes
+} from '../helpers/delta-library';
 import {
     MANAGE_EMAIL,
     MANAGE_TOKEN,
@@ -112,8 +120,46 @@ test('a stale index is refreshed when a move names a client-visible file', async
     );
 
     expect(counts.page).toBe(1);
+    expect(result.unwrap().revision).toBe(0);
     expect(result.unwrap().items.some((item) => item.fileId === fileId)).toBe(true);
     expect(savedItems().find((item) => item.fileId === fileId)?.folder).toBe('Parent');
+});
+
+test('a recovered same-folder move does not advance the client cursor', async () => {
+    const folder = 'Docs';
+    const name = 'file-7.bin';
+    const fileHash = createHash('sha256').update('file-7').digest('hex');
+    const fileId = fileIdentity(name, fileHash, undefined, folder);
+    const target = fileChunk(7, 0, 1, folder);
+    const unseen = fileChunk(9, 0, 1, 'Other');
+    saveItems([chunk(id('old'), 'old', { name: 'old.bin' })], 5);
+    const counts = emptyCounts();
+    const fetcher = fetcherFor(
+        [target, unseen],
+        [pageBytes([target, unseen], '', { syncToken: SYNC_ONE })],
+        counts,
+        { delta: pageBytes([], '', { syncToken: SYNC_TWO }) }
+    );
+
+    const moved = await manageFile(
+        {
+            action: FileManageAction.Move,
+            email: MANAGE_EMAIL,
+            token: MANAGE_TOKEN,
+            fileId,
+            folder
+        },
+        fetcher
+    );
+    const response = moved.unwrap();
+
+    expect(counts.page).toBe(1);
+    expect(response.items).toEqual([]);
+    expect(response.revision).toBe(0);
+
+    const synced = await syncLibrary(MANAGE_EMAIL, MANAGE_TOKEN, false, 5, fetcher);
+
+    expect(synced.unwrap().items.some((item) => item.mediaKey === unseen.mediaKey)).toBe(true);
 });
 
 test('a file missing from a refreshed index is still rejected', async () => {

@@ -72,8 +72,10 @@ export function manageFile(
             if (error.code !== 'FILE_NOT_FOUND') return Err(error);
 
             const refreshed = await refreshAccountIndex(input.email, input.token, fetcher);
+            const recovered = await refreshed.andThenAsync(() => manageIndexedFile(input));
 
-            return refreshed.andThenAsync(() => manageIndexedFile(input));
+            // The refreshed index may hold changes the client has not seen yet.
+            return recovered.map((result) => ({ ...result, revision: 0 }));
         });
 }
 
