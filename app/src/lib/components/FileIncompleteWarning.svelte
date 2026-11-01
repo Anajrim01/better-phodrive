@@ -22,12 +22,14 @@
         item.chunkCount === null
             ? 'Incomplete file'
             : !item.complete
-              ? `${missing} of ${item.chunkCount} chunks ${partial ? 'not loaded' : 'missing'}`
-              : `${trashed} chunk${trashed === 1 ? '' : 's'} in Trash`
+              ? missing === 0
+                  ? 'Incomplete file'
+                  : `${missing} of ${item.chunkCount} chunks ${partial ? 'not loaded' : 'missing'}`
+              : `${trashed} duplicate chunk${trashed === 1 ? '' : 's'} in Trash`
     );
     const title = $derived(
         item.complete
-            ? 'These chunks are in Trash. Restore them to bring them back.'
+            ? 'A duplicate copy is in Trash. Restore it to bring it back.'
             : partial
               ? 'Load more to check the rest of this file.'
               : message
@@ -36,11 +38,13 @@
 
 <span
     class="file-incomplete flex min-w-0 items-center gap-1 text-xs"
-    class:text-error={!partial}
-    class:text-muted={partial}
+    class:text-error={!partial && !item.complete}
+    class:text-muted={partial || item.complete}
     {title}
 >
     <IconWarning aria-hidden="true" class="size-4 shrink-0" />
     <span class="truncate">{label}</span>
-    {#if !partial && !trash}<span class="sr-only">This file cannot be downloaded.</span>{/if}
+    {#if !partial && !trash && !item.complete}<span class="sr-only"
+            >This file cannot be downloaded.</span
+        >{/if}
 </span>
