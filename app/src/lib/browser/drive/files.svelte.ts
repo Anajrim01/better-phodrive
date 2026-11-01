@@ -122,7 +122,7 @@ export class DriveFiles {
             token = selectedToken;
         }
 
-        this.action = { fileId: item.fileId, kind: action };
+        this.action = { email: item.email, fileId: item.fileId, kind: action };
         this.deps.feedback('');
 
         if (action === FileActionKind.Delete) {

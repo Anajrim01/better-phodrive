@@ -5,6 +5,8 @@ import {
     restoreFile
 } from '@madkarmaa/phodrive-core/browser/files';
 import type { FileGroup, UploadedChunk } from '@madkarmaa/phodrive-core/files';
+import { fileActionKind, type FileAction } from '@madkarmaa/phodrive-core/files';
+import { FileActionKind } from '@madkarmaa/phodrive-core/models';
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -158,4 +160,19 @@ test('delete forever sends every trashed chunk', async () => {
     };
     expect(body.action).toBe('delete-forever');
     expect(body.chunks).toHaveLength(2);
+});
+
+test('progress matches the owner as well as the file id', () => {
+    const action: FileAction = {
+        email: 'First@Example.com',
+        fileId: 'same-file-id',
+        kind: FileActionKind.Delete
+    };
+
+    expect(fileActionKind(action, { email: 'first@example.com', fileId: 'same-file-id' })).toBe(
+        FileActionKind.Delete
+    );
+    expect(
+        fileActionKind(action, { email: 'second@example.com', fileId: 'same-file-id' })
+    ).toBeNull();
 });

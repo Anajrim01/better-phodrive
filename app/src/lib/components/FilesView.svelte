@@ -14,11 +14,23 @@
         drive: DriveController;
         actionsDisabled: boolean;
         onupload: (files: File[]) => void;
+        ondownload: (item: FileGroup) => void;
+        ondelete: (item: FileGroup) => void;
+        onrestore: (item: FileGroup) => void;
         onfilemenu: (item: FileGroup, anchor: MenuAnchor) => void;
         onfoldermenu: (folder: FolderEntry, anchor: MenuAnchor) => void;
     }
 
-    let { drive, actionsDisabled, onupload, onfilemenu, onfoldermenu }: Props = $props();
+    let {
+        drive,
+        actionsDisabled,
+        onupload,
+        ondownload,
+        ondelete,
+        onrestore,
+        onfilemenu,
+        onfoldermenu
+    }: Props = $props();
 </script>
 
 <div class="flex flex-1 flex-col" in:fade={{ duration: prefersReducedMotion.current ? 0 : 160 }}>
@@ -87,7 +99,11 @@
             disabled={actionsDisabled || drive.library.loading}
             showFolder={drive.library.filtering}
             showOwner={drive.groupMode.target !== null}
+            action={drive.fileAction}
             onopenfolder={(path) => drive.library.openFolder(path)}
+            {ondownload}
+            {ondelete}
+            {onrestore}
             {onfilemenu}
             {onfoldermenu}
             onmore={() => {

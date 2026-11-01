@@ -131,6 +131,16 @@ Folder upload needs a window wider than 800px with a hover-capable, fine pointer
 
 The navigation sidebar totals My files: the original size of the loaded chunks, not the compressed bytes stored on Google, plus file, folder, and incomplete counts and a breakdown by the top file types. Trashed files are left out, and a partly trashed file counts only its remaining chunks. Load more adds the next page when the list is paginated; uploads show an estimate once a transfer rate is known.
 
+## File and folder actions
+
+Right-click a file or folder, press the context-menu key, or choose **More** to open its actions. File rows and cards keep their quick **Download** and **Delete** buttons, and Trash keeps **Restore** and **Delete forever**. On screens narrower than 800px, rows and cards show only **More**, and its menu carries the same actions. The menu adds **Rename**, **Move**, **Details**, and the folder actions **Move folder**, **Move contents to My files**, and **Delete folder and files**.
+
+![The file actions menu](./docs/screenshots/context-menu.png)
+
+Renames and moves are Phodrive listing metadata only. They are saved by the server and survive reloads, another browser using the same server, and a full index rebuild, but they do not change Google Photos item names, albums, or the names and folders stored in chunk headers. Downloads still return the original file. Renaming a folder changes its path prefix, including files in subfolders. A rename or move is rejected instead of merged when the destination already has that file name or folder, or when a folder would move into itself.
+
+**Delete folder and files** moves every file under the folder to Google Photos trash, including files that were not loaded on the page. The confirmation shows how many loaded files will move, and every file under the folder is included. Files can be restored from Trash. A partly trashed file keeps the chunks that are still active. With a group selected, each change goes to the account that owns the file or folder, and failures from one member are reported without changing the others.
+
 ## Trash and incomplete files
 
 **Delete** moves a file to Google Photos trash instead of removing it. When every chunk is in the trash, the file moves to **Trash** in the navigation sidebar, where **Restore** returns it to My files and **Delete forever** removes it for good. Phodrive never restores a file on its own.

@@ -226,7 +226,18 @@ export function sortFiles(files: readonly FileGroup[], order: FileSort): FileGro
     });
 }
 
-export type FileAction = { fileId: string; kind: FileActionKind };
+export type FileAction = { email: string; fileId: string; kind: FileActionKind };
+
+/** Match progress to the owner as well as the file ID; group members can share one ID. */
+export function fileActionKind(
+    action: FileAction | null,
+    item: { email: string; fileId: string }
+): FileActionKind | null {
+    if (!action) return null;
+    if (action.email.toLowerCase() !== item.email.toLowerCase()) return null;
+
+    return action.fileId === item.fileId ? action.kind : null;
+}
 
 const DAY_MS = 86_400_000;
 

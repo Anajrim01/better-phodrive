@@ -2,8 +2,14 @@
     import { Button } from 'noph-ui';
     import prettyBytes from 'pretty-bytes';
     import { FileSort } from '@madkarmaa/phodrive-core/models';
-    import { fileKey, type FileGroup } from '@madkarmaa/phodrive-core/files';
+    import {
+        fileActionKind,
+        fileKey,
+        type FileAction,
+        type FileGroup
+    } from '@madkarmaa/phodrive-core/files';
     import LocalizedDate from '#components/LocalizedDate.svelte';
+    import FileActions from '#components/FileActions.svelte';
     import MoreButton from '#components/MoreButton.svelte';
     import FileIncompleteWarning from '#components/FileIncompleteWarning.svelte';
     import IconDescription from '~icons/material-symbols/description-outline';
@@ -20,6 +26,11 @@
         trash?: boolean;
         partial?: boolean;
         headingId?: string;
+        action?: FileAction | null;
+        ondownload?: (item: FileGroup) => void;
+        ondelete?: (item: FileGroup) => void;
+        onrestore?: (item: FileGroup) => void;
+        ondeleteforever?: (item: FileGroup) => void;
         onmenu?: (item: FileGroup, anchor: MenuAnchor) => void;
     }
 
@@ -32,6 +43,11 @@
         trash = false,
         partial = false,
         headingId = 'files-heading',
+        action = null,
+        ondownload,
+        ondelete,
+        onrestore,
+        ondeleteforever,
         onmenu
     }: Props = $props();
     const nameSort = $derived(sort === FileSort.NameAscending || sort === FileSort.NameDescending);
@@ -140,11 +156,27 @@
                         >{/if}
                 </td>
                 <td class="actions-column">
-                    <MoreButton
-                        label={item.name}
-                        {disabled}
-                        onopen={(element) => onmenu?.(item, element)}
-                    />
+                    <div class="actions-cell">
+                        <div class="inline-actions">
+                            <FileActions
+                                {item}
+                                {disabled}
+                                compact
+                                {trash}
+                                {partial}
+                                working={fileActionKind(action, item)}
+                                {ondownload}
+                                {ondelete}
+                                {onrestore}
+                                {ondeleteforever}
+                            />
+                        </div>
+                        <MoreButton
+                            label={item.name}
+                            {disabled}
+                            onopen={(element) => onmenu?.(item, element)}
+                        />
+                    </div>
                 </td>
             </tr>
         {/each}
@@ -209,8 +241,20 @@
         white-space: nowrap;
     }
     .actions-column {
-        width: 56px;
+        width: 144px;
         padding-inline: 4px;
+    }
+
+    .actions-cell {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 2px;
+    }
+
+    .inline-actions {
+        display: flex;
+        align-items: center;
     }
 
     .file-list :global(.column-sort) {
@@ -237,6 +281,12 @@
         }
         .file-name {
             gap: 8px;
+        }
+        .actions-column {
+            width: 56px;
+        }
+        .inline-actions {
+            display: none;
         }
         tbody td {
             height: 56px;

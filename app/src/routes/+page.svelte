@@ -168,6 +168,9 @@
                 total={drive.groupMode.target?.group.accounts.length ?? 0}
                 accounts={drive.library.accounts}
                 partial={drive.library.partial}
+                action={drive.fileAction}
+                onrestore={restore}
+                ondeleteforever={confirmPermanentDelete}
                 onmenu={openFileMenu}
                 onmore={() => {
                     void drive.library.load(false);
@@ -201,6 +204,9 @@
                 {drive}
                 {actionsDisabled}
                 onupload={upload}
+                ondownload={download}
+                ondelete={confirmTrash}
+                onrestore={restore}
                 onfilemenu={openFileMenu}
                 onfoldermenu={openFolderMenu}
             />
