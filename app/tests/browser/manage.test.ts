@@ -126,6 +126,15 @@ test('a recovered response applies items without advancing the cursor', () => {
     expect(state.revisions.get('first@example.com')).toBe(5);
 });
 
+test('a manage response without items leaves the cursor where it was', () => {
+    const revisions = new Map([['first@example.com', 5]]);
+    const state = { chunks: [] as UploadedChunk[], revisions };
+
+    applyManageItems(state, 'first@example.com', [], 6);
+
+    expect(state.revisions.get('first@example.com')).toBe(5);
+});
+
 test('renaming a file routes to the selected account and applies the response', async () => {
     const restored = file({ name: 'renamed.bin' });
     vi.mocked(manageApi.renameFile).mockReturnValue(

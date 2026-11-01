@@ -2,8 +2,9 @@ import { beforeEach, expect, test, vi } from 'vitest';
 import { Ok } from 'results-ts';
 import type { ManageResponse } from '@madkarmaa/phodrive-core/manage';
 import * as manageApi from '@madkarmaa/phodrive-core/browser/manage';
-import { fileKey } from '@madkarmaa/phodrive-core/files';
+import { fileKey, type UploadedChunk } from '@madkarmaa/phodrive-core/files';
 import * as filesApi from '#browser/files';
+import { applyManageItems } from '#browser/drive/apply-manage';
 import { failed, file, makeBulk, manageResponse, ok, ownerRoute } from './bulk-fixtures';
 
 vi.mock('#browser/files', () => ({
@@ -113,4 +114,24 @@ test('a move that fails for every file keeps the destination dialog open', async
     expect(bulk.moveOpen).toBe(true);
     expect(bulk.moveError).toContain('Could not move any files.');
     expect([...selection.selectedKeys]).toEqual([fileKey(first)]);
+});
+
+test('a cached no-op after a recovered move keeps the unseen change pending', async () => {
+    const first = file({ name: 'first.bin', folder: 'Docs' });
+    const second = file({ name: 'second.bin', folder: 'Docs' });
+    const revisions = new Map([['first@example.com', 5]]);
+    const state = { chunks: [] as UploadedChunk[], revisions };
+    vi.mocked(manageApi.moveFile)
+        .mockReturnValueOnce(ok({ items: [], revision: 0 }))
+        .mockReturnValueOnce(ok({ items: [], revision: 6 }));
+    const { bulk, selection, setFiles } = makeBulk({
+        applyItems: (email, items, revision) => applyManageItems(state, email, items, revision)
+    });
+    setFiles([first, second]);
+    selection.selectAll([fileKey(first), fileKey(second)]);
+
+    bulk.openMove([first, second]);
+    await bulk.move('Docs');
+
+    expect(revisions.get('first@example.com')).toBe(5);
 });
