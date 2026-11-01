@@ -135,6 +135,8 @@ The navigation sidebar totals My files: the original size of the loaded chunks, 
 
 Right-click a file or folder, press the context-menu key, or choose **More** to open its actions. File rows and cards keep their quick **Download** and **Delete** buttons, and Trash keeps **Restore** and **Delete forever**. On screens narrower than 800px, rows and cards show only **More**, and its menu carries the same actions. The menu adds **Rename**, **Move**, **Details**, and the folder actions **Move folder**, **Move contents to My files**, and **Delete folder and files**.
 
+![The file actions menu](./docs/screenshots/context-menu.png)
+
 Renames and moves are Phodrive listing metadata only. They are saved by the server and survive reloads, another browser using the same server, and a full index rebuild, but they do not change Google Photos item names, albums, or the names and folders stored in chunk headers. Downloads still return the original file. Renaming a folder changes its path prefix, including files in subfolders. A rename or move is rejected instead of merged when the destination already has that file name or folder, or when a folder would move into itself.
 
 **Delete folder and files** moves every file under the folder to Google Photos trash, including files that were not loaded on the page. The confirmation shows how many loaded files will move, and every file under the folder is included. Files can be restored from Trash. A partly trashed file keeps the chunks that are still active. With a group selected, each change goes to the account that owns the file or folder, and failures from one member are reported without changing the others.
