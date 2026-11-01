@@ -5,10 +5,13 @@ import { photosFetch, type Fetcher } from '../../fetcher';
 import { applyDelta } from './apply-delta';
 import { fetchDelta, type DeltaResult } from './delta';
 import { applyFolderHints } from './folder-hints';
+import { withAccountLock } from './lock';
+import { applyOverridesToItems, type LibraryOverrides } from './overrides';
 import { readLibraryPage, type LibraryPage } from './page';
 import {
     LIBRARY_STATE_LOG_MAX_AGE_MS,
     deleteAccountState,
+    readAccountOverrides,
     readAccountState,
     updateAccountSyncToken,
     writeAccountState,
@@ -38,7 +41,8 @@ function rejectedState(error: ServerError): boolean {
 function fetchFullSync(
     email: string,
     token: string,
-    fetcher: Fetcher
+    fetcher: Fetcher,
+    overrides: LibraryOverrides
 ): AsyncResult<{ items: RemoteBmp[]; trashed: string[]; syncToken?: Buffer }, ServerError> {
     return Ok(undefined).andThenAsync(async () => {
         const items = new Map<string, RemoteBmp>();
@@ -64,7 +68,7 @@ function fetchFullSync(
         applyFolderHints(items);
 
         return Ok({
-            items: [...items.values()],
+            items: applyOverridesToItems(items.values(), overrides),
             trashed: [...trashed],
             ...(syncToken ? { syncToken } : {})
         });
@@ -82,7 +86,9 @@ function applyFullSync(
     fetcher: Fetcher,
     previous?: LibraryAccountState
 ): AsyncResult<LibrarySyncResult, ServerError> {
-    return fetchFullSync(email, token, fetcher).map((value) => {
+    const overrides = readAccountOverrides(email);
+
+    return fetchFullSync(email, token, fetcher, overrides).map((value) => {
         if (!value.syncToken) {
             deleteAccountState(email);
 
@@ -159,19 +165,6 @@ function revisionResult(state: LibraryAccountState, cursor: number): LibrarySync
     };
 }
 
-const syncLocks = new Map<string, Promise<unknown>>();
-
-function withAccountLock<T>(email: string, task: () => Promise<T>): Promise<T> {
-    const previous = syncLocks.get(email) ?? Promise.resolve();
-    const run = previous.then(task, task);
-    syncLocks.set(
-        email,
-        run.catch(() => undefined)
-    );
-
-    return run;
-}
-
 /** Apply Google's changes, then answer this client from the persisted change log. */
 export function syncLibrary(
     email: string,
@@ -206,7 +199,12 @@ export function syncLibrary(
                 return await applyFullSync(email, token, stored.revision + 1, fetcher, stored);
             }
 
-            const applied = await applyDelta(stored, read.value);
+            const applied = await applyDelta(
+                stored,
+                read.value,
+                readAccountOverrides(email),
+                Date.now()
+            );
 
             return applied.map(({ state, shouldWrite }) => {
                 if (shouldWrite) writeAccountState(email, state);

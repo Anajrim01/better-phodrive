@@ -1,6 +1,14 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import type { RemoteBmp } from '../../../models';
+import type { LibraryOverrides } from './overrides';
+import {
+    accountOverridesSnapshot,
+    clearAccountOverrides,
+    loadAccountOverrides,
+    readAccountOverrides as storedOverrides,
+    setAccountOverrides
+} from './state-overrides';
 import { parseAccountState } from './state-parse';
 
 const LIBRARY_STATE_FLUSH_DELAY_MS = 1_000;
@@ -42,6 +50,7 @@ export function configureLibraryState(path: string | null): void {
     dirty = false;
     lastFlushAt = 0;
     accounts.clear();
+    clearAccountOverrides();
 }
 
 function load(): void {
@@ -53,13 +62,14 @@ function load(): void {
         const data: unknown = JSON.parse(readFileSync(stateFile, 'utf8'));
         if (!data || typeof data !== 'object') return;
 
-        const stored = data as { accounts?: unknown };
-        if (!stored.accounts || typeof stored.accounts !== 'object') return;
-
-        for (const [email, value] of Object.entries(stored.accounts)) {
-            const account = parseAccountState(value);
-            if (account) accounts.set(email.toLowerCase(), account);
+        const stored = data as { accounts?: unknown; overrides?: unknown };
+        if (stored.accounts && typeof stored.accounts === 'object') {
+            for (const [email, value] of Object.entries(stored.accounts)) {
+                const account = parseAccountState(value);
+                if (account) accounts.set(email.toLowerCase(), account);
+            }
         }
+        loadAccountOverrides(stored.overrides);
     } catch {
         // A corrupt state file falls back to a full sync.
     }
@@ -81,9 +91,13 @@ export function flushLibraryState(): void {
             ])
         );
         const temp = `${stateFile}.tmp`;
+        const storedOverrides = accountOverridesSnapshot();
+        const value = Object.keys(storedOverrides).length
+            ? { accounts: stored, overrides: storedOverrides }
+            : { accounts: stored };
 
         mkdirSync(dirname(stateFile), { recursive: true, mode: 0o700 });
-        writeFileSync(temp, JSON.stringify({ accounts: stored }), { mode: 0o600 });
+        writeFileSync(temp, JSON.stringify(value), { mode: 0o600 });
         renameSync(temp, stateFile);
         dirty = false;
         lastFlushAt = Date.now();
@@ -121,6 +135,20 @@ export function writeAccountState(email: string, state: LibraryAccountState): vo
     load();
 
     accounts.set(email.toLowerCase(), state);
+    dirty = true;
+    scheduleFlush();
+}
+
+export function readAccountOverrides(email: string): LibraryOverrides {
+    load();
+
+    return storedOverrides(email);
+}
+
+export function writeAccountOverrides(email: string, value: LibraryOverrides): void {
+    load();
+
+    setAccountOverrides(email, value);
     dirty = true;
     scheduleFlush();
 }
@@ -253,6 +281,7 @@ export function clearLibraryState(): void {
     }
 
     accounts.clear();
+    clearAccountOverrides();
     loaded = false;
     dirty = false;
     lastFlushAt = 0;

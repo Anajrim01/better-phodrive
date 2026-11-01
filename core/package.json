@@ -61,6 +61,10 @@
             "@madkarmaa/phodrive-core": "./src/browser/library.ts",
             "default": "./dist/browser/library.js"
         },
+        "./browser/manage": {
+            "@madkarmaa/phodrive-core": "./src/browser/manage.ts",
+            "default": "./dist/browser/manage.js"
+        },
         "./browser/upload": {
             "@madkarmaa/phodrive-core": "./src/browser/upload/index.ts",
             "default": "./dist/browser/upload/index.js"
@@ -112,6 +116,10 @@
         "./library-sync": {
             "@madkarmaa/phodrive-core": "./src/library-sync.ts",
             "default": "./dist/library-sync.js"
+        },
+        "./manage": {
+            "@madkarmaa/phodrive-core": "./src/manage.ts",
+            "default": "./dist/manage.js"
         },
         "./models": {
             "@madkarmaa/phodrive-core": "./src/models.ts",
@@ -185,6 +193,14 @@
             "@madkarmaa/phodrive-core": "./src/server/files.ts",
             "default": "./dist/server/files.js"
         },
+        "./server/folders": {
+            "@madkarmaa/phodrive-core": "./src/server/folders.ts",
+            "default": "./dist/server/folders.js"
+        },
+        "./server/manage": {
+            "@madkarmaa/phodrive-core": "./src/server/manage.ts",
+            "default": "./dist/server/manage.js"
+        },
         "./server/photos": {
             "@madkarmaa/phodrive-core": "./src/server/photos/index.ts",
             "default": "./dist/server/photos/index.js"
@@ -217,9 +233,25 @@
             "@madkarmaa/phodrive-core": "./src/server/photos/library/delta.ts",
             "default": "./dist/server/photos/library/delta.js"
         },
+        "./server/photos/library/ensure": {
+            "@madkarmaa/phodrive-core": "./src/server/photos/library/ensure.ts",
+            "default": "./dist/server/photos/library/ensure.js"
+        },
         "./server/photos/library/folder-hints": {
             "@madkarmaa/phodrive-core": "./src/server/photos/library/folder-hints.ts",
             "default": "./dist/server/photos/library/folder-hints.js"
+        },
+        "./server/photos/library/index-files": {
+            "@madkarmaa/phodrive-core": "./src/server/photos/library/index-files.ts",
+            "default": "./dist/server/photos/library/index-files.js"
+        },
+        "./server/photos/library/listing-updates": {
+            "@madkarmaa/phodrive-core": "./src/server/photos/library/listing-updates.ts",
+            "default": "./dist/server/photos/library/listing-updates.js"
+        },
+        "./server/photos/library/lock": {
+            "@madkarmaa/phodrive-core": "./src/server/photos/library/lock.ts",
+            "default": "./dist/server/photos/library/lock.js"
         },
         "./server/photos/library/metadata": {
             "@madkarmaa/phodrive-core": "./src/server/photos/library/metadata.ts",
@@ -228,6 +260,10 @@
         "./server/photos/library/metadata-page": {
             "@madkarmaa/phodrive-core": "./src/server/photos/library/metadata-page.ts",
             "default": "./dist/server/photos/library/metadata-page.js"
+        },
+        "./server/photos/library/overrides": {
+            "@madkarmaa/phodrive-core": "./src/server/photos/library/overrides.ts",
+            "default": "./dist/server/photos/library/overrides.js"
         },
         "./server/photos/library/page": {
             "@madkarmaa/phodrive-core": "./src/server/photos/library/page.ts",
@@ -248,6 +284,10 @@
         "./server/photos/library/state": {
             "@madkarmaa/phodrive-core": "./src/server/photos/library/state.ts",
             "default": "./dist/server/photos/library/state.js"
+        },
+        "./server/photos/library/state-overrides": {
+            "@madkarmaa/phodrive-core": "./src/server/photos/library/state-overrides.ts",
+            "default": "./dist/server/photos/library/state-overrides.js"
         },
         "./server/photos/library/state-parse": {
             "@madkarmaa/phodrive-core": "./src/server/photos/library/state-parse.ts",
@@ -385,6 +425,7 @@
             "./browser/api": "./dist/browser/api.js",
             "./browser/files": "./dist/browser/files.js",
             "./browser/library": "./dist/browser/library.js",
+            "./browser/manage": "./dist/browser/manage.js",
             "./browser/upload": "./dist/browser/upload/index.js",
             "./browser/upload/chunk": "./dist/browser/upload/chunk.js",
             "./browser/upload/eta": "./dist/browser/upload/eta.js",
@@ -398,6 +439,7 @@
             "./groups": "./dist/groups.js",
             "./incomplete": "./dist/incomplete.js",
             "./library-sync": "./dist/library-sync.js",
+            "./manage": "./dist/manage.js",
             "./models": "./dist/models.js",
             "./node": "./dist/node/index.js",
             "./node/files": "./dist/node/files.js",
@@ -416,6 +458,8 @@
             "./server/errors": "./dist/server/errors.js",
             "./server/fetcher": "./dist/server/fetcher.js",
             "./server/files": "./dist/server/files.js",
+            "./server/folders": "./dist/server/folders.js",
+            "./server/manage": "./dist/server/manage.js",
             "./server/photos": "./dist/server/photos/index.js",
             "./server/photos/albums": "./dist/server/photos/albums.js",
             "./server/photos/auth": "./dist/server/photos/auth.js",
@@ -424,14 +468,20 @@
             "./server/photos/library": "./dist/server/photos/library/index.js",
             "./server/photos/library/apply-delta": "./dist/server/photos/library/apply-delta.js",
             "./server/photos/library/delta": "./dist/server/photos/library/delta.js",
+            "./server/photos/library/ensure": "./dist/server/photos/library/ensure.js",
             "./server/photos/library/folder-hints": "./dist/server/photos/library/folder-hints.js",
+            "./server/photos/library/index-files": "./dist/server/photos/library/index-files.js",
+            "./server/photos/library/listing-updates": "./dist/server/photos/library/listing-updates.js",
+            "./server/photos/library/lock": "./dist/server/photos/library/lock.js",
             "./server/photos/library/metadata": "./dist/server/photos/library/metadata.js",
             "./server/photos/library/metadata-page": "./dist/server/photos/library/metadata-page.js",
+            "./server/photos/library/overrides": "./dist/server/photos/library/overrides.js",
             "./server/photos/library/page": "./dist/server/photos/library/page.js",
             "./server/photos/library/probe": "./dist/server/photos/library/probe.js",
             "./server/photos/library/probe-cache": "./dist/server/photos/library/probe-cache.js",
             "./server/photos/library/requests": "./dist/server/photos/library/requests.js",
             "./server/photos/library/state": "./dist/server/photos/library/state.js",
+            "./server/photos/library/state-overrides": "./dist/server/photos/library/state-overrides.js",
             "./server/photos/library/state-parse": "./dist/server/photos/library/state-parse.js",
             "./server/photos/library/sync": "./dist/server/photos/library/sync.js",
             "./server/photos/permanent-delete": "./dist/server/photos/permanent-delete.js",
