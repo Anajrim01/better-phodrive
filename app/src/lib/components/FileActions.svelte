@@ -35,7 +35,7 @@
         ondeleteforever
     }: Props = $props();
 
-    const waiting = $derived(!item.complete && partial);
+    const waiting = $derived(!item.complete && partial && !trash);
     const canRestore = $derived(
         !partial &&
             !item.trashed &&

@@ -100,7 +100,7 @@ test('a partial group listing names paused members and their wait', () => {
     expect(screen.getByText('Family')).toBeTruthy();
     expect(
         screen.getByText(
-            /Paused: second@example\.com \(\d+s\)\. Files from paused accounts stay hidden until they answer\./
+            /Paused: second@example\.com \(\d+s\)\. Files from paused accounts can be missing until they answer\./
         )
     ).toBeTruthy();
 });
@@ -123,7 +123,7 @@ test('a partial bar names disconnected members separately', () => {
 
     expect(
         screen.getByText(
-            `Not connected: ${SECOND}. Their files stay hidden until they are added back.`
+            `Not connected: ${SECOND}. Their files can be missing until they are added back.`
         )
     ).toBeTruthy();
 });

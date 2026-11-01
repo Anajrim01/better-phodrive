@@ -53,7 +53,7 @@
         </div>
     </div>
 
-    {#if !item.complete}
+    {#if !item.complete || item.trashedChunks.length > 0}
         <div class="px-3 pb-2">
             <FileIncompleteWarning {item} {partial} />
         </div>

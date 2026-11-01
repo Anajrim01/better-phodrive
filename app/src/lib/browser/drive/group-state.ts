@@ -1,7 +1,8 @@
 import type { Group } from '@madkarmaa/phodrive-core/models';
+import type { GroupMemberStatus } from '#browser/drive/group-pauses.svelte';
 
+export type { GroupMemberStatus } from '#browser/drive/group-pauses.svelte';
 export type GroupReadiness = 'needs-members' | 'all-paused' | 'ready';
-export type GroupMemberStatus = 'unknown' | 'ready' | 'paused';
 
 export function groupReadiness(
     group: Group,

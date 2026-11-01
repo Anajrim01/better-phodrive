@@ -143,6 +143,10 @@
                 hasMore={!!drive.library.nextPageToken}
                 action={drive.fileAction}
                 showOwner={drive.groupMode.target !== null}
+                groupName={drive.groupMode.target?.group.name}
+                total={drive.groupMode.target?.group.accounts.length ?? 0}
+                accounts={drive.library.accounts}
+                partial={drive.library.partial}
                 onrestore={restore}
                 ondeleteforever={confirmPermanentDelete}
                 onmore={() => {
