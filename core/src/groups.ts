@@ -224,6 +224,13 @@ export function deleteRoute(
     return availableRoute(file.email, members, 'be deleted');
 }
 
+export function restoreRoute(
+    file: { email: string },
+    members: readonly RouteMember[]
+): Result<FileRoute, ApplicationError> {
+    return availableRoute(file.email, members, 'be restored');
+}
+
 /** Stored groups may predate the field or contain entries a newer schema rejects. */
 export function parseStoredGroups(value: unknown): Group[] {
     if (!Array.isArray(value)) return [];

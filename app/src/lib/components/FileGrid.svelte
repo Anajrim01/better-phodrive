@@ -66,6 +66,7 @@
                 {action}
                 {showFolder}
                 {showOwner}
+                partial={hasMore}
                 {ondownload}
                 {ondelete}
                 {onrestore}
@@ -84,6 +85,7 @@
                             {item}
                             {disabled}
                             {showOwner}
+                            partial={hasMore}
                             working={action?.fileId === item.fileId ? action.kind : null}
                             {ondownload}
                             {ondelete}

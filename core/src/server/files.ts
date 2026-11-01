@@ -48,6 +48,13 @@ function validateChunks(input: FileRequest): Result<RemoteBmp[], ServerError> {
     return Ok(chunks);
 }
 
+function requireTrashed(chunks: RemoteBmp[]): Result<RemoteBmp[], ServerError> {
+    if (chunks.some((chunk) => chunk.trashedAt === undefined))
+        return Err(SERVER_ERRORS.NOT_TRASHED);
+
+    return Ok(chunks);
+}
+
 /** Reconstruct in order as the browser reads, verifying integrity before stream completion. */
 export function downloadFile(
     input: FileRequest,
@@ -113,28 +120,32 @@ function untrashed(chunk: RemoteBmp): RemoteBmp {
 export function restoreFile(
     input: FileRequest
 ): AsyncResult<{ restored: RemoteBmp[] }, ServerError> {
-    return validateChunks(input).andThenAsync(async (chunks) => {
-        const sha1s = [...new Set(chunks.map((chunk) => chunk.sha1))];
-        const restored = await restoreFromTrash(input.email, input.token, sha1s);
-        if (restored.isErr()) return Err(restored.unwrapErr());
+    return validateChunks(input)
+        .andThen((chunks) => requireTrashed(chunks))
+        .andThenAsync(async (chunks) => {
+            const sha1s = [...new Set(chunks.map((chunk) => chunk.sha1))];
+            const restored = await restoreFromTrash(input.email, input.token, sha1s);
+            if (restored.isErr()) return Err(restored.unwrapErr());
 
-        markChunksRestored(input.email, chunks);
+            markChunksRestored(input.email, chunks);
 
-        return Ok({ restored: chunks.map(untrashed) });
-    });
+            return Ok({ restored: chunks.map(untrashed) });
+        });
 }
 
 /** Permanently delete the selected chunks and drop them from the local index. */
 export function deleteForeverFile(
     input: FileRequest
 ): AsyncResult<{ deleted: RemoteBmp[] }, ServerError> {
-    return validateChunks(input).andThenAsync(async (chunks) => {
-        const sha1s = [...new Set(chunks.map((chunk) => chunk.sha1))];
-        const removed = await deletePermanently(input.email, input.token, sha1s);
-        if (removed.isErr()) return Err(removed.unwrapErr());
+    return validateChunks(input)
+        .andThen((chunks) => requireTrashed(chunks))
+        .andThenAsync(async (chunks) => {
+            const sha1s = [...new Set(chunks.map((chunk) => chunk.sha1))];
+            const removed = await deletePermanently(input.email, input.token, sha1s);
+            if (removed.isErr()) return Err(removed.unwrapErr());
 
-        removeChunks(input.email, chunks);
+            removeChunks(input.email, chunks);
 
-        return Ok({ deleted: chunks });
-    });
+            return Ok({ deleted: chunks });
+        });
 }

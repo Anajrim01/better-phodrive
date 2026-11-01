@@ -12,7 +12,8 @@ import {
     throttleWaitSeconds
 } from '../throttle';
 import { decodeSplitHeader, MAX_SPLIT_HEADER_BYTES } from '../../bmp/index';
-import { BMP_HEADER_BYTES, SPLIT_MAGIC_PREFIX } from '../../../bmp/format';
+import { BMP_HEADER_BYTES, MAX_CHUNK_PAYLOAD_BYTES, SPLIT_MAGIC_PREFIX } from '../../../bmp/format';
+import { fileIdentity } from '../../chunks';
 import { splitHeaderIsCompressed, splitHeaderIsLast } from '../../../models';
 import { preparedDownloadUrl } from '../download';
 import { readProbe, writeProbe } from './probe-cache';
@@ -159,19 +160,30 @@ export function namedAsNonPhodrive(candidate: { fileName?: string }): boolean {
     return candidate.fileName !== undefined && !candidate.fileName.includes('.phodrive-');
 }
 
-/** Trashed chunks keep their listing metadata, so they need no download probe. */
-export function trashedChunkItem(candidate: LibraryCandidate): RemoteBmp | null {
+/** Rebuild a trashed chunk from its listing name, using the probe cache for probed fields. */
+export function trashedChunkItem(
+    email: string,
+    candidate: LibraryCandidate,
+    folderHint?: string
+): RemoteBmp | null {
+    const cached = readProbe(email, candidate);
+    if (cached) return { ...cached, trashedAt: cached.trashedAt ?? Date.now() };
+
     const parsed = parseChunkName(candidate.fileName);
     if (!parsed) return null;
 
+    const originalName = parsed.originalName ?? '';
+    const folder = folderHint ?? '';
+    const fileId = fileIdentity(originalName, parsed.fileHash, MAX_CHUNK_PAYLOAD_BYTES, folder);
+
     return {
         fileHash: parsed.fileHash,
-        fileId: parsed.fileHash,
+        fileId,
         chunkIndex: parsed.chunkIndex,
         chunkCount: parsed.chunkCount,
         isLast: parsed.chunkIndex === parsed.chunkCount - 1,
         ...(parsed.originalName ? { originalName: parsed.originalName } : {}),
-        ...(candidate.folder ? { folder: candidate.folder } : {}),
+        ...(folder ? { folder } : {}),
         size: candidate.size,
         at: candidate.at,
         mediaKey: candidate.mediaKey,
@@ -191,7 +203,7 @@ export function probeLibraryItem(
         return Ok(undefined).andThenAsync<RemoteBmp | null, ServerError>(async () => Ok(null));
     if (candidate.trashed)
         return Ok(undefined).andThenAsync<RemoteBmp | null, ServerError>(async () =>
-            Ok(trashedChunkItem(candidate))
+            Ok(trashedChunkItem(email, candidate))
         );
 
     const expected = expectedChunkCount(candidate.fileName);

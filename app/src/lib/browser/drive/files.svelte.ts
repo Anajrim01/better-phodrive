@@ -1,5 +1,10 @@
 import { ConfirmKind, FileActionKind } from '@madkarmaa/phodrive-core/models';
-import { deleteRoute, downloadRoute, type RouteMember } from '@madkarmaa/phodrive-core/groups';
+import {
+    deleteRoute,
+    downloadRoute,
+    restoreRoute,
+    type RouteMember
+} from '@madkarmaa/phodrive-core/groups';
 import {
     fileKey,
     type FileAction,
@@ -97,7 +102,9 @@ export class DriveFiles {
             const routed =
                 action === FileActionKind.Download
                     ? downloadRoute(item, members)
-                    : deleteRoute(item, members);
+                    : action === FileActionKind.Restore
+                      ? restoreRoute(item, members)
+                      : deleteRoute(item, members);
             if (routed.isErr()) {
                 this.deps.feedback(routed.unwrapErr().message);
 

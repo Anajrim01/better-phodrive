@@ -20,12 +20,19 @@ export function applyDelta(
         const changeItems = new Map<string, RemoteBmp>();
         for (const item of delta.items) {
             const existing = items.get(item.mediaKey);
-            const merged =
-                item.trashedAt !== undefined && existing
-                    ? { ...existing, trashedAt: existing.trashedAt ?? item.trashedAt }
-                    : item;
-            items.set(merged.mediaKey, merged);
-            changeItems.set(merged.mediaKey, merged);
+            if (item.trashedAt !== undefined && existing) {
+                const merged = {
+                    ...existing,
+                    trashedAt: existing.trashedAt ?? item.trashedAt
+                };
+                items.set(merged.mediaKey, merged);
+                if (existing.trashedAt === undefined) changeItems.set(merged.mediaKey, merged);
+
+                continue;
+            }
+
+            items.set(item.mediaKey, item);
+            changeItems.set(item.mediaKey, item);
         }
 
         const deleted = new Set(delta.deleted);
@@ -36,9 +43,9 @@ export function applyDelta(
 
         for (const mediaKey of delta.trashed) {
             const item = items.get(mediaKey);
-            if (!item) continue;
+            if (!item || item.trashedAt !== undefined) continue;
 
-            const trashed = { ...item, trashedAt: item.trashedAt ?? now };
+            const trashed = { ...item, trashedAt: now };
             items.set(mediaKey, trashed);
             changeItems.set(mediaKey, trashed);
         }

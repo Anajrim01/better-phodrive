@@ -21,7 +21,6 @@ export function partitionFileGroups(items: UploadedChunk[]): {
         if (active.length === 0) {
             group.trashed = true;
             group.trashedChunks = trashedChunks;
-            group.trashedAt = Math.max(...trashedChunks.map((chunk) => chunk.trashedAt ?? 0));
             trashed.push(group);
 
             continue;

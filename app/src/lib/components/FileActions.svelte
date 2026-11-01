@@ -1,11 +1,11 @@
 <script lang="ts">
     import { Button, IconButton } from 'noph-ui';
     import { FileActionKind } from '@madkarmaa/phodrive-core/models';
-    import { incompleteFileMessage, type FileGroup } from '@madkarmaa/phodrive-core/files';
+    import type { FileGroup } from '@madkarmaa/phodrive-core/files';
     import IconDownload from '~icons/material-symbols/download';
     import IconDelete from '~icons/material-symbols/delete-outline';
     import IconDeleteForever from '~icons/material-symbols/delete-forever';
-    import IconRestore from '~icons/material-symbols/settings-backup-restore';
+    import IconRestore from '~icons/material-symbols/restore-from-trash';
 
     interface Props {
         item: FileGroup;
@@ -13,6 +13,8 @@
         working: FileActionKind | null;
         compact?: boolean;
         trash?: boolean;
+        partial?: boolean;
+        shortDelete?: boolean;
         ondownload?: (item: FileGroup) => void;
         ondelete?: (item: FileGroup) => void;
         onrestore?: (item: FileGroup) => void;
@@ -25,22 +27,36 @@
         working,
         compact = false,
         trash = false,
+        partial = false,
+        shortDelete = false,
         ondownload,
         ondelete,
         onrestore,
         ondeleteforever
     }: Props = $props();
 
-    const canRestore = $derived(!item.trashed && item.trashedChunks.length > 0);
+    const waiting = $derived(!item.complete && partial);
+    const canRestore = $derived(
+        !partial &&
+            !item.trashed &&
+            item.trashedChunks.some(
+                (trashed) => !item.chunks.some((active) => active.chunkIndex === trashed.chunkIndex)
+            )
+    );
     const deleteLabel = $derived(
         item.complete ? `Delete ${item.name}` : `Delete remaining chunks of ${item.name}`
+    );
+    const deleteButtonLabel = $derived(
+        shortDelete || item.complete ? 'Delete' : 'Delete remaining chunks'
     );
     const restoreLabel = $derived(`Restore ${item.name}`);
     const deleteForeverLabel = $derived(`Delete ${item.name} forever`);
 </script>
 
 <div class="file-actions flex shrink-0 items-center">
-    {#if compact}
+    {#if waiting}
+        <span class="sr-only">Load more to check the rest of this file.</span>
+    {:else if compact}
         {#if trash}
             <IconButton
                 size="xs"
@@ -154,7 +170,7 @@
             onclick={() => ondelete?.(item)}
         >
             {#snippet start()}<IconDelete aria-hidden="true" />{/snippet}
-            {item.complete ? 'Delete' : 'Delete remaining chunks'}
+            {deleteButtonLabel}
         </Button>
     {/if}
 </div>

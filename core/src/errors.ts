@@ -10,6 +10,7 @@ export type ApplicationError =
               | 'INVALID_ALBUM_KEY'
               | 'INVALID_CONCURRENT_WORKERS'
               | 'INVALID_DELETE_RESPONSE'
+              | 'INVALID_RESTORE_RESPONSE'
               | 'INVALID_GROUP'
               | 'INVALID_JSON_REQUEST'
               | 'INVALID_OAUTH_CREDENTIALS'

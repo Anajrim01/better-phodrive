@@ -1,5 +1,6 @@
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
-import { groupChunks, type FileGroup } from '../files';
+import type { FileGroup } from '../files';
+import { partitionFileGroups } from '../trash';
 import type { RemoteBmp } from '../models';
 import type { Fetcher } from '../server/fetcher';
 import { SERVER_ERRORS, type ServerError } from '../server/errors';
@@ -35,6 +36,6 @@ export function readLibrary(
 
         const chunks = [...items.values()].map((item) => ({ ...item, email }));
 
-        return Ok(groupChunks(chunks));
+        return Ok(partitionFileGroups(chunks).files);
     });
 }

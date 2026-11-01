@@ -3,7 +3,7 @@ import { Err, Ok, type AsyncResult } from 'results-ts';
 import type { RemoteBmp } from '../../../models';
 import { photosFetch, type Fetcher } from '../../fetcher';
 import { readLibraryPage } from './page';
-import { readAccountRevision } from './state';
+import { readAccountRevision, readAccountState } from './state';
 
 export { clearProbeCache, configureProbeCache, flushProbeCache } from './probe-cache';
 export { clearLibraryState, configureLibraryState, flushLibraryState } from './state';
@@ -27,9 +27,25 @@ export function listBmps(
 
     return validated
         .andThenAsync(() => readLibraryPage(email, token, pageToken, undefined, fetcher))
-        .map((page) => ({
-            items: page.items,
-            nextPageToken: page.nextPageToken,
-            revision
-        }));
+        .map((page) => {
+            const items = [...page.items];
+            const seen = new Set(items.map((item) => item.mediaKey));
+            const state = readAccountState(email);
+
+            for (const mediaKey of page.trashedMediaKeys) {
+                if (seen.has(mediaKey)) continue;
+
+                const known = state?.items.get(mediaKey);
+                if (!known) continue;
+
+                items.push({ ...known, trashedAt: known.trashedAt ?? Date.now() });
+                seen.add(mediaKey);
+            }
+
+            return {
+                items,
+                nextPageToken: page.nextPageToken,
+                revision
+            };
+        });
 }

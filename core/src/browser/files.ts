@@ -107,7 +107,7 @@ export function restoreFile(
                 );
                 if (!known)
                     return Err({
-                        code: 'INVALID_DELETE_RESPONSE',
+                        code: 'INVALID_RESTORE_RESPONSE',
                         message: 'Invalid restore response.'
                     } as const);
 

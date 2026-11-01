@@ -137,7 +137,11 @@ export function updateAccountSyncToken(email: string, syncToken: Buffer): void {
     load();
 
     const account = accounts.get(email.toLowerCase());
-    if (account) account.syncToken = syncToken;
+    if (!account) return;
+
+    account.syncToken = syncToken;
+    dirty = true;
+    scheduleFlush();
 }
 
 export function trimChangeLog(log: readonly LibraryChange[], now = Date.now()): LibraryChange[] {

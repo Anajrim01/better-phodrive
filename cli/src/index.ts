@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import process from 'node:process';
-import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { isCI } from '@clack/prompts';
 import { CommanderError } from '@commander-js/extra-typings';
@@ -9,9 +8,7 @@ import type { CliContext, CliError } from './context';
 import { createProgram } from './program';
 import { RELEASE_ASSET } from './update';
 import {
-    configureLibraryState,
     configureProbeCache,
-    flushLibraryState,
     flushProbeCache
 } from '@madkarmaa/phodrive-core/server/photos/library';
 
@@ -41,12 +38,7 @@ const context: CliContext = {
 };
 
 configureProbeCache(join(dirname(context.configPath), 'probe-cache.json'));
-// The app and CLI share the index so CLI deletes move files to the app's Trash.
-configureLibraryState(
-    process.env.PHODRIVE_LIBRARY_STATE ?? join(homedir(), '.phodrive', 'library-state.json')
-);
 process.on('exit', flushProbeCache);
-process.on('exit', flushLibraryState);
 
 const failures: CliError[] = [];
 const program = createProgram(context, (error) => failures.push(error));

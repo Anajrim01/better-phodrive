@@ -28,7 +28,17 @@
                 ? 'Delete remaining chunks?'
                 : 'Move file to trash?'
     );
-    const remainingChunks = $derived(file?.chunks.length ?? 0);
+    const body = $derived(
+        target?.kind === ConfirmKind.Account
+            ? `Sign out of ${target.email} on this browser? Files in Google Photos will stay online.`
+            : file === null
+              ? ''
+              : permanent
+                ? `This deletes ${file.name}. This cannot be undone.`
+                : deletingRemaining
+                  ? `This moves the remaining chunks of ${file.name} to Google Photos trash. You can restore the file from Trash.`
+                  : `This moves ${file.name} to Google Photos trash. You can restore it from Trash.`
+    );
 </script>
 
 <Dialog
@@ -36,26 +46,11 @@
     bind:open
     aria-label={headline}
     {headline}
+    supportingText={body}
     ontoggle={(event) => {
         if (event.newState === 'open') cancelButton?.focus();
     }}
 >
-    {#if target?.kind === ConfirmKind.Account}
-        Sign out of {target.email} on this browser? Files in Google Photos will stay online.
-    {:else if file}
-        {#if permanent}
-            Permanently delete {file.name} and its {remainingChunks}
-            {remainingChunks === 1 ? 'chunk' : 'chunks'}? This cannot be undone.
-        {:else if deletingRemaining}
-            Move the remaining {remainingChunks}
-            {remainingChunks === 1 ? 'chunk' : 'chunks'} of {file.name} to Google Photos trash? This file
-            cannot be downloaded after that.
-        {:else}
-            Move {file.name} and its {remainingChunks}
-            {remainingChunks === 1 ? 'chunk' : 'chunks'} to Google Photos trash?
-        {/if}
-    {/if}
-
     {#snippet actions()}
         <Button bind:element={cancelButton} autofocus variant="text" onclick={() => (open = false)}>
             Cancel

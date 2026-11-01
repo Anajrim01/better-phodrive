@@ -221,6 +221,10 @@
             "@madkarmaa/phodrive-core": "./src/server/photos/library/metadata.ts",
             "default": "./dist/server/photos/library/metadata.js"
         },
+        "./server/photos/library/metadata-page": {
+            "@madkarmaa/phodrive-core": "./src/server/photos/library/metadata-page.ts",
+            "default": "./dist/server/photos/library/metadata-page.js"
+        },
         "./server/photos/library/page": {
             "@madkarmaa/phodrive-core": "./src/server/photos/library/page.ts",
             "default": "./dist/server/photos/library/page.js"
@@ -248,10 +252,6 @@
         "./server/photos/library/sync": {
             "@madkarmaa/phodrive-core": "./src/server/photos/library/sync.ts",
             "default": "./dist/server/photos/library/sync.js"
-        },
-        "./server/photos/library/validation": {
-            "@madkarmaa/phodrive-core": "./src/server/photos/library/validation.ts",
-            "default": "./dist/server/photos/library/validation.js"
         },
         "./server/photos/permanent-delete": {
             "@madkarmaa/phodrive-core": "./src/server/photos/permanent-delete.ts",
@@ -421,6 +421,7 @@
             "./server/photos/library/apply-delta": "./dist/server/photos/library/apply-delta.js",
             "./server/photos/library/delta": "./dist/server/photos/library/delta.js",
             "./server/photos/library/metadata": "./dist/server/photos/library/metadata.js",
+            "./server/photos/library/metadata-page": "./dist/server/photos/library/metadata-page.js",
             "./server/photos/library/page": "./dist/server/photos/library/page.js",
             "./server/photos/library/probe": "./dist/server/photos/library/probe.js",
             "./server/photos/library/probe-cache": "./dist/server/photos/library/probe-cache.js",
@@ -428,7 +429,6 @@
             "./server/photos/library/state": "./dist/server/photos/library/state.js",
             "./server/photos/library/state-parse": "./dist/server/photos/library/state-parse.js",
             "./server/photos/library/sync": "./dist/server/photos/library/sync.js",
-            "./server/photos/library/validation": "./dist/server/photos/library/validation.js",
             "./server/photos/permanent-delete": "./dist/server/photos/permanent-delete.js",
             "./server/photos/restore": "./dist/server/photos/restore.js",
             "./server/photos/throttle": "./dist/server/photos/throttle.js",

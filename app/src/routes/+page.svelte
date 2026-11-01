@@ -138,10 +138,16 @@
                 files={drive.library.trashFiles}
                 bind:sort={drive.settings.fileSort}
                 disabled={actionsDisabled || drive.library.loading}
+                loading={drive.library.loading}
+                loadFailed={drive.library.loadFailed}
+                hasMore={!!drive.library.nextPageToken}
                 action={drive.fileAction}
                 showOwner={drive.groupMode.target !== null}
                 onrestore={restore}
                 ondeleteforever={confirmPermanentDelete}
+                onmore={() => {
+                    void drive.library.load(false);
+                }}
             />
         {:else if drive.ready && (!drive.selectedEmail || drive.accountEditor.adding)}
             <div in:fade={{ duration: prefersReducedMotion.current ? 0 : 160 }}>

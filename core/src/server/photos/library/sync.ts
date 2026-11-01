@@ -38,9 +38,10 @@ function fetchFullSync(
     email: string,
     token: string,
     fetcher: Fetcher
-): AsyncResult<{ items: RemoteBmp[]; syncToken?: Buffer }, ServerError> {
+): AsyncResult<{ items: RemoteBmp[]; trashed: string[]; syncToken?: Buffer }, ServerError> {
     return Ok(undefined).andThenAsync(async () => {
         const items = new Map<string, RemoteBmp>();
+        const trashed = new Set<string>();
         const pages = new Set<string>();
         let pageToken = '';
         let syncToken: Buffer | undefined;
@@ -54,11 +55,16 @@ function fetchFullSync(
             if ('error' in read) return Err(read.error);
 
             for (const item of read.page.items) items.set(item.mediaKey, item);
+            for (const mediaKey of read.page.trashedMediaKeys) trashed.add(mediaKey);
             syncToken ??= read.page.syncToken;
             pageToken = read.page.nextPageToken;
         } while (pageToken);
 
-        return Ok({ items: [...items.values()], ...(syncToken ? { syncToken } : {}) });
+        return Ok({
+            items: [...items.values()],
+            trashed: [...trashed],
+            ...(syncToken ? { syncToken } : {})
+        });
     });
 }
 
@@ -81,11 +87,19 @@ function applyFullSync(
         }
 
         const items = new Map(value.items.map((item) => [item.mediaKey, item]));
+        const now = Date.now();
         for (const [mediaKey, item] of items) {
             if (item.trashedAt === undefined) continue;
 
             const known = previous?.items.get(mediaKey);
-            if (known) items.set(mediaKey, { ...known, trashedAt: item.trashedAt });
+            if (known)
+                items.set(mediaKey, { ...known, trashedAt: known.trashedAt ?? item.trashedAt });
+        }
+        for (const mediaKey of value.trashed) {
+            if (items.has(mediaKey)) continue;
+
+            const known = previous?.items.get(mediaKey);
+            if (known) items.set(mediaKey, { ...known, trashedAt: known.trashedAt ?? now });
         }
 
         const state: LibraryAccountState = {

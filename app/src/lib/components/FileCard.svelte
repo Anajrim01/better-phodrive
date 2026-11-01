@@ -13,6 +13,7 @@
         disabled: boolean;
         working: FileActionKind | null;
         showOwner?: boolean;
+        partial?: boolean;
         ondownload: (item: FileGroup) => void;
         ondelete: (item: FileGroup) => void;
         onrestore: (item: FileGroup) => void;
@@ -23,6 +24,7 @@
         disabled,
         working,
         showOwner = false,
+        partial = false,
         ondownload,
         ondelete,
         onrestore
@@ -51,15 +53,24 @@
         </div>
     </div>
 
-    <div class="flex justify-end px-2 pb-2">
-        <FileActions {item} {disabled} {working} {ondownload} {ondelete} {onrestore} />
-    </div>
-
     {#if !item.complete}
         <div class="px-3 pb-2">
-            <FileIncompleteWarning {item} />
+            <FileIncompleteWarning {item} {partial} />
         </div>
     {/if}
+
+    <div class="flex justify-end px-2 pb-2">
+        <FileActions
+            {item}
+            {disabled}
+            {working}
+            {partial}
+            shortDelete
+            {ondownload}
+            {ondelete}
+            {onrestore}
+        />
+    </div>
 </Card>
 
 <style>

@@ -18,6 +18,7 @@
         showFolder?: boolean;
         showOwner?: boolean;
         trash?: boolean;
+        partial?: boolean;
         headingId?: string;
         ondownload?: (item: FileGroup) => void;
         ondelete?: (item: FileGroup) => void;
@@ -33,6 +34,7 @@
         showFolder = false,
         showOwner = false,
         trash = false,
+        partial = false,
         headingId = 'files-heading',
         ondownload,
         ondelete,
@@ -122,7 +124,7 @@
                                 >
                             {/if}
                             {#if !item.complete}
-                                <FileIncompleteWarning {item} />
+                                <FileIncompleteWarning {item} {partial} />
                             {:else}
                                 <span class="mobile-date text-xs text-muted"
                                     ><LocalizedDate timestamp={item.at} /></span
@@ -135,7 +137,9 @@
                 <td class="size-column">
                     {#if item.complete}
                         {prettyBytes(item.chunks.reduce((sum, chunk) => sum + chunk.size, 0))}
-                    {:else}<span title="Available once all chunks are loaded">Unknown</span>{/if}
+                    {:else}<span title="Size is unknown while not all chunks are available"
+                            >Unknown</span
+                        >{/if}
                 </td>
                 <td class="actions-column">
                     <FileActions
@@ -143,6 +147,7 @@
                         {disabled}
                         compact
                         {trash}
+                        {partial}
                         working={action?.fileId === item.fileId ? action.kind : null}
                         {ondownload}
                         {ondelete}

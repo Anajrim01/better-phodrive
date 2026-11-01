@@ -34,7 +34,6 @@ export type FileGroup = {
     duplicates: UploadedChunk[];
     trashedChunks: UploadedChunk[];
     trashed: boolean;
-    trashedAt: number | null;
     complete: boolean;
 };
 
@@ -151,7 +150,6 @@ export function groupChunks(items: UploadedChunk[]): FileGroup[] {
                 duplicates: [],
                 trashedChunks: [],
                 trashed: false,
-                trashedAt: null,
                 complete: false
             };
             groups.set(key, { file });
