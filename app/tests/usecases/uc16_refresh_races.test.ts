@@ -30,10 +30,12 @@ const { storage } = vi.hoisted(() => {
 vi.mock('esm-env', () => ({ BROWSER: true, DEV: true }));
 vi.mock('@madkarmaa/phodrive-core/browser/accounts', () => ({ validateAccount: vi.fn() }));
 vi.mock('@madkarmaa/phodrive-core/browser/library', () => ({
+    applyLibraryDelta: vi.fn(),
     readGroupLibrary: vi.fn(),
     readGroupLibraryUpdates: vi.fn(),
     readLibraryPage: vi.fn(),
-    readLibrarySnapshot: vi.fn()
+    readLibrarySnapshot: vi.fn(),
+    readLibrarySync: vi.fn()
 }));
 vi.mock('#browser/drive/refresh.svelte', () => ({ useAutomaticRefresh: vi.fn() }));
 

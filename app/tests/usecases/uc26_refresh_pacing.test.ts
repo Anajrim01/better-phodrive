@@ -47,12 +47,12 @@ beforeEach(() => {
 afterAll(() => vi.unstubAllGlobals());
 
 test('automatic refresh waits for a throttling window while a manual refresh does not', async () => {
-    const automatic = vi.spyOn(libraryApi, 'readLibraryUpdates').mockReturnValue(
+    const automatic = vi.spyOn(libraryApi, 'readLibrarySync').mockReturnValue(
         Err({
             code: 'THROTTLED',
             message: 'Google Photos is limiting requests, retrying in about 2 min',
             retryAfterSeconds: 120
-        } as const).andThenAsync(async () => Ok({ items: [], nextPageToken: '', pages: 1 }))
+        } as const).andThenAsync(async () => Ok({ items: [], deleted: [], full: false }))
     );
     const manual = vi.spyOn(libraryApi, 'readLibrarySnapshot').mockReturnValue(emptySnapshot());
     const drive = new DriveController();
@@ -71,9 +71,9 @@ test('automatic refresh waits for a throttling window while a manual refresh doe
 
 test('the upload cooldown defers automatic refresh but keeps the button responsive', async () => {
     const automatic = vi
-        .spyOn(libraryApi, 'readLibraryUpdates')
+        .spyOn(libraryApi, 'readLibrarySync')
         .mockReturnValue(
-            Ok(undefined).andThenAsync(async () => Ok({ items: [], nextPageToken: '', pages: 0 }))
+            Ok(undefined).andThenAsync(async () => Ok({ items: [], deleted: [], full: false }))
         );
     const manual = vi.spyOn(libraryApi, 'readLibrarySnapshot').mockReturnValue(emptySnapshot());
     const drive = new DriveController();

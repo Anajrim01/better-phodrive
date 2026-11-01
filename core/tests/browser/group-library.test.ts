@@ -121,12 +121,16 @@ test('a group listing without failures is complete', async () => {
     expect(snapshot.chunks).toHaveLength(2);
 });
 
-test('a group refresh reads one page per member and keeps items already loaded', async () => {
+test('a group refresh syncs each loaded member once and keeps items already loaded', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch');
     fetchMock.mockImplementation(async (_input, init) => {
         const body = JSON.parse(String(init?.body)) as { email: string };
 
-        return Response.json({ items: [remote(`${body.email}-new`)], nextPageToken: 'more' });
+        return Response.json({
+            items: [remote(`${body.email}-new`)],
+            deleted: [],
+            full: false
+        });
     });
     const members = [
         { email: 'first@example.com', token: 'aas_et/first' },
@@ -158,7 +162,7 @@ test('a group refresh reads one page per member and keeps items already loaded',
 
 test('a group refresh matches loaded items regardless of email case', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-        Response.json({ items: [remote('fresh')], nextPageToken: '' })
+        Response.json({ items: [remote('fresh')], deleted: [], full: false })
     );
     const loaded = [{ ...remote('kept'), email: 'owner@example.com' }];
 
@@ -183,7 +187,7 @@ test('a failed group member keeps its loaded items and reports the pause', async
                 { status: 429 }
             );
 
-        return Response.json({ items: [remote('fresh')], nextPageToken: '' });
+        return Response.json({ items: [remote('fresh')], deleted: [], full: false });
     });
     const members = [
         { email: 'first@example.com', token: 'aas_et/first' },
@@ -213,18 +217,15 @@ test('a failed group member keeps its loaded items and reports the pause', async
     ]);
 });
 
-test('a member that recovers from a pause reads every page again', async () => {
+test('a member that recovers from a pause requests a forced full sync', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch');
-    fetchMock.mockImplementation(async (_input, init) => {
-        const body = JSON.parse(String(init?.body)) as { pageToken?: string };
-        if (!body.pageToken)
-            return Response.json({
-                items: [remote('page-zero')],
-                nextPageToken: 'page-two'
-            });
-
-        return Response.json({ items: [remote('page-one')], nextPageToken: '' });
-    });
+    fetchMock.mockImplementation(async () =>
+        Response.json({
+            items: [remote('page-zero'), remote('page-one')],
+            deleted: [],
+            full: true
+        })
+    );
     const loaded = [{ ...remote('kept'), email: 'owner@example.com' }];
 
     const updated = await readGroupLibraryUpdates(
@@ -235,14 +236,17 @@ test('a member that recovers from a pause reads every page again', async () => {
     );
     const snapshot = updated.unwrap();
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toMatchObject({
+        email: 'owner@example.com',
+        force: true
+    });
     expect(snapshot.partial).toBe(false);
     expect(snapshot.accounts).toContainEqual({
         email: 'owner@example.com',
         status: 'ok'
     });
     expect(snapshot.chunks.map((chunk) => chunk.mediaKey).toSorted()).toEqual([
-        'kept',
         'page-one',
         'page-zero'
     ]);

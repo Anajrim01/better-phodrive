@@ -8,7 +8,9 @@ import type { CliContext, CliError } from './context';
 import { createProgram } from './program';
 import { RELEASE_ASSET } from './update';
 import {
+    configureLibraryState,
     configureProbeCache,
+    flushLibraryState,
     flushProbeCache
 } from '@madkarmaa/phodrive-core/server/photos/library';
 
@@ -38,7 +40,11 @@ const context: CliContext = {
 };
 
 configureProbeCache(join(dirname(context.configPath), 'probe-cache.json'));
+configureLibraryState(
+    process.env.PHODRIVE_LIBRARY_STATE ?? join(dirname(context.configPath), 'library-state.json')
+);
 process.on('exit', flushProbeCache);
+process.on('exit', flushLibraryState);
 
 const failures: CliError[] = [];
 const program = createProgram(context, (error) => failures.push(error));

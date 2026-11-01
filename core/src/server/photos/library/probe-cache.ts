@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import type { RemoteBmp } from '../../../models';
 import type { LibraryCandidate } from './metadata';
+import { isRemoteBmp } from './validation';
 
 const PROBE_CACHE_LIMIT = 100_000;
 const PROBE_CACHE_NEGATIVE_TTL_MS = 60 * 60 * 1_000;
@@ -25,20 +26,6 @@ export function configureProbeCache(path: string | null): void {
 
 function probeKey(email: string, candidate: LibraryCandidate): string {
     return [email, candidate.mediaKey, candidate.sha1, candidate.size].join('\u0000');
-}
-
-function isRemoteBmp(value: unknown): value is RemoteBmp {
-    if (!value || typeof value !== 'object') return false;
-
-    const item = value as Record<string, unknown>;
-
-    return (
-        typeof item.fileHash === 'string' &&
-        typeof item.fileId === 'string' &&
-        typeof item.mediaKey === 'string' &&
-        typeof item.sha1 === 'string' &&
-        typeof item.size === 'number'
-    );
 }
 
 function load(): void {

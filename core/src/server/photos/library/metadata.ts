@@ -14,7 +14,7 @@ import {
     type Field
 } from '../../protobuf';
 
-export function pageRequest(resume: Buffer): Result<Buffer, ServerError> {
+export function pageRequest(resume: Buffer, syncToken?: Buffer): Result<Buffer, ServerError> {
     const envelope = parse(Buffer.from(LIBRARY_PAGE_REQUEST, 'base64')).andThen((fields) =>
         bytes(fields, 1)
             .andThen(parse)
@@ -22,9 +22,12 @@ export function pageRequest(resume: Buffer): Result<Buffer, ServerError> {
     );
 
     return envelope.map(({ fields, outer }) => {
-        // The resume token belongs at 1.4; 1.1 contains the media metadata mask.
-        const updatedOuter = outer.filter((field) => field.number !== 4);
+        // The resume token belongs at 1.4; 1.6 is the sync context; 1.1 is the metadata mask.
+        const updatedOuter = outer.filter(
+            (field) => field.number !== 4 && (syncToken === undefined || field.number !== 6)
+        );
         updatedOuter.push({ number: 4, value: resume });
+        if (syncToken !== undefined) updatedOuter.push({ number: 6, value: syncToken });
 
         return encodeFields(
             fields.map((field) =>
@@ -118,31 +121,68 @@ function fileName(details: Field[]): { fileName?: string } {
     });
 }
 
-export function parseLibraryPage(
-    data: Buffer
-): Result<{ items: LibraryCandidate[]; nextPageToken: string }, ServerError> {
+export type ParsedLibraryPage = {
+    items: LibraryCandidate[];
+    nextPageToken: string;
+    syncToken?: Buffer;
+    deletedMediaKeys: string[];
+    moreSync: boolean;
+};
+
+function deletionMediaKey(value: Buffer): Result<string | null, ServerError> {
+    const item = parse(value)
+        .andThen((fields) => bytes(fields, 1))
+        .andThen(parse);
+
+    return item.andThen((fields) =>
+        integer(fields, 1).andThen((type) => {
+            if (type !== 1) return Ok<string | null>(null);
+
+            return bytes(fields, 2)
+                .andThen((inner) => nested(inner, 1))
+                .andThen(utf8)
+                .map((mediaKey) => mediaKey || null);
+        })
+    );
+}
+
+export function parseLibraryPage(data: Buffer): Result<ParsedLibraryPage, ServerError> {
     return parse(data)
         .andThen((fields) => bytes(fields, 1))
         .andThen(parse)
         .map((fields) => {
             const items: LibraryCandidate[] = [];
+            const deletedMediaKeys: string[] = [];
+
             for (const entry of fields) {
-                if (entry.number !== 2 || typeof entry.value === 'number') continue;
+                if (entry.number === 2 && typeof entry.value !== 'number') {
+                    const parsed = libraryItem(entry.value);
+                    parsed.inspect((item) => {
+                        if (item) items.push(item);
+                    });
+                }
 
-                const value = entry.value;
-
-                const parsed = libraryItem(value);
-                parsed.inspect((item) => {
-                    if (item) items.push(item);
-                });
+                if (entry.number === 9 && typeof entry.value !== 'number') {
+                    const parsed = deletionMediaKey(entry.value);
+                    parsed.inspect((mediaKey) => {
+                        if (mediaKey) deletedMediaKeys.push(mediaKey);
+                    });
+                }
             }
 
             const next = optional(fields, 1);
+            const sync = optional(fields, 6);
+            const more = optional(fields, 7);
 
             return {
                 items,
                 nextPageToken:
-                    next && typeof next.value !== 'number' ? next.value.toString('base64url') : ''
+                    next && typeof next.value !== 'number' ? next.value.toString('base64url') : '',
+                ...(sync && typeof sync.value !== 'number' && sync.value.length
+                    ? { syncToken: sync.value }
+                    : {}),
+                deletedMediaKeys,
+                moreSync: more !== undefined && typeof more.value === 'number' && more.value === 2
             };
         });
 }

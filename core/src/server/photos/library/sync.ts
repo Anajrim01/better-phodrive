@@ -1,0 +1,170 @@
+import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
+import type { RemoteBmp } from '../../../models';
+import { SERVER_ERRORS, type ServerError } from '../../errors';
+import { photosFetch, type Fetcher } from '../../fetcher';
+import { readLibraryPage, type LibraryPage } from './page';
+import {
+    deleteAccountState,
+    readAccountState,
+    updateAccountSyncToken,
+    writeAccountState
+} from './state';
+
+export type LibrarySyncResult = {
+    items: RemoteBmp[];
+    deleted: string[];
+    full: boolean;
+};
+
+type PageRead = { page: LibraryPage } | { error: ServerError };
+
+const REJECTED_STATE_CODES = new Set([
+    'INVALID_PROTOBUF_FIELD',
+    'INVALID_PROTOBUF_FIELD_TYPE',
+    'INVALID_PROTOBUF_INTEGER',
+    'TRUNCATED_PROTOBUF_FIELD',
+    'UNSUPPORTED_PROTOBUF_FIELD',
+    'MISSING_OR_AMBIGUOUS_PROTOBUF_FIELD',
+    'OVERSIZED_PROTOBUF_INTEGER',
+    'INVALID_UTF_8_IN_RESPONSE'
+]);
+
+function pageRead(received: Result<LibraryPage, ServerError>): PageRead {
+    return received.match<PageRead>({
+        Ok: (page) => ({ page }),
+        Err: (error) => ({ error })
+    });
+}
+
+function rejectedState(error: ServerError): boolean {
+    if (error.code === 'REQUEST_FAILED') {
+        const status = error.status;
+
+        return status !== undefined && status >= 400 && status < 500 && status !== 429;
+    }
+
+    return REJECTED_STATE_CODES.has(error.code);
+}
+
+function fetchFullSync(
+    email: string,
+    token: string,
+    fetcher: Fetcher
+): AsyncResult<{ items: RemoteBmp[]; syncToken?: Buffer }, ServerError> {
+    return Ok(undefined).andThenAsync(async () => {
+        const items = new Map<string, RemoteBmp>();
+        const pages = new Set<string>();
+        let pageToken = '';
+        let syncToken: Buffer | undefined;
+
+        do {
+            if (pages.has(pageToken)) return Err(SERVER_ERRORS.REPEATED_LIBRARY_PAGE);
+            pages.add(pageToken);
+
+            const received = await readLibraryPage(email, token, pageToken, undefined, fetcher);
+            const read = pageRead(received);
+            if ('error' in read) return Err(read.error);
+
+            for (const item of read.page.items) items.set(item.mediaKey, item);
+            syncToken ??= read.page.syncToken;
+            pageToken = read.page.nextPageToken;
+        } while (pageToken);
+
+        return Ok({ items: [...items.values()], ...(syncToken ? { syncToken } : {}) });
+    });
+}
+
+function fetchDelta(
+    email: string,
+    token: string,
+    syncToken: Buffer,
+    fetcher: Fetcher
+): AsyncResult<{ items: RemoteBmp[]; deleted: string[]; syncToken: Buffer }, ServerError> {
+    return Ok(undefined).andThenAsync(async () => {
+        const items = new Map<string, RemoteBmp>();
+        const deleted = new Set<string>();
+        const pages = new Set<string>();
+        let pageToken = '';
+        let nextSyncToken: Buffer | undefined;
+
+        do {
+            if (pages.has(pageToken)) return Err(SERVER_ERRORS.REPEATED_LIBRARY_PAGE);
+            pages.add(pageToken);
+
+            const received = await readLibraryPage(email, token, pageToken, syncToken, fetcher);
+            const read = pageRead(received);
+            if ('error' in read) return Err(read.error);
+
+            for (const item of read.page.items) items.set(item.mediaKey, item);
+            for (const mediaKey of read.page.deletedMediaKeys) deleted.add(mediaKey);
+            nextSyncToken ??= read.page.syncToken;
+            pageToken = read.page.nextPageToken;
+        } while (pageToken);
+
+        return Ok({
+            items: [...items.values()],
+            deleted: [...deleted],
+            syncToken: nextSyncToken ?? syncToken
+        });
+    });
+}
+
+function applyFullSync(
+    email: string,
+    token: string,
+    fetcher: Fetcher
+): AsyncResult<LibrarySyncResult, ServerError> {
+    return fetchFullSync(email, token, fetcher).map((value) => {
+        if (value.syncToken) writeAccountState(email, value.syncToken, value.items);
+        else deleteAccountState(email);
+
+        return { items: value.items, deleted: [], full: true };
+    });
+}
+
+/** Apply the changes since the last stored sync, or rebuild the index from a full read. */
+export function syncLibrary(
+    email: string,
+    token: string,
+    force = false,
+    fetcher: Fetcher = photosFetch
+): AsyncResult<LibrarySyncResult, ServerError> {
+    return Ok(undefined).andThenAsync(async () => {
+        const stored = force ? undefined : readAccountState(email);
+        if (!stored) return await applyFullSync(email, token, fetcher);
+
+        const received = await fetchDelta(email, token, stored.syncToken, fetcher);
+        const read = received.match<
+            | { value: { items: RemoteBmp[]; deleted: string[]; syncToken: Buffer } }
+            | { error: ServerError }
+        >({
+            Ok: (value) => ({ value }),
+            Err: (error) => ({ error })
+        });
+        if ('error' in read) {
+            if (!rejectedState(read.error)) return Err(read.error);
+
+            deleteAccountState(email);
+
+            return await applyFullSync(email, token, fetcher);
+        }
+
+        if (read.value.items.length === 0 && read.value.deleted.length === 0) {
+            updateAccountSyncToken(email, read.value.syncToken);
+
+            return Ok({ items: [], deleted: [], full: false });
+        }
+
+        const items = new Map(stored.items);
+        for (const mediaKey of read.value.deleted) items.delete(mediaKey);
+        for (const item of read.value.items) items.set(item.mediaKey, item);
+
+        writeAccountState(email, read.value.syncToken, items.values());
+
+        return Ok({
+            items: read.value.items,
+            deleted: read.value.deleted,
+            full: false
+        });
+    });
+}

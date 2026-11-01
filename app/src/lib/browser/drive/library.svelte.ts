@@ -13,10 +13,16 @@ import {
     readGroupLibraryUpdates,
     readLibraryPage,
     readLibrarySnapshot,
-    readLibraryUpdates
+    readLibrarySync
 } from '@madkarmaa/phodrive-core/browser/library';
 import type { GroupAccountState } from '@madkarmaa/phodrive-core/groups';
-import { applyGroupSnapshot, reportLoadFailure } from '#browser/drive/library-state';
+import {
+    applyGroupSnapshot,
+    applyLibrarySnapshot,
+    applyLibrarySync,
+    reportLoadFailure,
+    resetLibraryPages
+} from '#browser/drive/library-state';
 
 const POST_UPLOAD_COOLDOWN_MS = 2 * 60 * 1_000;
 
@@ -75,12 +81,9 @@ export class DriveLibrary {
         this.modifiedDays = '';
         this.folder = '';
         this.chunks = [];
-        this.nextPageToken = '';
-        this.loadedPages = 0;
-        this.libraryPageTokens.clear();
+        resetLibraryPages(this, this.libraryPageTokens);
         this.libraryRequest++;
         this.loading = false;
-        this.loadFailed = false;
         this.accounts = [];
         this.partial = false;
     }
@@ -112,10 +115,7 @@ export class DriveLibrary {
         const request = ++this.libraryRequest;
         if (reset) {
             this.chunks = [];
-            this.nextPageToken = '';
-            this.loadedPages = 0;
-            this.libraryPageTokens.clear();
-            this.loadFailed = false;
+            resetLibraryPages(this, this.libraryPageTokens);
         }
 
         if (!email || !token) {
@@ -166,10 +166,7 @@ export class DriveLibrary {
         const request = ++this.libraryRequest;
         if (reset) {
             this.chunks = [];
-            this.nextPageToken = '';
-            this.loadedPages = 0;
-            this.libraryPageTokens.clear();
-            this.loadFailed = false;
+            resetLibraryPages(this, this.libraryPageTokens);
             this.accounts = [];
             this.partial = false;
         }
@@ -217,27 +214,37 @@ export class DriveLibrary {
         const request = ++this.libraryRequest;
         this.loading = true;
 
-        const refreshed = manual
-            ? await readLibrarySnapshot(email, token, this.loadedPages)
-            : await readLibraryUpdates(
-                  email,
-                  token,
-                  this.chunks,
-                  this.nextPageToken,
-                  this.loadedPages
-              );
+        if (manual) {
+            const refreshed = await readLibrarySnapshot(email, token, this.loadedPages);
+            if (request !== this.libraryRequest || email !== this.account().email) return;
+
+            refreshed.match({
+                Ok: (snapshot) =>
+                    applyLibrarySnapshot(this, email, snapshot, this.libraryPageTokens, (path) =>
+                        this.hasFolder(path)
+                    ),
+                Err: (error) => reportLoadFailure(this, error, this.feedback)
+            });
+
+            this.loading = false;
+
+            return;
+        }
+
+        const synced = await readLibrarySync(email, token);
         if (request !== this.libraryRequest || email !== this.account().email) return;
 
-        refreshed.match({
-            Ok: (snapshot) => {
+        synced.match({
+            Ok: (update) => {
+                const applied = applyLibrarySync(this, email, update);
+
                 this.loadFailed = false;
                 this.retryAt = 0;
-                this.chunks = snapshot.items.map((item) => ({ ...item, email }));
+                this.chunks = applied.chunks;
+                this.nextPageToken = applied.nextPageToken;
+                this.loadedPages = applied.loadedPages;
+                if (update.full) this.libraryPageTokens.clear();
                 if (this.folder && !this.hasFolder(this.folder)) this.folder = '';
-                this.nextPageToken = snapshot.nextPageToken;
-                this.loadedPages = snapshot.pages;
-                this.libraryPageTokens.clear();
-                if (snapshot.nextPageToken) this.libraryPageTokens.add(snapshot.nextPageToken);
             },
             Err: (error) => reportLoadFailure(this, error, this.feedback)
         });

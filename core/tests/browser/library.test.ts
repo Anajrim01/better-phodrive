@@ -1,5 +1,9 @@
 import { afterEach, expect, test, vi } from 'vitest';
-import { readLibrarySnapshot, readLibraryUpdates } from '@madkarmaa/phodrive-core/browser/library';
+import {
+    applyLibraryDelta,
+    readLibrarySnapshot,
+    readLibrarySync
+} from '@madkarmaa/phodrive-core/browser/library';
 import type { RemoteBmp } from '@madkarmaa/phodrive-core/models';
 
 afterEach(() => vi.restoreAllMocks());
@@ -40,53 +44,47 @@ test('refresh reads the loaded pagination depth and stops when the library ends'
     );
 });
 
-test('an incremental refresh merges the newest page into the loaded snapshot', async () => {
+test('a library sync posts the force flag and parses the delta', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch');
     fetchMock.mockResolvedValueOnce(
         Response.json({
-            items: [
-                { ...remoteFile('changed'), originalName: 'renamed.bin' },
-                remoteFile('new-upload')
-            ],
-            nextPageToken: 'a-newer-token'
+            items: [{ ...remoteFile('changed'), originalName: 'renamed.bin' }],
+            deleted: ['removed'],
+            full: false
         })
     );
-    const current = [remoteFile('changed'), remoteFile('existing-file')];
 
-    const refreshed = await readLibraryUpdates(
-        'test@example.com',
-        'aas_et/test',
-        current,
-        'page-three',
-        2
-    );
-    const snapshot = refreshed.unwrap();
+    const synced = await readLibrarySync('test@example.com', 'aas_et/test', true);
+    const snapshot = synced.unwrap();
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/library/sync');
     expect(fetchMock.mock.calls[0][1]?.body).toBe(
-        JSON.stringify({ email: 'test@example.com', token: 'aas_et/test', pageToken: '' })
+        JSON.stringify({ email: 'test@example.com', token: 'aas_et/test', force: true })
     );
-    expect(snapshot.items.map((item) => item.mediaKey)).toEqual([
-        'changed',
-        'existing-file',
-        'new-upload'
-    ]);
+    expect(snapshot.items.map((item) => item.mediaKey)).toEqual(['changed']);
     expect(snapshot.items[0]?.originalName).toBe('renamed.bin');
-    expect(snapshot.nextPageToken).toBe('page-three');
-    expect(snapshot.pages).toBe(2);
+    expect(snapshot.deleted).toEqual(['removed']);
+    expect(snapshot.full).toBe(false);
 });
 
-test('an incremental refresh starts pagination when nothing was loaded', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
-        Response.json({ items: [remoteFile('new-upload')], nextPageToken: 'page-two' })
-    );
+test('a library delta replaces changed items, removes deletions, and keeps the rest', () => {
+    const current = [
+        { ...remoteFile('changed'), email: 'test@example.com' },
+        { ...remoteFile('removed'), email: 'test@example.com' },
+        { ...remoteFile('existing-file'), email: 'test@example.com' }
+    ];
+    const items = applyLibraryDelta(current, 'test@example.com', {
+        items: [
+            { ...remoteFile('changed'), originalName: 'renamed.bin' },
+            remoteFile('new-upload')
+        ],
+        deleted: ['removed']
+    });
 
-    const refreshed = await readLibraryUpdates('test@example.com', 'aas_et/test', [], '', 0);
-    const snapshot = refreshed.unwrap();
-
-    expect(snapshot.items.map((item) => item.mediaKey)).toEqual(['new-upload']);
-    expect(snapshot.nextPageToken).toBe('page-two');
-    expect(snapshot.pages).toBe(1);
+    expect(items.map((item) => item.mediaKey)).toEqual(['changed', 'existing-file', 'new-upload']);
+    expect(items[0]?.originalName).toBe('renamed.bin');
+    expect(items.every((item) => item.email === 'test@example.com')).toBe(true);
 });
 
 test('a failed later page rejects the refresh instead of returning a partial replacement', async () => {

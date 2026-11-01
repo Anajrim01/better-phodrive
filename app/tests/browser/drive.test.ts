@@ -142,10 +142,10 @@ test('dismissing a library error preserves failed-load state and repeated errors
     vi.spyOn(libraryApi, 'readLibraryPage').mockImplementationOnce(() =>
         Ok(undefined).andThenAsync(async () => Err(failure))
     );
-    vi.spyOn(libraryApi, 'readLibraryUpdates')
+    vi.spyOn(libraryApi, 'readLibrarySync')
         .mockImplementationOnce(() => Ok(undefined).andThenAsync(async () => Err(failure)))
         .mockImplementationOnce(() =>
-            Ok(undefined).andThenAsync(async () => Ok({ items: [], nextPageToken: '', pages: 0 }))
+            Ok(undefined).andThenAsync(async () => Ok({ items: [], deleted: [], full: true }))
         );
 
     const drive = new DriveController();
@@ -176,16 +176,12 @@ test('automatic refresh merges the newest page and manual refresh reloads the de
         .spyOn(libraryApi, 'readLibraryPage')
         .mockImplementationOnce(() => page([remoteBmp(1, 'first.bin')], 'page-two'))
         .mockImplementationOnce(() => page([remoteBmp(2, 'second.bin')], ''));
-    const updates = vi.spyOn(libraryApi, 'readLibraryUpdates').mockImplementationOnce(() =>
+    const updates = vi.spyOn(libraryApi, 'readLibrarySync').mockImplementationOnce(() =>
         Ok(undefined).andThenAsync(async () =>
             Ok({
-                items: [
-                    remoteBmp(1, 'renamed.bin'),
-                    remoteBmp(2, 'second.bin'),
-                    remoteBmp(3, 'third.bin')
-                ],
-                nextPageToken: '',
-                pages: 2
+                items: [remoteBmp(1, 'renamed.bin'), remoteBmp(3, 'third.bin')],
+                deleted: [],
+                full: false
             })
         )
     );
