@@ -9,6 +9,7 @@ import {
     LIBRARY_STATE_REQUEST
 } from '@madkarmaa/phodrive-core/server/photos/library/requests';
 import { bytesField, message, nested, numberField } from '@madkarmaa/phodrive-core/server/protobuf';
+import { fixture, libraryPage } from '../helpers/library';
 
 test('library pagination sends the resume token at field 1.4 and preserves the metadata mask', () => {
     const resume = Buffer.from('resume-next-page');
@@ -75,4 +76,17 @@ test('an empty resume token ends pagination even when the sync token remains', (
     const page = parseLibraryPage(response).unwrap();
 
     expect(page.nextPageToken).toBe('');
+});
+
+test('oversized and undersized visible items are skipped without failing the page', () => {
+    const file = fixture('note.txt', 'valid content');
+    const response = libraryPage([
+        { ...file, fileName: `note.txt.phodrive-${file.sha1}-0-of-1.bmp` },
+        { mediaKey: 'huge', sha1: 'a'.repeat(40), size: 300_000_000, at: 1, fileName: 'huge.mp4' },
+        { mediaKey: 'tiny', sha1: 'b'.repeat(40), size: 10, at: 1, fileName: 'tiny.bin' }
+    ]);
+    const page = parseLibraryPage(response).unwrap();
+
+    expect(page.items).toHaveLength(1);
+    expect(page.items[0]?.mediaKey).toBe(file.mediaKey);
 });

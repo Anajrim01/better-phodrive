@@ -161,6 +161,31 @@ test('a visible sibling supplies the folder and file identity for a hidden chunk
     expect(groups.files[0].fileId).not.toBe(groups.files[0].fileHash);
 });
 
+test('a visible sibling on another page supplies the folder hint', async () => {
+    const visible = fileChunk(2, 0, 2, 'Projects');
+    const hidden = fileChunk(2, 1, 2, 'Projects');
+    const counts = emptyCounts();
+    const fetcher = fetcherFor(
+        [visible, hidden],
+        [
+            pageBytes([], 'page-1', { syncToken: SYNC_ONE, trashed: [hidden] }),
+            pageBytes([visible], '', {})
+        ],
+        counts,
+        {
+            delta: pageBytes([], '', { syncToken: SYNC_TWO })
+        }
+    );
+
+    const cold = await syncWith(fetcher);
+    const groups = groupsOf(cold.unwrap().items);
+
+    expect(groups.trashed).toHaveLength(0);
+    expect(groups.files).toHaveLength(1);
+    expect(groups.files[0].folder).toBe('Projects');
+    expect(groups.files[0].trashedChunks).toHaveLength(1);
+});
+
 test('a fully trashed file moves to the trash group only', async () => {
     const items = [fileChunk(0, 0, 2), fileChunk(0, 1, 2)];
     const counts = emptyCounts();
