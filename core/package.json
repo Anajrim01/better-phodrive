@@ -149,6 +149,10 @@
             "@madkarmaa/phodrive-core": "./src/preferences-models.ts",
             "default": "./dist/preferences-models.js"
         },
+        "./preview": {
+            "@madkarmaa/phodrive-core": "./src/preview.ts",
+            "default": "./dist/preview.js"
+        },
         "./server": {
             "@madkarmaa/phodrive-core": "./src/server/index.ts",
             "default": "./dist/server/index.js"
@@ -168,6 +172,10 @@
         "./server/bmp/stream": {
             "@madkarmaa/phodrive-core": "./src/server/bmp/stream.ts",
             "default": "./dist/server/bmp/stream.js"
+        },
+        "./server/chunk-open": {
+            "@madkarmaa/phodrive-core": "./src/server/chunk-open.ts",
+            "default": "./dist/server/chunk-open.js"
         },
         "./server/chunks": {
             "@madkarmaa/phodrive-core": "./src/server/chunks.ts",
@@ -333,6 +341,26 @@
             "@madkarmaa/phodrive-core": "./src/server/photos/upload/transfer.ts",
             "default": "./dist/server/photos/upload/transfer.js"
         },
+        "./server/preview": {
+            "@madkarmaa/phodrive-core": "./src/server/preview.ts",
+            "default": "./dist/server/preview.js"
+        },
+        "./server/preview/image": {
+            "@madkarmaa/phodrive-core": "./src/server/preview/image.ts",
+            "default": "./dist/server/preview/image.js"
+        },
+        "./server/preview/payload": {
+            "@madkarmaa/phodrive-core": "./src/server/preview/payload.ts",
+            "default": "./dist/server/preview/payload.js"
+        },
+        "./server/preview/text": {
+            "@madkarmaa/phodrive-core": "./src/server/preview/text.ts",
+            "default": "./dist/server/preview/text.js"
+        },
+        "./server/preview/text-prefix": {
+            "@madkarmaa/phodrive-core": "./src/server/preview/text-prefix.ts",
+            "default": "./dist/server/preview/text-prefix.js"
+        },
         "./server/protobuf": {
             "@madkarmaa/phodrive-core": "./src/server/protobuf.ts",
             "default": "./dist/server/protobuf.js"
@@ -455,11 +483,13 @@
             "./node/upload": "./dist/node/upload.js",
             "./preferences": "./dist/preferences.js",
             "./preferences-models": "./dist/preferences-models.js",
+            "./preview": "./dist/preview.js",
             "./server": "./dist/server/index.js",
             "./server/aas": "./dist/server/aas.js",
             "./server/accounts": "./dist/server/accounts.js",
             "./server/bmp": "./dist/server/bmp/index.js",
             "./server/bmp/stream": "./dist/server/bmp/stream.js",
+            "./server/chunk-open": "./dist/server/chunk-open.js",
             "./server/chunks": "./dist/server/chunks.js",
             "./server/compress": "./dist/server/compress.js",
             "./server/download": "./dist/server/download.js",
@@ -501,6 +531,11 @@
             "./server/photos/upload": "./dist/server/photos/upload/index.js",
             "./server/photos/upload/lookup": "./dist/server/photos/upload/lookup.js",
             "./server/photos/upload/transfer": "./dist/server/photos/upload/transfer.js",
+            "./server/preview": "./dist/server/preview.js",
+            "./server/preview/image": "./dist/server/preview/image.js",
+            "./server/preview/payload": "./dist/server/preview/payload.js",
+            "./server/preview/text": "./dist/server/preview/text.js",
+            "./server/preview/text-prefix": "./dist/server/preview/text-prefix.js",
             "./server/protobuf": "./dist/server/protobuf.js",
             "./server/request": "./dist/server/request.js",
             "./server/upload": "./dist/server/upload/index.js",

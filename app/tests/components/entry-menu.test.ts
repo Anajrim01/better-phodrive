@@ -140,6 +140,15 @@ test('a file menu opens with each action once', async () => {
     ).toEqual(['Download', 'Rename', 'Move to folder', 'Delete', 'Details']);
 });
 
+test('a previewable file menu starts with Preview', async () => {
+    mount({ kind: 'file', item: file({ name: 'photo.png' }) });
+
+    await waitFor(() => expect(screen.getAllByRole('menuitem', { hidden: true })).toHaveLength(6));
+    expect(
+        screen.getAllByRole('menuitem', { hidden: true }).map((item) => item.textContent?.trim())
+    ).toEqual(['Preview', 'Download', 'Rename', 'Move to folder', 'Delete', 'Details']);
+});
+
 test('choosing an action closes the menu and reports the action', async () => {
     const onaction = vi.fn();
     mount({ kind: 'file', item: file() }, { onaction });

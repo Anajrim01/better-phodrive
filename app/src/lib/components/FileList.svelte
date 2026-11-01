@@ -37,6 +37,7 @@
         ondelete?: (item: FileGroup) => void;
         onrestore?: (item: FileGroup) => void;
         ondeleteforever?: (item: FileGroup) => void;
+        onopenpreview?: (item: FileGroup, trigger: HTMLElement) => void;
         onmenu?: (item: FileGroup, anchor: MenuAnchor) => void;
     }
 
@@ -61,6 +62,7 @@
         ondelete,
         onrestore,
         ondeleteforever,
+        onopenpreview,
         onmenu
     }: Props = $props();
     const nameSort = $derived(sort === FileSort.NameAscending || sort === FileSort.NameDescending);
@@ -171,6 +173,7 @@
                     {ondelete}
                     {onrestore}
                     {ondeleteforever}
+                    {onopenpreview}
                     {onmenu}
                 />
             {/each}

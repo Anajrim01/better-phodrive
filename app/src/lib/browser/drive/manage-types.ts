@@ -6,7 +6,7 @@ import type { RemoteBmp } from '@madkarmaa/phodrive-core/models';
 import type { AsyncResult } from 'results-ts';
 import type { EntryTarget } from '#browser/drive/menu-types';
 
-export type ManageDialog = 'rename' | 'move' | 'details' | 'delete-folder';
+export type ManageDialog = 'rename' | 'move' | 'details' | 'delete-folder' | 'preview';
 export type MoveDestination = { value: string; label: string };
 
 export type ManageDeps = {

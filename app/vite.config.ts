@@ -27,7 +27,7 @@ export default defineConfig({
         noExternal: ['@madkarmaa/phodrive-core'],
         resolve: { conditions: [SOURCE_CONDITION, ...defaultServerConditions] }
     },
-    test: { include: ['tests/**/*.test.ts'] },
+    test: { include: ['tests/**/*.test.ts'], setupFiles: ['tests/setup.ts'] },
     plugins: [
         {
             name: 'disable-request-timeouts',

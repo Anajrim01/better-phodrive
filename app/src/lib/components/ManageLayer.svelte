@@ -7,6 +7,7 @@
     import MoveDialog from '#components/MoveDialog.svelte';
     import DetailsDialog from '#components/DetailsDialog.svelte';
     import DeleteFolderDialog from '#components/DeleteFolderDialog.svelte';
+    import FilePreviewDialog from '#components/FilePreviewDialog.svelte';
 
     interface Props {
         manage: DriveManage;
@@ -38,6 +39,8 @@
         manage.closeMenu();
         if (!target) return;
         if (target.kind === 'selection') onbulk(action, target.files);
+        else if (action === 'preview' && target.kind === 'file')
+            manage.openPreview(target, manage.menuTrigger);
         else if (action === 'download' && target.kind === 'file') ondownload(target.item);
         else if (action === 'rename') manage.openRename(target);
         else if (action === 'move') manage.openMove(target);
@@ -105,4 +108,23 @@
         void manage.confirmDeleteFolder();
     }}
     onclose={() => manage.closeDialog()}
+/>
+
+<FilePreviewDialog
+    open={manage.dialog === 'preview'}
+    target={dialogTarget}
+    token={manage.previewToken}
+    showOwner={manage.showOwner}
+    ondownload={(item) => {
+        manage.closeDialog(false);
+        ondownload(item);
+    }}
+    ondetails={(item) => {
+        const trigger = manage.menuTrigger;
+        manage.closeDialog(false);
+        manage.openDetails({ kind: 'file', item }, trigger);
+    }}
+    onclose={() => {
+        if (manage.dialog === 'preview') manage.closeDialog();
+    }}
 />

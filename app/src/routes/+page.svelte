@@ -241,6 +241,7 @@
                 ondownload={download}
                 ondelete={confirmTrash}
                 onrestore={restore}
+                onopenpreview={manage.openFilePreview}
                 onfilemenu={(item, anchor) => manage.openMenu({ kind: 'file', item }, anchor)}
                 onfoldermenu={(folder, anchor) =>
                     manage.openMenu({ kind: 'folder', entry: folder }, anchor)}

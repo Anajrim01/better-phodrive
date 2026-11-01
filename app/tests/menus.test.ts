@@ -48,6 +48,32 @@ test('a complete file menu offers download, rename, move, delete, and details on
     expect(new Set(entries.map((entry) => entry.action)).size).toBe(entries.length);
 });
 
+test('a complete image or text file gets Preview before Download', () => {
+    expect(labels(fileMenu(file({ name: 'photo.png' }), false))).toEqual([
+        'Preview',
+        'Download',
+        'Rename',
+        'Move to folder',
+        'Delete',
+        'Details'
+    ]);
+    expect(labels(fileMenu(file({ name: 'notes.txt' }), false))).toEqual([
+        'Preview',
+        'Download',
+        'Rename',
+        'Move to folder',
+        'Delete',
+        'Details'
+    ]);
+});
+
+test('unsupported and incomplete files get no Preview action', () => {
+    expect(labels(fileMenu(file({ name: 'report.pdf' }), false))).not.toContain('Preview');
+    expect(labels(fileMenu(file({ name: 'photo.png', complete: false }), false))).not.toContain(
+        'Preview'
+    );
+});
+
 test('an incomplete file hides download and names the remaining chunks', () => {
     const entries = fileMenu(
         file({

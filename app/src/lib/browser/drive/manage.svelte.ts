@@ -1,4 +1,4 @@
-import type { FolderEntry } from '@madkarmaa/phodrive-core/files';
+import type { FileGroup, FolderEntry } from '@madkarmaa/phodrive-core/files';
 import { FileNameSchema } from '@madkarmaa/phodrive-core/models';
 import {
     deleteFolder,
@@ -37,6 +37,7 @@ import {
     renameNavigation
 } from '#browser/drive/manage-navigation';
 import { runManage } from '#browser/drive/manage-run';
+import { previewRoute } from '#browser/drive/preview-route';
 
 export type { ManageDialog, MoveDestination } from '#browser/drive/manage-types';
 
@@ -49,6 +50,7 @@ export class DriveManage {
     dialogTarget = $state<EntryTarget | null>(null);
     dialogError = $state('');
     dialogBusy = $state(false);
+    previewToken = $state('');
 
     private returnFocus: HTMLElement | null = null;
 
@@ -76,6 +78,14 @@ export class DriveManage {
 
     get detailOwners(): string[] {
         return detailOwners(this.deps.files(), this.dialogTarget);
+    }
+
+    get menuTrigger(): HTMLElement | null {
+        return this.returnFocus;
+    }
+
+    get showOwner(): boolean {
+        return this.deps.groupMode();
     }
 
     openMenu(target: MenuTarget, anchor: MenuAnchor): void {
@@ -107,22 +117,48 @@ export class DriveManage {
         this.openDialog('move', target);
     }
 
-    openDetails(target: EntryTarget): void {
-        this.openDialog('details', target);
+    openDetails(target: EntryTarget, trigger?: HTMLElement | null): void {
+        this.openDialog('details', target, trigger);
+    }
+
+    openFilePreview = (item: FileGroup, trigger?: HTMLElement | null): void => {
+        this.openPreview({ kind: 'file', item }, trigger);
+    };
+
+    openPreview(target: EntryTarget, trigger?: HTMLElement | null): void {
+        if (this.deps.busy() || this.deps.loading() || this.dialogBusy) return;
+        if (target.kind !== 'file') return;
+
+        previewRoute(target.item, this.deps).match({
+            Ok: (token) => {
+                this.menuOpen = false;
+                this.dialog = 'preview';
+                this.dialogTarget = target;
+                this.dialogError = '';
+                this.previewToken = token;
+                this.returnFocus =
+                    trigger ??
+                    (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+            },
+            Err: (error) => this.deps.feedback(error.message)
+        });
     }
 
     openFolderDelete(entry: FolderEntry): void {
         this.openDialog('delete-folder', { kind: 'folder', entry });
     }
 
-    closeDialog(): void {
+    closeDialog(restoreFocus = true): void {
         if (this.dialogBusy) return;
 
         this.dialog = null;
         this.dialogTarget = null;
         this.dialogError = '';
+        this.previewToken = '';
         const focus = this.returnFocus;
         this.returnFocus = null;
+        if (!restoreFocus) return;
+
         queueMicrotask(() => {
             if (focus?.isConnected) focus.focus();
         });
@@ -199,13 +235,19 @@ export class DriveManage {
         navigate(this.deps, deleteNavigation(target));
     }
 
-    private openDialog(dialog: ManageDialog, target: EntryTarget): void {
+    private openDialog(
+        dialog: ManageDialog,
+        target: EntryTarget,
+        trigger?: HTMLElement | null
+    ): void {
         if (this.deps.busy() || this.deps.loading() || this.dialogBusy) return;
 
         this.menuOpen = false;
         this.dialog = dialog;
         this.dialogTarget = target;
         this.dialogError = '';
+        this.previewToken = '';
+        if (trigger !== undefined) this.returnFocus = trigger;
     }
 
     private async run(target: EntryTarget, action: ManageAction): Promise<boolean> {

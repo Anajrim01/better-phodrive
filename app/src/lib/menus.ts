@@ -1,6 +1,8 @@
 import type { FileGroup, FolderEntry } from '@madkarmaa/phodrive-core/files';
+import { previewModeFor } from '@madkarmaa/phodrive-core/preview';
 
 export type MenuAction =
+    | 'preview'
     | 'download'
     | 'rename'
     | 'move'
@@ -36,6 +38,8 @@ export function fileMenu(item: FileGroup, trash: boolean): MenuEntry[] {
         ];
 
     const entries: MenuEntry[] = [];
+    if (item.complete && previewModeFor(item.name) !== null)
+        entries.push({ action: 'preview', label: 'Preview' });
     if (item.complete) entries.push({ action: 'download', label: 'Download' });
     entries.push({ action: 'rename', label: 'Rename' });
     entries.push({ action: 'move', label: 'Move to folder' });

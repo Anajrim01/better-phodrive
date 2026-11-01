@@ -31,6 +31,7 @@
         ondelete?: (item: FileGroup) => void;
         onrestore?: (item: FileGroup) => void;
         ondeleteforever?: (item: FileGroup) => void;
+        onopenpreview?: (item: FileGroup, trigger: HTMLElement) => void;
         onmenu?: (item: FileGroup, anchor: MenuAnchor) => void;
         onstartdrag?: (item: FileGroup, event: DragEvent) => void;
         onenddrag?: (event: DragEvent) => void;
@@ -53,6 +54,7 @@
         ondelete,
         onrestore,
         ondeleteforever,
+        onopenpreview,
         onmenu,
         onstartdrag,
         onenddrag
@@ -86,7 +88,7 @@
     }
 
     function rowClick(event: MouseEvent): void {
-        if (interactive(event.target)) return;
+        if (event.detail > 1 || interactive(event.target)) return;
 
         onselect?.(item, event, 'point');
     }
@@ -112,6 +114,16 @@
         dragOrigin = null;
         onenddrag?.(event);
     }
+
+    function rowDoubleClick(event: MouseEvent): void {
+        if (disabled || interactive(event.target)) return;
+
+        const row = event.currentTarget;
+        if (!(row instanceof HTMLElement)) return;
+
+        row.focus();
+        onopenpreview?.(item, row);
+    }
 </script>
 
 <tr
@@ -120,6 +132,7 @@
     tabindex="0"
     draggable={!disabled}
     onclick={rowClick}
+    ondblclick={rowDoubleClick}
     onkeydown={rowKeydown}
     oncontextmenu={contextMenu}
     onpointerdowncapture={(event) => (dragOrigin = event.target)}
