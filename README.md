@@ -103,9 +103,9 @@ For Docker, pass the same variables with `-e`, for example `-e PHODRIVE_DEFAULT_
 
 Compression is off by default. Turn it on per browser in **Settings > Compress uploads**, or for one CLI upload with `--compress`. To make it the CLI default, run `phodrive setting set compression on`. The upload request carries the choice, so the server does not hold global state and two runs can differ.
 
-Changing the setting and uploading the same file again stores a second copy, because the stored chunk bytes and their SHA-1 differ. Delete removes every stored chunk for that file on that account, including both copies.
+Changing the setting and uploading the same file again stores a second copy of each chunk that compresses, because its stored bytes and SHA-1 differ. Chunks that stay raw are deduplicated. Delete removes every stored chunk for that file on that account, including both copies.
 
-When it is on, the uploader samples the first 85 KiB. A chunk is buffered when the start probe suggests savings, and stored compressed with brotli quality 1 only when the full result saves at least 5% of the original bytes; otherwise it is stored raw. Chunks under 4 KiB stay raw. Text, JSON, logs and source shrink by roughly 74% to 79%. Raw video can shrink by about 88%. JPEG saves about 4% and ZIP about 1%, so both stay raw and the setting is not worth enabling for a library of those.
+When it is on, the server samples the first 85 KiB of each chunk. A chunk is buffered when the start probe suggests savings, and stored compressed with brotli quality 1 only when the full result saves at least 5% of the original bytes; otherwise it is stored raw. Chunks under 4 KiB stay raw. Text, JSON, logs and source shrink by roughly 74% to 79%. Raw video can shrink by about 88%. JPEG saves about 4% and ZIP about 1%, so both stay raw and the setting is not worth enabling for a library of those.
 
 Compression holds a chunk in memory while it compresses, so large uploads use more memory. The server buffers at most two chunks per process for compression at once.
 

@@ -61,9 +61,9 @@ The repository performance suite is the end-to-end check. `bmp-stream` enables
 compression, so it measures that path. The upload cases keep the default off, so
 they measure the raw streaming path. The fixtures are repeated bytes; use the
 per-type table above for realistic media. The before and after runs used the
-same machine, Node v24.11.1, two warm-ups and five samples. The raw run is kept
-with the session artifacts. Only `bmp-stream` enables compression; the upload
-cases keep it off in both columns, so their change is harness noise.
+same machine, Node v24.11.1, two warm-ups and five samples. The before run is the
+raw streaming path. Only `bmp-stream` enables compression; the upload cases keep
+it off in both columns, so their change is not caused by compression.
 
 | Case                | Before ms | After ms | Change | After throughput |
 | ------------------- | --------: | -------: | -----: | ---------------: |

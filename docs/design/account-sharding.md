@@ -71,9 +71,8 @@ Each account keeps its own:
 
 The queue assigns whole files. With one account, the group behaves like the
 selected account. With several, a file waits for its owner instead of moving to
-another account. The
-worker setting applies to each account, so a group of three can run up to three
-times the configured worker count.
+another account. The worker setting applies to each account, so a group of three
+can run up to three times the configured worker count.
 
 ## Listing
 
