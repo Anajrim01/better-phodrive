@@ -26,3 +26,35 @@ test('an incomplete download names the missing chunks', async () => {
     });
     expect(downloadBmp).not.toHaveBeenCalled();
 });
+
+test('a compressed chunk without a stored size is rejected', async () => {
+    const { input } = downloadFixture();
+    const chunks = input.chunks.map((chunk) => ({ ...chunk, compressed: true }));
+
+    const downloaded = await downloadFile({
+        ...input,
+        action: FileActionKind.Download,
+        chunks
+    });
+
+    expect(downloaded.unwrapErr().code).toBe('INVALID_CHUNK_METADATA');
+    expect(downloadBmp).not.toHaveBeenCalled();
+});
+
+test(
+    'a huge declared chunk count does not stall the download check',
+    { timeout: 2_000 },
+    async () => {
+        const { input } = downloadFixture();
+        const chunks = [{ ...input.chunks[0], chunkCount: 1_000_000_000 }];
+
+        const downloaded = await downloadFile({
+            ...input,
+            action: FileActionKind.Download,
+            chunks
+        });
+
+        expect(downloaded.unwrapErr().code).toBe('INCOMPLETE_DOWNLOAD_CHUNKS');
+        expect(downloadBmp).not.toHaveBeenCalled();
+    }
+);

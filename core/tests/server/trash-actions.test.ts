@@ -180,6 +180,31 @@ test('manual trash actions report retry wording for throttled requests', async (
     });
 });
 
+test('manual delete forever reports retry wording for throttled requests', async () => {
+    const items = chunks().map((chunk) => ({ ...chunk, trashedAt: 1 }));
+    save(items);
+    const { input } = downloadFixture();
+    vi.mocked(deletePermanently).mockImplementationOnce(() =>
+        Ok(undefined).andThenAsync(async () =>
+            Err({
+                code: 'THROTTLED',
+                message: 'Google Photos is limiting requests',
+                retryAfterSeconds: 5
+            } as const)
+        )
+    );
+
+    const result = await deleteForeverFile(
+        { ...input, action: FileActionKind.DeleteForever, chunks: items },
+        'manual'
+    );
+
+    expect(result.unwrapErr()).toMatchObject({
+        code: 'THROTTLED',
+        message: expect.stringContaining('try again')
+    });
+});
+
 test('an empty trash action is rejected before any request', async () => {
     save(chunks());
     const { input } = downloadFixture();
