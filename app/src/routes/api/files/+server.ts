@@ -14,9 +14,9 @@ export const POST: RequestHandler = ({ request }) =>
             if (input.action === FileActionKind.Download)
                 return downloadFile(input, request.signal, 'manual');
             if (input.action === FileActionKind.Restore)
-                return restoreFile(input).map(jsonResponse);
+                return restoreFile(input, 'manual').map(jsonResponse);
             if (input.action === FileActionKind.DeleteForever)
-                return deleteForeverFile(input).map(jsonResponse);
+                return deleteForeverFile(input, 'manual').map(jsonResponse);
 
             return deleteFile(input, 'manual').map(jsonResponse);
         })

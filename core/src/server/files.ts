@@ -70,7 +70,7 @@ export function downloadFile(
     );
 }
 
-/** Attempt every known chunk and return all confirmed removals even after partial failure. */
+/** Attempt every known chunk and return all confirmed trash moves even after partial failure. */
 export function deleteFile(
     input: FileRequest,
     mode: ThrottleMode = 'auto'
@@ -122,7 +122,8 @@ function untrashed(chunk: RemoteBmp): RemoteBmp {
 
 /** Restore the selected chunks from Google Photos trash and clear their local mark. */
 export function restoreFile(
-    input: FileRequest
+    input: FileRequest,
+    mode: ThrottleMode = 'auto'
 ): AsyncResult<{ restored: RemoteBmp[] }, ServerError> {
     return validateChunks(input)
         .andThen((chunks) => requireTrashed(chunks))
@@ -130,17 +131,24 @@ export function restoreFile(
             const sha1s = [...new Set(chunks.map((chunk) => chunk.sha1))];
             const restored = await restoreFromTrash(input.email, input.token, sha1s);
 
-            return restored.map(() => {
-                markChunksRestored(input.email, chunks);
+            return restored
+                .mapErr((error) =>
+                    error.code === 'THROTTLED'
+                        ? throttleError(error.retryAfterSeconds, mode)
+                        : error
+                )
+                .map(() => {
+                    markChunksRestored(input.email, chunks);
 
-                return { restored: chunks.map(untrashed) };
-            });
+                    return { restored: chunks.map(untrashed) };
+                });
         });
 }
 
 /** Permanently delete the selected chunks and drop them from the local index. */
 export function deleteForeverFile(
-    input: FileRequest
+    input: FileRequest,
+    mode: ThrottleMode = 'auto'
 ): AsyncResult<{ deleted: RemoteBmp[] }, ServerError> {
     return validateChunks(input)
         .andThen((chunks) => requireTrashed(chunks))
@@ -148,10 +156,16 @@ export function deleteForeverFile(
             const sha1s = [...new Set(chunks.map((chunk) => chunk.sha1))];
             const removed = await deletePermanently(input.email, input.token, sha1s);
 
-            return removed.map(() => {
-                removeChunks(input.email, chunks);
+            return removed
+                .mapErr((error) =>
+                    error.code === 'THROTTLED'
+                        ? throttleError(error.retryAfterSeconds, mode)
+                        : error
+                )
+                .map(() => {
+                    removeChunks(input.email, chunks);
 
-                return { deleted: chunks };
-            });
+                    return { deleted: chunks };
+                });
         });
 }

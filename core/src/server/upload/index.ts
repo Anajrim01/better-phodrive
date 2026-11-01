@@ -1,4 +1,4 @@
-import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
+import { Err, type AsyncResult, type Result } from 'results-ts';
 import {
     FileNameSchema,
     FileSizeSchema,

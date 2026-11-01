@@ -5,7 +5,7 @@ import { download, remove, upload } from '../file-transfer';
 import type { Runner } from '../program';
 
 export function registerFileCommands(program: Command, context: CliContext, run: Runner) {
-    const file = program.command('file').description('List, upload, download, and delete files');
+    const file = program.command('file').description('List, upload, download, and trash files');
 
     file.command('list')
         .description('List files, newest first by default')
@@ -45,6 +45,6 @@ export function registerFileCommands(program: Command, context: CliContext, run:
         .option('-y, --yes', 'skip the confirmation')
         .option('-w, --workers <count>', 'concurrent requests')
         .option('-a, --account <email>', 'use this account instead of the active one')
-        .option('-g, --group <name>', 'delete each file from its owner')
+        .option('-g, --group <name>', 'move each file to trash on its owner')
         .action((targets, options) => run(() => remove(context, targets, options)));
 }

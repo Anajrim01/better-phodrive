@@ -3,13 +3,12 @@ import { dirname } from 'node:path';
 import type { RemoteBmp } from '../../../models';
 import { parseAccountState } from './state-parse';
 
-const LIBRARY_STATE_VERSION = 4;
 const LIBRARY_STATE_FLUSH_DELAY_MS = 1_000;
 const LIBRARY_STATE_FLUSH_INTERVAL_MS = 30_000;
 const LIBRARY_STATE_DAY_MS = 24 * 60 * 60 * 1_000;
 export const LIBRARY_STATE_LOG_LIMIT = 64;
 export const LIBRARY_STATE_LOG_MAX_AGE_MS = LIBRARY_STATE_DAY_MS;
-export const LIBRARY_STATE_LOG_MAX_ITEMS = 10_000;
+const LIBRARY_STATE_LOG_MAX_ITEMS = 10_000;
 
 export type LibraryChange = {
     revision: number;
@@ -54,13 +53,8 @@ function load(): void {
         const data: unknown = JSON.parse(readFileSync(stateFile, 'utf8'));
         if (!data || typeof data !== 'object') return;
 
-        const stored = data as { version?: unknown; accounts?: unknown };
-        if (
-            stored.version !== LIBRARY_STATE_VERSION ||
-            !stored.accounts ||
-            typeof stored.accounts !== 'object'
-        )
-            return;
+        const stored = data as { accounts?: unknown };
+        if (!stored.accounts || typeof stored.accounts !== 'object') return;
 
         for (const [email, value] of Object.entries(stored.accounts)) {
             const account = parseAccountState(value);
@@ -89,9 +83,7 @@ export function flushLibraryState(): void {
         const temp = `${stateFile}.tmp`;
 
         mkdirSync(dirname(stateFile), { recursive: true, mode: 0o700 });
-        writeFileSync(temp, JSON.stringify({ version: LIBRARY_STATE_VERSION, accounts: stored }), {
-            mode: 0o600
-        });
+        writeFileSync(temp, JSON.stringify({ accounts: stored }), { mode: 0o600 });
         renameSync(temp, stateFile);
         dirty = false;
         lastFlushAt = Date.now();

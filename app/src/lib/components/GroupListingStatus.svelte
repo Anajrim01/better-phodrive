@@ -75,7 +75,7 @@
         </span>
     {:else if paused.length}
         <span class="text-muted">
-            Paused: {pausedNames}. Files from paused accounts stay hidden until they answer.
+            Paused: {pausedNames}. Files from paused accounts can be missing until they answer.
         </span>
     {/if}
     {#if errored.length}
@@ -85,7 +85,7 @@
     {/if}
     {#if missing.length}
         <span class="text-muted">
-            Not connected: {missingNames}. Their files stay hidden until they are added back.
+            Not connected: {missingNames}. Their files can be missing until they are added back.
         </span>
     {/if}
 </div>

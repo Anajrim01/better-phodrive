@@ -120,7 +120,7 @@ test('large queue stays single-flight, takes current worker preference on retry,
     const library = vi
         .spyOn(libraryApi, 'readLibraryPage')
         .mockReturnValue(
-            Ok({ items: [], nextPageToken: '' }).andThenAsync(async (page) => Ok(page))
+            Ok({ items: [], nextPageToken: '', revision: 1 }).andThenAsync(async (page) => Ok(page))
         );
     const drive = new DriveController();
     drive.initialize();

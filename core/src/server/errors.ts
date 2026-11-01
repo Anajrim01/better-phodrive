@@ -169,16 +169,6 @@ export const SERVER_ERRORS = {
     }
 } as const;
 
-export const THROTTLE_ERROR: {
-    code: 'THROTTLED';
-    message: string;
-    retryAfterSeconds: number;
-} = {
-    code: 'THROTTLED',
-    message: 'Google Photos is limiting requests',
-    retryAfterSeconds: 1
-};
-
 export type ThrottleMode = 'auto' | 'manual';
 
 export function throttleError(seconds: number, mode: ThrottleMode = 'auto'): ServerError {

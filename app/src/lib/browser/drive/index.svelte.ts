@@ -1,5 +1,4 @@
 import {
-    ConfirmKind,
     FileActionKind,
     DEFAULT_PREFERENCES_DEFAULTS,
     ThemeSchema,
@@ -8,15 +7,14 @@ import {
 import { DriveGroupMode } from '#browser/drive/group-mode';
 import { groupFileAccess, groupLibraryAccess, groupUploadAccess } from '#browser/drive/wiring';
 import { watch } from 'runed';
-import type { FileGroup, FileAction } from '@madkarmaa/phodrive-core/files';
+import type { FileGroup } from '@madkarmaa/phodrive-core/files';
 import { useAutomaticRefresh } from '#browser/drive/refresh.svelte';
-import type { UploadJob } from '#browser/files';
 import { DriveLibrary } from '#browser/drive/library.svelte';
 import { DriveSettings } from '#browser/drive/settings.svelte';
 import { DriveAccounts } from '#browser/drive/accounts.svelte';
 import { DriveGroups } from '#browser/drive/groups.svelte';
 import { DriveUploads } from '#browser/drive/uploads.svelte';
-import { DriveFiles, type ConfirmTarget } from '#browser/drive/files.svelte';
+import { DriveFiles } from '#browser/drive/files.svelte';
 import { markChunkRestored, markChunkTrashed, removeChunk } from '#browser/drive/library-chunks';
 import { DriveSession } from '#browser/drive/session.svelte';
 import { DriveView } from '#browser/drive/view.svelte';

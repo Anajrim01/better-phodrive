@@ -123,8 +123,8 @@
                                     >{item.email}</span
                                 >
                             {/if}
-                            {#if !item.complete}
-                                <FileIncompleteWarning {item} {partial} />
+                            {#if !item.complete || (!trash && item.trashedChunks.length > 0)}
+                                <FileIncompleteWarning {item} {partial} {trash} />
                             {:else}
                                 <span class="mobile-date text-xs text-muted"
                                     ><LocalizedDate timestamp={item.at} /></span
@@ -183,6 +183,7 @@
     }
 
     .mobile-date {
+        display: none;
         font-variant-numeric: tabular-nums;
     }
 
@@ -219,9 +220,6 @@
     .actions-column {
         width: 72px;
         padding-inline: 4px;
-    }
-    .mobile-date {
-        display: none;
     }
 
     .file-list :global(.column-sort) {

@@ -3,8 +3,10 @@
     import { fade } from 'svelte/transition';
     import { prefersReducedMotion } from 'svelte/motion';
     import { FileSort } from '@madkarmaa/phodrive-core/models';
+    import type { GroupAccountState } from '@madkarmaa/phodrive-core/groups';
     import { sortFiles, type FileAction, type FileGroup } from '@madkarmaa/phodrive-core/files';
     import FileList from '#components/FileList.svelte';
+    import GroupListingStatus from '#components/GroupListingStatus.svelte';
 
     interface Props {
         files: FileGroup[];
@@ -15,6 +17,10 @@
         hasMore: boolean;
         action: FileAction | null;
         showOwner?: boolean;
+        groupName?: string;
+        total?: number;
+        accounts?: readonly GroupAccountState[];
+        partial?: boolean;
         onrestore: (item: FileGroup) => void;
         ondeleteforever: (item: FileGroup) => void;
         onmore: () => void;
@@ -29,12 +35,17 @@
         hasMore,
         action,
         showOwner = false,
+        groupName,
+        total = 0,
+        accounts = [],
+        partial = false,
         onrestore,
         ondeleteforever,
         onmore
     }: Props = $props();
 
     const sorted = $derived(sortFiles(files, sort));
+    const more = $derived(hasMore || partial);
 </script>
 
 <div class="flex flex-1 flex-col" in:fade={{ duration: prefersReducedMotion.current ? 0 : 160 }}>
@@ -44,8 +55,12 @@
         </h1>
     </div>
     <p class="m-0 mb-6 max-w-2xl text-sm text-muted">
-        Files here are in Google Photos trash. Restore them to My files or delete them forever.
+        Files here are in Google Photos trash. Restore them or delete them forever.
     </p>
+
+    {#if groupName}
+        <GroupListingStatus {groupName} {total} {accounts} />
+    {/if}
 
     {#if files.length}
         <FileList
@@ -56,7 +71,7 @@
             showFolder
             {showOwner}
             trash
-            partial={hasMore}
+            partial={more}
             headingId="trash-heading"
             {onrestore}
             {ondeleteforever}
@@ -69,6 +84,8 @@
                 <LoadingIndicator aria-label="Loading trash" />
             {:else if loadFailed}
                 <p>Use Refresh to load your files again</p>
+            {:else if more}
+                <p role="status">No trashed files in the loaded pages.</p>
             {:else}
                 <p role="status">Trash is empty</p>
             {/if}

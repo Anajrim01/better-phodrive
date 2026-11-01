@@ -1,6 +1,6 @@
 import type { ApplicationError } from '@madkarmaa/phodrive-core/errors';
 import { PersistedState } from 'runed';
-import { Err, Ok, type Result } from 'results-ts';
+import { Err, type Result } from 'results-ts';
 import {
     AlbumKeySchema,
     FolderPathSchema,

@@ -22,17 +22,17 @@ account's upload budget. The two changes are complementary, not alternatives.
 ## What a group is
 
 A group is a named list of accounts the person has already connected. Groups are
-local to the machine: the browser keeps them with the other preferences, and the
-CLI keeps them in `config.json`.
+client-local: the browser keeps them with the other preferences, and the CLI
+keeps them in `config.json`.
 
 A group stores account emails only. Tokens stay in the existing account store,
 so replacing a token does not rewrite every group, and a group never becomes a
 second credential store. The group schema holds an id, a name, and a nonempty
-list of unique emails. Stored data that is absent, malformed, or duplicated is
-dropped on read, so an older config without groups loads as an empty list.
+list of unique emails. Stored data that is absent or malformed is ignored on
+read. The stored shape is draft and has no compatibility promise.
 
-Groups are optional and off by default. With no group selected, every path
-behaves as it does today: one selected account, one queue, one listing.
+Groups are optional and off by default. With no group selected, every path uses
+the selected account: one queue, one listing.
 
 ## Assignment
 
@@ -40,7 +40,7 @@ When an upload starts with a group, the client assigns each file to one member
 and keeps that owner for the whole upload.
 
 - The owner covers the file and all of its chunks: hash lookup, upload start,
-  transfer, commit, retries, downloads, and deletes.
+  transfer, commit, retries, downloads, and trash actions.
 - Assignment is weighted by bytes. Files are placed largest first, each on the
   member with the fewest assigned bytes. When two members have equal loads, the
   earlier member in the group wins. File order does not change the result.
@@ -53,8 +53,9 @@ and keeps that owner for the whole upload.
 - A retry stays on the recorded owner. If that owner is paused, the file waits
   with a visible message instead of being reassigned.
 
-The owner is the account that holds the chunks. Local state records it next to
-the `fileId`, so a retry does not depend on reading the first chunk again. The
+The owner is the account that holds the chunks. During an upload the in-memory
+job keeps the owner next to the `fileId`, so a retry does not depend on reading
+the first chunk again. After a reload, the merged listing supplies the owner. The
 split header needs no owner field: listing already reports which account returned
 each chunk, and that account is the owner.
 
@@ -63,16 +64,15 @@ each chunk, and that account is the owner.
 Each account keeps its own:
 
 - upload queue, so a paused account blocks only its own files;
-- request token bucket and byte budget, because the research suggests separate
-  request and volume budgets;
-- circuit breaker, so one account's pause is not a global pause;
+- circuit breaker and pause deadline, so one account's pause is not a global
+  pause;
 - auth cache entry, keyed by email and token;
 - probe cache namespace, which already includes the email.
 
-The queue assigns whole files. With one account, behavior is unchanged. With
-several, a file waits for its owner instead of moving to another account. The
-worker setting applies to each account, so a group of three can run up to three
-times the configured worker count.
+The queue assigns whole files. With one account, the group behaves like the
+selected account. With several, a file waits for its owner instead of moving to
+another account. The worker setting applies to each account, so a group of three
+can run up to three times the configured worker count.
 
 ## Listing
 
@@ -82,14 +82,16 @@ The client lists each group member and merges the pages into one result.
 - The merge key is media key plus chunk index, so a repeated item within one
   account or across accounts appears once.
 - Two accounts that hold the same file return different media keys, so the merge
-  keeps both rows. The group view groups those rows by file id and chunk index
-  and lists every owner that holds the file. That grouping belongs to the group
-  view, not to the phase 1 merge helper.
+  keeps both rows. Cross-account grouping by file id and chunk index is not
+  implemented; each row is a separate file.
 - A member that answers contributes its items. A member that is paused or
-  skipped contributes no items and a per-account state with its retry window,
-  and the result is marked partial. Its files stay hidden until that member
-  answers. The partial state tells the view why, so the files are not reported
-  as deleted.
+  skipped contributes no items to a full listing, plus a per-account state with
+  its retry window, and the result is marked partial. An incremental refresh
+  keeps that member's previously loaded items, so they stay visible. The partial
+  state tells the view why, so the files are not reported as deleted.
+- Hidden trashed chunks belong to the member's listing and carry a trash mark.
+  After the merge, grouping splits fully trashed files into Trash; a partly
+  trashed file stays in the main list with an incomplete warning.
 - A member status is unknown until a listing or an upload observes it. Paused
   carries a deadline. A listing that returns ok clears the pause only after
   that deadline, and automatic refresh skips members inside their window
@@ -100,23 +102,30 @@ The client lists each group member and merges the pages into one result.
   and media key, so the order does not depend on which request finished first.
   The view's chosen sort re-sorts the merged list.
 
-The cost is one listing pass per account. That multiplies the probe traffic this
-workstream is trying to reduce, so groups should land after the probe cache and
-metadata work, not before. A manifest item would reduce the cost but is a second
-source of truth and stays deferred.
+Each group member costs one listing pass per refresh; the probe cache and delta
+sync keep repeat passes cheap. A manifest item would reduce the cost but is a
+second source of truth and stays deferred.
 
-## Downloads and deletes
+## Downloads and trash
 
 The owner routes every file request: prepare-download, the ranged header probe,
-the real download, and the delete.
+the real download, and every trash action (move to trash, restore, delete
+forever).
 
 - When the client already knows a file's owner, routing reports
   `OWNER_PAUSED` for a paused owner and never falls back to another account.
   A merged listing alone cannot target a paused owner's files because that
   member contributed no items; the partial state covers that case.
-- A delete removes only the owner's chunks.
-- A file held by two owners is deleted from each owner in turn. A delete never
-  removes a chunk from an account that does not own it.
+- A trash action affects only the owner's chunks.
+- Each owner's copy is a separate row. Trashing a file affects only that owner's
+  chunks; trash each row to move every copy. A trash action never touches an
+  account that does not own the chunk.
+- Phodrive never restores a file automatically and stores no tombstone. Restore
+  clears the trash mark on the owner's chunks; Delete forever drops them from
+  the local index.
+- A permanent deletion made outside Phodrive drops the chunk on the next delta,
+  so the remaining chunks group into an incomplete file with a missing-chunk
+  warning.
 - A file whose owner left the group stays unavailable until that account is added
   back. The client never guesses an owner.
 - Routing resolves the owner's token from the account store. A route that cannot
@@ -128,7 +137,7 @@ Removing an account from a group that holds files warns and migrates nothing.
 The files stay on that account. Removing the account from the machine leaves
 those files unavailable. A re-upload is a new upload, not a move: it writes new
 chunks and does not touch the originals. A group always names at least one
-account, so removing the last one deletes the group.
+account. Removing the last member is refused; delete the group instead.
 
 ## Albums and folders
 
@@ -137,15 +146,15 @@ owning account plus the local folder entry, and the existing
 `albums[email][folder]` shape already models that. Group membership does not
 change album assignment.
 
-## Failure cases to test
+## Failure cases covered
 
 - One member is paused during a listing: the result is partial, other members
   still list, and the paused member carries a retry window.
 - Two accounts return the same media key: it merges once per chunk index.
-- The owner is paused and its route is already known: download and delete
-  report `OWNER_PAUSED` and name that account, with no request to another
-  member. A paused member in a merged listing hides its files and reports a
-  partial state instead.
+- The owner is paused and its route is already known: download, trash, restore,
+  and delete forever report `OWNER_PAUSED` and name that account, with no request
+  to another member. A paused member in a full merged listing omits its files
+  and reports a partial state instead.
 - Every member is paused: the assignment leaves files unassigned.
 - File sizes are very uneven: byte totals stay close without splitting a file.
 - The owner was removed from the group: routing reports `OWNER_NOT_IN_GROUP`.
@@ -155,25 +164,17 @@ change album assignment.
 
 ## Implementation status
 
-Phase 1 contained:
+Shipped:
 
-- the group schema and its stored-data migration;
+- the group schema and tolerant stored-data parsing;
 - deterministic, size-weighted file assignment with per-member availability;
-- the merged listing helper with per-account state and deduplication;
-- owner routing helpers for download and delete;
-- this design.
-
-Phase 2a added:
-
+- a merged listing with per-account state, deduplication, and partial results;
+- owner routing for downloads, trash, restore, and delete forever;
 - group upload orchestration, with one concurrency pool and breaker per
   account, waiting files when every member is paused, and per-owner album
   mirroring;
 - the `group` CLI commands and `--group` on file list, upload, download, and
-  delete, with an owner column and owner in JSON;
-- owner routing from the merged listing for every file action.
-
-Phase 2b added:
-
+  trash (the `delete` command), with an owner column and owner in JSON;
 - group management in Settings: list, create, rename, delete, add and remove
   members, member status, and warnings for removals;
 - empty states for no groups, a single-member group, and a fully paused group;
@@ -181,16 +182,18 @@ Phase 2b added:
   preferences and defaulting to the selected account;
 - a merged group listing with owner labels, media-key deduplication, and a
   partial state that names paused members and their retry window;
-- owner routing for downloads and deletes, with a paused owner reporting why the
-  file is unavailable;
+- a merged Trash view with owner labels and owner routing for Restore and Delete
+  forever;
+- owner routing for downloads, trash, restore, and delete forever, with a paused
+  owner reporting why the file is unavailable;
 - pause state fed by the merged listing and by upload retry windows.
 
-Not contained yet:
+Not shipped:
 
-- the group view's cross-account grouping by file id and chunk index;
-- an owner field in the split header;
+- cross-account grouping by file id and chunk index;
+- CLI commands to list trash, restore, or delete forever; the CLI can only move
+  files to trash;
 - album migration, rebalancing, or moving existing files.
 
-Without a group, every path keeps using the selected account: no extra
-listing calls or config reads, and the upload, download, and delete flows are
-unchanged.
+Without a group, every path uses the selected account: no extra listing calls or
+config reads.

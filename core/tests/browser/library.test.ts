@@ -25,10 +25,14 @@ function remoteFile(mediaKey: string): RemoteBmp {
 test('refresh reads the loaded pagination depth and stops when the library ends', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch');
     fetchMock.mockResolvedValueOnce(
-        Response.json({ items: [remoteFile('new-upload')], nextPageToken: 'page-two' })
+        Response.json({
+            items: [remoteFile('new-upload')],
+            nextPageToken: 'page-two',
+            revision: 1
+        })
     );
     fetchMock.mockResolvedValueOnce(
-        Response.json({ items: [remoteFile('existing-file')], nextPageToken: '' })
+        Response.json({ items: [remoteFile('existing-file')], nextPageToken: '', revision: 1 })
     );
 
     const refreshed = await readLibrarySnapshot('test@example.com', 'aas_et/test', 3);
@@ -117,7 +121,11 @@ test('a library delta replaces changed items, removes deletions, and keeps the r
 test('a failed later page rejects the refresh instead of returning a partial replacement', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch');
     fetchMock.mockResolvedValueOnce(
-        Response.json({ items: [remoteFile('new-upload')], nextPageToken: 'page-two' })
+        Response.json({
+            items: [remoteFile('new-upload')],
+            nextPageToken: 'page-two',
+            revision: 1
+        })
     );
     fetchMock.mockResolvedValueOnce(
         Response.json({ error: 'Library unavailable' }, { status: 503 })

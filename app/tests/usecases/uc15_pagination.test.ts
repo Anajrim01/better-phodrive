@@ -56,8 +56,8 @@ function remoteFile(mediaKey: string, chunkIndex = 0): RemoteBmp {
     };
 }
 
-function page(items: RemoteBmp[], nextPageToken: string): LibraryResponse {
-    return LibraryResponseSchema.parse({ items, nextPageToken });
+function page(items: RemoteBmp[], nextPageToken: string, revision = 1): LibraryResponse {
+    return LibraryResponseSchema.parse({ items, nextPageToken, revision });
 }
 
 function apiResult(response: LibraryResponse): AsyncResult<unknown, ApplicationError> {

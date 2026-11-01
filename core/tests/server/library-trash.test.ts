@@ -12,8 +12,7 @@ import { clearProbeCache } from '@madkarmaa/phodrive-core/server/photos/library'
 import {
     clearLibraryState,
     configureLibraryState,
-    readAccountState,
-    writeAccountState
+    readAccountState
 } from '@madkarmaa/phodrive-core/server/photos/library/state';
 import { clearThrottleState } from '@madkarmaa/phodrive-core/server/photos/throttle';
 import {

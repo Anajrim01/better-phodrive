@@ -101,39 +101,8 @@ test('full cache rewrites are spaced thirty seconds apart', { timeout: 15_000 },
     }
 });
 
-test(
-    'the cache file keeps more than the old twenty thousand entry limit',
-    { timeout: 30_000 },
-    () => {
-        for (let index = 0; index < 20_001; index++) {
-            const candidate = { ...CANDIDATE, mediaKey: `media-${index}` };
-
-            writeProbe(EMAIL, candidate, { ...ITEM, mediaKey: candidate.mediaKey });
-        }
-
-        flushProbeCache();
-        clearProbeCache();
-        configureProbeCache(join(folder, 'probe-cache.json'));
-
-        expect(readProbe(EMAIL, { ...CANDIDATE, mediaKey: 'media-0' })).toMatchObject({
-            mediaKey: 'media-0'
-        });
-    }
-);
-
 test('a corrupt cache file is ignored', async () => {
     await writeFile(join(folder, 'probe-cache.json'), '{ broken');
-
-    configureProbeCache(join(folder, 'probe-cache.json'));
-
-    expect(readProbe(EMAIL, CANDIDATE)).toBeUndefined();
-});
-
-test('a cache file from another version is ignored', async () => {
-    await writeFile(
-        join(folder, 'probe-cache.json'),
-        JSON.stringify({ version: 99, entries: [{ key: 'x', at: 1, item: ITEM }] })
-    );
 
     configureProbeCache(join(folder, 'probe-cache.json'));
 

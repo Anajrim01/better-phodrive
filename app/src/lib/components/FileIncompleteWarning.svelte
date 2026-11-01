@@ -9,27 +9,42 @@
     interface Props {
         item: FileGroup;
         partial?: boolean;
+        trash?: boolean;
     }
 
-    let { item, partial = false }: Props = $props();
+    let { item, partial = false, trash = false }: Props = $props();
     const message = $derived(incompleteFileMessage(item));
     const missing = $derived(
         item.chunkCount === null ? null : missingChunks(item.chunks, item.chunkCount)
     );
+    const trashed = $derived(new Set(item.trashedChunks.map((chunk) => chunk.chunkIndex)).size);
     const label = $derived(
-        item.chunkCount === null || missing === null || (!partial && missing === 0)
+        item.chunkCount === null
             ? 'Incomplete file'
-            : `${missing} of ${item.chunkCount} chunks ${partial ? 'not loaded' : 'missing'}`
+            : !item.complete
+              ? missing === 0
+                  ? 'Incomplete file'
+                  : `${missing} of ${item.chunkCount} chunks ${partial ? 'not loaded' : 'missing'}`
+              : `${trashed} duplicate chunk${trashed === 1 ? '' : 's'} in Trash`
+    );
+    const title = $derived(
+        item.complete
+            ? 'A duplicate copy is in Google Photos trash. This file is complete.'
+            : partial
+              ? 'Load more to check the rest of this file.'
+              : message
     );
 </script>
 
 <span
     class="file-incomplete flex min-w-0 items-center gap-1 text-xs"
-    class:text-error={!partial}
-    class:text-muted={partial}
-    title={partial ? 'Load more to check the rest of this file.' : message}
+    class:text-error={!partial && !item.complete}
+    class:text-muted={partial || item.complete}
+    {title}
 >
     <IconWarning aria-hidden="true" class="size-4 shrink-0" />
     <span class="truncate">{label}</span>
-    {#if !partial}<span class="sr-only">This file cannot be downloaded.</span>{/if}
+    {#if !partial && !trash && !item.complete}<span class="sr-only"
+            >This file cannot be downloaded.</span
+        >{/if}
 </span>

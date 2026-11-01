@@ -8,7 +8,7 @@ test('chunk file names declare their expected chunk count', () => {
     expect(expectedChunkCount(`file.bin.phodrive-${HASH}-2-of-3.bmp`)).toBe(3);
 });
 
-test('legacy or invalid chunk names have no declared count', () => {
+test('chunk names without a valid count have no declared count', () => {
     expect(expectedChunkCount(`file.bin.phodrive-${HASH}-0.bmp`)).toBeUndefined();
     expect(expectedChunkCount(`file.bin.phodrive-${HASH}-3-of-3.bmp`)).toBeUndefined();
     expect(expectedChunkCount(`file.bin.phodrive-${HASH}-0-of-0.bmp`)).toBeUndefined();

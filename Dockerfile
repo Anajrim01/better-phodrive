@@ -1,4 +1,4 @@
-ARG BUN_VERSION=1.4.3
+ARG BUN_VERSION=1.4.4
 
 # Compile architecture-neutral JavaScript and assets without emulation.
 FROM --platform=$BUILDPLATFORM oven/bun:${BUN_VERSION} AS build-base

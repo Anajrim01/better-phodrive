@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { Ok } from 'results-ts';
+import { Err, Ok } from 'results-ts';
 import type { RemoteBmp } from '@madkarmaa/phodrive-core/models';
 import { FileActionKind } from '@madkarmaa/phodrive-core/models';
 import { deleteFile, deleteForeverFile, restoreFile } from '@madkarmaa/phodrive-core/server/files';
@@ -141,6 +141,68 @@ test('restore and delete forever reject chunks that are not trashed', async () =
     expect(deleted.unwrapErr().code).toBe('NOT_TRASHED');
     expect(restoreFromTrash).not.toHaveBeenCalled();
     expect(deletePermanently).not.toHaveBeenCalled();
+});
+
+test('restore and delete forever send one key per sha1', async () => {
+    const items = chunks().map((chunk) => ({ ...chunk, trashedAt: 1, sha1: 'c'.repeat(40) }));
+    save(items);
+    const { input } = downloadFixture();
+
+    await restoreFile({ ...input, action: FileActionKind.Restore, chunks: items });
+    await deleteForeverFile({ ...input, action: FileActionKind.DeleteForever, chunks: items });
+
+    expect(vi.mocked(restoreFromTrash).mock.calls[0]?.[2]).toEqual(['c'.repeat(40)]);
+    expect(vi.mocked(deletePermanently).mock.calls[0]?.[2]).toEqual(['c'.repeat(40)]);
+});
+
+test('manual trash actions report retry wording for throttled requests', async () => {
+    const items = chunks().map((chunk) => ({ ...chunk, trashedAt: 1 }));
+    save(items);
+    const { input } = downloadFixture();
+    vi.mocked(restoreFromTrash).mockImplementationOnce(() =>
+        Ok(undefined).andThenAsync(async () =>
+            Err({
+                code: 'THROTTLED',
+                message: 'Google Photos is limiting requests',
+                retryAfterSeconds: 5
+            } as const)
+        )
+    );
+
+    const result = await restoreFile(
+        { ...input, action: FileActionKind.Restore, chunks: items },
+        'manual'
+    );
+
+    expect(result.unwrapErr()).toMatchObject({
+        code: 'THROTTLED',
+        message: expect.stringContaining('try again')
+    });
+});
+
+test('manual delete forever reports retry wording for throttled requests', async () => {
+    const items = chunks().map((chunk) => ({ ...chunk, trashedAt: 1 }));
+    save(items);
+    const { input } = downloadFixture();
+    vi.mocked(deletePermanently).mockImplementationOnce(() =>
+        Ok(undefined).andThenAsync(async () =>
+            Err({
+                code: 'THROTTLED',
+                message: 'Google Photos is limiting requests',
+                retryAfterSeconds: 5
+            } as const)
+        )
+    );
+
+    const result = await deleteForeverFile(
+        { ...input, action: FileActionKind.DeleteForever, chunks: items },
+        'manual'
+    );
+
+    expect(result.unwrapErr()).toMatchObject({
+        code: 'THROTTLED',
+        message: expect.stringContaining('try again')
+    });
 });
 
 test('an empty trash action is rejected before any request', async () => {

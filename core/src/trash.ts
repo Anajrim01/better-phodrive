@@ -30,6 +30,7 @@ export function partitionFileGroups(items: UploadedChunk[]): {
         main.name = group.name;
         main.folder = group.folder;
         main.at = group.at;
+        main.chunkCount = group.chunkCount ?? main.chunkCount;
         main.trashedChunks = trashedChunks;
         files.push(main);
     }

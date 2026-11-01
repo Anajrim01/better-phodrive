@@ -25,7 +25,6 @@ export type GroupLibraryView = {
     files: FileGroup[];
     members: RouteMember[];
     accounts: GroupAccountState[];
-    partial: boolean;
 };
 
 export function connectedAccount(
@@ -158,8 +157,7 @@ export function readGroupLibrary(
         return Ok({
             files: partitionFileGroups(merged.items).files,
             members,
-            accounts: merged.accounts,
-            partial: merged.partial
+            accounts: merged.accounts
         });
     });
 }

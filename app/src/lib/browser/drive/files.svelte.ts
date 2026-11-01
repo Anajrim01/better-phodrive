@@ -24,7 +24,7 @@ export type ConfirmTarget =
     | { kind: ConfirmKind.File; item: FileGroup }
     | { kind: ConfirmKind.PermanentDelete; item: FileGroup };
 
-export type FileDeps = {
+type FileDeps = {
     account: () => { email: string; token: string | undefined };
     busy: () => boolean;
     loading: () => boolean;
@@ -83,7 +83,9 @@ export class DriveFiles {
                     )
             )
         ) {
-            this.deps.feedback('The file changed. Review its current chunks before continuing.');
+            this.deps.feedback(
+                'This file changed while you were confirming. Refresh and try again.'
+            );
 
             return;
         }

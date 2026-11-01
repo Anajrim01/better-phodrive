@@ -33,7 +33,8 @@ function pageFor(email: string): Response {
             email === 'first@example.com'
                 ? [remote('shared'), remote('first-only')]
                 : [remote('shared')],
-        nextPageToken: ''
+        nextPageToken: '',
+        revision: 1
     });
 }
 
@@ -54,7 +55,7 @@ test('a missing group member is reported without a request', async () => {
 test('a member with a future pause is not fetched', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch');
     fetchMock.mockImplementation(async () =>
-        Response.json({ items: [remote('first-only')], nextPageToken: '' })
+        Response.json({ items: [remote('first-only')], nextPageToken: '', revision: 1 })
     );
     const until = Date.now() + 30_000;
 
@@ -106,7 +107,7 @@ test('a group listing without failures is complete', async () => {
     fetchMock.mockImplementation(async (_input, init) => {
         const body = JSON.parse(String(init?.body)) as { email: string };
 
-        return Response.json({ items: [remote(body.email)], nextPageToken: '' });
+        return Response.json({ items: [remote(body.email)], nextPageToken: '', revision: 1 });
     });
 
     const loaded = await readGroupLibrary([

@@ -36,7 +36,7 @@
               : permanent
                 ? `This deletes ${file.name}. This cannot be undone.`
                 : deletingRemaining
-                  ? `This moves the remaining chunks of ${file.name} to Google Photos trash. You can restore the file from Trash.`
+                  ? `This moves the remaining chunks of ${file.name} to Google Photos trash. You can restore the chunks that are still there from Trash.`
                   : `This moves ${file.name} to Google Photos trash. You can restore it from Trash.`
     );
 </script>
@@ -44,7 +44,6 @@
 <Dialog
     style="transition-property: opacity"
     bind:open
-    aria-label={headline}
     {headline}
     supportingText={body}
     ontoggle={(event) => {

@@ -16,7 +16,7 @@ export function listBmps(
     token: string,
     pageToken = '',
     fetcher: Fetcher = photosFetch
-): AsyncResult<{ items: RemoteBmp[]; nextPageToken: string; revision?: number }, ServerError> {
+): AsyncResult<{ items: RemoteBmp[]; nextPageToken: string; revision: number }, ServerError> {
     const validated =
         pageToken.length > MAX_PAGE_TOKEN_LENGTH ||
         (pageToken && !/^[A-Za-z0-9_-]+$/.test(pageToken))

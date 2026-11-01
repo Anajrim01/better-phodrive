@@ -202,7 +202,7 @@ test('empty folders have nothing to upload', async () => {
     expect(uploadFiles).not.toHaveBeenCalled();
 });
 
-test('deletes need confirmation and report partially deleted files', async () => {
+test('trash moves need confirmation and report partially moved files', async () => {
     const report = remoteFile('report.pdf');
     library([report]);
     vi.mocked(deleteFile).mockImplementation(() =>
@@ -219,7 +219,7 @@ test('deletes need confirmation and report partially deleted files', async () =>
     });
     expect(deleteFile).toHaveBeenCalledWith(report, AAS_TOKEN, 8);
     expect(deleted.failures).toMatchObject([{ code: 'DELETE_INCOMPLETE' }]);
-    expect(deleted.stderr).toContain('deleted 0 of 1 chunks. Request failed');
+    expect(deleted.stderr).toContain('moved 0 of 1 chunks to trash. Request failed');
 });
 
 test('file commands require a connected account', async () => {

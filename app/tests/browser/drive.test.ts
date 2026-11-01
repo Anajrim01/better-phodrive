@@ -224,13 +224,16 @@ test('automatic refresh merges the newest page and manual refresh reloads the de
             })
         )
     );
-    const snapshot = vi
-        .spyOn(libraryApi, 'readLibrarySnapshot')
-        .mockImplementationOnce(() =>
-            Ok(undefined).andThenAsync(async () =>
-                Ok({ items: [remoteBmp(3, 'only.bin')], nextPageToken: '', pages: 1 })
-            )
-        );
+    const snapshot = vi.spyOn(libraryApi, 'readLibrarySnapshot').mockImplementationOnce(() =>
+        Ok(undefined).andThenAsync(async () =>
+            Ok({
+                items: [remoteBmp(3, 'only.bin')],
+                nextPageToken: '',
+                pages: 1,
+                revision: 1
+            })
+        )
+    );
     const drive = new DriveController();
     drive.initialize();
 

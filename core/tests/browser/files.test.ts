@@ -1,5 +1,9 @@
 import { afterEach, expect, test, vi } from 'vitest';
-import { downloadFile, restoreFile } from '@madkarmaa/phodrive-core/browser/files';
+import {
+    deleteForeverFile,
+    downloadFile,
+    restoreFile
+} from '@madkarmaa/phodrive-core/browser/files';
 import type { FileGroup, UploadedChunk } from '@madkarmaa/phodrive-core/files';
 
 afterEach(() => vi.restoreAllMocks());
@@ -85,5 +89,73 @@ test('restoring a fully trashed file sends every trashed chunk', async () => {
         chunks: unknown[];
     };
     expect(body.action).toBe('restore');
+    expect(body.chunks).toHaveLength(2);
+});
+
+test('restoring a partly trashed file skips chunks that still have an active copy', async () => {
+    const active = [chunk(0)];
+    const trashed = [
+        { ...chunk(0), mediaKey: 'trash-0', trashedAt: 1 },
+        { ...chunk(1), mediaKey: 'trash-1', trashedAt: 1 }
+    ];
+    const item: FileGroup = {
+        email: 'test@example.com',
+        fileHash: 'a'.repeat(64),
+        fileId: 'a'.repeat(64),
+        name: 'archive.zip',
+        folder: '',
+        at: 1,
+        chunkCount: 2,
+        chunks: active,
+        duplicates: [],
+        trashedChunks: trashed,
+        trashed: false,
+        complete: false
+    };
+    const fetchMock = vi
+        .spyOn(globalThis, 'fetch')
+        .mockImplementation(async () =>
+            Response.json({ restored: [{ ...trashed[1], trashedAt: undefined }] })
+        );
+
+    const restored = await restoreFile(item, 'aas_et/test', () => {});
+
+    expect(restored.isOk()).toBe(true);
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as {
+        action: string;
+        chunks: { chunkIndex: number }[];
+    };
+    expect(body.action).toBe('restore');
+    expect(body.chunks.map((current) => current.chunkIndex)).toEqual([1]);
+});
+
+test('delete forever sends every trashed chunk', async () => {
+    const trashed = [chunk(0), chunk(1)].map((item) => ({ ...item, trashedAt: 1 }));
+    const item: FileGroup = {
+        email: 'test@example.com',
+        fileHash: 'a'.repeat(64),
+        fileId: 'a'.repeat(64),
+        name: 'archive.zip',
+        folder: '',
+        at: 1,
+        chunkCount: 2,
+        chunks: [],
+        duplicates: [],
+        trashedChunks: trashed,
+        trashed: true,
+        complete: true
+    };
+    const fetchMock = vi
+        .spyOn(globalThis, 'fetch')
+        .mockImplementation(async () => Response.json({ deleted: trashed }));
+
+    const removed = await deleteForeverFile(item, 'aas_et/test', () => {}, 1);
+
+    expect(removed.isOk()).toBe(true);
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as {
+        action: string;
+        chunks: unknown[];
+    };
+    expect(body.action).toBe('delete-forever');
     expect(body.chunks).toHaveLength(2);
 });

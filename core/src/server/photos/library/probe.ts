@@ -150,7 +150,7 @@ export function parseChunkName(fileName?: string): ChunkName | undefined {
     };
 }
 
-/** Parse -i-of-N.bmp from a chunk name; a missing or invalid count is legacy. */
+/** Parse -i-of-N.bmp from a chunk name; a missing or invalid count is unknown. */
 export function expectedChunkCount(fileName?: string): number | undefined {
     return parseChunkName(fileName)?.chunkCount;
 }
