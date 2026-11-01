@@ -8,6 +8,7 @@ import {
 } from '@madkarmaa/phodrive-core/files';
 import type { FileActionDeps } from '#browser/drive/file-action';
 import { applyFileAction, resolveFileToken } from '#browser/drive/file-action';
+import { FILE_CHANGED_MESSAGE, fileChangedSince } from '#browser/drive/file-snapshot';
 
 export type ConfirmTarget =
     | { kind: ConfirmKind.Account; email: string }
@@ -52,24 +53,8 @@ export class DriveFiles {
                 : FileActionKind.Delete;
         const current = this.deps.files().find((file) => fileKey(file) === fileKey(item));
         const owner = this.deps.groupMode() ? item.email : this.deps.account().email;
-        if (
-            item.email !== owner ||
-            !current ||
-            current.name !== item.name ||
-            current.chunks.length !== item.chunks.length ||
-            current.chunks.some(
-                (chunk) =>
-                    !item.chunks.some(
-                        (saved) =>
-                            saved.mediaKey === chunk.mediaKey &&
-                            saved.sha1 === chunk.sha1 &&
-                            saved.chunkIndex === chunk.chunkIndex
-                    )
-            )
-        ) {
-            this.deps.feedback(
-                'This file changed while you were confirming. Refresh and try again.'
-            );
+        if (!current || fileChangedSince(item, current, owner)) {
+            this.deps.feedback(FILE_CHANGED_MESSAGE);
 
             return;
         }

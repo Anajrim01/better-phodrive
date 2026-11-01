@@ -67,7 +67,7 @@ export class DriveController extends DriveView {
         const libraryGroup = groupLibraryAccess(this.groupMode, this.groupSettings);
         this.library = new DriveLibrary(
             () => this.account(),
-            () => this.busy || !!this.fileAction || this.bulk.running,
+            () => this.busy || !!this.fileAction || this.bulk.running || this.bulk.moveBusy,
             () => this.settings.fileSort,
             feedback,
             libraryGroup.members,
@@ -140,7 +140,9 @@ export class DriveController extends DriveView {
                 !!this.selectedEmail &&
                 !this.busy &&
                 !this.fileAction &&
-                !this.library.loading,
+                !this.library.loading &&
+                !this.bulk.moveOpen &&
+                !this.bulk.moveBusy,
             () => this.library.refresh()
         );
     }

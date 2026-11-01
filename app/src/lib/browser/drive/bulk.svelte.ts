@@ -10,6 +10,7 @@ import {
 import { bulkFailureMessage, type BulkAction, type BulkFailure } from '#browser/drive/bulk-results';
 import type { MoveDestination } from '#browser/drive/manage-types';
 import type { DriveSelection } from '#browser/drive/selection.svelte';
+import { FILE_CHANGED_MESSAGE, fileChangedSince } from '#browser/drive/file-snapshot';
 import {
     bulkMoveDestinations,
     selectionSummary,
@@ -19,6 +20,7 @@ import {
 type BulkDeps = FileActionDeps & {
     selection: DriveSelection;
     allFiles: () => readonly FileGroup[];
+    currentFiles: () => readonly FileGroup[];
     busy: () => boolean;
     loading: () => boolean;
     applyItems: (email: string, items: readonly RemoteBmp[], revision: number) => void;
@@ -86,6 +88,8 @@ export class DriveBulk {
     }
 
     async delete(files: readonly FileGroup[]): Promise<void> {
+        if (!this.validateSnapshot(files)) return;
+
         await this.runAction(files, FileActionKind.Delete, 'delete');
     }
 
@@ -94,6 +98,8 @@ export class DriveBulk {
     }
 
     async deleteForever(files: readonly FileGroup[]): Promise<void> {
+        if (!this.validateSnapshot(files)) return;
+
         await this.runAction(files, FileActionKind.DeleteForever, 'delete');
     }
 
@@ -190,6 +196,21 @@ export class DriveBulk {
         if (action !== FileActionKind.Download) this.reloadAfter();
         if (failures.length === 0 && action !== FileActionKind.Download) this.deps.closeUploads();
         this.deps.feedback(bulkFailureMessage(failures, files.length, verb));
+    }
+
+    private validateSnapshot(files: readonly FileGroup[]): boolean {
+        const current = this.deps.currentFiles();
+
+        for (const item of files) {
+            const now = current.find((file) => fileKey(file) === fileKey(item));
+            if (fileChangedSince(item, now, item.email)) {
+                this.deps.feedback(FILE_CHANGED_MESSAGE);
+
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private begin(files: readonly FileGroup[], action: FileActionKind): boolean {

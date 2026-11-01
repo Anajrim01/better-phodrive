@@ -12,6 +12,7 @@ export function createDriveBulk(drive: DriveController): DriveBulk {
         workers: () => drive.settings.concurrentWorkers,
         ...chunkHandlers(drive.library),
         allFiles: () => drive.library.files,
+        currentFiles: () => [...drive.library.files, ...drive.library.trashFiles],
         busy: () => drive.busy,
         loading: () => drive.library.loading,
         applyItems: (email, items, revision) => {
