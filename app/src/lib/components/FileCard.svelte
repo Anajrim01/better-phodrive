@@ -74,16 +74,18 @@
         {/if}
 
         <div class="flex flex-wrap items-center justify-end gap-1 px-2 pb-2">
-            <FileActions
-                {item}
-                {disabled}
-                {working}
-                {partial}
-                shortDelete
-                {ondownload}
-                {ondelete}
-                {onrestore}
-            />
+            <span class="card-inline-actions">
+                <FileActions
+                    {item}
+                    {disabled}
+                    {working}
+                    {partial}
+                    shortDelete
+                    {ondownload}
+                    {ondelete}
+                    {onrestore}
+                />
+            </span>
             <MoreButton label={item.name} {disabled} onopen={(element) => onmenu(item, element)} />
         </div>
     </Card>
@@ -112,5 +114,15 @@
     .file-preview {
         height: calc(100cqi - 96px);
         min-height: 150px;
+    }
+
+    .card-inline-actions {
+        display: flex;
+    }
+
+    @media (width < 800px) {
+        .card-inline-actions {
+            display: none;
+        }
     }
 </style>

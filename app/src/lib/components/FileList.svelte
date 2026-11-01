@@ -152,18 +152,20 @@
                 </td>
                 <td class="actions-column">
                     <div class="actions-cell">
-                        <FileActions
-                            {item}
-                            {disabled}
-                            compact
-                            {trash}
-                            {partial}
-                            working={action?.fileId === item.fileId ? action.kind : null}
-                            {ondownload}
-                            {ondelete}
-                            {onrestore}
-                            {ondeleteforever}
-                        />
+                        <span class="inline-actions">
+                            <FileActions
+                                {item}
+                                {disabled}
+                                compact
+                                {trash}
+                                {partial}
+                                working={action?.fileId === item.fileId ? action.kind : null}
+                                {ondownload}
+                                {ondelete}
+                                {onrestore}
+                                {ondeleteforever}
+                            />
+                        </span>
                         <MoreButton
                             label={item.name}
                             {disabled}
@@ -245,6 +247,11 @@
         gap: 2px;
     }
 
+    .inline-actions {
+        display: flex;
+        align-items: center;
+    }
+
     .file-list :global(.column-sort) {
         --np-button-padding: 12px;
         --np-button-gap: 4px;
@@ -269,6 +276,12 @@
         }
         .file-name {
             gap: 8px;
+        }
+        .actions-column {
+            width: 56px;
+        }
+        .inline-actions {
+            display: none;
         }
         tbody td {
             height: 56px;

@@ -89,7 +89,7 @@ afterEach(() => cleanup());
 
 test('a complete file row keeps one-click download and delete beside More', async () => {
     const props = callbacks();
-    render(FileList, {
+    const view = render(FileList, {
         props: {
             files: [file()],
             sort: FileSort.NameAscending,
@@ -98,6 +98,8 @@ test('a complete file row keeps one-click download and delete beside More', asyn
             ...props
         }
     });
+
+    expect(view.container.querySelector('.inline-actions')).not.toBeNull();
 
     const download = screen.getByRole('button', { name: 'Download proof.bin' });
     const remove = screen.getByRole('button', { name: 'Delete proof.bin' });
@@ -202,9 +204,9 @@ test('the trash view threads inline restore and delete forever', async () => {
     expect(props.ondeleteforever).toHaveBeenCalledTimes(1);
 });
 
-test('a file card keeps quick actions beside More', async () => {
+test('a file card keeps quick actions in a wrapper the narrow layout can hide', async () => {
     const props = callbacks();
-    render(FileCard, {
+    const view = render(FileCard, {
         props: {
             item: file(),
             disabled: false,
@@ -213,6 +215,7 @@ test('a file card keeps quick actions beside More', async () => {
         }
     });
 
+    expect(view.container.querySelector('.card-inline-actions')).not.toBeNull();
     const download = screen.getByRole('button', { name: 'Download proof.bin' });
     await fireEvent.click(download);
 
