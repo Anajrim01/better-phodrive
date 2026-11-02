@@ -44,7 +44,7 @@ vi.hoisted(() => {
 beforeEach(() => cleanup());
 afterEach(() => cleanup());
 
-test('a card exposes a direct checkbox next to its name', async () => {
+test('a card exposes a direct checkbox after its name', async () => {
     const item = file({ name: 'card.bin' });
     const props = selectionCallbacks();
     render(FileCard, {
@@ -62,6 +62,15 @@ test('a card exposes a direct checkbox next to its name', async () => {
         name: 'Select card.bin'
     }) as HTMLInputElement;
     expect(checkbox.checked).toBe(true);
+
+    const heading = screen.getByRole('heading', { name: 'card.bin' });
+    const header = heading.parentElement;
+    const checkboxContainer = checkbox.closest('.np-checkbox-container');
+    expect(header?.firstElementChild).toBe(heading);
+    expect(header?.lastElementChild?.contains(checkboxContainer)).toBe(true);
+    expect(heading.classList.contains('truncate')).toBe(true);
+    expect(heading.classList.contains('flex-1')).toBe(true);
+    expect(checkboxContainer?.classList.contains('shrink-0')).toBe(true);
 
     await fireEvent.click(checkbox);
     expect(props.onselect).toHaveBeenCalledTimes(1);
