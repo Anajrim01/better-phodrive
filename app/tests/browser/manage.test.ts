@@ -79,6 +79,7 @@ function makeManage(overrides: Partial<Deps> = {}) {
         files: () => files,
         busy: () => false,
         loading: () => false,
+        initialLoading: () => false,
         workers: () => 2,
         feedback,
         applyItems,

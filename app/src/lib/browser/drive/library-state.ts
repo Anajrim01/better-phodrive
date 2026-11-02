@@ -8,9 +8,10 @@ import type { UploadedChunk } from '@madkarmaa/phodrive-core/files';
 import type { RemoteBmp } from '@madkarmaa/phodrive-core/models';
 import { nextRetryAt } from '#browser/drive/group-target';
 
-type LibraryState = {
+export type LibraryState = {
     chunks: UploadedChunk[];
     accounts: GroupAccountState[];
+    loading: boolean;
     partial: boolean;
     nextPageToken: string;
     loadedPages: number;

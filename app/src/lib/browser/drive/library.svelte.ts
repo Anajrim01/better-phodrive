@@ -8,21 +8,18 @@ import {
 } from '@madkarmaa/phodrive-core/files';
 import { partitionFileGroups } from '@madkarmaa/phodrive-core/trash';
 import { FileSort } from '@madkarmaa/phodrive-core/models';
-import {
-    readGroupLibrary,
-    readGroupLibraryUpdates,
-    readLibraryPage,
-    readLibrarySnapshot,
-    readLibrarySync
-} from '@madkarmaa/phodrive-core/browser/library';
+import { readLibraryPage, readLibrarySync } from '@madkarmaa/phodrive-core/browser/library';
 import type { GroupAccountState } from '@madkarmaa/phodrive-core/groups';
 import {
-    applyGroupSnapshot,
-    applyLibrarySnapshot,
     applyLibrarySync,
     reportLoadFailure,
     resetLibraryPages
 } from '#browser/drive/library-state';
+import {
+    loadGroupLibrary,
+    refreshGroupLibrary,
+    refreshLibrary
+} from '#browser/drive/library-refresh';
 
 const POST_UPLOAD_COOLDOWN_MS = 2 * 60 * 1_000;
 
@@ -53,6 +50,7 @@ export class DriveLibrary {
 
     private grouped = $derived(partitionFileGroups(this.chunks));
     files = $derived(this.grouped.files);
+    initialLoading = $derived(this.loading && this.chunks.length === 0);
     trashFiles = $derived(this.grouped.trashed);
     availableTypes = $derived([...new Set(this.files.map((item) => fileType(item.name)))].sort());
     filtering = $derived(!!(this.searchTerm || this.typeFilter || this.modifiedDays));
@@ -166,36 +164,21 @@ export class DriveLibrary {
         this.loading = false;
     }
 
-    private async loadGroup(group: NonNullable<LibraryGroup>, reset: boolean, full = true) {
+    private async loadGroup(group: NonNullable<LibraryGroup>, reset: boolean) {
         if (this.actionsDisabled() || (!reset && this.loading)) return;
 
         const request = ++this.libraryRequest;
-        if (reset) {
-            this.chunks = [];
-            resetLibraryPages(this, this.libraryPageTokens);
-            this.accounts = [];
-            this.partial = false;
-        }
-
-        this.loading = true;
-        this.feedback('');
-
-        const loaded = full
-            ? await readGroupLibrary(group.members, group.missing)
-            : await readGroupLibraryUpdates(
-                  group.members,
-                  group.missing,
-                  this.chunks,
-                  this.accounts,
-                  this.revisions
-              );
+        await loadGroupLibrary(
+            this,
+            group,
+            reset,
+            this.libraryPageTokens,
+            this.onAccounts,
+            (path) => this.hasFolder(path),
+            this.feedback,
+            () => request === this.libraryRequest
+        );
         if (request !== this.libraryRequest) return;
-
-        loaded.match({
-            Ok: (snapshot) =>
-                applyGroupSnapshot(this, snapshot, this.onAccounts, (path) => this.hasFolder(path)),
-            Err: (error) => reportLoadFailure(this, error, this.feedback)
-        });
 
         this.loading = false;
     }
@@ -206,8 +189,21 @@ export class DriveLibrary {
             if (this.actionsDisabled() || this.loading || document.hidden) return;
             if (!manual && (Date.now() < this.retryAt || Date.now() < this.cooldownUntil)) return;
 
-            if (manual) await this.loadGroup(group, false);
-            else await this.loadGroup(group, false, false);
+            const request = ++this.libraryRequest;
+            this.loading = true;
+            this.feedback('');
+
+            await refreshGroupLibrary(
+                this,
+                group,
+                this.onAccounts,
+                (path) => this.hasFolder(path),
+                this.feedback,
+                () => request === this.libraryRequest
+            );
+            if (request !== this.libraryRequest) return;
+
+            this.loading = false;
 
             return;
         }
@@ -222,16 +218,18 @@ export class DriveLibrary {
         this.loading = true;
 
         if (manual) {
-            const refreshed = await readLibrarySnapshot(email, token, this.loadedPages);
+            const cursor = this.revisions.get(email.toLowerCase()) ?? 0;
+            await refreshLibrary(
+                this,
+                email,
+                token,
+                cursor,
+                this.libraryPageTokens,
+                (path) => this.hasFolder(path),
+                this.feedback,
+                () => request === this.libraryRequest && email === this.account().email
+            );
             if (request !== this.libraryRequest || email !== this.account().email) return;
-
-            refreshed.match({
-                Ok: (snapshot) =>
-                    applyLibrarySnapshot(this, email, snapshot, this.libraryPageTokens, (path) =>
-                        this.hasFolder(path)
-                    ),
-                Err: (error) => reportLoadFailure(this, error, this.feedback)
-            });
 
             this.loading = false;
 

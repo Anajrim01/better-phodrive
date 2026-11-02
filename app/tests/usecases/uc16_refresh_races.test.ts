@@ -2,7 +2,11 @@ import { afterAll, beforeEach, expect, test, vi } from 'vitest';
 import { Ok } from 'results-ts';
 import { ThemeMode } from '@madkarmaa/phodrive-core/models';
 import { DriveController } from '#browser/drive/index.svelte';
-import { readLibraryPage, readLibrarySnapshot } from '@madkarmaa/phodrive-core/browser/library';
+import {
+    readLibraryPage,
+    readLibrarySnapshot,
+    readLibrarySync
+} from '@madkarmaa/phodrive-core/browser/library';
 import * as filesApi from '#browser/files';
 
 const { storage } = vi.hoisted(() => {
@@ -56,6 +60,7 @@ afterAll(() => vi.unstubAllGlobals());
 
 type Page = Awaited<ReturnType<typeof readLibraryPage>>;
 type Snapshot = Awaited<ReturnType<typeof readLibrarySnapshot>>;
+type Sync = Awaited<ReturnType<typeof readLibrarySync>>;
 
 function deferred<T>() {
     let resolve: ((value: T) => void) | undefined;
@@ -115,13 +120,13 @@ test('switching accounts during pending library requests ignores stale responses
     ]);
 });
 
-test('manual refresh replaces completed initial data and clears the loading state', async () => {
+test('manual refresh applies a sync result and clears the loading state', async () => {
     const initialPage = deferred<Page>();
-    const firstRefresh = deferred<Snapshot>();
+    const firstRefresh = deferred<Sync>();
     vi.mocked(readLibraryPage).mockReturnValueOnce(
         Ok(undefined).andThenAsync(() => initialPage.promise)
     );
-    vi.mocked(readLibrarySnapshot).mockReturnValueOnce(
+    vi.mocked(readLibrarySync).mockReturnValueOnce(
         Ok(undefined).andThenAsync(() => firstRefresh.promise)
     );
 
@@ -137,13 +142,12 @@ test('manual refresh replaces completed initial data and clears the loading stat
 
     const olderRefresh = drive.library.refresh(true);
     expect(drive.library.loading).toBe(true);
-    firstRefresh.resolve(
-        Ok({ items: [chunk('refreshed')], nextPageToken: '', revision: 1, pages: 1 })
-    );
+    firstRefresh.resolve(Ok({ items: [chunk('refreshed')], deleted: [], full: true, revision: 2 }));
     await olderRefresh;
 
     expect(drive.library.loading).toBe(false);
     expect(drive.library.chunks.map(({ mediaKey }) => mediaKey)).toEqual(['refreshed']);
+    expect(readLibrarySnapshot).not.toHaveBeenCalled();
     expect(drive.feedbackMessage).toBe('');
 });
 
