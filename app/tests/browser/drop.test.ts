@@ -13,6 +13,35 @@ function fileEntry(name: string, file = new File([name], name)): FileSystemFileE
     } as unknown as FileSystemFileEntry;
 }
 
+function failingFileEntry(name: string): FileSystemFileEntry {
+    return {
+        name,
+        isFile: true,
+        isDirectory: false,
+        file(_success: (value: File) => void, failure?: (error: DOMException) => void) {
+            failure?.(new Error('file read failed') as unknown as DOMException);
+        }
+    } as unknown as FileSystemFileEntry;
+}
+
+function failingDirectoryEntry(name: string): FileSystemDirectoryEntry {
+    return {
+        name,
+        isFile: false,
+        isDirectory: true,
+        createReader() {
+            return {
+                readEntries(
+                    _success: (entries: FileSystemEntry[]) => void,
+                    failure?: (error: DOMException) => void
+                ) {
+                    failure?.(new Error('directory read failed') as unknown as DOMException);
+                }
+            };
+        }
+    } as unknown as FileSystemDirectoryEntry;
+}
+
 function directoryEntry(
     name: string,
     children: FileSystemEntry[],
@@ -117,4 +146,16 @@ test('falls back to the transfer files when no entries are available', async () 
     expect(files).toEqual([first, second]);
     expect(files[0]).toBe(first);
     expect(files[1]).toBe(second);
+});
+
+test('a file read failure rejects the drop', async () => {
+    await expect(droppedFiles(transfer([failingFileEntry('broken.txt')]))).rejects.toThrow(
+        'file read failed'
+    );
+});
+
+test('a directory read failure rejects the drop', async () => {
+    await expect(droppedFiles(transfer([failingDirectoryEntry('broken')]))).rejects.toThrow(
+        'directory read failed'
+    );
 });
