@@ -5,6 +5,10 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { Err, Ok } from 'results-ts';
 import { createHash } from 'node:crypto';
 import { moveToTrash, moveToTrashBatch } from '@madkarmaa/phodrive-core/server/photos';
+import {
+    ensureAccountIndex,
+    refreshAccountIndex
+} from '@madkarmaa/phodrive-core/server/photos/library/ensure';
 import type { BulkDeleteRequest } from '@madkarmaa/phodrive-core/bulk-delete';
 import {
     clearLibraryState,
@@ -18,6 +22,11 @@ vi.mock('@madkarmaa/phodrive-core/server/photos', () => ({
     moveToTrashBatch: vi.fn()
 }));
 
+vi.mock('@madkarmaa/phodrive-core/server/photos/library/ensure', () => ({
+    ensureAccountIndex: vi.fn(),
+    refreshAccountIndex: vi.fn()
+}));
+
 const EMAIL = 'test@example.com';
 const SHA1 = createHash('sha1').update('bulk route').digest('hex');
 let folder = '';
@@ -25,6 +34,12 @@ let folder = '';
 beforeEach(async () => {
     folder = await mkdtemp(join(tmpdir(), 'phodrive-bulk-route-'));
     configureLibraryState(join(folder, 'library-state.json'));
+    vi.mocked(ensureAccountIndex).mockImplementation(() =>
+        Ok(undefined).andThenAsync(async () => Ok(undefined))
+    );
+    vi.mocked(refreshAccountIndex).mockImplementation(() =>
+        Ok(undefined).andThenAsync(async () => Ok(undefined))
+    );
 });
 
 afterEach(async () => {
@@ -53,9 +68,9 @@ function payload(files = 1): BulkDeleteRequest {
     };
 }
 
-function save(body: BulkDeleteRequest): void {
+function save(body: BulkDeleteRequest, limit?: number): void {
     const items = body.files.flatMap(([, fileHash, fileId, chunks]) =>
-        chunks.map(([mediaKey, sha1]) => ({
+        chunks.slice(0, limit).map(([mediaKey, sha1]) => ({
             fileHash,
             fileId,
             chunkIndex: 0,
@@ -72,6 +87,10 @@ function save(body: BulkDeleteRequest): void {
         items: new Map(items.map((item) => [item.mediaKey, item])),
         log: []
     });
+}
+
+function savePartial(body: BulkDeleteRequest): void {
+    save(body, 1);
 }
 
 function request(body: unknown): Request {
@@ -150,4 +169,120 @@ test('invalid bulk requests fail before streaming', async () => {
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({ error: 'Invalid request' });
+});
+
+test('missing state is built before streaming and before trash', async () => {
+    const body = payload();
+    const order: string[] = [];
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+        release = resolve;
+    });
+
+    vi.mocked(ensureAccountIndex).mockImplementation(() =>
+        Ok(undefined).andThenAsync(async () => {
+            order.push('ensure:start');
+            await gate;
+            save(body);
+            order.push('ensure:end');
+
+            return Ok(undefined);
+        })
+    );
+    vi.mocked(moveToTrashBatch).mockImplementation(() =>
+        Ok(undefined).andThenAsync(async () => {
+            order.push('trash');
+
+            return Ok(undefined);
+        })
+    );
+
+    const pending = POST({ request: request(body) } as never);
+
+    await vi.waitFor(() => expect(order).toEqual(['ensure:start']));
+    expect(moveToTrashBatch).not.toHaveBeenCalled();
+    release();
+    const response = await pending;
+    const events = parseEvents(await response.text());
+
+    expect(order).toEqual(['ensure:start', 'ensure:end', 'trash']);
+    expect(ensureAccountIndex).toHaveBeenCalledOnce();
+    expect(refreshAccountIndex).not.toHaveBeenCalled();
+    expect(moveToTrashBatch).toHaveBeenCalledOnce();
+    expect(events.at(-1)).toEqual({ type: 'done' });
+});
+
+test('stale state refreshes once before streaming and deleteFiles does not refresh again', async () => {
+    const body = payload();
+    const secondSha1 = createHash('sha1').update('second chunk').digest('hex');
+    body.files[0][3].push(['media-1', secondSha1]);
+    savePartial(body);
+    const order: string[] = [];
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+        release = resolve;
+    });
+
+    vi.mocked(refreshAccountIndex).mockImplementation(() =>
+        Ok(undefined).andThenAsync(async () => {
+            order.push('refresh:start');
+            await gate;
+            save(body);
+            order.push('refresh:end');
+
+            return Ok(undefined);
+        })
+    );
+    vi.mocked(moveToTrashBatch).mockImplementation(() =>
+        Ok(undefined).andThenAsync(async () => {
+            order.push('trash');
+
+            return Ok(undefined);
+        })
+    );
+
+    const pending = POST({ request: request(body) } as never);
+
+    await vi.waitFor(() => expect(order).toEqual(['refresh:start']));
+    expect(moveToTrashBatch).not.toHaveBeenCalled();
+    release();
+    const response = await pending;
+    const events = parseEvents(await response.text());
+
+    expect(order).toEqual(['refresh:start', 'refresh:end', 'trash']);
+    expect(ensureAccountIndex).not.toHaveBeenCalled();
+    expect(refreshAccountIndex).toHaveBeenCalledOnce();
+    expect(moveToTrashBatch).toHaveBeenCalledOnce();
+    expect(events.at(-1)).toEqual({ type: 'done' });
+});
+
+test('a refresh failure returns JSON and never calls trash', async () => {
+    const body = payload();
+    body.files[0][3].push(['media-1', createHash('sha1').update('second chunk').digest('hex')]);
+    savePartial(body);
+    vi.mocked(refreshAccountIndex).mockImplementation(() =>
+        Ok(undefined).andThenAsync(async () =>
+            Err({ code: 'REQUEST_FAILED', message: 'Refresh failed' } as const)
+        )
+    );
+
+    const response = await POST({ request: request(body) } as never);
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: 'Refresh failed' });
+    expect(refreshAccountIndex).toHaveBeenCalledOnce();
+    expect(moveToTrashBatch).not.toHaveBeenCalled();
+});
+
+test('a refresh that still misses a chunk returns validation JSON and never calls trash', async () => {
+    const body = payload();
+    body.files[0][3].push(['media-1', createHash('sha1').update('second chunk').digest('hex')]);
+    savePartial(body);
+
+    const response = await POST({ request: request(body) } as never);
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: 'Invalid file metadata.' });
+    expect(refreshAccountIndex).toHaveBeenCalledOnce();
+    expect(moveToTrashBatch).not.toHaveBeenCalled();
 });
