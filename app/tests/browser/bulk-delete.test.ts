@@ -1,6 +1,7 @@
 import { beforeEach, expect, test, vi } from 'vitest';
 import { Ok } from 'results-ts';
 import { fileKey } from '@madkarmaa/phodrive-core/files';
+import { FileActionKind } from '@madkarmaa/phodrive-core/models';
 import * as filesApi from '#browser/files';
 import { FILE_CHANGED_MESSAGE } from '#browser/drive/file-snapshot';
 import { chunk, failed, file, makeBulk, ok, ownerRoute } from './bulk-fixtures';
@@ -22,13 +23,16 @@ beforeEach(() => {
 function deliver(
     files: readonly ReturnType<typeof file>[],
     onFile: Parameters<typeof filesApi.deleteFiles>[4],
-    errors: Record<string, string> = {}
+    errors: Record<string, string> = {},
+    action = FileActionKind.Delete
 ) {
     for (const item of files) {
         const error = errors[item.name];
         onFile(
             item,
-            error ? { deleted: [], error } : { deleted: [...item.chunks, ...item.duplicates] }
+            error
+                ? { action, deleted: [], error }
+                : { action, deleted: [...item.chunks, ...item.duplicates] }
         );
     }
 }
@@ -62,7 +66,8 @@ test('bulk delete posts once per account and keeps failed files selected', async
         'token-first@example.com',
         [first],
         2,
-        expect.any(Function)
+        expect.any(Function),
+        FileActionKind.Delete
     );
     expect(filesApi.deleteFiles).toHaveBeenNthCalledWith(
         2,
@@ -70,7 +75,8 @@ test('bulk delete posts once per account and keeps failed files selected', async
         'token-second@example.com',
         [second],
         2,
-        expect.any(Function)
+        expect.any(Function),
+        FileActionKind.Delete
     );
     expect([...selection.selectedKeys]).toEqual([fileKey(second)]);
     expect(reloadGroup).toHaveBeenCalledTimes(1);
@@ -110,9 +116,9 @@ test('progress advances as each file completes inside an account request', async
     });
     vi.mocked(filesApi.deleteFiles).mockImplementation((_email, _token, files, _workers, onFile) =>
         Ok(undefined).andThenAsync(async () => {
-            onFile(files[0], { deleted: [...files[0].chunks] });
+            onFile(files[0], { action: FileActionKind.Delete, deleted: [...files[0].chunks] });
             await gate;
-            onFile(files[1], { deleted: [...files[1].chunks] });
+            onFile(files[1], { action: FileActionKind.Delete, deleted: [...files[1].chunks] });
 
             return Ok(undefined);
         })
@@ -139,7 +145,11 @@ test('a partially trashed file keeps confirmed chunks and stays selected', async
     const onTrashed = vi.fn();
     vi.mocked(filesApi.deleteFiles).mockImplementation((_email, _token, files, _workers, onFile) =>
         Ok(undefined).andThenAsync(async () => {
-            onFile(files[0], { deleted: [files[0].chunks[0]], error: 'One chunk failed' });
+            onFile(files[0], {
+                action: FileActionKind.Delete,
+                deleted: [files[0].chunks[0]],
+                error: 'One chunk failed'
+            });
 
             return Ok(undefined);
         })

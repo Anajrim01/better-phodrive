@@ -1,7 +1,7 @@
 import { FileActionKind, type RemoteBmp } from '@madkarmaa/phodrive-core/models';
 import { fileKey, type FileGroup } from '@madkarmaa/phodrive-core/files';
 import { moveFile } from '@madkarmaa/phodrive-core/browser/manage';
-import { deleteFilesInBatches } from '#browser/drive/bulk-delete';
+import { isBulkFileAction, runFilesInBatches } from '#browser/drive/bulk-delete';
 import {
     applyFileAction,
     resolveFileToken,
@@ -176,10 +176,18 @@ export class DriveBulk {
     ): Promise<void> {
         if (!this.begin(files, action)) return;
 
-        const failures =
-            action === FileActionKind.Delete
-                ? await this.deleteInBatches(files)
-                : await this.applySequentially(files, action);
+        const failures = isBulkFileAction(action)
+            ? await runFilesInBatches(files, {
+                  action,
+                  resolveToken: (item) => resolveFileToken(item, action, this.deps),
+                  onTrashed: this.deps.onTrashed,
+                  onRestored: this.deps.onRestored,
+                  onRemoved: this.deps.onRemoved,
+                  remove: (item) => this.deps.selection.remove(fileKey(item)),
+                  progress: () => this.progressDone++,
+                  workers: this.deps.workers()
+              })
+            : await this.applySequentially(files, action);
 
         this.running = false;
         this.runningAction = null;
@@ -222,21 +230,6 @@ export class DriveBulk {
             });
             this.progressDone++;
         }
-
-        return failures;
-    }
-
-    private async deleteInBatches(files: readonly FileGroup[]): Promise<BulkFailure[]> {
-        const failures: BulkFailure[] = [];
-
-        await deleteFilesInBatches(files, {
-            resolveToken: (item) => resolveFileToken(item, FileActionKind.Delete, this.deps),
-            onTrashed: this.deps.onTrashed,
-            remove: (item) => this.deps.selection.remove(fileKey(item)),
-            progress: () => this.progressDone++,
-            fail: (failure) => failures.push(failure),
-            workers: this.deps.workers()
-        });
 
         return failures;
     }

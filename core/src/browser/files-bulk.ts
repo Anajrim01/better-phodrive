@@ -10,43 +10,80 @@ import { chunksFor, INVALID_DELETE_RESPONSE } from './file-action-helpers';
 const FILES_BULK_API_URL = '/api/files/bulk';
 
 export type BulkDeleteFileOutcome = {
+    action: FileActionKind;
     deleted: UploadedChunk[];
     error?: string;
     retryAfterSeconds?: number;
 };
 
-function bulkFileRequest(item: FileGroup) {
+function failureMessage(action: FileActionKind): string {
+    if (action === FileActionKind.DeleteForever) return 'Permanent delete failed';
+    if (action === FileActionKind.Restore) return 'Restore failed';
+
+    return 'Move to trash failed';
+}
+
+function bulkFileRequest(item: FileGroup, action: FileActionKind) {
     return [
         item.name,
         item.fileHash,
         item.fileId,
-        chunksFor(item, FileActionKind.Delete).map(({ mediaKey, sha1 }) => [mediaKey, sha1])
+        chunksFor(item, action).map(({ mediaKey, sha1 }) => [mediaKey, sha1])
     ];
 }
 
 function failBulkFiles(
     files: readonly FileGroup[],
     error: ApplicationError,
+    action: FileActionKind,
     onFile: (item: FileGroup, outcome: BulkDeleteFileOutcome) => void
 ): void {
     const retryAfterSeconds =
         error.code === 'THROTTLED' ? { retryAfterSeconds: error.retryAfterSeconds } : {};
     for (const item of files)
-        onFile(item, { deleted: [], error: error.message, ...retryAfterSeconds });
+        onFile(item, {
+            action,
+            deleted: [],
+            error: error.message,
+            ...retryAfterSeconds
+        });
 }
 
 function chunkIdentity(chunk: { mediaKey: string; sha1: string }): string {
     return `${chunk.mediaKey}\u0000${chunk.sha1}`;
 }
 
+function confirmedChunk(
+    known: UploadedChunk,
+    trashedAt: number | undefined,
+    action: FileActionKind
+): UploadedChunk {
+    if (action === FileActionKind.Delete) return { ...known, trashedAt: trashedAt ?? Date.now() };
+
+    if (action === FileActionKind.Restore) return { ...known, trashedAt: undefined };
+
+    return { ...known };
+}
+
 function applyBulkEvent(
     event: BulkDeleteEvent,
     item: FileGroup,
+    action: FileActionKind,
     onFile: (item: FileGroup, outcome: BulkDeleteFileOutcome) => void
 ): void {
     if (event.type === 'done') return;
 
-    const knownChunks = [...item.chunks, ...item.duplicates];
+    if (event.action !== action) {
+        onFile(item, {
+            action,
+            deleted: [],
+            error: INVALID_DELETE_RESPONSE.message
+        });
+
+        return;
+    }
+
+    const knownChunks = chunksFor(item, action);
     const requested = new Set(knownChunks.map(chunkIdentity));
     const confirmed = new Set<string>();
     const deleted: UploadedChunk[] = [];
@@ -60,15 +97,16 @@ function applyBulkEvent(
             break;
         }
         confirmed.add(identity);
-        deleted.push({ ...known, trashedAt: chunk.trashedAt });
+        deleted.push(confirmedChunk(known, chunk.trashedAt, action));
     }
 
     const error = invalid ? INVALID_DELETE_RESPONSE.message : event.error;
     const retryAfterSeconds = invalid ? undefined : event.retryAfterSeconds;
     if (!error && confirmed.size !== requested.size)
-        onFile(item, { deleted, error: INVALID_DELETE_RESPONSE.message });
+        onFile(item, { action, deleted, error: INVALID_DELETE_RESPONSE.message });
     else
         onFile(item, {
+            action,
             deleted,
             ...(error ? { error } : {}),
             ...(retryAfterSeconds ? { retryAfterSeconds } : {})
@@ -104,13 +142,14 @@ function readLines(buffer: string, handleLine: (line: string) => void): string {
 function readBulkDeleteResponse(
     response: Response,
     files: readonly FileGroup[],
+    action: FileActionKind,
     onFile: (item: FileGroup, outcome: BulkDeleteFileOutcome) => void
 ): AsyncResult<void, ApplicationError> {
     return Ok(undefined).andThenAsync(async () => {
         const pending = new Map(files.map((item, index) => [index, item]));
         const reader = response.body?.getReader();
         if (!reader) {
-            failBulkFiles(files, INVALID_DELETE_RESPONSE, onFile);
+            failBulkFiles(files, INVALID_DELETE_RESPONSE, action, onFile);
 
             return Ok(undefined);
         }
@@ -125,7 +164,7 @@ function readBulkDeleteResponse(
             const event = parseEvent(line);
             if (event === null) {
                 invalid = true;
-                failBulkFiles([...pending.values()], INVALID_DELETE_RESPONSE, onFile);
+                failBulkFiles([...pending.values()], INVALID_DELETE_RESPONSE, action, onFile);
                 pending.clear();
 
                 return;
@@ -135,12 +174,12 @@ function readBulkDeleteResponse(
             const item = pending.get(event.index);
             if (!item) {
                 invalid = true;
-                failBulkFiles([...pending.values()], INVALID_DELETE_RESPONSE, onFile);
+                failBulkFiles([...pending.values()], INVALID_DELETE_RESPONSE, action, onFile);
                 pending.clear();
 
                 return;
             }
-            applyBulkEvent(event, item, onFile);
+            applyBulkEvent(event, item, action, onFile);
             pending.delete(event.index);
         };
 
@@ -159,14 +198,16 @@ function readBulkDeleteResponse(
                 [...pending.values()],
                 {
                     code: 'REQUEST_FAILED',
-                    message: 'Move to trash failed'
+                    message: failureMessage(action)
                 },
+                action,
                 onFile
             );
             pending.clear();
         }
 
-        if (pending.size > 0) failBulkFiles([...pending.values()], INVALID_DELETE_RESPONSE, onFile);
+        if (pending.size > 0)
+            failBulkFiles([...pending.values()], INVALID_DELETE_RESPONSE, action, onFile);
 
         return Ok(undefined);
     });
@@ -177,7 +218,8 @@ export function deleteFiles(
     token: string,
     files: readonly FileGroup[],
     workers: number,
-    onFile: (item: FileGroup, outcome: BulkDeleteFileOutcome) => void
+    onFile: (item: FileGroup, outcome: BulkDeleteFileOutcome) => void,
+    action: FileActionKind = FileActionKind.Delete
 ): AsyncResult<void, ApplicationError> {
     if (files.length === 0) return Ok(undefined).andThenAsync(async () => Ok(undefined));
 
@@ -185,20 +227,21 @@ export function deleteFiles(
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
+            action,
             email,
             token,
             workers,
-            files: files.map(bulkFileRequest)
+            files: files.map((item) => bulkFileRequest(item, action))
         })
     };
 
     return Ok(undefined).andThenAsync(async () => {
-        const received = await request(FILES_BULK_API_URL, init, 'Move to trash failed');
+        const received = await request(FILES_BULK_API_URL, init, failureMessage(action));
 
         return received.match<AsyncResult<void, ApplicationError>>({
-            Ok: (response) => readBulkDeleteResponse(response, files, onFile),
+            Ok: (response) => readBulkDeleteResponse(response, files, action, onFile),
             Err: (error) => {
-                failBulkFiles(files, error, onFile);
+                failBulkFiles(files, error, action, onFile);
 
                 return Ok(undefined).andThenAsync(async () => Ok(undefined));
             }

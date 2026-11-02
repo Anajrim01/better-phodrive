@@ -4,6 +4,7 @@ import { Sha1HexSchema } from '../../models';
 import { authenticatedHeaders } from './auth';
 import { photosFetch, type Fetcher } from '../fetcher';
 import { guardedSend, readBody } from './transport';
+import { validateDeleteResponse } from './delete-response';
 import { message, numberField, bytesField, bodyBytes } from '../protobuf';
 
 const TRASH_URL = 'https://photosdata-pa.googleapis.com/6439526531001121323/17490284929287180316';
@@ -12,7 +13,8 @@ export function deletePermanently(
     email: string,
     token: string,
     sha1s: readonly string[],
-    fetcher: Fetcher = photosFetch
+    fetcher: Fetcher = photosFetch,
+    mediaKeys: readonly string[]
 ): AsyncResult<void, ServerError> {
     if (sha1s.length === 0) return Ok(undefined).andThenAsync(async () => Ok(undefined));
 
@@ -54,7 +56,9 @@ export function deletePermanently(
                 },
                 'Delete permanently'
             ).andThenAsync((response) =>
-                readBody(response, 'Delete permanently').map(() => undefined)
+                readBody(response, 'Delete permanently').andThen((body) =>
+                    validateDeleteResponse(body, new Set(mediaKeys))
+                )
             );
         });
 }

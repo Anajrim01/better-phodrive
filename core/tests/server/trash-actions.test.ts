@@ -18,6 +18,10 @@ import {
     readAccountState,
     writeAccountState
 } from '@madkarmaa/phodrive-core/server/photos/library/state';
+import {
+    ensureAccountIndex,
+    refreshAccountIndex
+} from '@madkarmaa/phodrive-core/server/photos/library/ensure';
 import { downloadFixture } from '../helpers/download';
 
 vi.mock('@madkarmaa/phodrive-core/server/photos', () => ({
@@ -25,6 +29,11 @@ vi.mock('@madkarmaa/phodrive-core/server/photos', () => ({
     moveToTrash: vi.fn(),
     restoreFromTrash: vi.fn(),
     deletePermanently: vi.fn()
+}));
+
+vi.mock('@madkarmaa/phodrive-core/server/photos/library/ensure', () => ({
+    ensureAccountIndex: vi.fn(),
+    refreshAccountIndex: vi.fn()
 }));
 
 const EMAIL = 'test@example.com';
@@ -43,6 +52,12 @@ beforeEach(async () => {
         Ok(undefined).andThenAsync(async () => Ok(undefined))
     );
     vi.mocked(deletePermanently).mockImplementation(() =>
+        Ok(undefined).andThenAsync(async () => Ok(undefined))
+    );
+    vi.mocked(ensureAccountIndex).mockImplementation(() =>
+        Ok(undefined).andThenAsync(async () => Ok(undefined))
+    );
+    vi.mocked(refreshAccountIndex).mockImplementation(() =>
         Ok(undefined).andThenAsync(async () => Ok(undefined))
     );
 });
@@ -143,12 +158,47 @@ test('restore and delete forever reject chunks that are not trashed', async () =
     expect(deletePermanently).not.toHaveBeenCalled();
 });
 
+test('delete forever rejects a forged trashed state before any request', async () => {
+    save(chunks());
+    const { input } = downloadFixture();
+    const forged = {
+        ...input,
+        action: FileActionKind.DeleteForever,
+        chunks: input.chunks.map((chunk) => ({ ...chunk, trashedAt: 1 }))
+    };
+
+    const deleted = await deleteForeverFile(forged);
+
+    expect(deleted.unwrapErr().code).toBe('NOT_TRASHED');
+    expect(deletePermanently).not.toHaveBeenCalled();
+});
+
+test('delete forever rejects client chunk identity that differs from the account index', async () => {
+    save(chunks().map((chunk) => ({ ...chunk, trashedAt: 1 })));
+    const { input } = downloadFixture();
+    const forged = {
+        ...input,
+        action: FileActionKind.DeleteForever,
+        chunks: input.chunks.map((chunk) => ({
+            ...chunk,
+            mediaKey: `${chunk.mediaKey}-other`,
+            trashedAt: 1
+        }))
+    };
+
+    const deleted = await deleteForeverFile(forged);
+
+    expect(deleted.unwrapErr().code).toBe('INVALID_FILE_METADATA');
+    expect(deletePermanently).not.toHaveBeenCalled();
+});
+
 test('restore and delete forever send one key per sha1', async () => {
     const items = chunks().map((chunk) => ({ ...chunk, trashedAt: 1, sha1: 'c'.repeat(40) }));
     save(items);
     const { input } = downloadFixture();
 
     await restoreFile({ ...input, action: FileActionKind.Restore, chunks: items });
+    save(items);
     await deleteForeverFile({ ...input, action: FileActionKind.DeleteForever, chunks: items });
 
     expect(vi.mocked(restoreFromTrash).mock.calls[0]?.[2]).toEqual(['c'.repeat(40)]);

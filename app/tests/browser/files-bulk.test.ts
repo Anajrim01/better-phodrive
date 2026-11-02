@@ -1,7 +1,8 @@
 import { expect, test, vi } from 'vitest';
 import { createHash } from 'node:crypto';
 import { groupChunks } from '@madkarmaa/phodrive-core/files';
-import type { RemoteBmp } from '@madkarmaa/phodrive-core/models';
+import { partitionFileGroups } from '@madkarmaa/phodrive-core/trash';
+import { FileActionKind, type RemoteBmp } from '@madkarmaa/phodrive-core/models';
 import { deleteFiles } from '#browser/files';
 
 const PAYLOAD = Uint8Array.of(0, 255, 13, 10, 42);
@@ -225,4 +226,127 @@ test('a 1711-file selection fits the default request body limit', async () => {
 
     expect(fetchMock).toHaveBeenCalledOnce();
     expect(Buffer.byteLength(body)).toBeLessThan(512 * 1024);
+});
+
+test('bulk restore carries the action and returns restored chunks', async () => {
+    const item = partitionFileGroups([{ ...chunk(), trashedAt: 1, email: 'test@example.com' }])
+        .trashed[0];
+    const outcomes: { action: FileActionKind; deleted: number; error?: string }[] = [];
+    let body = '';
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (_input, init) => {
+        body = String(init?.body);
+
+        return new Response(
+            `${JSON.stringify({
+                type: 'file',
+                index: 0,
+                name: item.name,
+                action: FileActionKind.Restore,
+                deleted: [
+                    { mediaKey: item.trashedChunks[0].mediaKey, sha1: item.trashedChunks[0].sha1 }
+                ]
+            })}
+${JSON.stringify({ type: 'done' })}
+`
+        );
+    });
+
+    const result = await deleteFiles(
+        'test@example.com',
+        'aas_et/test',
+        [item],
+        2,
+        (_file, outcome) => {
+            outcomes.push({
+                action: outcome.action,
+                deleted: outcome.deleted.length,
+                ...(outcome.error ? { error: outcome.error } : {})
+            });
+        },
+        FileActionKind.Restore
+    );
+
+    expect(result.isOk()).toBe(true);
+    expect(JSON.parse(body)).toMatchObject({ action: FileActionKind.Restore });
+    expect(outcomes).toEqual([{ action: FileActionKind.Restore, deleted: 1 }]);
+});
+
+test('bulk permanent delete carries the action and returns removed chunks', async () => {
+    const item = partitionFileGroups([{ ...chunk(), trashedAt: 1, email: 'test@example.com' }])
+        .trashed[0];
+    const outcomes: { action: FileActionKind; deleted: number }[] = [];
+    let body = '';
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (_input, init) => {
+        body = String(init?.body);
+
+        return new Response(
+            `${JSON.stringify({
+                type: 'file',
+                index: 0,
+                name: item.name,
+                action: FileActionKind.DeleteForever,
+                deleted: [
+                    { mediaKey: item.trashedChunks[0].mediaKey, sha1: item.trashedChunks[0].sha1 }
+                ]
+            })}
+${JSON.stringify({ type: 'done' })}
+`
+        );
+    });
+
+    const result = await deleteFiles(
+        'test@example.com',
+        'aas_et/test',
+        [item],
+        2,
+        (_file, outcome) => {
+            outcomes.push({ action: outcome.action, deleted: outcome.deleted.length });
+        },
+        FileActionKind.DeleteForever
+    );
+
+    expect(result.isOk()).toBe(true);
+    expect(JSON.parse(body)).toMatchObject({ action: FileActionKind.DeleteForever });
+    expect(outcomes).toEqual([{ action: FileActionKind.DeleteForever, deleted: 1 }]);
+});
+
+test('a file event for another action is rejected', async () => {
+    const item = partitionFileGroups([{ ...chunk(), trashedAt: 1, email: 'test@example.com' }])
+        .trashed[0];
+    const outcomes: { deleted: number; error?: string }[] = [];
+    vi.spyOn(globalThis, 'fetch').mockImplementation(
+        async () =>
+            new Response(
+                `${JSON.stringify({
+                    type: 'file',
+                    index: 0,
+                    name: item.name,
+                    action: FileActionKind.Delete,
+                    deleted: [
+                        {
+                            mediaKey: item.trashedChunks[0].mediaKey,
+                            sha1: item.trashedChunks[0].sha1
+                        }
+                    ]
+                })}
+${JSON.stringify({ type: 'done' })}
+`
+            )
+    );
+
+    await deleteFiles(
+        'test@example.com',
+        'aas_et/test',
+        [item],
+        2,
+        (_file, outcome) => {
+            outcomes.push({
+                deleted: outcome.deleted.length,
+                ...(outcome.error ? { error: outcome.error } : {})
+            });
+        },
+        FileActionKind.Restore
+    );
+
+    expect(outcomes).toEqual([{ deleted: 0, error: 'Invalid delete response.' }]);
 });

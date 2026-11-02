@@ -4,6 +4,7 @@ import { Sha1HexSchema } from '../../models';
 import { authenticatedHeaders } from './auth';
 import { photosFetch, type Fetcher } from '../fetcher';
 import { guardedSend, readBody } from './transport';
+import { validateDeleteResponse } from './delete-response';
 import { message, numberField, bytesField, bodyBytes } from '../protobuf';
 
 const TRASH_URL = 'https://photosdata-pa.googleapis.com/6439526531001121323/17490284929287180316';
@@ -12,16 +13,18 @@ export function moveToTrash(
     email: string,
     token: string,
     sha1: string,
-    fetcher: Fetcher = photosFetch
+    fetcher: Fetcher = photosFetch,
+    mediaKey: string
 ): AsyncResult<void, ServerError> {
-    return moveToTrashBatch(email, token, [sha1], fetcher);
+    return moveToTrashBatch(email, token, [sha1], fetcher, [mediaKey]);
 }
 
 export function moveToTrashBatch(
     email: string,
     token: string,
     sha1s: readonly string[],
-    fetcher: Fetcher = photosFetch
+    fetcher: Fetcher = photosFetch,
+    mediaKeys: readonly string[]
 ): AsyncResult<void, ServerError> {
     if (sha1s.length === 0) return Ok(undefined).andThenAsync(async () => Ok(undefined));
 
@@ -70,6 +73,10 @@ export function moveToTrashBatch(
                     body: bodyBytes(body)
                 },
                 'Move to trash'
-            ).andThenAsync((response) => readBody(response, 'Move to trash').map(() => undefined));
+            ).andThenAsync((response) =>
+                readBody(response, 'Move to trash').andThen((body) =>
+                    validateDeleteResponse(body, new Set(mediaKeys))
+                )
+            );
         });
 }

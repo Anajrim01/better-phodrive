@@ -1,7 +1,7 @@
 import { expect, test, vi } from 'vitest';
 import { createHash } from 'node:crypto';
 import { bmpResponse, downloadFixture } from '../helpers/download';
-import { authResponse, bytes } from '../helpers/photos';
+import { authResponse, bytes, deleteResponse } from '../helpers/photos';
 import { downloadBmp, moveToTrash } from '@madkarmaa/phodrive-core/server/photos';
 import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
 
@@ -36,7 +36,7 @@ test('download opens the original response stream and trash targets its dedup ke
         const body = Buffer.from(requestBody);
         expect(body.subarray(0, 2)).toEqual(Buffer.from([16, 1]));
         expect(body.includes(Buffer.from(sha1.toString('base64url')))).toBe(true);
-        return new Response(Uint8Array.from([]));
+        return deleteResponse(['media-key']);
     };
     const downloaded = await downloadBmp(
         'test@example.com',
@@ -52,7 +52,8 @@ test('download opens the original response stream and trash targets its dedup ke
         'test@example.com',
         'aas_et/test',
         sha1.toString('hex'),
-        fakeFetch
+        fakeFetch,
+        'media-key'
     );
     expect(deleted.isOk()).toBe(true);
     expect(step).toBe(4);
