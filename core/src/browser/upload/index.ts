@@ -14,6 +14,7 @@ import { httpChunkTransport, type ChunkTransport } from './request';
 import { createUploadJobs, createUploadEventHandler, type UploadJob } from './jobs';
 import { uploadSource, type UploadSourceOptions } from './file';
 
+export type { ExistingUpload, UploadSourceOptions } from './file';
 export type UploadOptions = UploadSourceOptions;
 
 export function uploadFiles(

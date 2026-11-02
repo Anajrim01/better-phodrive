@@ -81,6 +81,7 @@ export class DriveController extends DriveView {
         this.uploads = new DriveUploads({
             account: () => this.account(),
             folder: () => this.library.folder,
+            files: () => this.library.files,
             workers: () => this.settings.concurrentWorkers,
             loading: () => this.library.loading,
             blocked: () => !!this.files.action || this.bulk.running,
@@ -123,6 +124,11 @@ export class DriveController extends DriveView {
         });
         this.files = createDriveFiles(this);
         this.bulk = createDriveBulk(this);
+
+        watch(
+            () => this.library.chunks,
+            () => this.uploads.syncRecent(this.library.files)
+        );
 
         watch(
             [() => this.selectedEmail, () => this.accounts[this.selectedEmail]],

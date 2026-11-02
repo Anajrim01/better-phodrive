@@ -53,6 +53,7 @@ test('retrying a failed group file stays on its owner and waits while paused', a
             ]
         }),
         folder: () => '',
+        files: () => [],
         workers: () => 1,
         loading: () => false,
         blocked: () => false,

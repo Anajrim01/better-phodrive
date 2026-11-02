@@ -47,6 +47,7 @@ test('a throttled group upload marks its owner paused', async () => {
             ]
         }),
         folder: () => '',
+        files: () => [],
         workers: () => 1,
         loading: () => false,
         blocked: () => false,

@@ -1,14 +1,29 @@
 import { UploadJobStatus } from '@madkarmaa/phodrive-core/models';
-import type { UploadedChunk } from '@madkarmaa/phodrive-core/files';
-import { uploadGroupFiles, type GroupUploadMember } from '@madkarmaa/phodrive-core/browser/upload';
+import type { FileGroup, UploadedChunk } from '@madkarmaa/phodrive-core/files';
+import {
+    uploadGroupFiles,
+    type ExistingUpload,
+    type GroupUploadMember
+} from '@madkarmaa/phodrive-core/browser/upload';
 import { createUploadJobs, uploadFiles, type UploadJob } from '#browser/files';
 import type { BrowserPreferences } from '#browser/storage';
 import { addFilesToFolderAlbums } from '#browser/drive/folder-albums';
+import {
+    existingLookup,
+    failUnfinished,
+    markPending,
+    pruneRecent,
+    rememberUploads,
+    selectionPlan,
+    settleDuplicates,
+    uploadKey
+} from '#browser/drive/upload-dedupe';
 
 export type UploadDeps = {
     account: () => { email: string; token: string | undefined };
     group: () => { members: GroupUploadMember[] } | null;
     folder: () => string;
+    files: () => readonly FileGroup[];
     workers: () => number;
     loading: () => boolean;
     blocked: () => boolean;
@@ -28,13 +43,21 @@ export class DriveUploads {
     jobs = $state<UploadJob[]>([]);
     private sources: readonly File[] = [];
     private folders = new Map<number, string>();
+    private recent = new Map<string, ExistingUpload>();
+    private pending = new Set<string>();
 
     constructor(private readonly deps: UploadDeps) {}
+
+    syncRecent(files: readonly FileGroup[]): void {
+        pruneRecent(this.recent, files, this.pending);
+    }
 
     reset(): void {
         this.jobs = [];
         this.sources = [];
         this.folders.clear();
+        this.recent.clear();
+        this.pending.clear();
         this.panelOpen = false;
         this.busy = false;
     }
@@ -127,8 +150,25 @@ export class DriveUploads {
 
         const uploadedChunks: UploadedChunk[] = [];
         const preferences = this.deps.preferences();
+        const jobIds = files.map((_, index) => retryId ?? index);
+        let failure: string | null = null;
+        let waiting = 0;
+
+        this.panelOpen = true;
+        this.deps.feedback('');
+        this.busy = true;
+
+        const plan = await selectionPlan(files, jobIds, folder);
+        const existing = existingLookup(this.deps.files(), this.recent, this.pending);
+        const findExisting = (query: { email: string; name: string; fileHash: string }) =>
+            existing.get(uploadKey(query.email, query.name, query.fileHash)) ?? null;
+        const transferOptions = {
+            folder,
+            compress: preferences?.compression ?? false,
+            existing: findExisting
+        };
         const onJob = (job: UploadJob) => {
-            const id = retryId ?? job.id;
+            const id = plan.jobIds[job.id] ?? retryId ?? job.id;
             if (group && job.retryAt !== null && job.account)
                 this.deps.markPaused(job.account, job.retryAt);
             this.jobs = this.jobs.map((current) => (current.id === id ? { ...job, id } : current));
@@ -143,21 +183,15 @@ export class DriveUploads {
 
             this.deps.onChunk(saved);
         };
-        let failure: string | null = null;
-        let waiting = 0;
-
-        this.panelOpen = true;
-        this.deps.feedback('');
-        this.busy = true;
 
         if (group) {
             const uploaded = await uploadGroupFiles(
-                files,
+                plan.files,
                 forced ?? group.members,
                 this.deps.workers(),
                 onJob,
                 onChunk,
-                { folder, compress: preferences?.compression ?? false }
+                transferOptions
             );
             uploaded.inspectErr((error) => {
                 failure = error.message;
@@ -167,13 +201,13 @@ export class DriveUploads {
             });
         } else {
             const uploaded = await uploadFiles(
-                files,
+                plan.files,
                 email,
                 token!,
                 this.deps.workers(),
                 onJob,
                 onChunk,
-                { folder, compress: preferences?.compression ?? false }
+                transferOptions
             );
             uploaded.inspectErr((error) => {
                 failure = error.message;
@@ -183,18 +217,16 @@ export class DriveUploads {
         if (failure) {
             const message = failure;
             this.deps.feedback(message);
-            this.jobs = this.jobs.map((job) =>
-                (retryId !== undefined && job.id !== retryId) ||
-                job.status === UploadJobStatus.Complete ||
-                job.status === UploadJobStatus.Error
-                    ? job
-                    : { ...job, status: UploadJobStatus.Error, message }
-            );
+            this.jobs = failUnfinished(this.jobs, retryId, message);
         }
         if (waiting)
             this.deps.feedback(
                 `${waiting} ${waiting === 1 ? 'file is' : 'files are'} waiting for an account.`
             );
+
+        this.jobs = settleDuplicates(this.jobs, plan.duplicates);
+        markPending(uploadedChunks, this.jobs, email, this.pending);
+        rememberUploads(uploadedChunks, this.jobs, email, this.recent);
 
         if (preferences) {
             if (group) {
