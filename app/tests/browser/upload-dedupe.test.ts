@@ -1,0 +1,150 @@
+import { createHash } from 'node:crypto';
+import { afterEach, expect, test, vi } from 'vitest';
+import { UploadJobStatus, UploadStatus } from '@madkarmaa/phodrive-core/models';
+import { groupChunks, type FileGroup, type UploadedChunk } from '@madkarmaa/phodrive-core/files';
+import type { GroupUploadMember } from '@madkarmaa/phodrive-core/browser/upload';
+import { DriveUploads, type UploadDeps } from '#browser/drive/uploads.svelte';
+import { browserUploadResponse } from '../../../core/tests/helpers/upload';
+
+const EMAIL = 'first@example.com';
+const SECOND = 'second@example.com';
+const PAYLOAD = Uint8Array.of(0, 255, 13, 10, 42);
+const SHA1 = 'a'.repeat(40);
+
+afterEach(() => vi.restoreAllMocks());
+
+function existingFile(name: string, email = EMAIL, folder = ''): FileGroup {
+    const fileHash = createHash('sha256').update(PAYLOAD).digest('hex');
+    const chunk: UploadedChunk = {
+        email,
+        fileHash,
+        fileId: fileHash,
+        chunkIndex: 0,
+        isLast: true,
+        originalName: name,
+        folder: folder || undefined,
+        size: PAYLOAD.length,
+        at: 1,
+        mediaKey: `${name}-key`,
+        sha1: SHA1
+    };
+
+    return groupChunks([chunk])[0]!;
+}
+
+function driveUploads(
+    options: {
+        files?: readonly FileGroup[];
+        folder?: string;
+        group?: GroupUploadMember[] | null;
+        onChunk?: (chunk: UploadedChunk) => void;
+    } = {}
+): DriveUploads {
+    const deps: UploadDeps = {
+        account: () => ({ email: EMAIL, token: 'aas_et/first' }),
+        group: () => (options.group ? { members: options.group } : null),
+        folder: () => options.folder ?? '',
+        files: () => options.files ?? [],
+        workers: () => 1,
+        loading: () => false,
+        blocked: () => false,
+        preferences: () => null,
+        feedback: () => {},
+        onChunk: options.onChunk ?? (() => {}),
+        afterUpload: () => {},
+        reload: () => {},
+        reloadGroup: () => {},
+        markPaused: () => {},
+        observe: () => {}
+    };
+
+    return new DriveUploads(deps);
+}
+
+function mockUpload() {
+    return vi
+        .spyOn(globalThis, 'fetch')
+        .mockImplementation(async (_url, init) => browserUploadResponse(init));
+}
+
+test('a duplicate against the loaded library skips the transport', async () => {
+    const fetch = vi.spyOn(globalThis, 'fetch');
+    const uploads = driveUploads({ files: [existingFile('proof.bin')] });
+
+    await uploads.upload([new File([PAYLOAD], 'proof.bin')]);
+
+    expect(fetch).not.toHaveBeenCalled();
+    expect(uploads.jobs[0]).toMatchObject({
+        status: UploadJobStatus.Complete,
+        result: {
+            status: UploadStatus.AlreadyExists,
+            mediaKey: 'proof.bin-key',
+            sha1: SHA1
+        }
+    });
+});
+
+test('same name and content in another folder is skipped', async () => {
+    const fetch = vi.spyOn(globalThis, 'fetch');
+    const uploads = driveUploads({
+        files: [existingFile('proof.bin', EMAIL, 'other')],
+        folder: 'current'
+    });
+
+    await uploads.upload([new File([PAYLOAD], 'proof.bin')]);
+
+    expect(fetch).not.toHaveBeenCalled();
+    expect(uploads.jobs[0]?.result?.status).toBe(UploadStatus.AlreadyExists);
+});
+
+test('identical content under a different name still uploads', async () => {
+    const fetch = mockUpload();
+    const uploads = driveUploads({ files: [existingFile('proof.bin')] });
+
+    await uploads.upload([new File([PAYLOAD], 'other.bin')]);
+
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(uploads.jobs[0]?.result?.status).toBe(UploadStatus.Uploaded);
+});
+
+test('same-selection duplicates produce one network upload', async () => {
+    const fetch = mockUpload();
+    const chunks: UploadedChunk[] = [];
+    const uploads = driveUploads({ onChunk: (chunk) => chunks.push(chunk) });
+
+    await uploads.upload([
+        new File([PAYLOAD], 'proof.bin', { lastModified: 1 }),
+        new File([PAYLOAD], 'proof.bin', { lastModified: 1 })
+    ]);
+
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(chunks).toHaveLength(1);
+    expect(uploads.jobs[0]?.result?.status).toBe(UploadStatus.Uploaded);
+    expect(uploads.jobs[1]?.result?.status).toBe(UploadStatus.AlreadyExists);
+    expect(uploads.jobs[1]?.result?.mediaKey).toBe(uploads.jobs[0]?.result?.mediaKey);
+});
+
+test('an in-session upload is skipped before the library reloads', async () => {
+    const fetch = mockUpload();
+    const uploads = driveUploads();
+
+    await uploads.upload([new File([PAYLOAD], 'proof.bin', { lastModified: 1 })]);
+    await uploads.upload([new File([PAYLOAD], 'proof.bin', { lastModified: 2 })]);
+
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(uploads.jobs[0]?.result?.status).toBe(UploadStatus.AlreadyExists);
+});
+
+test('a group dedupe ignores another account file with the same name and content', async () => {
+    const fetch = mockUpload();
+    const members: GroupUploadMember[] = [{ email: EMAIL, token: 'aas_et/first', paused: false }];
+    const uploads = driveUploads({
+        files: [existingFile('proof.bin', SECOND)],
+        group: members
+    });
+
+    await uploads.upload([new File([PAYLOAD], 'proof.bin')]);
+
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(uploads.jobs[0]?.result?.status).toBe(UploadStatus.Uploaded);
+});

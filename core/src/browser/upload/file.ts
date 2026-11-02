@@ -7,13 +7,17 @@ import { planChunks, type UploadPlan } from '../../upload';
 import type { ChunkTransport } from './request';
 import { uploadChunk } from './chunk';
 import { hashFile, uploadIdentity } from './hash';
+import type { UploadEventHandler } from './jobs';
 
 const PROGRESS_INTERVAL_MS = 100;
+
+export type ExistingUpload = { mediaKey: string; sha1: string };
 
 export type UploadSourceOptions = {
     folder?: string;
     folders?: ReadonlyMap<File, string>;
     compress?: boolean;
+    existing?: (query: { email: string; name: string; fileHash: string }) => ExistingUpload | null;
 };
 
 export function uploadSource(
@@ -21,13 +25,13 @@ export function uploadSource(
     account: { email: string; token: string },
     transport: ChunkTransport,
     chunkLimit: ReturnType<typeof pLimit>,
-    handle: (event: UploadEvent) => Result<void, ApplicationError>,
+    handle: UploadEventHandler,
     options: UploadSourceOptions = {}
 ): AsyncResult<void, ApplicationError> {
     return Ok(undefined).andThenAsync(async () => {
         const folder = options.folders?.get(file) ?? folderFromFile(file, options.folder);
         let lastProgress = 0;
-        const prepared = await hashFile(file, (completed) => {
+        const hashed = await hashFile(file, (completed) => {
             const now = performance.now();
             if (completed !== file.size && now - lastProgress < PROGRESS_INTERVAL_MS) return;
 
@@ -37,12 +41,31 @@ export function uploadSource(
                 id,
                 progress: { phase: UploadPhase.Preparing, completed, total: file.size }
             });
-        }).andThenAsync((fileHash) =>
-            uploadIdentity(file.name, fileHash, folder).map((fileId) => ({
-                fileHash,
-                fileId
-            }))
-        );
+        });
+        if (hashed.isErr()) {
+            hashed.inspectErr((error) =>
+                handle({ type: UploadEventType.FileError, id, error: error.message })
+            );
+
+            return Ok(undefined);
+        }
+
+        const fileHash = hashed.unwrap();
+        const existing = options.existing?.({ email: account.email, name: file.name, fileHash });
+        if (existing) {
+            handle.completeExisting(id, {
+                status: UploadStatus.AlreadyExists,
+                mediaKey: existing.mediaKey,
+                sha1: existing.sha1
+            });
+
+            return Ok(undefined);
+        }
+
+        const prepared = await uploadIdentity(file.name, fileHash, folder).map((fileId) => ({
+            fileHash,
+            fileId
+        }));
         if (prepared.isErr()) {
             prepared.inspectErr((error) =>
                 handle({ type: UploadEventType.FileError, id, error: error.message })

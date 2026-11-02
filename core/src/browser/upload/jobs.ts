@@ -3,6 +3,7 @@ import {
     UploadEventType,
     UploadJobStatus,
     UploadPhase,
+    UploadStatus,
     type UploadEvent,
     type UploadProgress,
     type UploadResponse
@@ -30,6 +31,11 @@ export interface UploadSource {
     file: File;
     jobId: number;
 }
+
+export type UploadEventHandler = {
+    (event: UploadEvent): Result<void, ApplicationError>;
+    completeExisting(id: number, result: UploadResponse): Result<void, ApplicationError>;
+};
 
 export function createUploadJobs(files: readonly File[]): UploadJob[] {
     return files.map((file, id) => ({
@@ -116,7 +122,7 @@ export function createUploadEventHandler(
     onJob: (job: UploadJob) => void,
     onChunk: (chunk: UploadedChunk) => void,
     now: () => number = () => performance.now()
-): (event: UploadEvent) => Result<void, ApplicationError> {
+): UploadEventHandler {
     const confirmed = jobs.map(() => new Map<number, UploadedChunk>());
     const samples = jobs.map((): RateSample[] => []);
 
@@ -155,7 +161,7 @@ export function createUploadEventHandler(
         onJob(estimated);
     }
 
-    return (event) => {
+    const handler = (event: UploadEvent): Result<void, ApplicationError> => {
         if (event.type === UploadEventType.Error)
             return Err({ code: 'UPLOAD_FAILED', message: event.error } as const);
         if (event.type === UploadEventType.Complete) {
@@ -215,4 +221,20 @@ export function createUploadEventHandler(
                 return Ok(undefined);
         }
     };
+
+    return Object.assign(handler, {
+        completeExisting(id: number, result: UploadResponse): Result<void, ApplicationError> {
+            const source = sources[id];
+            if (!source) return invalidProgress();
+
+            const job = jobs[source.jobId];
+            if (job.status === UploadJobStatus.Complete || job.status === UploadJobStatus.Error)
+                return invalidProgress();
+            if (result.status !== UploadStatus.AlreadyExists) return invalidProgress();
+
+            publish({ ...job, status: UploadJobStatus.Complete, result, retryAt: null });
+
+            return Ok(undefined);
+        }
+    });
 }

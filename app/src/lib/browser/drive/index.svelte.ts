@@ -81,6 +81,7 @@ export class DriveController extends DriveView {
         this.uploads = new DriveUploads({
             account: () => this.account(),
             folder: () => this.library.folder,
+            files: () => this.library.files,
             workers: () => this.settings.concurrentWorkers,
             loading: () => this.library.loading,
             blocked: () => !!this.files.action || this.bulk.running,
