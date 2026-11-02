@@ -1,30 +1,19 @@
 import { SERVER_ERRORS, type ServerError } from '../../errors';
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import type { Fetcher } from '../../fetcher';
-import { hashLookup, hashLookupMany, type HashLookupResults } from './lookup';
+import { hashLookupMany, type HashLookupResults } from './lookup';
+import {
+    HASH_LOOKUP_ABORTED,
+    abortLookup,
+    lookupWaiterOrAbort,
+    makeWaiter,
+    settleWaiter,
+    type LookupBatch,
+    type LookupWaiter
+} from './lookup-waiter';
 
 const HASH_LOOKUP_BATCH_SIZE = 20;
 const HASH_LOOKUP_WINDOW_MS = 8;
-const HASH_LOOKUP_ABORTED = {
-    code: 'REQUEST_FAILED',
-    message: 'Hash lookup timed out'
-} as const;
-
-type LookupWaiter = {
-    sha1: Buffer;
-    rpcHeaders: Record<string, string>;
-    fetcher: Fetcher;
-    signal?: AbortSignal;
-    settled: boolean;
-    onAbort?: () => void;
-    resolve: (result: Result<string | null, ServerError>) => void;
-};
-
-type LookupBatch = {
-    email: string;
-    waiters: LookupWaiter[];
-    timer: ReturnType<typeof setTimeout>;
-};
 
 type LookupOutcome = { ok: true; value: HashLookupResults } | { ok: false; error: ServerError };
 
@@ -46,10 +35,14 @@ export function lookupHash(
                     return;
                 }
 
-                const waiter = makeWaiter(sha1, rpcHeaders, fetcher, signal, resolve);
+                const waiter = makeWaiter(sha1, rpcHeaders, fetcher, signal, resolve, (created) => {
+                    abortLookup(created);
+                    abortIdleBatch(created.batch);
+                });
                 const current = lookupBatches.get(email);
 
                 if (current) {
+                    waiter.batch = current;
                     current.waiters.push(waiter);
                     if (current.waiters.length >= HASH_LOOKUP_BATCH_SIZE) {
                         clearTimeout(current.timer);
@@ -61,9 +54,12 @@ export function lookupHash(
 
                 const batch: LookupBatch = {
                     email,
-                    waiters: [waiter],
+                    waiters: [],
+                    abort: new AbortController(),
                     timer: setTimeout(() => void flushLookupBatch(batch), HASH_LOOKUP_WINDOW_MS)
                 };
+                waiter.batch = batch;
+                batch.waiters.push(waiter);
                 lookupBatches.set(email, batch);
             })
     );
@@ -75,6 +71,7 @@ async function flushLookupBatch(batch: LookupBatch): Promise<void> {
     clearTimeout(batch.timer);
 
     const waiters = batch.waiters.splice(0);
+    batch.inFlight = waiters;
     if (waiters.length === 0) return;
 
     const activeWaiters = waiters.filter((waiter) => !waiter.signal?.aborted);
@@ -96,11 +93,13 @@ async function flushLookupBatch(batch: LookupBatch): Promise<void> {
     }
 
     const first = activeWaiters[0];
+    const requestFetcher: Fetcher = (url, init) =>
+        first.fetcher(url, { ...init, signal: batch.abort.signal });
     const batchResult = await hashLookupMany(
         batch.email,
         [...unique.values()],
         first.rpcHeaders,
-        first.fetcher
+        requestFetcher
     );
     const outcome = batchResult.match<LookupOutcome>({
         Ok: (value) => ({ ok: true, value }),
@@ -159,66 +158,15 @@ async function flushLookupBatch(batch: LookupBatch): Promise<void> {
     );
 }
 
-function makeWaiter(
-    sha1: Buffer,
-    rpcHeaders: Record<string, string>,
-    fetcher: Fetcher,
-    signal: AbortSignal | undefined,
-    resolve: (result: Result<string | null, ServerError>) => void
-): LookupWaiter {
-    const waiter: LookupWaiter = {
-        sha1,
-        rpcHeaders,
-        fetcher,
-        signal,
-        settled: false,
-        resolve
-    };
+function abortIdleBatch(batch: LookupBatch | undefined): void {
+    if (!batch) return;
 
-    if (signal) {
-        waiter.onAbort = () => settleWaiter(waiter, Err(HASH_LOOKUP_ABORTED));
-        signal.addEventListener('abort', waiter.onAbort, { once: true });
-    }
+    const waiters = batch.inFlight ?? batch.waiters;
+    if (waiters.some((waiter) => !waiter.settled)) return;
 
-    return waiter;
-}
-
-function settleWaiter(waiter: LookupWaiter, result: Result<string | null, ServerError>): void {
-    if (waiter.settled) return;
-
-    waiter.settled = true;
-    if (waiter.signal && waiter.onAbort) waiter.signal.removeEventListener('abort', waiter.onAbort);
-    waiter.resolve(result);
-}
-
-async function lookupWaiterOrAbort(
-    email: string,
-    waiter: LookupWaiter
-): Promise<Result<string | null, ServerError> | null> {
-    const signal = waiter.signal;
-    if (!signal) return lookupWaiter(email, waiter);
-    if (signal.aborted) return null;
-
-    let onAbort: (() => void) | undefined;
-    const aborted = new Promise<null>((resolve) => {
-        onAbort = () => resolve(null);
-        signal.addEventListener('abort', onAbort, { once: true });
-    });
-    const request = Promise.resolve(lookupWaiter(email, waiter));
-    void request.catch(() => undefined);
-
-    try {
-        return await Promise.race([request, aborted]);
-    } finally {
-        if (onAbort) signal.removeEventListener('abort', onAbort);
-    }
-}
-
-function lookupWaiter(
-    email: string,
-    waiter: LookupWaiter
-): AsyncResult<string | null, ServerError> {
-    return hashLookup(email, waiter.sha1, waiter.rpcHeaders, waiter.fetcher);
+    batch.abort.abort();
+    if (lookupBatches.get(batch.email) === batch) lookupBatches.delete(batch.email);
+    clearTimeout(batch.timer);
 }
 
 function shouldFallback(error: ServerError, callers: number): boolean {
