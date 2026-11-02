@@ -109,3 +109,20 @@ test('a refresh that still misses a chunk returns validation JSON and never call
     expect(refreshAccountIndex).toHaveBeenCalledOnce();
     expect(moveToTrashBatch).not.toHaveBeenCalled();
 });
+
+test.each([FileActionKind.Restore, FileActionKind.DeleteForever] as const)(
+    'an all-invalid %s request returns the original NOT_TRASHED error',
+    async (action) => {
+        const body = payload(1, action);
+        save(body);
+
+        const response = await POST({ request: request(body) } as never);
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toEqual({
+            error: 'Only trashed chunks can be restored or deleted forever.'
+        });
+        expect(refreshAccountIndex).toHaveBeenCalledOnce();
+        expect(moveToTrashBatch).not.toHaveBeenCalled();
+    }
+);

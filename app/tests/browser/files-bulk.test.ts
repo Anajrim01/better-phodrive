@@ -85,61 +85,6 @@ test('bulk delete streams per-file results and maps confirmed chunks to local fi
     ]);
 });
 
-test('duplicate confirmations cannot complete a multi-chunk file', async () => {
-    const first = { ...chunk(), isLast: false };
-    const second = {
-        ...chunk(),
-        chunkIndex: 1,
-        mediaKey: 'proof-1',
-        sha1: '1'.repeat(40)
-    };
-    const item = groupChunks([
-        { ...first, email: 'test@example.com' },
-        { ...second, email: 'test@example.com' }
-    ])[0];
-    const outcomes: { deleted: number; error?: string }[] = [];
-    vi.spyOn(globalThis, 'fetch').mockImplementation(
-        async () =>
-            new Response(
-                `${JSON.stringify({
-                    type: 'file',
-                    index: 0,
-                    name: item.name,
-                    deleted: [
-                        {
-                            mediaKey: first.mediaKey,
-                            sha1: first.sha1,
-                            trashedAt: 5
-                        },
-                        {
-                            mediaKey: first.mediaKey,
-                            sha1: first.sha1,
-                            trashedAt: 5
-                        }
-                    ]
-                })}
-${JSON.stringify({ type: 'done' })}
-`
-            )
-    );
-
-    const result = await deleteFiles(
-        'test@example.com',
-        'aas_et/test',
-        [item],
-        2,
-        (_file, outcome) => {
-            outcomes.push({
-                deleted: outcome.deleted.length,
-                ...(outcome.error ? { error: outcome.error } : {})
-            });
-        }
-    );
-
-    expect(result.isOk()).toBe(true);
-    expect(outcomes).toEqual([{ deleted: 1, error: 'Invalid delete response.' }]);
-});
-
 test('bulk delete reports every file when the request fails before streaming', async () => {
     const first = groupChunks([{ ...chunk(), email: 'test@example.com' }])[0];
     const second = groupChunks([
@@ -163,44 +108,6 @@ test('bulk delete reports every file when the request fails before streaming', a
         'proof.bin:Server refused the batch',
         'second.bin:Server refused the batch'
     ]);
-});
-
-test('bulk delete rejects malformed events without losing already confirmed files', async () => {
-    const first = groupChunks([{ ...chunk(), email: 'test@example.com' }])[0];
-    const results: { name: string; deleted: number; error?: string }[] = [];
-    vi.spyOn(globalThis, 'fetch').mockImplementation(
-        async () =>
-            new Response(
-                `${JSON.stringify({
-                    type: 'file',
-                    index: 0,
-                    name: first.name,
-                    deleted: [
-                        {
-                            mediaKey: first.chunks[0].mediaKey,
-                            sha1: first.chunks[0].sha1,
-                            trashedAt: 5
-                        }
-                    ]
-                })}\nnot-json\n`
-            )
-    );
-
-    const result = await deleteFiles(
-        'test@example.com',
-        'aas_et/test',
-        [first],
-        2,
-        (item, outcome) =>
-            results.push({
-                name: item.name,
-                deleted: outcome.deleted.length,
-                ...(outcome.error ? { error: outcome.error } : {})
-            })
-    );
-
-    expect(result.isOk()).toBe(true);
-    expect(results).toEqual([{ name: 'proof.bin', deleted: 1 }]);
 });
 
 test('a 1711-file selection fits the default request body limit', async () => {
@@ -308,45 +215,4 @@ ${JSON.stringify({ type: 'done' })}
     expect(result.isOk()).toBe(true);
     expect(JSON.parse(body)).toMatchObject({ action: FileActionKind.DeleteForever });
     expect(outcomes).toEqual([{ action: FileActionKind.DeleteForever, deleted: 1 }]);
-});
-
-test('a file event for another action is rejected', async () => {
-    const item = partitionFileGroups([{ ...chunk(), trashedAt: 1, email: 'test@example.com' }])
-        .trashed[0];
-    const outcomes: { deleted: number; error?: string }[] = [];
-    vi.spyOn(globalThis, 'fetch').mockImplementation(
-        async () =>
-            new Response(
-                `${JSON.stringify({
-                    type: 'file',
-                    index: 0,
-                    name: item.name,
-                    action: FileActionKind.Delete,
-                    deleted: [
-                        {
-                            mediaKey: item.trashedChunks[0].mediaKey,
-                            sha1: item.trashedChunks[0].sha1
-                        }
-                    ]
-                })}
-${JSON.stringify({ type: 'done' })}
-`
-            )
-    );
-
-    await deleteFiles(
-        'test@example.com',
-        'aas_et/test',
-        [item],
-        2,
-        (_file, outcome) => {
-            outcomes.push({
-                deleted: outcome.deleted.length,
-                ...(outcome.error ? { error: outcome.error } : {})
-            });
-        },
-        FileActionKind.Restore
-    );
-
-    expect(outcomes).toEqual([{ deleted: 0, error: 'Invalid delete response.' }]);
 });

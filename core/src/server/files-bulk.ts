@@ -42,7 +42,7 @@ export function trashValidatedFiles(
                 name: invalid.name,
                 action,
                 deleted: [],
-                error: invalid.error
+                error: invalid.message
             });
 
         const files = validation.files;

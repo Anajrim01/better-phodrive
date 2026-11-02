@@ -70,8 +70,8 @@ export const POST: RequestHandler = ({ request }) =>
             Ok: ({ input, validation }) => {
                 if (validation.files.length === 0 && validation.invalid.length > 0)
                     return errorResponse({
-                        code: 'INVALID_FILE_METADATA',
-                        message: validation.invalid[0].error
+                        code: validation.invalid[0].code,
+                        message: validation.invalid[0].message
                     });
 
                 return bulkResponse(input, validation);

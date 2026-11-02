@@ -13,7 +13,12 @@ import { photosFetch, type Fetcher } from './fetcher';
 
 export type ValidatedBulkFile = BulkDeleteFile & { index: number };
 
-export type BulkDeleteInvalidFile = { index: number; name: string; error: string };
+export type BulkDeleteInvalidFile = {
+    index: number;
+    name: string;
+    code: ServerError['code'];
+    message: string;
+};
 
 export type BulkDeleteValidation = {
     files: ValidatedBulkFile[];
@@ -43,13 +48,18 @@ function validateState(
                 break;
             }
 
+            if (action === FileActionKind.Delete && stored.trashedAt !== undefined) {
+                error = SERVER_ERRORS.NOT_ACTIVE;
+                break;
+            }
+
             if (action !== FileActionKind.Delete && stored.trashedAt === undefined) {
                 error = SERVER_ERRORS.NOT_TRASHED;
                 break;
             }
         }
 
-        if (error) invalid.push({ index, name, error: error.message });
+        if (error) invalid.push({ index, name, code: error.code, message: error.message });
         else validated.push({ index, name, fileHash, fileId, chunks });
     }
 
