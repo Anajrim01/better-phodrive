@@ -138,9 +138,12 @@
 >
     <Card type="text" variant="filled" class="file-card">
         <div class="flex h-12 min-w-0 items-center gap-2 px-2">
+            <h3 class="min-w-0 flex-1 truncate text-sm font-medium" title={item.name}>
+                {item.name}
+            </h3>
             <Checkbox
                 aria-label={`Select ${item.name}`}
-                class="card-select"
+                class="card-select shrink-0"
                 bind:checked={isChecked}
                 {disabled}
                 --np-checkbox-margin="7px"
@@ -155,9 +158,6 @@
                     }
                 }}
             />
-            <h3 class="min-w-0 flex-1 truncate text-sm font-medium" title={item.name}>
-                {item.name}
-            </h3>
         </div>
         {#if showOwner}
             <p class="m-0 truncate px-3 pb-1 text-xs text-muted" title={item.email}>{item.email}</p>
