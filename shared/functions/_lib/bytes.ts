@@ -9,6 +9,7 @@ import {
     MAX_RANGE_BYTES,
     UPSTREAM_TIMEOUT_MS
 } from './limits';
+import { discardUpstream, releaseBody } from './bytes-stream';
 import { parseMediaUrl, parseRange } from './media-url';
 
 const BytesRequestSchema = z.object({ url: z.string(), range: z.string().optional() }).strict();
@@ -87,74 +88,6 @@ function responseHeaders(response: Response, length: number | null): Headers {
     return headers;
 }
 
-function releaseBody(
-    body: ReadableStream<Uint8Array>,
-    release: () => void,
-    limit: number,
-    controller: AbortController,
-    idleTimeoutMs: number
-): ReadableStream<Uint8Array> {
-    const reader = body.getReader();
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let forwarded = 0;
-    let finished = false;
-
-    const clearTimer = () => {
-        if (timer === undefined) return;
-
-        clearTimeout(timer);
-        timer = undefined;
-    };
-    const finish = () => {
-        if (finished) return;
-        finished = true;
-        clearTimer();
-        release();
-    };
-    const armTimer = () => {
-        clearTimer();
-        timer = setTimeout(() => {
-            controller.abort();
-            finish();
-        }, idleTimeoutMs);
-    };
-
-    armTimer();
-
-    return new ReadableStream<Uint8Array>({
-        async pull(output) {
-            try {
-                const next = await reader.read();
-                if (next.done) {
-                    finish();
-                    output.close();
-
-                    return;
-                }
-
-                if (forwarded + next.value.byteLength > limit) {
-                    finish();
-                    await reader.cancel();
-                    output.error(new Error('Upstream body exceeded the proxy limit'));
-
-                    return;
-                }
-
-                forwarded += next.value.byteLength;
-                output.enqueue(next.value);
-                armTimer();
-            } catch (error) {
-                finish();
-                output.error(error);
-            }
-        },
-        async cancel(reason) {
-            finish();
-            await reader.cancel(reason);
-        }
-    });
-}
-
 function validateUpstream(
     response: Response,
     range: string | undefined,
@@ -173,16 +106,6 @@ function validateUpstream(
     if (encoding && encoding !== 'identity') return proxyError('UPSTREAM_STATUS');
 
     return null;
-}
-
-async function discardUpstream(response: Response, controller: AbortController): Promise<void> {
-    controller.abort();
-
-    try {
-        await response.body?.cancel();
-    } catch {
-        return;
-    }
 }
 
 export function createBytesHandler(deps: BytesDeps = DEFAULT_DEPS) {
@@ -212,7 +135,7 @@ export function createBytesHandler(deps: BytesDeps = DEFAULT_DEPS) {
                 const length = contentLength(response);
                 const invalid = validateUpstream(response, range, length);
                 if (invalid) {
-                    await discardUpstream(response, controller);
+                    discardUpstream(response, controller);
                     release();
 
                     return errorResponse(invalid);
