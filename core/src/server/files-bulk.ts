@@ -75,7 +75,8 @@ export function validateBulkDelete(
         const parsed = BulkDeleteRequestSchema.safeParse(input);
         if (!parsed.success) return Err(SERVER_ERRORS.INVALID_FILE_METADATA);
 
-        if (!readAccountState(input.email)) {
+        const built = !readAccountState(input.email);
+        if (built) {
             const ensured = await ensureAccountIndex(input.email, input.token, fetcher);
             const ensureError = ensured.match<ServerError | null>({
                 Ok: () => null,
@@ -88,7 +89,7 @@ export function validateBulkDelete(
         if (!state) return Err(SERVER_ERRORS.LIBRARY_STATE_REQUIRED);
 
         const initial = validateState(parsed.data.files, state);
-        if (initial.isOk()) return initial;
+        if (initial.isOk() || built) return initial;
 
         const refreshed = await refreshAccountIndex(input.email, input.token, fetcher);
         const refreshError = refreshed.match<ServerError | null>({

@@ -107,6 +107,24 @@ test('missing library state is built before validation', async () => {
     expect(results).toEqual(['first.bin']);
 });
 
+test('a newly built index is not refreshed a second time', async () => {
+    const first = file('first.bin', 2);
+    const payload = request([first]);
+
+    vi.mocked(ensureAccountIndex).mockImplementation(() => {
+        saveState([{ ...first, chunks: [first.chunks[0]] }]);
+
+        return ok();
+    });
+
+    const result = await deleteFiles(payload, () => {});
+
+    expect(result.unwrapErr().code).toBe('INVALID_FILE_METADATA');
+    expect(ensureAccountIndex).toHaveBeenCalledOnce();
+    expect(refreshAccountIndex).not.toHaveBeenCalled();
+    expect(moveToTrashBatch).not.toHaveBeenCalled();
+});
+
 test('a stale index is refreshed once and revalidated', async () => {
     const first = file('first.bin', 2);
     saveState([{ ...first, chunks: [first.chunks[0]] }]);
