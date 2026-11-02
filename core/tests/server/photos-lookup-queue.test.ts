@@ -168,3 +168,41 @@ test('an aborted first caller does not cancel the shared batch', async () => {
     expect(firstCode).toBe('REQUEST_FAILED');
     expect(secondResult.unwrap()).toBe('key');
 });
+
+test('an aborted first caller does not trigger fallback on a server failure', async () => {
+    const firstHash = sha1('aborted-server-first');
+    const secondHash = sha1('aborted-server-second');
+    const abort = new AbortController();
+    let started!: () => void;
+    const start = new Promise<void>((resolve) => {
+        started = resolve;
+    });
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+        release = resolve;
+    });
+    let requests = 0;
+    const fetcher: Fetcher = async (_input, init) => {
+        requests++;
+        await bodyOf(init);
+        started();
+        await held;
+
+        return new Response(null, { status: 500 });
+    };
+
+    const first = lookupHash(EMAIL, firstHash, {}, fetcher, abort.signal);
+    const second = lookupHash(EMAIL, secondHash, {}, fetcher);
+    await start;
+    abort.abort();
+    const firstCode = await Promise.race([
+        first.then((result) => result.unwrapErr().code),
+        new Promise<string>((resolve) => setTimeout(() => resolve('pending'), 100))
+    ]);
+    release();
+    const secondResult = await second;
+
+    expect(firstCode).toBe('REQUEST_FAILED');
+    expect(secondResult.unwrapErr()).toMatchObject({ code: 'REQUEST_FAILED', status: 500 });
+    expect(requests).toBe(1);
+});

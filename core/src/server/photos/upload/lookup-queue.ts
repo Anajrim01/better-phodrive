@@ -119,7 +119,7 @@ async function flushLookupBatch(batch: LookupBatch): Promise<void> {
         return;
     }
 
-    if (!shouldFallback(outcome.error, unique.size, first.signal?.aborted === true)) {
+    if (!shouldFallback(outcome.error, unique.size)) {
         for (const waiter of waiters) {
             settleWaiter(
                 waiter,
@@ -191,9 +191,8 @@ function lookupWaiter(
     return hashLookup(email, waiter.sha1, waiter.rpcHeaders, waiter.fetcher);
 }
 
-function shouldFallback(error: ServerError, uniqueHashes: number, aborted: boolean): boolean {
+function shouldFallback(error: ServerError, uniqueHashes: number): boolean {
     if (error.code === 'THROTTLED') return false;
-    if (aborted) return true;
     if (error.code !== 'REQUEST_FAILED') return true;
     if (error.status === undefined) return false;
     if (error.status !== 400 && error.status !== 413) return false;
