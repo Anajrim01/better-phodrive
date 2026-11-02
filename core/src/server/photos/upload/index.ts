@@ -7,6 +7,7 @@ import { photosFetch, type Fetcher } from '../../fetcher';
 import { bodyBytes } from '../../protobuf';
 import { hashLookup } from './lookup';
 import { lookupHash } from './lookup-queue';
+import { commitBmpQueued } from './commit-queue';
 import { commitBmp, startUpload, transferBmp } from './transfer';
 import type { UploadBmpSource } from '../../upload/bmp';
 
@@ -112,12 +113,12 @@ function uploadAuthenticatedStream(
     source: UploadBmpSource,
     { commonHeaders, rpcHeaders }: PhotosHeaders,
     fetcher: Fetcher,
-    lookupFetcher: Fetcher,
+    baseFetcher: Fetcher,
     signal?: AbortSignal
 ): AsyncResult<UploadResponse, ServerError> {
     const sha1 = Buffer.from(source.sha1, 'hex');
 
-    return lookupHash(email, sha1, rpcHeaders, lookupFetcher, signal).andThenAsync<
+    return lookupHash(email, sha1, rpcHeaders, baseFetcher, signal).andThenAsync<
         UploadResponse,
         ServerError
     >(async (existing) => {
@@ -141,7 +142,9 @@ function uploadAuthenticatedStream(
 
         return transferred
             .andThenAsync((transfer) => source.verified.map(() => transfer))
-            .andThenAsync((transfer) => commitBmp(email, name, sha1, transfer, rpcHeaders, fetcher))
+            .andThenAsync((transfer) =>
+                commitBmpQueued(email, name, sha1, transfer, rpcHeaders, baseFetcher, signal)
+            )
             .map((mediaKey) => ({
                 status: UploadStatus.Uploaded,
                 mediaKey,
