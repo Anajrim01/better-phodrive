@@ -9,6 +9,7 @@ import {
 import { groupChunks, type FileGroup, type UploadedChunk } from '@madkarmaa/phodrive-core/files';
 import type { GroupUploadMember } from '@madkarmaa/phodrive-core/browser/upload';
 import { DriveUploads, type UploadDeps } from '#browser/drive/uploads.svelte';
+import { pruneRecent, uploadKey } from '#browser/drive/upload-dedupe';
 import { browserUploadResponse } from '../../../core/tests/helpers/upload';
 
 const EMAIL = 'first@example.com';
@@ -147,6 +148,23 @@ test('duplicate jobs keep their own rows when another file follows them', async 
         status: UploadJobStatus.Complete,
         result: { status: UploadStatus.Uploaded }
     });
+});
+
+test('a recent entry only survives while its exact uploaded copy exists', () => {
+    const file = existingFile('proof.bin');
+    const recent = new Map([
+        [uploadKey(EMAIL, file.name, file.fileHash), { mediaKey: 'deleted-key', sha1: SHA1 }]
+    ]);
+
+    pruneRecent(recent, [file]);
+    expect(recent.size).toBe(0);
+
+    recent.set(uploadKey(EMAIL, file.name, file.fileHash), {
+        mediaKey: file.chunks[0]!.mediaKey,
+        sha1: SHA1
+    });
+    pruneRecent(recent, [file]);
+    expect(recent.size).toBe(1);
 });
 
 test('a deleted in-session upload is not reused', async () => {

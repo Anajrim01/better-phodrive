@@ -96,8 +96,17 @@ export function pruneRecent(
     recent: Map<string, ExistingUpload>,
     files: readonly FileGroup[]
 ): void {
-    const available = new Set(files.map((file) => uploadKey(file.email, file.name, file.fileHash)));
-    for (const key of recent.keys()) if (!available.has(key)) recent.delete(key);
+    const available = new Set(
+        files.flatMap((file) =>
+            file.chunks.map(
+                (chunk) => `${chunk.email.toLowerCase()}\u0000${chunk.mediaKey}\u0000${chunk.sha1}`
+            )
+        )
+    );
+    for (const [key, existing] of recent) {
+        const identity = `${key.split('\u0000')[0]}\u0000${existing.mediaKey}\u0000${existing.sha1}`;
+        if (!available.has(identity)) recent.delete(key);
+    }
 }
 
 export function markPending(
