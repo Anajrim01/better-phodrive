@@ -16,13 +16,12 @@ export type BulkDeleteFileOutcome = {
 };
 
 function bulkFileRequest(item: FileGroup) {
-    return {
-        name: item.name,
-        chunks: chunksFor(item, FileActionKind.Delete).map(({ mediaKey, sha1 }) => ({
-            mediaKey,
-            sha1
-        }))
-    };
+    return [
+        item.name,
+        item.fileHash,
+        item.fileId,
+        chunksFor(item, FileActionKind.Delete).map(({ mediaKey, sha1 }) => [mediaKey, sha1])
+    ];
 }
 
 function failBulkFiles(
@@ -36,6 +35,10 @@ function failBulkFiles(
         onFile(item, { deleted: [], error: error.message, ...retryAfterSeconds });
 }
 
+function chunkIdentity(chunk: { mediaKey: string; sha1: string }): string {
+    return `${chunk.mediaKey}\u0000${chunk.sha1}`;
+}
+
 function applyBulkEvent(
     event: BulkDeleteEvent,
     item: FileGroup,
@@ -44,23 +47,25 @@ function applyBulkEvent(
     if (event.type === 'done') return;
 
     const knownChunks = [...item.chunks, ...item.duplicates];
+    const requested = new Set(knownChunks.map(chunkIdentity));
+    const confirmed = new Set<string>();
     const deleted: UploadedChunk[] = [];
     let invalid = false;
 
     for (const chunk of event.deleted) {
-        const known = knownChunks.find(
-            (current) => current.mediaKey === chunk.mediaKey && current.sha1 === chunk.sha1
-        );
-        if (!known) {
+        const identity = chunkIdentity(chunk);
+        const known = knownChunks.find((current) => chunkIdentity(current) === identity);
+        if (!known || confirmed.has(identity)) {
             invalid = true;
             break;
         }
+        confirmed.add(identity);
         deleted.push({ ...known, trashedAt: chunk.trashedAt });
     }
 
     const error = invalid ? INVALID_DELETE_RESPONSE.message : event.error;
     const retryAfterSeconds = invalid ? undefined : event.retryAfterSeconds;
-    if (!error && deleted.length !== knownChunks.length)
+    if (!error && confirmed.size !== requested.size)
         onFile(item, { deleted, error: INVALID_DELETE_RESPONSE.message });
     else
         onFile(item, {

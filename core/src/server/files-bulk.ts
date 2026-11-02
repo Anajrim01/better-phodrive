@@ -15,7 +15,7 @@ import {
 import pLimit from 'p-limit';
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import { moveToTrash, moveToTrashBatch } from './photos/index';
-import { markChunksTrashed } from './photos/library/state';
+import { markChunksTrashed, readAccountState } from './photos/library/state';
 import { photosFetch, type Fetcher } from './fetcher';
 import { limitWorkers } from './workers';
 
@@ -40,7 +40,28 @@ export function validateBulkDelete(
     const parsed = BulkDeleteRequestSchema.safeParse(input);
     if (!parsed.success) return Err(SERVER_ERRORS.INVALID_FILE_METADATA);
 
-    return Ok(parsed.data.files);
+    const state = readAccountState(input.email);
+    if (!state) return Err(SERVER_ERRORS.LIBRARY_STATE_REQUIRED);
+
+    const files: BulkDeleteFile[] = [];
+    for (const [name, fileHash, fileId, pairs] of parsed.data.files) {
+        const chunks = pairs.map(([mediaKey, sha1]) => ({ mediaKey, sha1 }));
+
+        for (const chunk of chunks) {
+            const stored = state.items.get(chunk.mediaKey);
+            if (
+                !stored ||
+                stored.sha1 !== chunk.sha1 ||
+                stored.fileHash !== fileHash ||
+                stored.fileId !== fileId
+            )
+                return Err(SERVER_ERRORS.INVALID_FILE_METADATA);
+        }
+
+        files.push({ name, fileHash, fileId, chunks });
+    }
+
+    return Ok(files);
 }
 
 function failureFields(
@@ -95,19 +116,30 @@ async function trashEach(
     mode: ThrottleMode
 ): Promise<void> {
     const limit = pLimit(limitWorkers(input.workers));
+    let stopped: ServerError | null = null;
 
     await limit.map(batch, async ({ fileIndex, chunk }) => {
-        const moved = await moveToTrash(input.email, input.token, chunk.sha1, fetcher);
         const state = states[fileIndex];
-        const trashedAt = Date.now();
+        if (stopped) {
+            recordFailure(state, stopped);
+            emitCompletedFiles(files, states, onFile, mode);
 
-        moved.match({
-            Ok: () => {
-                markChunksTrashed(input.email, [chunk], trashedAt);
-                recordChunk(state, chunk, trashedAt);
-            },
-            Err: (error) => recordFailure(state, error)
+            return;
+        }
+
+        const moved = await moveToTrash(input.email, input.token, chunk.sha1, fetcher);
+        const trashedAt = Date.now();
+        const failure = moved.match<ServerError | null>({
+            Ok: () => null,
+            Err: (error) => error
         });
+        if (failure) {
+            if (isThrottleError(failure)) stopped = failure;
+            recordFailure(state, failure);
+        } else {
+            markChunksTrashed(input.email, [chunk], trashedAt);
+            recordChunk(state, chunk, trashedAt);
+        }
 
         emitCompletedFiles(files, states, onFile, mode);
     });

@@ -21,7 +21,7 @@ function bulkResponse(input: BulkDeleteRequest): Response {
                 send({
                     type: 'file',
                     index,
-                    name: input.files[index].name,
+                    name: input.files[index][0],
                     deleted: [],
                     error
                 });

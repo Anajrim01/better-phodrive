@@ -1,14 +1,16 @@
 import { z } from 'zod';
-import { AccountRequestSchema, Sha1HexSchema, WorkerCountSchema } from './models';
+import { AccountRequestSchema, Sha1HexSchema, Sha256HexSchema, WorkerCountSchema } from './models';
 
 export const BulkDeleteChunkSchema = z.object({
     mediaKey: z.string().min(1),
     sha1: Sha1HexSchema
 });
-export const BulkDeleteFileSchema = z.object({
-    name: z.string().min(1),
-    chunks: z.array(BulkDeleteChunkSchema).nonempty()
-});
+export const BulkDeleteFileSchema = z.tuple([
+    z.string().min(1),
+    Sha256HexSchema,
+    Sha256HexSchema,
+    z.array(z.tuple([z.string().min(1), Sha1HexSchema])).nonempty()
+]);
 export const BulkDeleteRequestSchema = AccountRequestSchema.extend({
     workers: WorkerCountSchema,
     files: z.array(BulkDeleteFileSchema).nonempty()
@@ -30,7 +32,12 @@ export const BulkDeleteEventSchema = z.discriminatedUnion('type', [
 ]);
 
 export type BulkDeleteChunk = z.infer<typeof BulkDeleteChunkSchema>;
-export type BulkDeleteFile = z.infer<typeof BulkDeleteFileSchema>;
+export type BulkDeleteFile = {
+    name: string;
+    fileHash: string;
+    fileId: string;
+    chunks: BulkDeleteChunk[];
+};
 export type BulkDeleteRequest = z.infer<typeof BulkDeleteRequestSchema>;
 export type BulkDeletedChunk = z.infer<typeof BulkDeletedChunkSchema>;
 export type BulkDeleteFileEvent = z.infer<typeof BulkDeleteFileEventSchema>;

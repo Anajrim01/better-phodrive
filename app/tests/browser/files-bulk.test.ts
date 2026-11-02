@@ -84,6 +84,61 @@ test('bulk delete streams per-file results and maps confirmed chunks to local fi
     ]);
 });
 
+test('duplicate confirmations cannot complete a multi-chunk file', async () => {
+    const first = { ...chunk(), isLast: false };
+    const second = {
+        ...chunk(),
+        chunkIndex: 1,
+        mediaKey: 'proof-1',
+        sha1: '1'.repeat(40)
+    };
+    const item = groupChunks([
+        { ...first, email: 'test@example.com' },
+        { ...second, email: 'test@example.com' }
+    ])[0];
+    const outcomes: { deleted: number; error?: string }[] = [];
+    vi.spyOn(globalThis, 'fetch').mockImplementation(
+        async () =>
+            new Response(
+                `${JSON.stringify({
+                    type: 'file',
+                    index: 0,
+                    name: item.name,
+                    deleted: [
+                        {
+                            mediaKey: first.mediaKey,
+                            sha1: first.sha1,
+                            trashedAt: 5
+                        },
+                        {
+                            mediaKey: first.mediaKey,
+                            sha1: first.sha1,
+                            trashedAt: 5
+                        }
+                    ]
+                })}
+${JSON.stringify({ type: 'done' })}
+`
+            )
+    );
+
+    const result = await deleteFiles(
+        'test@example.com',
+        'aas_et/test',
+        [item],
+        2,
+        (_file, outcome) => {
+            outcomes.push({
+                deleted: outcome.deleted.length,
+                ...(outcome.error ? { error: outcome.error } : {})
+            });
+        }
+    );
+
+    expect(result.isOk()).toBe(true);
+    expect(outcomes).toEqual([{ deleted: 1, error: 'Invalid delete response.' }]);
+});
+
 test('bulk delete reports every file when the request fails before streaming', async () => {
     const first = groupChunks([{ ...chunk(), email: 'test@example.com' }])[0];
     const second = groupChunks([
@@ -152,7 +207,7 @@ test('a 1711-file selection fits the default request body limit', async () => {
         groupChunks([
             {
                 ...chunk(
-                    `file-${index}.bin`,
+                    `a-very-long-selected-file-name-number-${index}.extension`,
                     createHash('sha256').update(`file-${index}`).digest('hex')
                 ),
                 email: 'test@example.com'
