@@ -1,5 +1,11 @@
 import { expect, test } from 'vitest';
-import { selectionBarVisible } from '#browser/drive/selection-view.svelte';
+import { selectionBarSpace, selectionBarVisible } from '#browser/drive/selection-view.svelte';
+
+test('the bar space stays reserved while files are selected or a bulk action runs', () => {
+    expect(selectionBarSpace(3, false)).toBe(true);
+    expect(selectionBarSpace(0, true)).toBe(true);
+    expect(selectionBarSpace(0, false)).toBe(false);
+});
 
 test('the bar stays visible at zero selected while a bulk action runs', () => {
     expect(selectionBarVisible(0, true, false)).toBe(true);

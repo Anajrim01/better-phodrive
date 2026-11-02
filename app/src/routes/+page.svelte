@@ -169,7 +169,7 @@
 
     <main
         class="mr-4 mb-4 flex min-w-0 flex-col rounded-[20px] bg-panel px-6 pt-6 pb-12 text-text max-[800px]:mx-2 max-[800px]:mb-2 max-[800px]:px-4 max-[800px]:pt-4 max-[800px]:pb-[calc(96px+env(safe-area-inset-bottom,0px))]"
-        class:has-selection={selection.barVisible}
+        class:has-selection={selection.barSpaceVisible}
     >
         {#if drive.ready && view === AppView.Settings}
             <SettingsView {drive} defaults={data.preferencesDefaults} />
