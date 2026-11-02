@@ -93,8 +93,8 @@
     class="upload-sheet"
 >
     <header class="flex min-h-14 items-center gap-1 bg-surface py-1 pr-2 pl-4">
-        <div class="mr-auto min-w-0">
-            <h2 class="text-base font-medium">
+        <div class="min-w-0 flex-1">
+            <h2 class="text-base font-medium break-words">
                 <span aria-live="polite">{status}</span>{#if detail}<span>, {detail}</span>{/if}
             </h2>
             {#if busy && paused.length}
@@ -103,6 +103,7 @@
         </div>
         <IconButton
             size="s"
+            class="shrink-0"
             aria-label={collapsed ? 'Expand upload status' : 'Minimize upload status'}
             aria-expanded={!collapsed}
             onclick={() => (collapsed = !collapsed)}
@@ -117,6 +118,7 @@
         </IconButton>
         <IconButton
             size="s"
+            class="shrink-0"
             aria-label="Close upload status"
             title="Close upload status"
             onclick={() => (open = false)}><IconClose aria-hidden="true" /></IconButton
@@ -124,7 +126,10 @@
     </header>
 
     {#if !collapsed}
-        <div transition:fade={{ duration: prefersReducedMotion.current ? 0 : 140 }}>
+        <div
+            class="upload-queue-scroll min-h-0 overflow-y-auto"
+            transition:fade={{ duration: prefersReducedMotion.current ? 0 : 140 }}
+        >
             <List class="upload-queue" aria-label="Upload queue">
                 {#each orderedJobs as job (job.id)}
                     <UploadStatusRow {job} {retryDisabled} {now} onretry={() => onretry(job.id)} />
@@ -148,6 +153,9 @@
     }
 
     :global(:root .upload-sheet.np-sheet > .np-sheet-content) {
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
         padding: 0;
     }
     :global(:root .upload-queue.np-list) {

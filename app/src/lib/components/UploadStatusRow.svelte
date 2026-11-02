@@ -31,7 +31,7 @@
     <p class="truncate text-sm" title={job.name}>{job.name}</p>
     {#snippet supportingText()}
         <p
-            class="text-xs tabular-nums"
+            class="min-w-0 text-xs break-words tabular-nums"
             class:text-error={job.status === UploadJobStatus.Error}
             class:text-muted={job.status !== UploadJobStatus.Error}
             role={job.status === UploadJobStatus.Error
@@ -87,6 +87,10 @@
     }
     :global(:root .upload-status-row.np-item .np-item-text) {
         min-width: 0;
+    }
+    :global(:root .upload-status-row.np-item .np-item-start),
+    :global(:root .upload-status-row.np-item .np-item-end) {
+        flex: none;
     }
     :global(:root .upload-status-row.np-item .np-item-end) {
         align-items: center;
