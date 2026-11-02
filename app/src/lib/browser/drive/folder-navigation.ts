@@ -2,6 +2,7 @@ import type { FileGroup } from '@madkarmaa/phodrive-core/files';
 import { FolderHistory, type FolderOpenMode } from '#browser/drive/folder-history';
 
 const TRAVERSAL_TIMEOUT_MS = 1_000;
+const TRAVERSAL_EXPIRY_MS = 30_000;
 
 type FolderNavigationDeps = {
     folder: () => string;
@@ -22,6 +23,7 @@ export class FolderNavigation {
     private startup = true;
     private traversing = false;
     private traversalTimer: ReturnType<typeof setTimeout> | undefined;
+    private traversalExpiryTimer: ReturnType<typeof setTimeout> | undefined;
     private hasMore = true;
     private navigationVersion = 0;
     private traversal: { target: string; version: number } | null = null;
@@ -49,13 +51,17 @@ export class FolderNavigation {
         }
 
         if (mode === 'ancestor' && this.history.navigate(path, current)) {
+            this.clearTraversal();
             this.navigationVersion += 1;
-            this.traversal = { target: path, version: this.navigationVersion };
+            const version = this.navigationVersion;
+            this.traversal = { target: path, version };
             this.traversing = true;
-            clearTimeout(this.traversalTimer);
             this.traversalTimer = setTimeout(() => {
                 this.traversing = false;
             }, TRAVERSAL_TIMEOUT_MS);
+            this.traversalExpiryTimer = setTimeout(() => {
+                if (this.traversal?.version === version) this.traversal = null;
+            }, TRAVERSAL_EXPIRY_MS);
 
             return;
         }
@@ -69,7 +75,7 @@ export class FolderNavigation {
         this.deps.setFolder('');
         this.navigationVersion += 1;
         this.hasMore = true;
-        this.stopTraversal();
+        this.clearTraversal();
         if (this.startup && this.initial) {
             this.startup = false;
 
@@ -117,16 +123,25 @@ export class FolderNavigation {
         this.traversing = false;
     }
 
+    private clearTraversal(): void {
+        clearTimeout(this.traversalTimer);
+        clearTimeout(this.traversalExpiryTimer);
+        this.traversing = false;
+        this.traversal = null;
+    }
+
     private follow(folder: string): void {
         const traversal = this.traversal;
         this.stopTraversal();
         if (traversal && folder === traversal.target) {
-            this.traversal = null;
+            this.clearTraversal();
             if (traversal.version !== this.navigationVersion) {
                 this.history.restore(this.deps.folder());
 
                 return;
             }
+        } else if (traversal) {
+            this.navigationVersion += 1;
         }
 
         if (this.initial) {
