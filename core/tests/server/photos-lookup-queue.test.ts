@@ -92,3 +92,25 @@ test('a pending lookup batch keeps a referenced timer', async () => {
     expect(during).toBeGreaterThan(before);
     expect(result.unwrap()).toBe('key');
 });
+
+test('lookups with different credentials for one account stay separate', async () => {
+    const expiredHash = sha1('expired-credential');
+    const validHash = sha1('valid-credential');
+    const authorizations: string[] = [];
+    const fetcher: Fetcher = async (_input, init) => {
+        const authorization = new Headers(init?.headers).get('authorization') ?? '';
+        authorizations.push(authorization);
+        if (authorization === 'Bearer expired') return new Response(null, { status: 401 });
+
+        return batchResponse([{ sha1: validHash, key: 'valid-key' }]);
+    };
+
+    const results = await Promise.all([
+        lookupHash(EMAIL, expiredHash, { authorization: 'Bearer expired' }, fetcher),
+        lookupHash(EMAIL, validHash, { authorization: 'Bearer valid' }, fetcher)
+    ]);
+
+    expect(authorizations.sort()).toEqual(['Bearer expired', 'Bearer valid']);
+    expect(results[0].unwrapErr()).toMatchObject({ code: 'REQUEST_FAILED', status: 401 });
+    expect(results[1].unwrap()).toBe('valid-key');
+});

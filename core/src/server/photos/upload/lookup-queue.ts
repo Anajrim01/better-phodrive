@@ -39,7 +39,8 @@ export function lookupHash(
                     abortLookup(created);
                     abortIdleBatch(created.batch);
                 });
-                const current = lookupBatches.get(email);
+                const key = lookupBatchKey(email, rpcHeaders);
+                const current = lookupBatches.get(key);
 
                 if (current) {
                     waiter.batch = current;
@@ -53,6 +54,7 @@ export function lookupHash(
                 }
 
                 const batch: LookupBatch = {
+                    key,
                     email,
                     waiters: [],
                     abort: new AbortController(),
@@ -60,13 +62,13 @@ export function lookupHash(
                 };
                 waiter.batch = batch;
                 batch.waiters.push(waiter);
-                lookupBatches.set(email, batch);
+                lookupBatches.set(key, batch);
             })
     );
 }
 
 async function flushLookupBatch(batch: LookupBatch): Promise<void> {
-    if (lookupBatches.get(batch.email) === batch) lookupBatches.delete(batch.email);
+    if (lookupBatches.get(batch.key) === batch) lookupBatches.delete(batch.key);
 
     clearTimeout(batch.timer);
 
@@ -165,8 +167,13 @@ function abortIdleBatch(batch: LookupBatch | undefined): void {
     if (waiters.some((waiter) => !waiter.settled)) return;
 
     batch.abort.abort();
-    if (lookupBatches.get(batch.email) === batch) lookupBatches.delete(batch.email);
+    if (lookupBatches.get(batch.key) === batch) lookupBatches.delete(batch.key);
     clearTimeout(batch.timer);
+}
+
+function lookupBatchKey(email: string, rpcHeaders: Record<string, string>): string {
+    return `${email}
+${rpcHeaders.authorization ?? ''}`;
 }
 
 function shouldFallback(error: ServerError, callers: number): boolean {

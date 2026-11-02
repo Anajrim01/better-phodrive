@@ -20,6 +20,7 @@ export type LookupWaiter = {
 };
 
 export type LookupBatch = {
+    key: string;
     email: string;
     waiters: LookupWaiter[];
     inFlight?: LookupWaiter[];
