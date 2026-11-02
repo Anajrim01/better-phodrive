@@ -5,7 +5,7 @@ import { FolderPathSchema, type RemoteBmp } from '../models';
 import { SERVER_ERRORS, isThrottleError, throttleError, type ServerError } from './errors';
 import { photosFetch, type Fetcher } from './fetcher';
 import { verifyManageAccount } from './manage-auth';
-import { ensureAccountIndex } from './photos/library/ensure';
+import { ensureAccountIndex, refreshAccountIndex } from './photos/library/ensure';
 import {
     activeChunks,
     filesInFolder,
@@ -185,51 +185,69 @@ async function trashFolder(
     });
 }
 
+function manageIndexedFolder(
+    input: FolderManageRequest
+): AsyncResult<FolderManageResult, ServerError> {
+    return Ok(undefined).andThenAsync(async () =>
+        withAccountLock(input.email, async () => {
+            const state = readAccountState(input.email);
+            if (!state) return Err(SERVER_ERRORS.LIBRARY_STATE_REQUIRED);
+
+            const files = indexFiles(state.items.values());
+            const affected = filesInFolder(files, input.folder);
+            if (affected.length === 0) return Err(SERVER_ERRORS.FOLDER_NOT_FOUND);
+            if (input.action === FolderManageAction.Delete)
+                return await trashFolder(input, affected);
+
+            const target = targetFolder(input, files);
+            if (target === null) return Err(destinationError());
+            if (target === input.folder) return Ok(emptyResult(state.revision, affected.length));
+            if (target !== '' && !FolderPathSchema.safeParse(target).success)
+                return Err(SERVER_ERRORS.INVALID_FOLDER_PATH);
+
+            const collision = collisionError(input, files, affected, target);
+            if (collision) return Err(collision);
+
+            writeAccountOverrides(
+                input.email,
+                nextOverrides(readAccountOverrides(input.email), input, affected, target)
+            );
+            const changed = affected.flatMap((file) => {
+                const folder = nextFolder(input, file, target);
+
+                return file.items.map((item) => withMovedListingFolder(item, folder));
+            });
+            const items = updateListingItems(input.email, changed);
+
+            return Ok({
+                items,
+                revision: readAccountRevision(input.email),
+                fileCount: affected.length,
+                failed: []
+            });
+        })
+    );
+}
+
 /** Rename, move, flatten, or trash every file under one folder path. */
 export function manageFolder(
     input: FolderManageRequest,
     fetcher: Fetcher = photosFetch
 ): AsyncResult<FolderManageResult, ServerError> {
     return verifyManageAccount(input.email, input.token, fetcher)
-        .andThenAsync(() => ensureAccountIndex(input.email, input.token, fetcher))
-        .andThenAsync(() =>
-            withAccountLock(input.email, async () => {
-                const state = readAccountState(input.email);
-                if (!state) return Err(SERVER_ERRORS.LIBRARY_STATE_REQUIRED);
+        .andThenAsync(async () => {
+            const indexed = readAccountState(input.email) !== undefined;
+            const ensured = await ensureAccountIndex(input.email, input.token, fetcher);
 
-                const files = indexFiles(state.items.values());
-                const affected = filesInFolder(files, input.folder);
-                if (affected.length === 0) return Err(SERVER_ERRORS.FOLDER_NOT_FOUND);
-                if (input.action === FolderManageAction.Delete)
-                    return await trashFolder(input, affected);
+            return ensured.map(() => indexed);
+        })
+        .andThenAsync((indexed) =>
+            manageIndexedFolder(input).orElseAsync(async (error) => {
+                if (error.code !== 'FOLDER_NOT_FOUND' || !indexed) return Err(error);
 
-                const target = targetFolder(input, files);
-                if (target === null) return Err(destinationError());
-                if (target === input.folder)
-                    return Ok(emptyResult(state.revision, affected.length));
-                if (target !== '' && !FolderPathSchema.safeParse(target).success)
-                    return Err(SERVER_ERRORS.INVALID_FOLDER_PATH);
+                const refreshed = await refreshAccountIndex(input.email, input.token, fetcher);
 
-                const collision = collisionError(input, files, affected, target);
-                if (collision) return Err(collision);
-
-                writeAccountOverrides(
-                    input.email,
-                    nextOverrides(readAccountOverrides(input.email), input, affected, target)
-                );
-                const changed = affected.flatMap((file) => {
-                    const folder = nextFolder(input, file, target);
-
-                    return file.items.map((item) => withMovedListingFolder(item, folder));
-                });
-                const items = updateListingItems(input.email, changed);
-
-                return Ok({
-                    items,
-                    revision: readAccountRevision(input.email),
-                    fileCount: affected.length,
-                    failed: []
-                });
+                return refreshed.andThenAsync(() => manageIndexedFolder(input));
             })
         );
 }
