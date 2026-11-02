@@ -8,6 +8,17 @@ import { readStoredPayload } from './payload';
 
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 const PNG_IEND = [0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82];
+const JPEG_END = [0xff, 0xd9];
+
+function containsSequence(bytes: Uint8Array, sequence: readonly number[], from = 0): boolean {
+    const last = bytes.length - sequence.length;
+
+    for (let offset = from; offset <= last; offset++) {
+        if (sequence.every((value, index) => bytes[offset + index] === value)) return true;
+    }
+
+    return false;
+}
 
 function ascii(bytes: Uint8Array, offset: number, text: string): boolean {
     if (bytes.length < offset + text.length) return false;
@@ -36,18 +47,11 @@ function detectImageType(bytes: Uint8Array): string | null {
 }
 
 function imageIsComplete(contentType: string, bytes: Uint8Array): boolean {
-    if (contentType === 'image/png')
-        return (
-            bytes.length >= PNG_IEND.length &&
-            PNG_IEND.every(
-                (value, index) => bytes[bytes.length - PNG_IEND.length + index] === value
-            )
-        );
+    if (contentType === 'image/png') return containsSequence(bytes, PNG_IEND, PNG_SIGNATURE.length);
 
-    if (contentType === 'image/gif') return bytes[bytes.length - 1] === 0x3b;
+    if (contentType === 'image/gif') return bytes.includes(0x3b, 6);
 
-    if (contentType === 'image/jpeg')
-        return bytes[bytes.length - 2] === 0xff && bytes[bytes.length - 1] === 0xd9;
+    if (contentType === 'image/jpeg') return containsSequence(bytes, JPEG_END, 2);
 
     if (contentType === 'image/webp') {
         const size =
@@ -56,7 +60,7 @@ function imageIsComplete(contentType: string, bytes: Uint8Array): boolean {
             ((bytes[6] ?? 0) << 16) |
             ((bytes[7] ?? 0) << 24);
 
-        return size + 8 === bytes.length;
+        return size >= 4 && size + 8 <= bytes.length;
     }
 
     return false;
