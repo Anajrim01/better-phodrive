@@ -75,30 +75,26 @@ test('back returns to the parent and forward reopens the child', async () => {
     expect(currentFolder()).toBe('');
 });
 
-test('a breadcrumb moves to the existing ancestor so back keeps going up', async () => {
+test('a breadcrumb replaces the current entry and Back does not reopen the child', async () => {
     const library = makeLibrary(['A', 'A/B']);
     await library.load();
     library.openFolder('A');
     library.openFolder('A/B');
     const length = window.history.length;
 
-    const moved = waitForPopState();
     library.openFolder('A', 'ancestor');
-    expect(library.folder).toBe('A/B');
-    await moved;
 
     expect(library.folder).toBe('A');
     expect(window.history.length).toBe(length);
     expect(currentFolder()).toBe('A');
 
     await traverse('back');
+    expect(library.folder).toBe('A');
+    expect(currentFolder()).toBe('A');
+
+    await traverse('back');
     expect(library.folder).toBe('');
     expect(currentFolder()).toBe('');
-
-    await traverse('forward');
-    expect(library.folder).toBe('A');
-    await traverse('forward');
-    expect(library.folder).toBe('A/B');
 });
 
 test('a breadcrumb replaces the entry when the ancestor is not behind it', async () => {
@@ -114,27 +110,20 @@ test('a breadcrumb replaces the entry when the ancestor is not behind it', async
     expect(currentFolder()).toBe('A');
 });
 
-test('a breadcrumb traversal blocks another navigation until popstate', async () => {
-    const library = makeLibrary(['A', 'A/B', 'A/B/C']);
+test('a breadcrumb to the current folder adds no entry', async () => {
+    const library = makeLibrary(['A', 'A/B']);
     await library.load();
     library.openFolder('A');
-    library.openFolder('A/B');
     const length = window.history.length;
 
-    const moved = waitForPopState();
     library.openFolder('A', 'ancestor');
-    library.openFolder('A/B/C');
-
-    expect(library.folder).toBe('A/B');
-    expect(window.history.length).toBe(length);
-
-    await moved;
 
     expect(library.folder).toBe('A');
+    expect(window.history.length).toBe(length);
     expect(currentFolder()).toBe('A');
 });
 
-test('a forward entry with a stale trail cannot drive an ancestor traversal', async () => {
+test('a forward entry after a replace cannot redirect a breadcrumb', async () => {
     const library = makeLibrary(['A', 'A/B', 'C']);
     await library.load();
     library.openFolder('A');
@@ -158,140 +147,32 @@ test('a forward entry with a stale trail cannot drive an ancestor traversal', as
     expect(currentFolder()).toBe('C');
 });
 
-test('a timed-out traversal does not swallow an unrelated history move', async () => {
-    const library = makeLibrary(['A', 'A/B']);
-    await library.load();
-    library.openFolder('A');
-    library.openFolder('A/B');
-    const go = vi.spyOn(window.history, 'go').mockImplementation(() => {});
-    vi.useFakeTimers();
-    try {
-        library.openFolder('', 'ancestor');
-        vi.advanceTimersByTime(1_000);
-        vi.useRealTimers();
-        go.mockRestore();
-        await traverse('back');
-
-        expect(library.folder).toBe('A');
-        expect(currentFolder()).toBe('A');
-    } finally {
-        vi.clearAllTimers();
-        vi.useRealTimers();
-        go.mockRestore();
-    }
-});
-
-test('an unrelated history move makes a delayed traversal stale', async () => {
-    const library = makeLibrary(['A', 'A/B']);
-    await library.load();
-    library.openFolder('A');
-    library.openFolder('A/B');
-    const go = vi.spyOn(window.history, 'go').mockImplementation(() => {});
-    vi.useFakeTimers();
-    try {
-        library.openFolder('', 'ancestor');
-        vi.advanceTimersByTime(1_000);
-        vi.useRealTimers();
-        go.mockRestore();
-        await traverse('back');
-        expect(library.folder).toBe('A');
-
-        window.dispatchEvent(
-            new PopStateEvent('popstate', {
-                state: { folder: '', trail: [''], generation: 0, index: 0 }
-            })
-        );
-
-        expect(library.folder).toBe('A');
-        expect(currentFolder()).toBe('A');
-    } finally {
-        vi.clearAllTimers();
-        vi.useRealTimers();
-        go.mockRestore();
-    }
-});
-
-test('an expired traversal does not swallow a later Back to its target', async () => {
+test('a breadcrumb replace keeps later forward entries', async () => {
     const library = makeLibrary(['A', 'A/B', 'C']);
     await library.load();
     library.openFolder('A');
     library.openFolder('A/B');
-    const go = vi.spyOn(window.history, 'go').mockImplementation(() => {});
-    vi.useFakeTimers();
-    try {
-        library.openFolder('A', 'ancestor');
-        vi.advanceTimersByTime(30_000);
-        library.openFolder('C');
-        vi.useRealTimers();
-        go.mockRestore();
-        await traverse('back');
-        expect(library.folder).toBe('A/B');
+    await traverse('back');
 
-        await traverse('back');
-        expect(library.folder).toBe('A');
-        expect(currentFolder()).toBe('A');
-    } finally {
-        vi.clearAllTimers();
-        vi.useRealTimers();
-        go.mockRestore();
-    }
+    library.openFolder('C', 'ancestor');
+    expect(library.folder).toBe('C');
+
+    await traverse('forward');
+    expect(library.folder).toBe('A/B');
+    expect(currentFolder()).toBe('A/B');
 });
 
-test('a delayed traversal is ignored after an unrelated history move', async () => {
-    const library = makeLibrary(['A', 'A/B', 'C']);
+test('a breadcrumb replace from a deep link keeps the path encoded', async () => {
+    window.history.replaceState(null, '', '/?folder=Projects%2FDesign%20Notes');
+    const library = makeLibrary(['Projects/Design Notes']);
     await library.load();
-    library.openFolder('A');
-    library.openFolder('A/B');
-    const go = vi.spyOn(window.history, 'go').mockImplementation(() => {});
-    vi.useFakeTimers();
-    try {
-        library.openFolder('A', 'ancestor');
-        vi.advanceTimersByTime(1_000);
-        library.openFolder('C');
-        vi.useRealTimers();
-        go.mockRestore();
-        await traverse('back');
-        expect(library.folder).toBe('A/B');
+    const length = window.history.length;
 
-        window.dispatchEvent(
-            new PopStateEvent('popstate', {
-                state: { folder: 'A', trail: ['', 'A'], generation: 0, index: 1 }
-            })
-        );
+    library.openFolder('Projects', 'ancestor');
 
-        expect(library.folder).toBe('A/B');
-        expect(currentFolder()).toBe('A/B');
-    } finally {
-        vi.clearAllTimers();
-        vi.useRealTimers();
-        go.mockRestore();
-    }
-});
-
-test('a delayed traversal does not override a newer folder open', async () => {
-    const library = makeLibrary(['A', 'A/B', 'C']);
-    await library.load();
-    library.openFolder('A');
-    library.openFolder('A/B');
-    const go = vi.spyOn(window.history, 'go').mockImplementation(() => {});
-    vi.useFakeTimers();
-    try {
-        library.openFolder('A', 'ancestor');
-        vi.advanceTimersByTime(1_000);
-        library.openFolder('C');
-        window.dispatchEvent(
-            new PopStateEvent('popstate', {
-                state: { folder: 'A', trail: ['', 'A'], generation: 0, index: 1 }
-            })
-        );
-
-        expect(library.folder).toBe('C');
-        expect(currentFolder()).toBe('C');
-    } finally {
-        vi.clearAllTimers();
-        vi.useRealTimers();
-        go.mockRestore();
-    }
+    expect(library.folder).toBe('Projects');
+    expect(window.history.length).toBe(length);
+    expect(new URL(window.location.href).searchParams.get('folder')).toBe('Projects');
 });
 
 test('a deep link restores the folder and a missing folder falls back to root', async () => {
@@ -340,6 +221,19 @@ test('a history folder change clears the selection scope', async () => {
 
     expect(library.folder).toBe('');
     expect(onreset).toHaveBeenCalledTimes(1);
+});
+
+test('a breadcrumb replace keeps the file grid populated', async () => {
+    const library = makeLibrary(['A', 'A/B']);
+    await library.load();
+    library.openFolder('A');
+    library.openFolder('A/B');
+
+    library.openFolder('A', 'ancestor');
+
+    expect(library.folder).toBe('A');
+    expect(library.chunks).toHaveLength(2);
+    expect(library.loading).toBe(false);
 });
 
 test('folder history keeps unrelated query parameters', async () => {
