@@ -197,9 +197,15 @@ test('missing state is built before streaming and before trash', async () => {
         })
     );
 
-    const pending = POST({ request: request(body) } as never);
+    let settled = false;
+    const pending = Promise.resolve(POST({ request: request(body) } as never)).then((response) => {
+        settled = true;
+
+        return response;
+    });
 
     await vi.waitFor(() => expect(order).toEqual(['ensure:start']));
+    expect(settled).toBe(false);
     expect(moveToTrashBatch).not.toHaveBeenCalled();
     release();
     const response = await pending;
@@ -241,9 +247,15 @@ test('stale state refreshes once before streaming and deleteFiles does not refre
         })
     );
 
-    const pending = POST({ request: request(body) } as never);
+    let settled = false;
+    const pending = Promise.resolve(POST({ request: request(body) } as never)).then((response) => {
+        settled = true;
+
+        return response;
+    });
 
     await vi.waitFor(() => expect(order).toEqual(['refresh:start']));
+    expect(settled).toBe(false);
     expect(moveToTrashBatch).not.toHaveBeenCalled();
     release();
     const response = await pending;
