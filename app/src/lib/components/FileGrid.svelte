@@ -28,7 +28,8 @@
         filtered: boolean;
         hasFiles: boolean;
         hasMore: boolean;
-        disabled: boolean;
+        actionsDisabled: boolean;
+        browseDisabled?: boolean;
         showFolder: boolean;
         showOwner?: boolean;
         action?: FileAction | null;
@@ -66,7 +67,8 @@
         filtered,
         hasFiles,
         hasMore,
-        disabled,
+        actionsDisabled,
+        browseDisabled = false,
         showFolder,
         showOwner = false,
         action = null,
@@ -96,13 +98,14 @@
 <MarqueeSelect
     class="flex min-h-0 flex-1 flex-col"
     {selected}
-    disabled={disabled || !files.length}
+    disabled={browseDisabled || !files.length}
     onpreview={(keys) => onmarquee?.(keys)}
 >
     <section class="mt-6 flex min-h-0 flex-1 flex-col gap-6" aria-labelledby="files-heading">
         <FolderTiles
             {folders}
-            {disabled}
+            {actionsDisabled}
+            {browseDisabled}
             {dragging}
             onopen={onopenfolder}
             onmenu={onfoldermenu}
@@ -114,7 +117,8 @@
                 <FileList
                     {files}
                     bind:sort
-                    {disabled}
+                    {actionsDisabled}
+                    {browseDisabled}
                     {showFolder}
                     {showOwner}
                     {action}
@@ -144,7 +148,8 @@
                         >
                             <FileCard
                                 {item}
-                                {disabled}
+                                {actionsDisabled}
+                                {browseDisabled}
                                 {showOwner}
                                 partial={hasMore}
                                 working={fileActionKind(action, item)}
@@ -187,7 +192,7 @@
                     variant="outlined"
                     {loading}
                     loadingAriaLabel="Loading more files"
-                    {disabled}
+                    disabled={actionsDisabled || browseDisabled}
                     onclick={onmore}
                 >
                     Load more

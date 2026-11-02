@@ -13,7 +13,8 @@
     interface Props {
         files: FileGroup[];
         sort: FileSort;
-        disabled: boolean;
+        actionsDisabled: boolean;
+        browseDisabled?: boolean;
         loading: boolean;
         loadFailed: boolean;
         hasMore: boolean;
@@ -42,7 +43,8 @@
     let {
         files,
         sort = $bindable(),
-        disabled,
+        actionsDisabled,
+        browseDisabled = false,
         loading,
         loadFailed,
         hasMore,
@@ -85,14 +87,15 @@
     <MarqueeSelect
         class="flex min-h-0 flex-1 flex-col"
         {selected}
-        disabled={disabled || !files.length}
+        disabled={browseDisabled || !files.length}
         onpreview={(keys) => onmarquee?.(keys)}
     >
         {#if files.length}
             <FileList
                 files={sorted}
                 bind:sort
-                {disabled}
+                {actionsDisabled}
+                {browseDisabled}
                 {action}
                 {selected}
                 {onselect}
@@ -130,7 +133,7 @@
                     variant="outlined"
                     {loading}
                     loadingAriaLabel="Loading more trash"
-                    {disabled}
+                    disabled={actionsDisabled || browseDisabled}
                     onclick={onmore}
                 >
                     Load more

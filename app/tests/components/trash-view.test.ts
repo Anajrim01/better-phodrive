@@ -38,7 +38,7 @@ test('the trash view states the 30-day Google Photos deletion window', () => {
         props: {
             files: [],
             sort: FileSort.ModifiedDescending,
-            disabled: false,
+            actionsDisabled: false,
             loading: false,
             loadFailed: false,
             hasMore: false,
@@ -62,7 +62,7 @@ test('an empty first page offers Load more instead of claiming Trash is empty', 
         props: {
             files: [],
             sort: FileSort.ModifiedDescending,
-            disabled: false,
+            actionsDisabled: false,
             loading: false,
             loadFailed: false,
             hasMore: true,

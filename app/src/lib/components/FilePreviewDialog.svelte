@@ -19,6 +19,7 @@
         target: EntryTarget | null;
         token: string;
         showOwner?: boolean;
+        actionsDisabled?: boolean;
         ondownload: (item: FileGroup) => void;
         ondetails: (item: FileGroup) => void;
         onclose: () => void;
@@ -29,6 +30,7 @@
         target,
         token,
         showOwner = false,
+        actionsDisabled = false,
         ondownload,
         ondetails,
         onclose
@@ -188,6 +190,7 @@
     {#snippet actions()}
         <Button
             variant="text"
+            disabled={actionsDisabled}
             onclick={() => {
                 if (file) ondownload(file);
             }}
@@ -196,6 +199,7 @@
         </Button>
         <Button
             variant="text"
+            disabled={actionsDisabled}
             onclick={() => {
                 if (file) ondetails(file);
             }}

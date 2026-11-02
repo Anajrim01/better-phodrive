@@ -8,19 +8,30 @@
 
     interface Props {
         folders: FolderEntry[];
-        disabled: boolean;
+        actionsDisabled: boolean;
+        browseDisabled?: boolean;
         dragging: boolean;
         onopen: (path: string) => void;
         onmenu: (folder: FolderEntry, anchor: MenuAnchor) => void;
         ondropfiles: (folder: FolderEntry) => void;
     }
 
-    let { folders, disabled, dragging, onopen, onmenu, ondropfiles }: Props = $props();
+    let {
+        folders,
+        actionsDisabled,
+        browseDisabled = false,
+        dragging,
+        onopen,
+        onmenu,
+        ondropfiles
+    }: Props = $props();
     let dropPath = $state<string | null>(null);
+    const actionsBlocked = $derived(actionsDisabled || browseDisabled);
 
     function accepts(event: DragEvent): boolean {
         return (
-            !disabled && (dragging || event.dataTransfer?.types.includes(FILE_DRAG_TYPE) === true)
+            !actionsBlocked &&
+            (dragging || event.dataTransfer?.types.includes(FILE_DRAG_TYPE) === true)
         );
     }
 
@@ -64,6 +75,8 @@
                     class:drop-target={dropPath === folder.path}
                     oncontextmenu={(event) => {
                         event.preventDefault();
+                        if (actionsBlocked) return;
+
                         onmenu(folder, { x: event.clientX, y: event.clientY });
                     }}
                     ondragover={(event) => over(folder, event)}
@@ -74,7 +87,7 @@
                         type="button"
                         class="folder-open"
                         aria-label={`Open folder ${folder.name}`}
-                        {disabled}
+                        disabled={browseDisabled}
                         onclick={() => onopen(folder.path)}
                         onkeydown={(event) => {
                             if (
@@ -98,7 +111,7 @@
                     <span class="folder-more">
                         <MoreButton
                             label={folder.name}
-                            {disabled}
+                            disabled={actionsBlocked}
                             onopen={(element) => onmenu(folder, element)}
                         />
                     </span>

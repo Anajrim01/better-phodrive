@@ -14,6 +14,7 @@
     interface Props {
         drive: DriveController;
         actionsDisabled: boolean;
+        browseDisabled: boolean;
         selected: ReadonlySet<string>;
         onselect: (
             item: FileGroup,
@@ -40,6 +41,7 @@
     let {
         drive,
         actionsDisabled,
+        browseDisabled,
         selected,
         onselect,
         onselectall,
@@ -63,6 +65,8 @@
 
     function canDrop(path: string, event: DragEvent): boolean {
         return (
+            !actionsDisabled &&
+            !browseDisabled &&
             path !== drive.library.folder &&
             (dragging || event.dataTransfer?.types.includes(FILE_DRAG_TYPE) === true)
         );
@@ -166,7 +170,8 @@
             filtered={drive.library.filtering}
             hasFiles={!!drive.library.files.length}
             hasMore={!!drive.library.nextPageToken}
-            disabled={actionsDisabled || drive.library.loading}
+            {actionsDisabled}
+            {browseDisabled}
             showFolder={drive.library.filtering}
             showOwner={drive.groupMode.target !== null}
             action={drive.fileAction}

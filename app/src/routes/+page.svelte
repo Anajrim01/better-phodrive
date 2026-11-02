@@ -36,9 +36,11 @@
     const manage = createDriveManage(drive);
     let view = $state<AppView>(AppView.Files);
     const selection = createSelectionView(drive, manage, () => view);
+    const uploadBusy = $derived(drive.busy);
     const actionsDisabled = $derived(
-        drive.busy || !!drive.fileAction || manage.busy || drive.bulk.running || drive.bulk.moveBusy
+        uploadBusy || !!drive.fileAction || manage.busy || drive.bulk.running || drive.bulk.moveBusy
     );
+    const browseDisabled = $derived(drive.library.loading);
     const stats = $derived(libraryStats(drive.library.files));
     const drag = createDriveDrag(
         drive,
@@ -177,7 +179,8 @@
             <TrashView
                 files={drive.library.trashFiles}
                 bind:sort={drive.settings.fileSort}
-                disabled={actionsDisabled || drive.library.loading}
+                {actionsDisabled}
+                {browseDisabled}
                 loading={drive.library.loading}
                 loadFailed={drive.library.loadFailed}
                 hasMore={!!drive.library.nextPageToken}
@@ -227,6 +230,7 @@
             <FilesView
                 {drive}
                 {actionsDisabled}
+                {browseDisabled}
                 selected={selection.keys}
                 onselect={selection.selectFile}
                 onselectall={selection.selectAll}
@@ -250,9 +254,9 @@
     </main>
 </div>
 
-<svelte:window onclick={(event) => selection.backgroundClick(event, actionsDisabled)} />
+<svelte:window onclick={(event) => selection.backgroundClick(event, browseDisabled)} />
 
-<SelectionLayer {drive} {selection} {actionsDisabled} />
+<SelectionLayer {drive} {selection} {actionsDisabled} {browseDisabled} />
 
 <UploadPanel
     bind:open={drive.uploadPanelOpen}

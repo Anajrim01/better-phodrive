@@ -51,7 +51,7 @@ test('a single click on a list row still selects it without opening a preview', 
         props: {
             files: [item],
             sort: FileSort.NameAscending,
-            disabled: false,
+            actionsDisabled: false,
             action: null,
             ...callbacks,
             onopenpreview
@@ -73,7 +73,7 @@ test('a single click on a card still selects it without opening a preview', asyn
     const view = render(FileCard, {
         props: {
             item,
-            disabled: false,
+            actionsDisabled: false,
             working: null,
             ...callbacks,
             onopenpreview
@@ -97,7 +97,7 @@ test('double-clicking a list row selects once and opens the preview', async () =
         props: {
             files: [item],
             sort: FileSort.NameAscending,
-            disabled: false,
+            actionsDisabled: false,
             action: null,
             ...callbacks,
             onopenpreview
@@ -121,7 +121,7 @@ test('dragging a card still starts a move and does not open a preview', async ()
     const view = render(FileCard, {
         props: {
             item,
-            disabled: false,
+            actionsDisabled: false,
             working: null,
             ...selectionCallbacks(),
             onstartdrag,
@@ -144,7 +144,7 @@ test('double-clicking a list row opens its preview with the row as the trigger',
         props: {
             files: [item],
             sort: FileSort.NameAscending,
-            disabled: false,
+            actionsDisabled: false,
             action: null,
             ...selectionCallbacks(),
             onopenpreview
@@ -164,7 +164,7 @@ test('double-clicking a card opens its preview with the card as the trigger', as
     const view = render(FileCard, {
         props: {
             item,
-            disabled: false,
+            actionsDisabled: false,
             working: null,
             ...selectionCallbacks(),
             onopenpreview
@@ -184,7 +184,7 @@ test('double-clicking an action does not open a preview', async () => {
         props: {
             files: [file({ name: 'photo.png' })],
             sort: FileSort.NameAscending,
-            disabled: false,
+            actionsDisabled: false,
             action: null,
             ...selectionCallbacks(),
             onopenpreview
@@ -205,7 +205,7 @@ test('an incomplete file still opens the fallback preview', async () => {
         props: {
             files: [item],
             sort: FileSort.NameAscending,
-            disabled: false,
+            actionsDisabled: false,
             action: null,
             ...selectionCallbacks(),
             onopenpreview

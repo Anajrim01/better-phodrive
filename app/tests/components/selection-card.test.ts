@@ -50,7 +50,7 @@ test('a card exposes a direct checkbox after its name', async () => {
     render(FileCard, {
         props: {
             item,
-            disabled: false,
+            actionsDisabled: false,
             working: null,
             selected: true,
             selectedCount: 2,
@@ -83,7 +83,7 @@ test('clicking the card body sends a point gesture and actions do not', async ()
     render(FileCard, {
         props: {
             item,
-            disabled: false,
+            actionsDisabled: false,
             working: null,
             selected: false,
             ...props
@@ -104,7 +104,7 @@ test('clicking a card tooltip keeps a multi selection', async () => {
     render(FileCard, {
         props: {
             item,
-            disabled: false,
+            actionsDisabled: false,
             working: null,
             selected: true,
             selectedCount: 2,
@@ -131,7 +131,7 @@ test('dragging from card controls does not start a file drag', async () => {
     render(FileCard, {
         props: {
             item,
-            disabled: false,
+            actionsDisabled: false,
             working: null,
             selected: false,
             onstartdrag,
@@ -165,7 +165,7 @@ test('the card checkbox is hidden at rest and shown when selected', () => {
     const view = render(FileCard, {
         props: {
             item,
-            disabled: false,
+            actionsDisabled: false,
             working: null,
             selected: true,
             ...props
@@ -183,7 +183,7 @@ test('right-clicking a selected card in a multi selection opens the bulk menu', 
     render(FileCard, {
         props: {
             item,
-            disabled: false,
+            actionsDisabled: false,
             working: null,
             selected: true,
             selectedCount: 2,
@@ -209,7 +209,7 @@ test('Trash keeps a checkbox on every row and threads the same selection', () =>
         props: {
             files: [item],
             sort: FileSort.ModifiedDescending,
-            disabled: false,
+            actionsDisabled: false,
             loading: false,
             loadFailed: false,
             hasMore: false,

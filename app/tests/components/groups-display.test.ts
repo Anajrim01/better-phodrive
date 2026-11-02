@@ -212,7 +212,7 @@ test('a merged file row shows its owner', () => {
                 }
             ],
             sort: FileSort.NameAscending,
-            disabled: false,
+            actionsDisabled: false,
             showOwner: true,
             onmenu: vi.fn()
         }

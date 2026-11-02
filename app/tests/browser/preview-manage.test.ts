@@ -124,6 +124,31 @@ test('a paused owner is reported instead of opening a preview', () => {
     );
 });
 
+test('an upload running does not block a preview', () => {
+    const { manage } = makeManage({ busy: () => true });
+
+    manage.openPreview({ kind: 'file', item: file() });
+
+    expect(manage.dialog).toBe('preview');
+    expect(manage.previewToken).toBe('token-first');
+});
+
+test('a loading library still blocks a preview', () => {
+    const { manage } = makeManage({ loading: () => true });
+
+    manage.openPreview({ kind: 'file', item: file() });
+
+    expect(manage.dialog).toBeNull();
+});
+
+test('an upload running still blocks rename', () => {
+    const { manage } = makeManage({ busy: () => true });
+
+    manage.openRename({ kind: 'file', item: file() });
+
+    expect(manage.dialog).toBeNull();
+});
+
 test('an incomplete file still opens the fallback preview', () => {
     const { manage } = makeManage();
 

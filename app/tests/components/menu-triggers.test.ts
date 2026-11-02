@@ -88,7 +88,7 @@ test('right-clicking a file row opens the menu at the pointer', async () => {
         props: {
             files: [item],
             sort: FileSort.NameAscending,
-            disabled: false,
+            actionsDisabled: false,
             onmenu
         }
     });
@@ -106,7 +106,7 @@ test('the row More button and keyboard context key open the menu', async () => {
         props: {
             files: [file()],
             sort: FileSort.NameAscending,
-            disabled: false,
+            actionsDisabled: false,
             onmenu
         }
     });
@@ -124,7 +124,7 @@ test('the row More button and keyboard context key open the menu', async () => {
 test('right-clicking a file card and its More button both open the menu', async () => {
     const onmenu = vi.fn();
     render(FileCard, {
-        props: { item: file(), disabled: false, onmenu }
+        props: { item: file(), actionsDisabled: false, onmenu }
     });
 
     const card = screen.getByRole('group', { name: 'proof.bin' });
@@ -145,7 +145,7 @@ test('folder tiles open from the tile and expose a separate More button', async 
     render(FolderTiles, {
         props: {
             folders: [folder],
-            disabled: false,
+            actionsDisabled: false,
             dragging: false,
             onopen,
             onmenu,
@@ -171,7 +171,7 @@ test('a folder tile accepts a dragged file drop', async () => {
     render(FolderTiles, {
         props: {
             folders: [folder],
-            disabled: false,
+            actionsDisabled: false,
             dragging: true,
             onopen: vi.fn(),
             onmenu: vi.fn(),
@@ -195,7 +195,7 @@ test('disabled entries cannot open their menus', async () => {
         props: {
             files: [file()],
             sort: FileSort.NameAscending,
-            disabled: true,
+            actionsDisabled: true,
             onmenu
         }
     });

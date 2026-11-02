@@ -126,7 +126,7 @@ export class DriveManage {
     };
 
     openPreview(target: EntryTarget, trigger?: HTMLElement | null): void {
-        if (this.deps.busy() || this.deps.loading() || this.dialogBusy) return;
+        if (this.deps.loading() || this.dialogBusy) return;
         if (target.kind !== 'file') return;
 
         previewRoute(target.item, this.deps).match({

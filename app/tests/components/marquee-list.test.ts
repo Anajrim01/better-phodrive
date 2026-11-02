@@ -75,7 +75,7 @@ function mountList(selected = new Set<string>()) {
             filtered: false,
             hasFiles: true,
             hasMore: false,
-            disabled: false,
+            actionsDisabled: false,
             showFolder: false,
             selected,
             onmarquee,
@@ -277,7 +277,7 @@ test('the Trash list uses the same marquee selection', async () => {
         props: {
             files: [firstTrash, secondTrash],
             sort: FileSort.NameAscending,
-            disabled: false,
+            actionsDisabled: false,
             loading: false,
             loadFailed: false,
             hasMore: false,

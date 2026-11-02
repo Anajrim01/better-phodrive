@@ -50,7 +50,7 @@ test('every list row and the header expose a direct checkbox', () => {
         props: {
             files: [first, second],
             sort: FileSort.NameAscending,
-            disabled: false,
+            actionsDisabled: false,
             action: null,
             ...selectionCallbacks()
         }
@@ -68,7 +68,7 @@ test('the checkbox stays in the first cell so the file name keeps its own column
         props: {
             files: [item],
             sort: FileSort.NameAscending,
-            disabled: false,
+            actionsDisabled: false,
             action: null,
             ...selectionCallbacks()
         }
@@ -88,7 +88,7 @@ test('the header checkbox is indeterminate for a partial selection and checked f
         props: {
             files: [first, second],
             sort: FileSort.NameAscending,
-            disabled: false,
+            actionsDisabled: false,
             action: null,
             selected: new Set([fileKey(first)]),
             ...selectionCallbacks()
@@ -104,7 +104,7 @@ test('the header checkbox is indeterminate for a partial selection and checked f
     view.rerender({
         files: [first, second],
         sort: FileSort.NameAscending,
-        disabled: false,
+        actionsDisabled: false,
         action: null,
         selected: new Set([fileKey(first), fileKey(second)]),
         ...selectionCallbacks()
@@ -124,7 +124,7 @@ test('the header checkbox requests select all and then clears the visible files'
         props: {
             files: [item],
             sort: FileSort.NameAscending,
-            disabled: false,
+            actionsDisabled: false,
             action: null,
             ...props
         }
@@ -136,7 +136,7 @@ test('the header checkbox requests select all and then clears the visible files'
     view.rerender({
         files: [item],
         sort: FileSort.NameAscending,
-        disabled: false,
+        actionsDisabled: false,
         action: null,
         selected: new Set([fileKey(item)]),
         ...props
@@ -152,7 +152,7 @@ test('a row checkbox reports its file and a toggle gesture', async () => {
         props: {
             files: [item],
             sort: FileSort.NameAscending,
-            disabled: false,
+            actionsDisabled: false,
             action: null,
             ...props
         }
@@ -172,7 +172,7 @@ test('clicking the row body sends a point gesture but action buttons do not', as
         props: {
             files: [item],
             sort: FileSort.NameAscending,
-            disabled: false,
+            actionsDisabled: false,
             action: null,
             ...props
         }
@@ -194,7 +194,7 @@ test('dragging a row starts a file drag and Alt-drag is left for marquee', async
         props: {
             files: [item],
             sort: FileSort.NameAscending,
-            disabled: false,
+            actionsDisabled: false,
             action: null,
             onstartdrag,
             ...selectionCallbacks()
@@ -219,7 +219,7 @@ test('the row checkbox is hidden at rest and shown on the selected row', () => {
         props: {
             files: [item],
             sort: FileSort.NameAscending,
-            disabled: false,
+            actionsDisabled: false,
             action: null,
             selected: new Set([fileKey(item)]),
             ...selectionCallbacks()
@@ -241,7 +241,7 @@ test('Space on a focused row toggles it', async () => {
         props: {
             files: [item],
             sort: FileSort.NameAscending,
-            disabled: false,
+            actionsDisabled: false,
             action: null,
             ...props
         }
@@ -262,7 +262,7 @@ test('right-clicking an unselected row selects only it and opens the single menu
         props: {
             files: [first, second],
             sort: FileSort.NameAscending,
-            disabled: false,
+            actionsDisabled: false,
             action: null,
             selected: new Set([fileKey(second)]),
             ...props
@@ -286,7 +286,7 @@ test('right-clicking one of several selected rows opens the bulk menu', async ()
         props: {
             files: [first, second],
             sort: FileSort.NameAscending,
-            disabled: false,
+            actionsDisabled: false,
             action: null,
             selected: new Set([fileKey(first), fileKey(second)]),
             ...props
@@ -309,7 +309,7 @@ test('a single selected row still opens its own menu', async () => {
         props: {
             files: [item],
             sort: FileSort.NameAscending,
-            disabled: false,
+            actionsDisabled: false,
             action: null,
             selected: new Set([fileKey(item)]),
             ...props

@@ -64,7 +64,7 @@ function mountGrid() {
             filtered: false,
             hasFiles: true,
             hasMore: false,
-            disabled: false,
+            actionsDisabled: false,
             showFolder: false,
             selected: new Set<string>(),
             onmarquee,
