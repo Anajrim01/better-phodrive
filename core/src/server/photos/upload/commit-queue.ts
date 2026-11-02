@@ -1,5 +1,5 @@
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
-import type { ServerError } from '../../errors';
+import { SERVER_ERRORS, type ServerError } from '../../errors';
 import type { Fetcher } from '../../fetcher';
 import { commitBmpMany, type Transfer } from './transfer';
 import { handleBatchFailure, settleOutcome } from './commit-recovery';
@@ -8,6 +8,7 @@ import {
     abortWaiter,
     activeWaiters,
     makeWaiter,
+    settleAll,
     settleWaiter,
     type CommitBatch
 } from './commit-waiter';
@@ -48,7 +49,7 @@ export function commitBmpQueued(
                     current.waiters.push(waiter);
                     if (activeWaiters(current).length >= COMMIT_BATCH_SIZE) {
                         clearTimeout(current.timer);
-                        void flushBatch(current);
+                        startFlush(current);
                     }
 
                     return;
@@ -61,13 +62,21 @@ export function commitBmpQueued(
                     fetcher,
                     waiters: [],
                     abort: new AbortController(),
-                    timer: setTimeout(() => void flushBatch(batch), COMMIT_WINDOW_MS)
+                    timer: setTimeout(() => startFlush(batch), COMMIT_WINDOW_MS)
                 };
                 waiter.batch = batch;
                 batch.waiters.push(waiter);
                 commitBatches.set(key, batch);
             })
     );
+}
+
+function startFlush(batch: CommitBatch): void {
+    void flushBatch(batch).catch(() => {
+        if (commitBatches.get(batch.key) === batch) commitBatches.delete(batch.key);
+        clearTimeout(batch.timer);
+        settleAll(batch.inFlight ?? batch.waiters, Err(SERVER_ERRORS.COMMIT_OUTCOME_UNCERTAIN));
+    });
 }
 
 async function flushBatch(batch: CommitBatch): Promise<void> {
@@ -107,9 +116,8 @@ async function flushBatch(batch: CommitBatch): Promise<void> {
 
 function abortIdleBatch(batch: CommitBatch | undefined): void {
     if (!batch) return;
-
-    const waiters = batch.inFlight ?? batch.waiters;
-    if (waiters.some((waiter) => !waiter.settled)) return;
+    if (batch.inFlight) return;
+    if (batch.waiters.some((waiter) => !waiter.settled)) return;
 
     batch.abort.abort();
     if (commitBatches.get(batch.key) === batch) commitBatches.delete(batch.key);
@@ -121,6 +129,6 @@ function batchKey(email: string, rpcHeaders: Record<string, string>): string {
         Object.entries(rpcHeaders).find(([name]) => name.toLowerCase() === 'authorization')?.[1] ??
         '';
 
-    return `${email}
+    return `${email.toLowerCase()}
 ${authorization}`;
 }
