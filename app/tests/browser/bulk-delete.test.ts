@@ -7,6 +7,7 @@ import { chunk, failed, file, makeBulk, ok, ownerRoute } from './bulk-fixtures';
 
 vi.mock('#browser/files', () => ({
     deleteFile: vi.fn(),
+    deleteFiles: vi.fn(),
     deleteForeverFile: vi.fn(),
     downloadFile: vi.fn(),
     restoreFile: vi.fn(),
@@ -18,16 +19,34 @@ beforeEach(() => {
     vi.mocked(filesApi.saveDownloadedFile).mockReturnValue(Ok(undefined));
 });
 
-test('bulk delete routes each file to its owner and keeps failures selected', async () => {
+function deliver(
+    files: readonly ReturnType<typeof file>[],
+    onFile: Parameters<typeof filesApi.deleteFiles>[3],
+    errors: Record<string, string> = {}
+) {
+    for (const item of files) {
+        const error = errors[item.name];
+        onFile(
+            item,
+            error ? { deleted: [], error } : { deleted: [...item.chunks, ...item.duplicates] }
+        );
+    }
+}
+
+test('bulk delete posts once per account and keeps failed files selected', async () => {
     const first = file({ name: 'first.bin' });
     const second = file({
         email: 'second@example.com',
         fileId: 'b'.repeat(64),
         name: 'second.bin'
     });
-    vi.mocked(filesApi.deleteFile)
-        .mockReturnValueOnce(ok(undefined))
-        .mockReturnValueOnce(failed('Google Photos refused the request'));
+    vi.mocked(filesApi.deleteFiles).mockImplementation((_email, _token, files, onFile) =>
+        Ok(undefined).andThenAsync(async () => {
+            deliver(files, onFile, { 'second.bin': 'Google Photos refused the request' });
+
+            return Ok(undefined);
+        })
+    );
     const { bulk, selection, feedback, reloadGroup, setFiles } = makeBulk({
         groupMode: () => true,
         routeMembers: () => [ownerRoute('first@example.com'), ownerRoute('second@example.com')]
@@ -37,19 +56,19 @@ test('bulk delete routes each file to its owner and keeps failures selected', as
 
     await bulk.delete([first, second]);
 
-    expect(filesApi.deleteFile).toHaveBeenNthCalledWith(
+    expect(filesApi.deleteFiles).toHaveBeenNthCalledWith(
         1,
-        first,
+        'first@example.com',
         'token-first@example.com',
-        expect.any(Function),
-        2
+        [first],
+        expect.any(Function)
     );
-    expect(filesApi.deleteFile).toHaveBeenNthCalledWith(
+    expect(filesApi.deleteFiles).toHaveBeenNthCalledWith(
         2,
-        second,
+        'second@example.com',
         'token-second@example.com',
-        expect.any(Function),
-        2
+        [second],
+        expect.any(Function)
     );
     expect([...selection.selectedKeys]).toEqual([fileKey(second)]);
     expect(reloadGroup).toHaveBeenCalledTimes(1);
@@ -59,20 +78,95 @@ test('bulk delete routes each file to its owner and keeps failures selected', as
     expect(feedback).toHaveBeenCalledWith(expect.stringContaining('Deleted 1 of 2 files.'));
 });
 
+test('files from one account share a single request', async () => {
+    const first = file({ name: 'first.bin' });
+    const second = file({ fileId: 'b'.repeat(64), name: 'second.bin' });
+    vi.mocked(filesApi.deleteFiles).mockImplementation((_email, _token, files, onFile) =>
+        Ok(undefined).andThenAsync(async () => {
+            deliver(files, onFile);
+
+            return Ok(undefined);
+        })
+    );
+    const { bulk, selection, setFiles } = makeBulk();
+    setFiles([first, second]);
+    selection.selectAll([fileKey(first), fileKey(second)]);
+
+    await bulk.delete([first, second]);
+
+    expect(filesApi.deleteFiles).toHaveBeenCalledOnce();
+    expect(vi.mocked(filesApi.deleteFiles).mock.calls[0]?.[2]).toEqual([first, second]);
+    expect(selection.size).toBe(0);
+});
+
+test('progress advances as each file completes inside an account request', async () => {
+    const first = file({ name: 'first.bin' });
+    const second = file({ fileId: 'b'.repeat(64), name: 'second.bin' });
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+        release = resolve;
+    });
+    vi.mocked(filesApi.deleteFiles).mockImplementation((_email, _token, files, onFile) =>
+        Ok(undefined).andThenAsync(async () => {
+            onFile(files[0], { deleted: [...files[0].chunks] });
+            await gate;
+            onFile(files[1], { deleted: [...files[1].chunks] });
+
+            return Ok(undefined);
+        })
+    );
+    const { bulk, selection, setFiles } = makeBulk();
+    setFiles([first, second]);
+    selection.selectAll([fileKey(first), fileKey(second)]);
+
+    const pending = bulk.delete([first, second]);
+
+    await vi.waitFor(() => expect(bulk.progressDone).toBe(1));
+    expect(bulk.running).toBe(true);
+    release();
+    await pending;
+    expect(bulk.progressDone).toBe(2);
+    expect(bulk.running).toBe(false);
+});
+
+test('a partially trashed file keeps confirmed chunks and stays selected', async () => {
+    const first = file({
+        name: 'first.bin',
+        chunks: [chunk({ mediaKey: 'media-0' }), chunk({ mediaKey: 'media-1', chunkIndex: 1 })]
+    });
+    const onTrashed = vi.fn();
+    vi.mocked(filesApi.deleteFiles).mockImplementation((_email, _token, files, onFile) =>
+        Ok(undefined).andThenAsync(async () => {
+            onFile(files[0], { deleted: [files[0].chunks[0]], error: 'One chunk failed' });
+
+            return Ok(undefined);
+        })
+    );
+    const { bulk, selection, feedback, setFiles } = makeBulk({ onTrashed });
+    setFiles([first]);
+    selection.selectAll([fileKey(first)]);
+
+    await bulk.delete([first]);
+
+    expect(onTrashed).toHaveBeenCalledWith(first, first.chunks[0]);
+    expect([...selection.selectedKeys]).toEqual([fileKey(first)]);
+    expect(feedback).toHaveBeenCalledWith(expect.stringContaining('One chunk failed'));
+});
+
 test('bulk delete refuses a file that changed while confirming', async () => {
     const item = file({ name: 'first.bin' });
     const changed = file({
         name: 'first.bin',
         chunks: [chunk({ sha1: 'c'.repeat(40) })]
     });
-    vi.mocked(filesApi.deleteFile).mockReturnValue(ok(undefined));
+    vi.mocked(filesApi.deleteFiles).mockReturnValue(ok(undefined));
     const { bulk, selection, feedback, setFiles } = makeBulk();
     setFiles([changed]);
     selection.selectAll([fileKey(item)]);
 
     await bulk.delete([item]);
 
-    expect(filesApi.deleteFile).not.toHaveBeenCalled();
+    expect(filesApi.deleteFiles).not.toHaveBeenCalled();
     expect(feedback).toHaveBeenCalledWith(FILE_CHANGED_MESSAGE);
     expect([...selection.selectedKeys]).toEqual([fileKey(item)]);
 });
@@ -132,7 +226,13 @@ test('a paused owner is reported without calling its account', async () => {
         fileId: 'b'.repeat(64),
         name: 'second.bin'
     });
-    vi.mocked(filesApi.deleteFile).mockReturnValue(ok(undefined));
+    vi.mocked(filesApi.deleteFiles).mockImplementation((_email, _token, files, onFile) =>
+        Ok(undefined).andThenAsync(async () => {
+            deliver(files, onFile);
+
+            return Ok(undefined);
+        })
+    );
     const { bulk, selection, feedback, setFiles } = makeBulk({
         groupMode: () => true,
         routeMembers: () => [
@@ -145,7 +245,7 @@ test('a paused owner is reported without calling its account', async () => {
 
     await bulk.delete([first, second]);
 
-    expect(filesApi.deleteFile).toHaveBeenCalledTimes(1);
+    expect(filesApi.deleteFiles).toHaveBeenCalledTimes(1);
     expect([...selection.selectedKeys]).toEqual([fileKey(second)]);
     expect(feedback).toHaveBeenCalledWith(
         expect.stringContaining('cannot be changed while that account is paused')
@@ -164,7 +264,7 @@ test('a file owned by another account is skipped without an API call', async () 
 
     await bulk.delete([other]);
 
-    expect(filesApi.deleteFile).not.toHaveBeenCalled();
+    expect(filesApi.deleteFiles).not.toHaveBeenCalled();
     expect([...selection.selectedKeys]).toEqual([fileKey(other)]);
     expect(feedback).toHaveBeenCalledWith(
         expect.stringContaining('Select the connected account for this file')

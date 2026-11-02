@@ -14,6 +14,13 @@ import { markChunksRestored, markChunksTrashed, removeChunks } from './photos/li
 import { streamDownload } from './download';
 import { limitWorkers } from './workers';
 
+export {
+    BULK_TRASH_BATCH_SIZE,
+    deleteFiles,
+    validateBulkDelete,
+    type BulkDeleteFileResult
+} from './files-bulk';
+
 function incompleteDownloadError(chunks: readonly RemoteBmp[]): ServerError {
     const expected = expectedChunks(chunks);
     const missing = expected === null ? 0 : missingChunks(chunks, expected);

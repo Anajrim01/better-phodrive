@@ -1,6 +1,7 @@
 import { FileActionKind, type RemoteBmp } from '@madkarmaa/phodrive-core/models';
 import { fileKey, type FileGroup } from '@madkarmaa/phodrive-core/files';
 import { moveFile } from '@madkarmaa/phodrive-core/browser/manage';
+import { deleteFilesInBatches } from '#browser/drive/bulk-delete';
 import {
     applyFileAction,
     resolveFileToken,
@@ -175,6 +176,22 @@ export class DriveBulk {
     ): Promise<void> {
         if (!this.begin(files, action)) return;
 
+        const failures =
+            action === FileActionKind.Delete
+                ? await this.deleteInBatches(files)
+                : await this.applySequentially(files, action);
+
+        this.running = false;
+        this.runningAction = null;
+        if (action !== FileActionKind.Download) this.reloadAfter();
+        if (failures.length === 0 && action !== FileActionKind.Download) this.deps.closeUploads();
+        this.deps.feedback(bulkFailureMessage(failures, files.length, verb));
+    }
+
+    private async applySequentially(
+        files: readonly FileGroup[],
+        action: FileActionKind
+    ): Promise<BulkFailure[]> {
         const failures: BulkFailure[] = [];
         for (const item of files) {
             const routed = resolveFileToken(item, action, this.deps);
@@ -206,11 +223,23 @@ export class DriveBulk {
             this.progressDone++;
         }
 
-        this.running = false;
-        this.runningAction = null;
-        if (action !== FileActionKind.Download) this.reloadAfter();
-        if (failures.length === 0 && action !== FileActionKind.Download) this.deps.closeUploads();
-        this.deps.feedback(bulkFailureMessage(failures, files.length, verb));
+        return failures;
+    }
+
+    private async deleteInBatches(files: readonly FileGroup[]): Promise<BulkFailure[]> {
+        const failures: BulkFailure[] = [];
+
+        await deleteFilesInBatches(files, {
+            resolveToken: (item) => resolveFileToken(item, FileActionKind.Delete, this.deps),
+            onTrashed: this.deps.onTrashed,
+            remove: (item) => this.deps.selection.remove(fileKey(item)),
+            progress: () => {
+                this.progressDone++;
+            },
+            fail: (failure) => failures.push(failure)
+        });
+
+        return failures;
     }
 
     private validateSnapshot(

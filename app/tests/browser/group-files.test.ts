@@ -12,6 +12,7 @@ vi.mock('#browser/files', async (importOriginal) => {
         ...actual,
         downloadFile: vi.fn(),
         deleteFile: vi.fn(),
+        deleteFiles: vi.fn(),
         saveDownloadedFile: vi.fn()
     };
 });
