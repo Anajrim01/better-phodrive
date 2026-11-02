@@ -10,6 +10,7 @@
     import { createDriveManage } from '#browser/drive/manage-factory';
     import { createSelectionView } from '#browser/drive/selection-view.svelte';
     import { createDriveDrag } from '#browser/drive/drag-move.svelte';
+    import { actionsUnavailable } from '#browser/drive/actions';
     import AppHeader from '#components/AppHeader.svelte';
     import AccountMenu from '#components/AccountMenu.svelte';
     import AccountSetup from '#components/AccountSetup.svelte';
@@ -36,10 +37,7 @@
     const manage = createDriveManage(drive);
     let view = $state<AppView>(AppView.Files);
     const selection = createSelectionView(drive, manage, () => view);
-    const uploadBusy = $derived(drive.busy);
-    const actionsDisabled = $derived(
-        uploadBusy || !!drive.fileAction || manage.busy || drive.bulk.running || drive.bulk.moveBusy
-    );
+    const actionsDisabled = $derived(actionsUnavailable(drive, manage));
     const browseDisabled = $derived(drive.library.initialLoading);
     const stats = $derived(libraryStats(drive.library.files));
     const drag = createDriveDrag(
