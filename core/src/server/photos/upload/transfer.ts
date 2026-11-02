@@ -123,7 +123,8 @@ export function commitBmp(
             headers: rpcHeaders,
             body: bodyBytes(request)
         },
-        'Commit'
+        'Commit',
+        { preserveServerFailure: true }
     )
         .andThenAsync((response) =>
             readBody(response, 'Commit').andThen((body) => mediaFromCommit(body, transfer.scotty))

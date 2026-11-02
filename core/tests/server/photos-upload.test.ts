@@ -2,6 +2,8 @@ import { UploadStatus } from '@madkarmaa/phodrive-core/models';
 import { expect, test } from 'vitest';
 import { createHash } from 'node:crypto';
 import { uploadBmp } from '@madkarmaa/phodrive-core/server/photos';
+import { commitBmp } from '@madkarmaa/phodrive-core/server/photos/upload/transfer';
+import { recordServerFailure } from '@madkarmaa/phodrive-core/server/photos/throttle';
 import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
 import { authResponse, bytes, num } from '../helpers/photos';
 
@@ -58,6 +60,25 @@ test('Pixel XL flow hashes, transfers, and commits one BMP', async () => {
         sha1: sha1.toString('hex')
     });
     expect(step).toBe(5);
+});
+
+test('a commit server failure stays uncertain after earlier server failures', async () => {
+    const email = 'commit-failure@example.com';
+    recordServerFailure(email);
+    recordServerFailure(email);
+    const transfer = {
+        scotty: Buffer.from([8, 2, 18, 1, 7]),
+        type: 2,
+        token: Buffer.from([7])
+    };
+    const fetcher: Fetcher = async () => new Response(null, { status: 503 });
+
+    const committed = await commitBmp(email, 'sample.bmp', Buffer.alloc(20), transfer, {}, fetcher);
+
+    expect(committed.unwrapErr()).toEqual({
+        code: 'COMMIT_OUTCOME_UNCERTAIN',
+        message: 'Commit outcome uncertain. Check Google Photos before retrying.'
+    });
 });
 
 test('a connection timeout during commit remains uncertain and is never retried automatically', async () => {
