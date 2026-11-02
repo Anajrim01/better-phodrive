@@ -20,11 +20,20 @@
     let dragging = $state(false);
     let overFiles = $state(false);
     let zone = $state<HTMLDivElement>();
+    let dropError = $state('');
     let dragDepth = 0;
+    let dropRun = 0;
     const fileRect = new ElementRect(() => zone);
 
     $effect(() => {
-        if (!desktop.current || disabled) resetDrag();
+        if (!desktop.current || disabled) {
+            dropRun += 1;
+            resetDrag();
+        }
+    });
+
+    $effect(() => () => {
+        dropRun += 1;
     });
 
     function resetDrag() {
@@ -44,6 +53,7 @@
     function enterDrag(event: DragEvent) {
         if (!isFileDrag(event)) return;
 
+        dropError = '';
         event.preventDefault();
         if (disabled) return;
 
@@ -73,17 +83,26 @@
         if (event.relatedTarget) overFiles = isOverFiles(event.relatedTarget);
     }
 
-    function dropFiles(event: DragEvent) {
+    async function dropFiles(event: DragEvent) {
         resetDrag();
         if (!isFileDrag(event) || !event.dataTransfer) return;
 
         event.preventDefault();
+        const transfer = event.dataTransfer;
         if (disabled || !isOverFiles(event.target)) return;
 
-        const files = droppedFiles(event.dataTransfer);
-        if (!files.length) return;
+        const run = ++dropRun;
+        dropError = '';
 
-        onupload(files);
+        try {
+            const files = await droppedFiles(transfer);
+            if (run !== dropRun || disabled || !files.length) return;
+
+            onupload(files);
+        } catch {
+            if (run === dropRun && !disabled)
+                dropError = 'Could not read the dropped files. Try again.';
+        }
     }
 </script>
 
@@ -126,6 +145,10 @@
     </div>
 {/if}
 
+{#if dropError}
+    <p class="drop-error" role="alert">{dropError}</p>
+{/if}
+
 <style>
     .file-drop {
         display: flex;
@@ -156,6 +179,30 @@
         pointer-events: none;
         --np-filled-card-container-shape: 100px;
         --np-filled-card-container-color: var(--np-color-primary);
+    }
+
+    .drop-error {
+        position: fixed;
+        left: 24px;
+        bottom: 24px;
+        z-index: 40;
+        max-width: min(560px, calc(100vw - 32px));
+        margin: 0;
+        padding: 12px 16px;
+        border: 1px solid color-mix(in srgb, var(--np-color-error) 40%, transparent);
+        border-radius: 12px;
+        background: var(--np-color-surface-container);
+        color: var(--np-color-error);
+        font-size: 14px;
+        line-height: 20px;
+    }
+
+    @media (max-width: 800px) {
+        .drop-error {
+            right: 16px;
+            bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+            max-width: none;
+        }
     }
 
     @media (width > 800px) and (hover: hover) and (pointer: fine) {
