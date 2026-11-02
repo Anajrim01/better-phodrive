@@ -217,6 +217,10 @@
             "@madkarmaa/phodrive-core": "./src/server/files-bulk.ts",
             "default": "./dist/server/files-bulk.js"
         },
+        "./server/files-bulk-validate": {
+            "@madkarmaa/phodrive-core": "./src/server/files-bulk-validate.ts",
+            "default": "./dist/server/files-bulk-validate.js"
+        },
         "./server/folders": {
             "@madkarmaa/phodrive-core": "./src/server/folders.ts",
             "default": "./dist/server/folders.js"
@@ -516,6 +520,7 @@
             "./server/fetcher": "./dist/server/fetcher.js",
             "./server/files": "./dist/server/files.js",
             "./server/files-bulk": "./dist/server/files-bulk.js",
+            "./server/files-bulk-validate": "./dist/server/files-bulk-validate.js",
             "./server/folders": "./dist/server/folders.js",
             "./server/manage": "./dist/server/manage.js",
             "./server/manage-auth": "./dist/server/manage-auth.js",

@@ -2,13 +2,17 @@ import {
     BulkDeleteRequestSchema,
     type BulkDeleteRequest
 } from '@madkarmaa/phodrive-core/bulk-delete';
-import { deleteFiles, validateBulkDelete } from '@madkarmaa/phodrive-core/server/files';
+import {
+    trashValidatedFiles,
+    validateBulkDelete,
+    type BulkDeleteValidation
+} from '@madkarmaa/phodrive-core/server/files';
 import { errorResponse, readJsonRequest } from '#server/api';
 import type { RequestHandler } from './$types';
 
 const NDJSON = 'application/x-ndjson';
 
-function bulkResponse(input: BulkDeleteRequest): Response {
+function bulkResponse(input: BulkDeleteRequest, validation: BulkDeleteValidation): Response {
     const encoder = new TextEncoder();
     const stream = new ReadableStream<Uint8Array>({
         start(controller) {
@@ -32,7 +36,12 @@ function bulkResponse(input: BulkDeleteRequest): Response {
                 } catch {}
             };
 
-            void deleteFiles(input, (result) => send({ type: 'file', ...result }), 'manual').match({
+            void trashValidatedFiles(
+                input,
+                validation,
+                (result) => send({ type: 'file', ...result }),
+                'manual'
+            ).match({
                 Ok: finish,
                 Err: (error) => {
                     input.files.forEach((_, index) => fileEvent(index, error.message));
@@ -53,5 +62,18 @@ function bulkResponse(input: BulkDeleteRequest): Response {
 
 export const POST: RequestHandler = ({ request }) =>
     readJsonRequest(request, BulkDeleteRequestSchema, 'Invalid request')
-        .andThenAsync((input) => validateBulkDelete(input).map(() => input))
-        .match({ Ok: (input) => bulkResponse(input), Err: errorResponse });
+        .andThenAsync((input) =>
+            validateBulkDelete(input).map((validation) => ({ input, validation }))
+        )
+        .match({
+            Ok: ({ input, validation }) => {
+                if (validation.files.length === 0 && validation.invalid.length > 0)
+                    return errorResponse({
+                        code: 'INVALID_FILE_METADATA',
+                        message: validation.invalid[0].error
+                    });
+
+                return bulkResponse(input, validation);
+            },
+            Err: errorResponse
+        });

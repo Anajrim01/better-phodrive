@@ -1,28 +1,27 @@
+import { isThrottleError, throttleError, type ServerError, type ThrottleMode } from './errors';
 import {
-    SERVER_ERRORS,
-    isThrottleError,
-    throttleError,
-    type ServerError,
-    type ThrottleMode
-} from './errors';
-import {
-    BulkDeleteRequestSchema,
     type BulkDeleteChunk,
-    type BulkDeleteFile,
     type BulkDeleteFileEvent,
     type BulkDeleteRequest
 } from '../bulk-delete';
 import pLimit from 'p-limit';
-import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
+import { Ok, type AsyncResult } from 'results-ts';
 import { moveToTrash, moveToTrashBatch } from './photos/index';
-import { ensureAccountIndex, refreshAccountIndex } from './photos/library/ensure';
-import {
-    markChunksTrashed,
-    readAccountState,
-    type LibraryAccountState
-} from './photos/library/state';
+import { markChunksTrashed } from './photos/library/state';
 import { photosFetch, type Fetcher } from './fetcher';
 import { limitWorkers } from './workers';
+import {
+    validateBulkDelete,
+    type BulkDeleteValidation,
+    type ValidatedBulkFile
+} from './files-bulk-validate';
+
+export {
+    validateBulkDelete,
+    type BulkDeleteInvalidFile,
+    type BulkDeleteValidation,
+    type ValidatedBulkFile
+} from './files-bulk-validate';
 
 export const BULK_TRASH_BATCH_SIZE = 500;
 
@@ -40,70 +39,6 @@ type ChunkEntry = { fileIndex: number; chunk: BulkDeleteChunk };
 type ChunkFailures = ReadonlyMap<BulkDeleteChunk, ServerError>;
 
 type ThrottleFailure = Extract<ServerError, { code: 'THROTTLED' }>;
-
-function validateState(
-    files: BulkDeleteRequest['files'],
-    state: LibraryAccountState
-): Result<BulkDeleteFile[], ServerError> {
-    const validated: BulkDeleteFile[] = [];
-
-    for (const [name, fileHash, fileId, pairs] of files) {
-        const chunks = pairs.map(([mediaKey, sha1]) => ({ mediaKey, sha1 }));
-
-        for (const chunk of chunks) {
-            const stored = state.items.get(chunk.mediaKey);
-            if (
-                !stored ||
-                stored.sha1 !== chunk.sha1 ||
-                stored.fileHash !== fileHash ||
-                stored.fileId !== fileId
-            )
-                return Err(SERVER_ERRORS.INVALID_FILE_METADATA);
-        }
-
-        validated.push({ name, fileHash, fileId, chunks });
-    }
-
-    return Ok(validated);
-}
-
-export function validateBulkDelete(
-    input: BulkDeleteRequest,
-    fetcher: Fetcher = photosFetch
-): AsyncResult<BulkDeleteFile[], ServerError> {
-    return Ok(undefined).andThenAsync(async () => {
-        const parsed = BulkDeleteRequestSchema.safeParse(input);
-        if (!parsed.success) return Err(SERVER_ERRORS.INVALID_FILE_METADATA);
-
-        const built = !readAccountState(input.email);
-        if (built) {
-            const ensured = await ensureAccountIndex(input.email, input.token, fetcher);
-            const ensureError = ensured.match<ServerError | null>({
-                Ok: () => null,
-                Err: (error) => error
-            });
-            if (ensureError) return Err(ensureError);
-        }
-
-        const state = readAccountState(input.email);
-        if (!state) return Err(SERVER_ERRORS.LIBRARY_STATE_REQUIRED);
-
-        const initial = validateState(parsed.data.files, state);
-        if (initial.isOk() || built) return initial;
-
-        const refreshed = await refreshAccountIndex(input.email, input.token, fetcher);
-        const refreshError = refreshed.match<ServerError | null>({
-            Ok: () => null,
-            Err: (error) => error
-        });
-        if (refreshError) return Err(refreshError);
-
-        const next = readAccountState(input.email);
-        if (!next) return Err(SERVER_ERRORS.LIBRARY_STATE_REQUIRED);
-
-        return validateState(parsed.data.files, next);
-    });
-}
 
 function failureFields(
     failures: readonly ServerError[],
@@ -149,7 +84,7 @@ function finishBatch(
 
 async function trashEach(
     input: BulkDeleteRequest,
-    files: readonly BulkDeleteFile[],
+    files: readonly ValidatedBulkFile[],
     states: BulkFileState[],
     batch: readonly ChunkEntry[],
     fetcher: Fetcher,
@@ -189,7 +124,7 @@ async function trashEach(
 }
 
 function emitCompletedFiles(
-    files: readonly BulkDeleteFile[],
+    files: readonly ValidatedBulkFile[],
     states: BulkFileState[],
     onFile: (result: BulkDeleteFileResult) => void,
     mode: ThrottleMode
@@ -201,7 +136,7 @@ function emitCompletedFiles(
 
         state.emitted = true;
         onFile({
-            index,
+            index: file.index,
             name: file.name,
             deleted: state.deleted,
             ...failureFields(state.failures, mode)
@@ -209,13 +144,23 @@ function emitCompletedFiles(
     }
 }
 
-export function deleteFiles(
+export function trashValidatedFiles(
     input: BulkDeleteRequest,
+    validation: BulkDeleteValidation,
     onFile: (result: BulkDeleteFileResult) => void,
     mode: ThrottleMode = 'auto',
     fetcher: Fetcher = photosFetch
 ): AsyncResult<void, ServerError> {
-    return validateBulkDelete(input, fetcher).andThenAsync(async (files) => {
+    return Ok(undefined).andThenAsync(async () => {
+        for (const invalid of validation.invalid)
+            onFile({
+                index: invalid.index,
+                name: invalid.name,
+                deleted: [],
+                error: invalid.error
+            });
+
+        const files = validation.files;
         const states: BulkFileState[] = files.map((file) => ({
             deleted: [],
             failures: [],
@@ -293,4 +238,15 @@ export function deleteFiles(
 
         return Ok(undefined);
     });
+}
+
+export function deleteFiles(
+    input: BulkDeleteRequest,
+    onFile: (result: BulkDeleteFileResult) => void,
+    mode: ThrottleMode = 'auto',
+    fetcher: Fetcher = photosFetch
+): AsyncResult<void, ServerError> {
+    return validateBulkDelete(input, fetcher).andThenAsync((validation) =>
+        trashValidatedFiles(input, validation, onFile, mode, fetcher)
+    );
 }
