@@ -15,6 +15,8 @@ type LookupWaiter = {
     rpcHeaders: Record<string, string>;
     fetcher: Fetcher;
     signal?: AbortSignal;
+    settled: boolean;
+    onAbort?: () => void;
     resolve: (result: Result<string | null, ServerError>) => void;
 };
 
@@ -44,10 +46,11 @@ export function lookupHash(
                     return;
                 }
 
+                const waiter = makeWaiter(sha1, rpcHeaders, fetcher, signal, resolve);
                 const current = lookupBatches.get(email);
 
                 if (current) {
-                    current.waiters.push({ sha1, rpcHeaders, fetcher, signal, resolve });
+                    current.waiters.push(waiter);
                     if (current.waiters.length >= HASH_LOOKUP_BATCH_SIZE) {
                         clearTimeout(current.timer);
                         void flushLookupBatch(current);
@@ -58,7 +61,7 @@ export function lookupHash(
 
                 const batch: LookupBatch = {
                     email,
-                    waiters: [{ sha1, rpcHeaders, fetcher, signal, resolve }],
+                    waiters: [waiter],
                     timer: setTimeout(() => void flushLookupBatch(batch), HASH_LOOKUP_WINDOW_MS)
                 };
                 batch.timer.unref();
@@ -77,7 +80,7 @@ async function flushLookupBatch(batch: LookupBatch): Promise<void> {
 
     const activeWaiters = waiters.filter((waiter) => !waiter.signal?.aborted);
     if (activeWaiters.length === 0) {
-        for (const waiter of waiters) waiter.resolve(Err(HASH_LOOKUP_ABORTED));
+        for (const waiter of waiters) settleWaiter(waiter, Err(HASH_LOOKUP_ABORTED));
 
         return;
     }
@@ -107,13 +110,10 @@ async function flushLookupBatch(batch: LookupBatch): Promise<void> {
 
     if (outcome.ok) {
         for (const waiter of waiters) {
-            if (waiter.signal?.aborted) {
-                waiter.resolve(Err(HASH_LOOKUP_ABORTED));
-
-                continue;
-            }
-
-            waiter.resolve(Ok(outcome.value.get(waiter.sha1.toString('hex')) ?? null));
+            const result = waiter.signal?.aborted
+                ? Err(HASH_LOOKUP_ABORTED)
+                : Ok(outcome.value.get(waiter.sha1.toString('hex')) ?? null);
+            settleWaiter(waiter, result);
         }
 
         return;
@@ -121,8 +121,10 @@ async function flushLookupBatch(batch: LookupBatch): Promise<void> {
 
     if (!shouldFallback(outcome.error, unique.size, first.signal?.aborted === true)) {
         for (const waiter of waiters) {
-            if (waiter.signal?.aborted) waiter.resolve(Err(HASH_LOOKUP_ABORTED));
-            else waiter.resolve(Err(outcome.error));
+            settleWaiter(
+                waiter,
+                waiter.signal?.aborted ? Err(HASH_LOOKUP_ABORTED) : Err(outcome.error)
+            );
         }
 
         return;
@@ -150,14 +152,46 @@ async function flushLookupBatch(batch: LookupBatch): Promise<void> {
 
     for (const waiter of waiters) {
         if (waiter.signal?.aborted) {
-            waiter.resolve(Err(HASH_LOOKUP_ABORTED));
+            settleWaiter(waiter, Err(HASH_LOOKUP_ABORTED));
 
             continue;
         }
 
         const result = singleResults.get(waiter.sha1.toString('hex'));
-        waiter.resolve(result ?? Err(outcome.error));
+        settleWaiter(waiter, result ?? Err(outcome.error));
     }
+}
+
+function makeWaiter(
+    sha1: Buffer,
+    rpcHeaders: Record<string, string>,
+    fetcher: Fetcher,
+    signal: AbortSignal | undefined,
+    resolve: (result: Result<string | null, ServerError>) => void
+): LookupWaiter {
+    const waiter: LookupWaiter = {
+        sha1,
+        rpcHeaders,
+        fetcher,
+        signal,
+        settled: false,
+        resolve
+    };
+
+    if (signal) {
+        waiter.onAbort = () => settleWaiter(waiter, Err(HASH_LOOKUP_ABORTED));
+        signal.addEventListener('abort', waiter.onAbort, { once: true });
+    }
+
+    return waiter;
+}
+
+function settleWaiter(waiter: LookupWaiter, result: Result<string | null, ServerError>): void {
+    if (waiter.settled) return;
+
+    waiter.settled = true;
+    if (waiter.signal && waiter.onAbort) waiter.signal.removeEventListener('abort', waiter.onAbort);
+    waiter.resolve(result);
 }
 
 function lookupWaiter(

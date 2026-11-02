@@ -102,6 +102,41 @@ test('an aborted duplicate does not cancel the active caller', async () => {
     expect(requests).toBe(1);
 });
 
+test('an aborted caller settles while the shared batch is held', async () => {
+    const firstHash = sha1('held-first');
+    const secondHash = sha1('held-second');
+    const abort = new AbortController();
+    let started!: () => void;
+    const start = new Promise<void>((resolve) => {
+        started = resolve;
+    });
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+        release = resolve;
+    });
+    const fetcher: Fetcher = async (_input, init) => {
+        const shape = requestShape(await bodyOf(init));
+        started();
+        await held;
+
+        return batchResponse(shape.hashes.map((hash) => ({ sha1: hash, key: 'key' })));
+    };
+
+    const first = lookupHash(EMAIL, firstHash, {}, fetcher);
+    const second = lookupHash(EMAIL, secondHash, {}, fetcher, abort.signal);
+    await start;
+    abort.abort();
+    const code = await Promise.race([
+        second.then((result) => result.unwrapErr().code),
+        new Promise<string>((resolve) => setTimeout(() => resolve('pending'), 100))
+    ]);
+    release();
+    const firstResult = await first;
+
+    expect(code).toBe('REQUEST_FAILED');
+    expect(firstResult.unwrap()).toBe('key');
+});
+
 test('a server failure propagates without fallback requests', async () => {
     const hashes = [sha1('server-a'), sha1('server-b')];
     let requests = 0;
