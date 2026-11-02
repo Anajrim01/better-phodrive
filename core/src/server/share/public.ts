@@ -78,7 +78,7 @@ export function probeShortUrl(
                 'Read share album'
             );
             const page = canonical.match({ Ok: (value) => value, Err: () => null });
-            if (page === null) return Ok({ status, canonicalUrl: null });
+            if (page === null) return Err(SERVER_ERRORS.SHARE_PUBLIC_PAGE_FAILED);
 
             const pageStatus = page.status;
             const pageType = page.headers.get('content-type') ?? '';

@@ -453,9 +453,17 @@
             "@madkarmaa/phodrive-core": "./src/server/share/public.ts",
             "default": "./dist/server/share/public.js"
         },
+        "./server/share/recovery": {
+            "@madkarmaa/phodrive-core": "./src/server/share/recovery.ts",
+            "default": "./dist/server/share/recovery.js"
+        },
         "./server/share/requests": {
             "@madkarmaa/phodrive-core": "./src/server/share/requests.ts",
             "default": "./dist/server/share/requests.js"
+        },
+        "./server/share/resume": {
+            "@madkarmaa/phodrive-core": "./src/server/share/resume.ts",
+            "default": "./dist/server/share/resume.js"
         },
         "./server/share/revoke": {
             "@madkarmaa/phodrive-core": "./src/server/share/revoke.ts",
@@ -655,7 +663,9 @@
             "./server/share/link": "./dist/server/share/link.js",
             "./server/share/manifest": "./dist/server/share/manifest.js",
             "./server/share/public": "./dist/server/share/public.js",
+            "./server/share/recovery": "./dist/server/share/recovery.js",
             "./server/share/requests": "./dist/server/share/requests.js",
+            "./server/share/resume": "./dist/server/share/resume.js",
             "./server/share/revoke": "./dist/server/share/revoke.js",
             "./server/upload": "./dist/server/upload/index.js",
             "./server/upload/bmp": "./dist/server/upload/bmp.js",

@@ -130,3 +130,27 @@ test('server errors during verification do not count as stopped', async () => {
 
     expect(revoked.unwrapErr().code).toBe('SHARE_REVOKE_UNVERIFIED');
 });
+
+test('a failed canonical page probe leaves revoke unverified', async () => {
+    const fetcher: Fetcher = async (input, init) => {
+        const url = String(input);
+        if (url.includes('android.googleapis.com/auth')) return new Response(AUTH_RESPONSE);
+        if (url === UPDATE_LINK || url === DELETE_ENVELOPE || url === REMOVE_ALBUM)
+            return new Response(null);
+        if (url === SHORT_URL) {
+            if (init?.redirect === 'follow') return htmlPage();
+
+            return new Response(null, { status: 302, headers: { location: CANONICAL } });
+        }
+        if (url === CANONICAL) throw new Error('canonical probe failed');
+
+        return new Response(null, { status: 404 });
+    };
+
+    const revoked = await revokeShare(revokeRequest(), fetcher, {
+        sleep: async () => undefined,
+        verifyAttempts: 1
+    });
+
+    expect(revoked.unwrapErr().code).toBe('SHARE_REVOKE_UNVERIFIED');
+});

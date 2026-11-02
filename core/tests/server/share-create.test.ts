@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { createShare } from '@madkarmaa/phodrive-core/server/share';
+import { createShare, decodeShareUrl } from '@madkarmaa/phodrive-core/server/share';
 import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
 import { bytes, parse } from '@madkarmaa/phodrive-core/server/protobuf';
 import {
@@ -168,4 +168,32 @@ test('an existing share cannot be reused with a new file selection', async () =>
 
     expect(created.unwrapErr().code).toBe('REQUEST_FAILED');
     expect(calls).toBe(0);
+});
+
+test('re-enabling a rotated link rebuilds the viewer URL and manifest', async () => {
+    const rotated = 'https://photos.google.com/share/Rotated?key=OtherKey';
+    const liveUrl = 'https://photos.app.goo.gl/rotated';
+    const fetcher: Fetcher = async (input, init) => {
+        const url = String(input);
+        if (url.includes('android.googleapis.com/auth')) return new Response(AUTH_RESPONSE);
+        if (url === UPDATE_LINK) return bodyResponse(linkResponse(liveUrl));
+        if (url === SHORT_URL) return new Response(null, { status: 404 });
+        if (url === liveUrl) {
+            return new Response(null, { status: 302, headers: { location: rotated } });
+        }
+        if (url === rotated) return htmlPage();
+
+        return new Response(null, { status: 404 });
+    };
+
+    const created = await createShare(
+        request({ existing: EXISTING_SHARE, files: undefined }),
+        fetcher,
+        { poll: { attempts: 2, delayMs: 0, sleep: async () => undefined } }
+    );
+    const response = created.unwrap();
+
+    expect(response.record.albumUrl).toBe(rotated);
+    expect(decodeShareUrl(response.record.shareUrl).unwrap().album).toBe(rotated);
+    expect(response.manifest.album).toBe(rotated);
 });
