@@ -264,7 +264,7 @@ export function isThrottleError(
 }
 
 export type ShareRecovery = {
-    readonly envelopeKey: string;
+    readonly envelopeKey?: string;
     readonly albumKey: string;
 };
 

@@ -84,7 +84,9 @@ test('revoke requests are dispatched to the share service', async () => {
         email: 'owner@example.com',
         token: 'aas_et/test',
         envelopeKey: 'envelope',
-        albumKey: 'album'
+        albumKey: 'album',
+        shortUrl: 'https://photos.app.goo.gl/abc123',
+        albumUrl: 'https://photos.google.com/share/AbCdEf?key=M2ZXZ1'
     });
 
     expect(response.status).toBe(200);

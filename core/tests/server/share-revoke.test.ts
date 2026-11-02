@@ -111,3 +111,22 @@ test('revoke fails closed when the public URLs cannot be checked', async () => {
 
     expect(revoked.unwrapErr().code).toBe('SHARE_REVOKE_UNVERIFIED');
 });
+
+test('server errors during verification do not count as stopped', async () => {
+    const fetcher: Fetcher = async (input) => {
+        const url = String(input);
+        if (url.includes('android.googleapis.com/auth')) return new Response(AUTH_RESPONSE);
+        if (url === UPDATE_LINK || url === DELETE_ENVELOPE || url === REMOVE_ALBUM)
+            return new Response(null);
+        if (url === SHORT_URL || url === CANONICAL) return new Response(null, { status: 500 });
+
+        return new Response(null, { status: 404 });
+    };
+
+    const revoked = await revokeShare(revokeRequest(), fetcher, {
+        sleep: async () => undefined,
+        verifyAttempts: 1
+    });
+
+    expect(revoked.unwrapErr().code).toBe('SHARE_REVOKE_UNVERIFIED');
+});

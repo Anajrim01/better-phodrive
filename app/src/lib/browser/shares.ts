@@ -3,6 +3,7 @@ import { PersistedState } from 'runed';
 import { Err, type Result } from 'results-ts';
 import { EmailSchema } from '@madkarmaa/phodrive-core/models';
 import {
+    MAX_SHARE_FILES,
     ShareRecordSchema,
     StoredSharesSchema,
     type ShareRecord,
@@ -54,6 +55,15 @@ export class ShareStore {
 
         const shares: StoredShares = readState(this.state).unwrapOr({});
         const current = shares[parsedEmail.data] ?? [];
+        const existing = current.some(
+            (entry) => entry.envelopeKey === parsedRecord.data.envelopeKey
+        );
+        if (!existing && current.length >= MAX_SHARE_FILES)
+            return Err({
+                code: 'INVALID_SCHEMA',
+                message: 'Could not save more than 100 shares in this browser.'
+            } as const);
+
         const updated = [
             parsedRecord.data,
             ...current.filter((entry) => entry.envelopeKey !== parsedRecord.data.envelopeKey)

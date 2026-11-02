@@ -14,6 +14,7 @@ import { LINK_STATE_DISABLED } from './requests';
 
 const VERIFY_ATTEMPTS = 5;
 const VERIFY_DELAY_MS = 500;
+const STOPPED_STATUSES = new Set([301, 302, 303, 307, 308, 401, 403, 404, 410]);
 
 export type ShareRevokeOptions = {
     sleep?: (milliseconds: number) => Promise<void>;
@@ -151,9 +152,13 @@ function isLive(verification: Verification): boolean {
 }
 
 function isVerified(verification: Verification, required: VerificationRequirements): boolean {
-    if (required.shortUrl && verification.shortUrlStatus === null) return false;
-    if (required.albumUrl && verification.albumUrlStatus === null) return false;
-    if (required.directUrl && verification.directUrlStatus === null) return false;
+    if (required.shortUrl && !stopped(verification.shortUrlStatus)) return false;
+    if (required.albumUrl && !stopped(verification.albumUrlStatus)) return false;
+    if (required.directUrl && !stopped(verification.directUrlStatus)) return false;
 
     return true;
+}
+
+function stopped(status: number | null): boolean {
+    return status !== null && STOPPED_STATUSES.has(status);
 }

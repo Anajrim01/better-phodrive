@@ -108,7 +108,8 @@ test('an existing envelope and live link are reused without creating anything', 
 
     const created = await createShare(
         request({
-            existing: EXISTING_SHARE
+            existing: EXISTING_SHARE,
+            files: undefined
         }),
         fetcher,
         { poll: { attempts: 2, delayMs: 0, sleep: async () => undefined } }
@@ -142,7 +143,8 @@ test('an existing envelope with a dead link is enabled again without creating an
 
     const created = await createShare(
         request({
-            existing: EXISTING_SHARE
+            existing: EXISTING_SHARE,
+            files: undefined
         }),
         fetcher,
         { poll: { attempts: 1, delayMs: 0, sleep: async () => undefined }, retryDelayMs: 0 }
@@ -152,4 +154,18 @@ test('an existing envelope with a dead link is enabled again without creating an
     expect(created.unwrap().record.shortUrl).toBe(liveUrl);
     expect(calls).not.toContain(CREATE_ALBUM);
     expect(calls).not.toContain(CREATE_ENVELOPE);
+});
+
+test('an existing share cannot be reused with a new file selection', async () => {
+    let calls = 0;
+    const fetcher: Fetcher = async () => {
+        calls++;
+
+        return new Response(null, { status: 500 });
+    };
+
+    const created = await createShare(request({ existing: EXISTING_SHARE }), fetcher);
+
+    expect(created.unwrapErr().code).toBe('REQUEST_FAILED');
+    expect(calls).toBe(0);
 });

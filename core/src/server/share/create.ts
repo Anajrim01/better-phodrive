@@ -36,150 +36,156 @@ export function createShare(
 
     return Ok(undefined).andThenAsync<ShareCreateResponse, ServerError>(async () => {
         const request = parsed.data;
-        const files = request.files.map(manifestFile);
-        const reuseError = existingShareError(request, files);
-        if (reuseError !== null) return Err(reuseError);
-
         const poll = { ...DEFAULT_POLL, ...options.poll };
-        let albumKey = request.existing?.albumKey;
-        let createdAlbum = false;
 
-        if (albumKey === undefined) {
-            const album = await createShareAlbum(
-                request.email,
-                request.token,
-                request.name,
-                mediaKeys(request),
-                fetcher
-            );
-            const albumError = album.match({ Ok: () => null, Err: (error) => error });
-            if (albumError !== null) return Err(albumError);
+        if (request.existing !== undefined)
+            return await resumeShare(request, fetcher, poll, options);
 
-            albumKey = album.match({ Ok: (key) => key, Err: () => '' });
-            createdAlbum = true;
-        }
+        const files = (request.files ?? []).map(manifestFile);
+        return await createDedicatedShare(request, files, fetcher, poll, options);
+    });
+}
 
-        let envelopeKey = request.existing?.envelopeKey;
-        let pendingShortUrl: string | undefined;
-        let createdEnvelope = false;
-        if (envelopeKey === undefined) {
-            const envelope = await createEnvelope(
-                request.email,
-                request.token,
-                albumKey,
-                request.name,
-                fetcher
-            );
-            const envelopeError = envelope.match({ Ok: () => null, Err: (error) => error });
-            if (envelopeError !== null) {
-                if (createdAlbum)
-                    await removeShareAlbum(request.email, request.token, albumKey, fetcher);
+async function createDedicatedShare(
+    request: ShareCreateRequest,
+    files: ShareManifestFile[],
+    fetcher: Fetcher,
+    poll: PollOptions,
+    options: ShareCreateOptions
+): Promise<AsyncResult<ShareCreateResponse, ServerError>> {
+    const album = await createShareAlbum(
+        request.email,
+        request.token,
+        request.name,
+        mediaKeys(request),
+        fetcher
+    );
+    const albumError = album.match({ Ok: () => null, Err: (error) => error });
+    if (albumError !== null) return Err(albumError);
 
-                return Err(envelopeError);
-            }
+    const albumKey = album.match({ Ok: (key) => key, Err: () => '' });
+    const envelope = await createEnvelope(
+        request.email,
+        request.token,
+        albumKey,
+        request.name,
+        fetcher
+    );
+    const envelopeError = envelope.match({ Ok: () => null, Err: (error) => error });
+    if (envelopeError !== null) {
+        const clean = await removeCreatedAlbum(request, albumKey, fetcher);
+        if (!clean) return Err(recoveryError(undefined, albumKey));
 
-            const created = envelope.match({ Ok: (value) => value, Err: () => null });
-            if (created === null) return Err(SERVER_ERRORS.SHARE_ENVELOPE_RESPONSE_FAILED);
+        return Err(envelopeError);
+    }
 
-            envelopeKey = created.envelopeKey;
-            pendingShortUrl = created.pendingShortUrl;
-            createdEnvelope = true;
-        }
+    const created = envelope.match({ Ok: (value) => value, Err: () => null });
+    if (created === null) return Err(SERVER_ERRORS.SHARE_ENVELOPE_RESPONSE_FAILED);
 
-        const link = await enableShareLink(
-            request.email,
-            request.token,
-            envelopeKey,
-            pendingShortUrl,
-            request.existing,
-            fetcher,
-            { poll, retryDelayMs: options.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS }
-        );
-        const linked = link.match({ Ok: (value) => value, Err: () => null });
-        if (linked === null) {
-            if (createdEnvelope || createdAlbum) {
-                const clean = await cleanup(
-                    request,
-                    envelopeKey,
-                    albumKey,
-                    createdEnvelope,
-                    createdAlbum,
-                    fetcher
-                );
-                if (!clean) return Err(recoveryError(envelopeKey, albumKey));
-            }
+    const link = await enableShareLink(
+        request.email,
+        request.token,
+        created.envelopeKey,
+        created.pendingShortUrl,
+        undefined,
+        fetcher,
+        { poll, retryDelayMs: options.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS }
+    );
+    const linked = link.match({ Ok: (value) => value, Err: () => null });
+    if (linked === null) {
+        const clean = await cleanup(request, created.envelopeKey, albumKey, true, true, fetcher);
+        if (!clean) return Err(recoveryError(created.envelopeKey, albumKey));
 
-            const linkError = link.match({ Ok: () => null, Err: (error) => error });
-            if (linkError !== null && linkError.code === 'SHARE_LINK_UNCERTAIN')
-                return Err(recoveryError(envelopeKey, albumKey));
-            if (linkError !== null) return Err(linkError);
+        const linkError = link.match({ Ok: () => null, Err: (error) => error });
+        if (linkError !== null && linkError.code === 'SHARE_LINK_UNCERTAIN')
+            return Err(recoveryError(created.envelopeKey, albumKey));
+        if (linkError !== null) return Err(linkError);
 
-            return Err(SERVER_ERRORS.SHARE_LINK_UNCERTAIN);
-        }
+        return Err(SERVER_ERRORS.SHARE_LINK_UNCERTAIN);
+    }
 
-        const manifest = {
-            v: 1 as const,
-            album: linked.canonicalUrl,
-            files
-        };
-        const shareUrl = buildShareUrl(manifest);
-        const createdUrl = shareUrl.match({ Ok: (value) => value, Err: () => '' });
-        if (createdUrl === '') {
-            const clean = await cleanup(
-                request,
-                envelopeKey,
-                albumKey,
-                createdEnvelope,
-                createdAlbum,
-                fetcher
-            );
-            if (!clean) return Err(recoveryError(envelopeKey, albumKey));
+    const manifest = { v: 1 as const, album: linked.canonicalUrl, files };
+    const shareUrl = buildShareUrl(manifest);
+    const createdUrl = shareUrl.match({ Ok: (value) => value, Err: () => '' });
+    if (createdUrl === '') {
+        const clean = await cleanup(request, created.envelopeKey, albumKey, true, true, fetcher);
+        if (!clean) return Err(recoveryError(created.envelopeKey, albumKey));
 
-            const shareError = shareUrl.match({ Ok: () => null, Err: (error) => error });
-            if (shareError !== null) return Err(shareError);
+        const shareError = shareUrl.match({ Ok: () => null, Err: (error) => error });
+        if (shareError !== null) return Err(shareError);
 
-            return Err(SERVER_ERRORS.SHARE_MANIFEST_INVALID);
-        }
+        return Err(SERVER_ERRORS.SHARE_MANIFEST_INVALID);
+    }
 
-        return Ok({
-            record: {
-                name: request.name,
-                envelopeKey,
-                albumKey,
-                shortUrl: linked.shortUrl,
-                albumUrl: linked.canonicalUrl,
-                authKey: linked.authKey,
-                shareUrl: createdUrl,
-                createdAt: (options.now ?? Date.now)()
-            },
-            manifest
-        });
+    return Ok({
+        record: {
+            name: request.name,
+            envelopeKey: created.envelopeKey,
+            albumKey,
+            shortUrl: linked.shortUrl,
+            albumUrl: linked.canonicalUrl,
+            authKey: linked.authKey,
+            shareUrl: createdUrl,
+            createdAt: (options.now ?? Date.now)()
+        },
+        manifest
+    });
+}
+
+async function resumeShare(
+    request: ShareCreateRequest,
+    fetcher: Fetcher,
+    poll: PollOptions,
+    options: ShareCreateOptions
+): Promise<AsyncResult<ShareCreateResponse, ServerError>> {
+    const existing = request.existing;
+    if (existing === undefined) return Err(SERVER_ERRORS.SHARE_MANIFEST_INVALID);
+
+    const decoded = decodeShareUrl(existing.shareUrl);
+    const manifest = decoded.match({ Ok: (value) => value, Err: () => null });
+    if (manifest === null || manifest.album !== existing.albumUrl)
+        return Err(SERVER_ERRORS.SHARE_MANIFEST_INVALID);
+
+    const link = await enableShareLink(
+        request.email,
+        request.token,
+        existing.envelopeKey,
+        undefined,
+        existing,
+        fetcher,
+        { poll, retryDelayMs: options.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS }
+    );
+    const linked = link.match({ Ok: (value) => value, Err: () => null });
+    if (linked === null) {
+        const linkError = link.match({ Ok: () => null, Err: (error) => error });
+        if (linkError !== null && linkError.code === 'SHARE_LINK_UNCERTAIN')
+            return Err(recoveryError(existing.envelopeKey, existing.albumKey));
+        if (linkError !== null) return Err(linkError);
+
+        return Err(SERVER_ERRORS.SHARE_LINK_UNCERTAIN);
+    }
+
+    return Ok({
+        record: {
+            name: request.name,
+            envelopeKey: existing.envelopeKey,
+            albumKey: existing.albumKey,
+            shortUrl: linked.shortUrl,
+            albumUrl: linked.canonicalUrl,
+            authKey: linked.authKey,
+            shareUrl: existing.shareUrl,
+            createdAt: (options.now ?? Date.now)()
+        },
+        manifest
     });
 }
 
 function mediaKeys(request: ShareCreateRequest): string[] {
-    return request.files.flatMap((file) => file.chunks.map((chunk) => chunk.mediaKey));
-}
-
-function existingShareError(
-    request: ShareCreateRequest,
-    files: ShareManifestFile[]
-): ServerError | null {
-    if (request.existing === undefined) return null;
-
-    const decoded = decodeShareUrl(request.existing.shareUrl);
-    const manifest = decoded.match({ Ok: (value) => value, Err: () => null });
-    if (manifest === null) return SERVER_ERRORS.SHARE_MANIFEST_INVALID;
-
-    if (manifest.album !== request.existing.albumUrl) return SERVER_ERRORS.SHARE_MANIFEST_INVALID;
-    if (JSON.stringify(manifest.files) !== JSON.stringify(files))
-        return SERVER_ERRORS.SHARE_MANIFEST_INVALID;
-
-    return null;
+    return (request.files ?? []).flatMap((file) => file.chunks.map((chunk) => chunk.mediaKey));
 }
 
 function recoveryError(
-    envelopeKey: string,
+    envelopeKey: string | undefined,
     albumKey: string
 ): {
     code: 'SHARE_LINK_UNCERTAIN';
@@ -189,8 +195,19 @@ function recoveryError(
     return {
         code: 'SHARE_LINK_UNCERTAIN',
         message: 'The share link may still be public. Remove this share album manually.',
-        recovery: { envelopeKey, albumKey }
+        recovery: { albumKey, ...(envelopeKey === undefined ? {} : { envelopeKey }) }
     };
+}
+
+async function removeCreatedAlbum(
+    request: ShareCreateRequest,
+    albumKey: string,
+    fetcher: Fetcher
+): Promise<boolean> {
+    const album = await removeShareAlbum(request.email, request.token, albumKey, fetcher);
+    const error = album.match({ Ok: () => null, Err: (value) => value });
+
+    return error === null || alreadyGone(error);
 }
 
 async function cleanup(
@@ -219,11 +236,7 @@ async function cleanup(
         if (envelopeError !== null && !alreadyGone(envelopeError)) clean = false;
     }
 
-    if (createdAlbum) {
-        const album = await removeShareAlbum(request.email, request.token, albumKey, fetcher);
-        const albumError = album.match({ Ok: () => null, Err: (error) => error });
-        if (albumError !== null && !alreadyGone(albumError)) clean = false;
-    }
+    if (createdAlbum && !(await removeCreatedAlbum(request, albumKey, fetcher))) clean = false;
 
     return clean;
 }

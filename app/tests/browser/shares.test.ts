@@ -104,3 +104,19 @@ test('an invalid record is rejected before writing', () => {
     expect(store.save(EMAIL, invalid).isErr()).toBe(true);
     expect(storage.getItem(SHARES_KEY) ?? '').not.toContain(EMAIL);
 });
+
+test('the store refuses a 101st share instead of invalidating the whole list', () => {
+    const store = new ShareStore();
+    for (let index = 0; index < 100; index++) {
+        const saved = store.save(EMAIL, {
+            ...RECORD,
+            envelopeKey: `AF1QipEnvelope${index}`,
+            createdAt: RECORD.createdAt + index
+        });
+        expect(saved.isOk()).toBe(true);
+    }
+
+    const overflow = store.save(EMAIL, { ...RECORD, envelopeKey: 'AF1QipOverflow' });
+    expect(overflow.isErr()).toBe(true);
+    expect(store.list(EMAIL)).toHaveLength(100);
+});

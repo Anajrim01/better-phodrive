@@ -85,11 +85,27 @@ export const ShareCreateRequestSchema = z
         email: EmailSchema,
         token: z.string(),
         name: z.string().trim().min(1).max(MAX_SHARE_NAME_LENGTH),
-        files: z.array(ShareFileInputSchema).min(1).max(MAX_SHARE_FILES),
+        files: z.array(ShareFileInputSchema).min(1).max(MAX_SHARE_FILES).optional(),
         existing: ShareExistingSchema.optional()
     })
     .strict()
     .superRefine((request, context) => {
+        if (request.existing !== undefined) {
+            if (request.files !== undefined)
+                context.addIssue({
+                    code: 'custom',
+                    message: 'An existing share cannot change its files.'
+                });
+
+            return;
+        }
+
+        if (request.files === undefined) {
+            context.addIssue({ code: 'custom', message: 'Choose files to share.' });
+
+            return;
+        }
+
         const chunks = request.files.reduce((total, file) => total + file.chunks.length, 0);
         if (chunks > MAX_SHARE_CHUNKS)
             context.addIssue({ code: 'custom', message: 'Too many chunks for one share.' });
@@ -106,8 +122,8 @@ export const ShareRevokeRequestSchema = z
         token: z.string(),
         envelopeKey: AlbumKeySchema,
         albumKey: AlbumKeySchema,
-        shortUrl: ShareShortUrlSchema.optional(),
-        albumUrl: ShareCanonicalUrlSchema.optional()
+        shortUrl: ShareShortUrlSchema,
+        albumUrl: ShareCanonicalUrlSchema
     })
     .strict();
 
