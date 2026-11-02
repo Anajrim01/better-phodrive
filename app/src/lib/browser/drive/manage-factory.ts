@@ -22,7 +22,7 @@ export function createDriveManage(drive: DriveController): DriveManage {
         applyItems: (email, items, revision) => {
             applyManageItems(drive.library, email, items, revision);
         },
-        openFolder: (path) => drive.library.openFolder(path),
+        openFolder: (path, mode) => drive.library.openFolder(path, mode),
         currentFolder: () => drive.library.folder
     });
 
