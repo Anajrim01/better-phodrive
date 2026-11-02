@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { AccountRequestSchema, Sha1HexSchema } from './models';
+import { AccountRequestSchema, Sha1HexSchema, WorkerCountSchema } from './models';
 
 export const BulkDeleteChunkSchema = z.object({
     mediaKey: z.string().min(1),
@@ -10,6 +10,7 @@ export const BulkDeleteFileSchema = z.object({
     chunks: z.array(BulkDeleteChunkSchema).nonempty()
 });
 export const BulkDeleteRequestSchema = AccountRequestSchema.extend({
+    workers: WorkerCountSchema,
     files: z.array(BulkDeleteFileSchema).nonempty()
 });
 export const BulkDeletedChunkSchema = BulkDeleteChunkSchema.extend({

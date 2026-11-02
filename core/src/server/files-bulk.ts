@@ -7,14 +7,17 @@ import {
 } from './errors';
 import {
     BulkDeleteRequestSchema,
+    type BulkDeleteChunk,
     type BulkDeleteFile,
     type BulkDeleteFileEvent,
     type BulkDeleteRequest
 } from '../bulk-delete';
+import pLimit from 'p-limit';
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
-import { moveToTrashBatch } from './photos/index';
+import { moveToTrash, moveToTrashBatch } from './photos/index';
 import { markChunksTrashed } from './photos/library/state';
 import { photosFetch, type Fetcher } from './fetcher';
+import { limitWorkers } from './workers';
 
 export const BULK_TRASH_BATCH_SIZE = 500;
 
@@ -26,6 +29,10 @@ type BulkFileState = {
     remaining: number;
     emitted: boolean;
 };
+
+type ChunkEntry = { fileIndex: number; chunk: BulkDeleteChunk };
+
+type ChunkFailures = ReadonlyMap<BulkDeleteChunk, ServerError>;
 
 export function validateBulkDelete(
     input: BulkDeleteRequest
@@ -47,6 +54,51 @@ function failureFields(
     const throttled = throttleError(failure.retryAfterSeconds, mode);
 
     return { error: throttled.message, retryAfterSeconds: failure.retryAfterSeconds };
+}
+
+function finishBatch(
+    input: BulkDeleteRequest,
+    states: BulkFileState[],
+    batch: readonly ChunkEntry[],
+    confirmed: readonly BulkDeleteChunk[],
+    failures: ChunkFailures,
+    trashedAt: number
+): void {
+    if (confirmed.length > 0) markChunksTrashed(input.email, confirmed, trashedAt);
+
+    for (const { fileIndex, chunk } of batch) {
+        const state = states[fileIndex];
+        const failure = failures.get(chunk);
+
+        state.remaining--;
+        if (failure) state.failures.push(failure);
+        else state.deleted.push({ ...chunk, trashedAt });
+    }
+}
+
+async function trashEach(
+    input: BulkDeleteRequest,
+    batch: readonly ChunkEntry[],
+    fetcher: Fetcher
+): Promise<{ confirmed: BulkDeleteChunk[]; failures: Map<BulkDeleteChunk, ServerError> }> {
+    const limit = pLimit(limitWorkers(input.workers));
+    const outcomes = await limit.map(batch, async ({ chunk }) => {
+        const moved = await moveToTrash(input.email, input.token, chunk.sha1, fetcher);
+
+        return moved.match<{ chunk: BulkDeleteChunk; error?: ServerError }>({
+            Ok: () => ({ chunk }),
+            Err: (error) => ({ chunk, error })
+        });
+    });
+    const confirmed: BulkDeleteChunk[] = [];
+    const failures = new Map<BulkDeleteChunk, ServerError>();
+
+    for (const outcome of outcomes) {
+        if (outcome.error) failures.set(outcome.chunk, outcome.error);
+        else confirmed.push(outcome.chunk);
+    }
+
+    return { confirmed, failures };
 }
 
 function emitCompletedFiles(
@@ -95,27 +147,34 @@ export function deleteFiles(
                 batch.map(({ chunk }) => chunk.sha1),
                 fetcher
             );
+            const failure = moved.match<ServerError | null>({
+                Ok: () => null,
+                Err: (error) => error
+            });
             const trashedAt = Date.now();
 
-            moved.match({
-                Ok: () => {
-                    markChunksTrashed(
-                        input.email,
-                        batch.map(({ chunk }) => chunk),
-                        trashedAt
-                    );
-                    for (const { fileIndex, chunk } of batch) {
-                        states[fileIndex].deleted.push({ ...chunk, trashedAt });
-                        states[fileIndex].remaining--;
-                    }
-                },
-                Err: (error) => {
-                    for (const { fileIndex } of batch) {
-                        states[fileIndex].failures.push(error);
-                        states[fileIndex].remaining--;
-                    }
-                }
-            });
+            if (failure === null) {
+                finishBatch(
+                    input,
+                    states,
+                    batch,
+                    batch.map(({ chunk }) => chunk),
+                    new Map(),
+                    trashedAt
+                );
+            } else if (isThrottleError(failure)) {
+                finishBatch(
+                    input,
+                    states,
+                    batch,
+                    [],
+                    new Map(batch.map(({ chunk }) => [chunk, failure])),
+                    trashedAt
+                );
+            } else {
+                const retried = await trashEach(input, batch, fetcher);
+                finishBatch(input, states, batch, retried.confirmed, retried.failures, trashedAt);
+            }
 
             emitCompletedFiles(files, states, onFile, mode);
         }

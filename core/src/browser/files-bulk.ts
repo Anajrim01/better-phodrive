@@ -171,6 +171,7 @@ export function deleteFiles(
     email: string,
     token: string,
     files: readonly FileGroup[],
+    workers: number,
     onFile: (item: FileGroup, outcome: BulkDeleteFileOutcome) => void
 ): AsyncResult<void, ApplicationError> {
     if (files.length === 0) return Ok(undefined).andThenAsync(async () => Ok(undefined));
@@ -181,6 +182,7 @@ export function deleteFiles(
         body: JSON.stringify({
             email,
             token,
+            workers,
             files: files.map(bulkFileRequest)
         })
     };

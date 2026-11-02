@@ -9,7 +9,7 @@ import {
     deleteFiles,
     validateBulkDelete
 } from '@madkarmaa/phodrive-core/server/files';
-import { moveToTrashBatch } from '@madkarmaa/phodrive-core/server/photos';
+import { moveToTrash, moveToTrashBatch } from '@madkarmaa/phodrive-core/server/photos';
 import {
     clearLibraryState,
     configureLibraryState,
@@ -19,6 +19,7 @@ import {
 import type { BulkDeleteFile, BulkDeleteRequest } from '@madkarmaa/phodrive-core/bulk-delete';
 
 vi.mock('@madkarmaa/phodrive-core/server/photos', () => ({
+    moveToTrash: vi.fn(),
     moveToTrashBatch: vi.fn()
 }));
 
@@ -32,6 +33,9 @@ beforeEach(async () => {
     clearLibraryState();
     configureLibraryState(statePath);
     vi.mocked(moveToTrashBatch).mockImplementation(() =>
+        Ok(undefined).andThenAsync(async () => Ok(undefined))
+    );
+    vi.mocked(moveToTrash).mockImplementation(() =>
         Ok(undefined).andThenAsync(async () => Ok(undefined))
     );
 });
@@ -58,7 +62,7 @@ function file(name: string, count: number): BulkDeleteFile {
 }
 
 function input(files: BulkDeleteFile[]): BulkDeleteRequest {
-    return { email: EMAIL, token: 'aas_et/test', files };
+    return { email: EMAIL, token: 'aas_et/test', workers: 2, files };
 }
 
 test('trash keys are batched across files and each file is reported once', async () => {
@@ -98,7 +102,7 @@ test('a file split across batches is reported only after every chunk is confirme
     expect(results).toEqual(['first.bin', 'second.bin']);
 });
 
-test('partial batch failure keeps confirmed chunks and reports the failed file', async () => {
+test('a failed batch falls back to per-key requests for later files', async () => {
     const first = file('first.bin', 500);
     const second = file('second.bin', 1);
     const results: { name: string; deleted: number; error?: string }[] = [];
@@ -121,8 +125,44 @@ test('partial batch failure keeps confirmed chunks and reports the failed file',
 
     expect(results).toEqual([
         { name: 'first.bin', deleted: 500 },
-        { name: 'second.bin', deleted: 0, error: 'Delete failed' }
+        { name: 'second.bin', deleted: 1 }
     ]);
+});
+
+test('a rejected batch retries each key and keeps confirmed chunks', async () => {
+    const first = file('first.bin', 3);
+    const results: { deleted: number; error?: string }[] = [];
+    let active = 0;
+    let peak = 0;
+
+    vi.mocked(moveToTrashBatch).mockImplementationOnce(() =>
+        Ok(undefined).andThenAsync(async () =>
+            Err({ code: 'REQUEST_FAILED', message: 'Batch rejected', status: 400 } as const)
+        )
+    );
+    vi.mocked(moveToTrash).mockImplementation((_email, _token, sha1) =>
+        Ok(undefined).andThenAsync(async () => {
+            active++;
+            peak = Math.max(peak, active);
+            await new Promise((resolve) => setTimeout(resolve, 2));
+            active--;
+
+            return sha1 === first.chunks[1].sha1
+                ? Err({ code: 'REQUEST_FAILED', message: 'Single key failed' } as const)
+                : Ok(undefined);
+        })
+    );
+
+    await deleteFiles(input([first]), (result) => {
+        results.push({
+            deleted: result.deleted.length,
+            ...(result.error ? { error: result.error } : {})
+        });
+    });
+
+    expect(moveToTrash).toHaveBeenCalledTimes(3);
+    expect(peak).toBe(2);
+    expect(results).toEqual([{ deleted: 2, error: 'Single key failed' }]);
 });
 
 test('a throttled batch uses manual retry wording and keeps the wait', async () => {
@@ -153,6 +193,7 @@ test('a throttled batch uses manual retry wording and keeps the wait', async () 
         { error: expect.stringContaining('try again'), retryAfterSeconds: 7 },
         { error: expect.stringContaining('try again'), retryAfterSeconds: 7 }
     ]);
+    expect(moveToTrash).not.toHaveBeenCalled();
 });
 
 test('confirmed chunks are marked in the local library state per batch', async () => {

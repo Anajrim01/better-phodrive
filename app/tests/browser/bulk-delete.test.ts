@@ -21,7 +21,7 @@ beforeEach(() => {
 
 function deliver(
     files: readonly ReturnType<typeof file>[],
-    onFile: Parameters<typeof filesApi.deleteFiles>[3],
+    onFile: Parameters<typeof filesApi.deleteFiles>[4],
     errors: Record<string, string> = {}
 ) {
     for (const item of files) {
@@ -40,7 +40,7 @@ test('bulk delete posts once per account and keeps failed files selected', async
         fileId: 'b'.repeat(64),
         name: 'second.bin'
     });
-    vi.mocked(filesApi.deleteFiles).mockImplementation((_email, _token, files, onFile) =>
+    vi.mocked(filesApi.deleteFiles).mockImplementation((_email, _token, files, _workers, onFile) =>
         Ok(undefined).andThenAsync(async () => {
             deliver(files, onFile, { 'second.bin': 'Google Photos refused the request' });
 
@@ -61,6 +61,7 @@ test('bulk delete posts once per account and keeps failed files selected', async
         'first@example.com',
         'token-first@example.com',
         [first],
+        2,
         expect.any(Function)
     );
     expect(filesApi.deleteFiles).toHaveBeenNthCalledWith(
@@ -68,6 +69,7 @@ test('bulk delete posts once per account and keeps failed files selected', async
         'second@example.com',
         'token-second@example.com',
         [second],
+        2,
         expect.any(Function)
     );
     expect([...selection.selectedKeys]).toEqual([fileKey(second)]);
@@ -81,7 +83,7 @@ test('bulk delete posts once per account and keeps failed files selected', async
 test('files from one account share a single request', async () => {
     const first = file({ name: 'first.bin' });
     const second = file({ fileId: 'b'.repeat(64), name: 'second.bin' });
-    vi.mocked(filesApi.deleteFiles).mockImplementation((_email, _token, files, onFile) =>
+    vi.mocked(filesApi.deleteFiles).mockImplementation((_email, _token, files, _workers, onFile) =>
         Ok(undefined).andThenAsync(async () => {
             deliver(files, onFile);
 
@@ -106,7 +108,7 @@ test('progress advances as each file completes inside an account request', async
     const gate = new Promise<void>((resolve) => {
         release = resolve;
     });
-    vi.mocked(filesApi.deleteFiles).mockImplementation((_email, _token, files, onFile) =>
+    vi.mocked(filesApi.deleteFiles).mockImplementation((_email, _token, files, _workers, onFile) =>
         Ok(undefined).andThenAsync(async () => {
             onFile(files[0], { deleted: [...files[0].chunks] });
             await gate;
@@ -135,7 +137,7 @@ test('a partially trashed file keeps confirmed chunks and stays selected', async
         chunks: [chunk({ mediaKey: 'media-0' }), chunk({ mediaKey: 'media-1', chunkIndex: 1 })]
     });
     const onTrashed = vi.fn();
-    vi.mocked(filesApi.deleteFiles).mockImplementation((_email, _token, files, onFile) =>
+    vi.mocked(filesApi.deleteFiles).mockImplementation((_email, _token, files, _workers, onFile) =>
         Ok(undefined).andThenAsync(async () => {
             onFile(files[0], { deleted: [files[0].chunks[0]], error: 'One chunk failed' });
 
@@ -226,7 +228,7 @@ test('a paused owner is reported without calling its account', async () => {
         fileId: 'b'.repeat(64),
         name: 'second.bin'
     });
-    vi.mocked(filesApi.deleteFiles).mockImplementation((_email, _token, files, onFile) =>
+    vi.mocked(filesApi.deleteFiles).mockImplementation((_email, _token, files, _workers, onFile) =>
         Ok(undefined).andThenAsync(async () => {
             deliver(files, onFile);
 

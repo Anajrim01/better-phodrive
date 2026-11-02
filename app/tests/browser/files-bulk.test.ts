@@ -67,6 +67,7 @@ test('bulk delete streams per-file results and maps confirmed chunks to local fi
         'test@example.com',
         'aas_et/test',
         [first, second],
+        2,
         (item, outcome) => {
             results.push({
                 name: item.name,
@@ -97,6 +98,7 @@ test('bulk delete reports every file when the request fails before streaming', a
         'test@example.com',
         'aas_et/test',
         [first, second],
+        2,
         (item, outcome) => results.push(`${item.name}:${outcome.error}`)
     );
 
@@ -128,12 +130,17 @@ test('bulk delete rejects malformed events without losing already confirmed file
             )
     );
 
-    const result = await deleteFiles('test@example.com', 'aas_et/test', [first], (item, outcome) =>
-        results.push({
-            name: item.name,
-            deleted: outcome.deleted.length,
-            ...(outcome.error ? { error: outcome.error } : {})
-        })
+    const result = await deleteFiles(
+        'test@example.com',
+        'aas_et/test',
+        [first],
+        2,
+        (item, outcome) =>
+            results.push({
+                name: item.name,
+                deleted: outcome.deleted.length,
+                ...(outcome.error ? { error: outcome.error } : {})
+            })
     );
 
     expect(result.isOk()).toBe(true);
@@ -159,7 +166,7 @@ test('a 1711-file selection fits the default request body limit', async () => {
         return Response.json({ error: 'Expected stop' }, { status: 400 });
     });
 
-    await deleteFiles('test@example.com', 'aas_et/test', files, () => {});
+    await deleteFiles('test@example.com', 'aas_et/test', files, 2, () => {});
 
     expect(fetchMock).toHaveBeenCalledOnce();
     expect(Buffer.byteLength(body)).toBeLessThan(512 * 1024);

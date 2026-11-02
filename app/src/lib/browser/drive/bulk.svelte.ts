@@ -233,10 +233,9 @@ export class DriveBulk {
             resolveToken: (item) => resolveFileToken(item, FileActionKind.Delete, this.deps),
             onTrashed: this.deps.onTrashed,
             remove: (item) => this.deps.selection.remove(fileKey(item)),
-            progress: () => {
-                this.progressDone++;
-            },
-            fail: (failure) => failures.push(failure)
+            progress: () => this.progressDone++,
+            fail: (failure) => failures.push(failure),
+            workers: this.deps.workers()
         });
 
         return failures;

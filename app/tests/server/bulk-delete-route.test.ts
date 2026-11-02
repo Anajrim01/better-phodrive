@@ -1,10 +1,11 @@
 import { expect, test, vi } from 'vitest';
 import { Err, Ok } from 'results-ts';
 import { createHash } from 'node:crypto';
-import { moveToTrashBatch } from '@madkarmaa/phodrive-core/server/photos';
+import { moveToTrash, moveToTrashBatch } from '@madkarmaa/phodrive-core/server/photos';
 import { POST } from '../../src/routes/api/files/bulk/+server';
 
 vi.mock('@madkarmaa/phodrive-core/server/photos', () => ({
+    moveToTrash: vi.fn(),
     moveToTrashBatch: vi.fn()
 }));
 
@@ -14,6 +15,7 @@ function payload(files = 1) {
     return {
         email: 'test@example.com',
         token: 'aas_et/test',
+        workers: 2,
         files: Array.from({ length: files }, (_, index) => ({
             name: `file-${index}.bin`,
             chunks: [{ mediaKey: `media-${index}`, sha1: SHA1 }]
@@ -66,6 +68,11 @@ test('bulk delete streams one event per file and a done marker', async () => {
 
 test('a failed provider batch still streams a per-file error', async () => {
     vi.mocked(moveToTrashBatch).mockImplementation(() =>
+        Ok(undefined).andThenAsync(async () =>
+            Err({ code: 'REQUEST_FAILED', message: 'Delete failed', status: 400 } as const)
+        )
+    );
+    vi.mocked(moveToTrash).mockImplementation(() =>
         Ok(undefined).andThenAsync(async () =>
             Err({ code: 'REQUEST_FAILED', message: 'Delete failed' } as const)
         )

@@ -10,6 +10,7 @@ type DeleteDelegates = {
     remove: (item: FileGroup) => void;
     progress: () => void;
     fail: (failure: BulkFailure) => void;
+    workers: number;
 };
 
 type AccountGroup = { email: string; token: string; files: FileGroup[] };
@@ -17,7 +18,7 @@ type AccountGroup = { email: string; token: string; files: FileGroup[] };
 async function deleteAccount(group: AccountGroup, delegates: DeleteDelegates): Promise<void> {
     const seen = new Set<string>();
 
-    await deleteFiles(group.email, group.token, group.files, (item, outcome) => {
+    await deleteFiles(group.email, group.token, group.files, delegates.workers, (item, outcome) => {
         seen.add(fileKey(item));
         for (const chunk of outcome.deleted) delegates.onTrashed(item, chunk);
 
