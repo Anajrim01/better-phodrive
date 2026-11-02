@@ -14,17 +14,29 @@ export function moveToTrash(
     sha1: string,
     fetcher: Fetcher = photosFetch
 ): AsyncResult<void, ServerError> {
-    const validHash = Sha1HexSchema.safeParse(sha1).success
-        ? Ok(sha1)
-        : Err(SERVER_ERRORS.INVALID_FILE_REFERENCE);
+    return moveToTrashBatch(email, token, [sha1], fetcher);
+}
 
-    return validHash
+export function moveToTrashBatch(
+    email: string,
+    token: string,
+    sha1s: readonly string[],
+    fetcher: Fetcher = photosFetch
+): AsyncResult<void, ServerError> {
+    if (sha1s.length === 0) return Ok(undefined).andThenAsync(async () => Ok(undefined));
+
+    const validHashes = sha1s.every((sha1) => Sha1HexSchema.safeParse(sha1).success)
+        ? Ok(sha1s)
+        : Err(SERVER_ERRORS.INVALID_FILE_REFERENCE);
+    if (validHashes.isErr()) return Ok(undefined).andThenAsync(async () => validHashes);
+
+    return validHashes
         .andThenAsync(() => authenticatedHeaders(email, token, fetcher))
         .andThenAsync(({ commonHeaders }) => {
-            const dedupKey = Buffer.from(sha1, 'hex').toString('base64url');
+            const dedupKeys = sha1s.map((sha1) => Buffer.from(sha1, 'hex').toString('base64url'));
             const body = message(
                 numberField(2, 1),
-                bytesField(3, dedupKey),
+                ...dedupKeys.map((key) => bytesField(3, key)),
                 numberField(4, 1),
                 bytesField(
                     8,

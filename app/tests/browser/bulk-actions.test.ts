@@ -6,6 +6,7 @@ import { chunk, failed, file, makeBulk, ok } from './bulk-fixtures';
 
 vi.mock('#browser/files', () => ({
     deleteFile: vi.fn(),
+    deleteFiles: vi.fn(),
     deleteForeverFile: vi.fn(),
     downloadFile: vi.fn(),
     restoreFile: vi.fn(),

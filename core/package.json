@@ -53,9 +53,17 @@
             "@madkarmaa/phodrive-core": "./src/browser/api.ts",
             "default": "./dist/browser/api.js"
         },
+        "./browser/file-action-helpers": {
+            "@madkarmaa/phodrive-core": "./src/browser/file-action-helpers.ts",
+            "default": "./dist/browser/file-action-helpers.js"
+        },
         "./browser/files": {
             "@madkarmaa/phodrive-core": "./src/browser/files.ts",
             "default": "./dist/browser/files.js"
+        },
+        "./browser/files-bulk": {
+            "@madkarmaa/phodrive-core": "./src/browser/files-bulk.ts",
+            "default": "./dist/browser/files-bulk.js"
         },
         "./browser/library": {
             "@madkarmaa/phodrive-core": "./src/browser/library.ts",
@@ -96,6 +104,10 @@
         "./browser/upload/request": {
             "@madkarmaa/phodrive-core": "./src/browser/upload/request.ts",
             "default": "./dist/browser/upload/request.js"
+        },
+        "./bulk-delete": {
+            "@madkarmaa/phodrive-core": "./src/bulk-delete.ts",
+            "default": "./dist/bulk-delete.js"
         },
         "./errors": {
             "@madkarmaa/phodrive-core": "./src/errors.ts",
@@ -200,6 +212,10 @@
         "./server/files": {
             "@madkarmaa/phodrive-core": "./src/server/files.ts",
             "default": "./dist/server/files.js"
+        },
+        "./server/files-bulk": {
+            "@madkarmaa/phodrive-core": "./src/server/files-bulk.ts",
+            "default": "./dist/server/files-bulk.js"
         },
         "./server/folders": {
             "@madkarmaa/phodrive-core": "./src/server/folders.ts",
@@ -459,7 +475,9 @@
             "./browser/accounts": "./dist/browser/accounts.js",
             "./browser/albums": "./dist/browser/albums.js",
             "./browser/api": "./dist/browser/api.js",
+            "./browser/file-action-helpers": "./dist/browser/file-action-helpers.js",
             "./browser/files": "./dist/browser/files.js",
+            "./browser/files-bulk": "./dist/browser/files-bulk.js",
             "./browser/library": "./dist/browser/library.js",
             "./browser/manage": "./dist/browser/manage.js",
             "./browser/upload": "./dist/browser/upload/index.js",
@@ -470,6 +488,7 @@
             "./browser/upload/hash": "./dist/browser/upload/hash.js",
             "./browser/upload/jobs": "./dist/browser/upload/jobs.js",
             "./browser/upload/request": "./dist/browser/upload/request.js",
+            "./bulk-delete": "./dist/bulk-delete.js",
             "./errors": "./dist/errors.js",
             "./files": "./dist/files.js",
             "./groups": "./dist/groups.js",
@@ -496,6 +515,7 @@
             "./server/errors": "./dist/server/errors.js",
             "./server/fetcher": "./dist/server/fetcher.js",
             "./server/files": "./dist/server/files.js",
+            "./server/files-bulk": "./dist/server/files-bulk.js",
             "./server/folders": "./dist/server/folders.js",
             "./server/manage": "./dist/server/manage.js",
             "./server/manage-auth": "./dist/server/manage-auth.js",

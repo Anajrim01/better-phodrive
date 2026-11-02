@@ -9,6 +9,7 @@ import { failed, file, makeBulk, manageResponse, ok, ownerRoute } from './bulk-f
 
 vi.mock('#browser/files', () => ({
     deleteFile: vi.fn(),
+    deleteFiles: vi.fn(),
     deleteForeverFile: vi.fn(),
     downloadFile: vi.fn(),
     restoreFile: vi.fn(),

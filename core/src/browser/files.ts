@@ -8,6 +8,7 @@ import {
 } from '../models';
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import { incompleteFileMessage, type FileGroup, type UploadedChunk } from '../files';
+import { chunksFor, INVALID_DELETE_RESPONSE } from './file-action-helpers';
 import { schemaResult } from '../validation';
 import { apiJson, request } from './api';
 
@@ -15,22 +16,9 @@ export { createUploadJobs, type UploadJob } from './upload/jobs';
 
 export type { UploadProgress } from '../models';
 export { uploadFiles } from './upload/index';
+export * from './files-bulk';
 
 const FILES_API_URL = '/api/files';
-
-function chunksFor(item: FileGroup, action: FileActionKind): UploadedChunk[] {
-    if (action === FileActionKind.Delete) return [...item.chunks, ...item.duplicates];
-    if (action === FileActionKind.Restore)
-        return item.trashed
-            ? item.trashedChunks
-            : item.trashedChunks.filter(
-                  (trashed) =>
-                      !item.chunks.some((active) => active.chunkIndex === trashed.chunkIndex)
-              );
-    if (action === FileActionKind.DeleteForever) return item.trashedChunks;
-
-    return item.chunks;
-}
 
 function fileRequest(
     item: FileGroup,
@@ -75,11 +63,7 @@ export function deleteFile(
                 const known = knownChunks.find(
                     (current) => current.mediaKey === chunk.mediaKey && current.sha1 === chunk.sha1
                 );
-                if (!known)
-                    return Err({
-                        code: 'INVALID_DELETE_RESPONSE',
-                        message: 'Invalid delete response.'
-                    } as const);
+                if (!known) return Err(INVALID_DELETE_RESPONSE);
 
                 onTrashed({ ...known, trashedAt: chunk.trashedAt });
             }
@@ -144,11 +128,7 @@ export function deleteForeverFile(
                 const known = item.trashedChunks.find(
                     (current) => current.mediaKey === chunk.mediaKey && current.sha1 === chunk.sha1
                 );
-                if (!known)
-                    return Err({
-                        code: 'INVALID_DELETE_RESPONSE',
-                        message: 'Invalid delete response.'
-                    } as const);
+                if (!known) return Err(INVALID_DELETE_RESPONSE);
 
                 onDeleted(known);
             }
