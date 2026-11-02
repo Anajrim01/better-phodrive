@@ -115,6 +115,7 @@
     target={dialogTarget}
     token={manage.previewToken}
     showOwner={manage.showOwner}
+    {actionsDisabled}
     ondownload={(item) => {
         manage.closeDialog(false);
         ondownload(item);

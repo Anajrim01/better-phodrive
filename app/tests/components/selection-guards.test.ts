@@ -50,7 +50,7 @@ test('dragging from row controls does not start a file drag', async () => {
         props: {
             files: [item],
             sort: FileSort.NameAscending,
-            disabled: false,
+            actionsDisabled: false,
             action: null,
             onstartdrag,
             ...selectionCallbacks()
@@ -86,7 +86,7 @@ test('clicking a row tooltip keeps a multi selection', async () => {
         props: {
             files: [first, second],
             sort: FileSort.NameAscending,
-            disabled: false,
+            actionsDisabled: false,
             action: null,
             selected: new Set([fileKey(first), fileKey(second)]),
             ...props

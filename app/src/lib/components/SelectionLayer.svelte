@@ -9,15 +9,16 @@
         drive: DriveController;
         selection: DriveSelectionView;
         actionsDisabled: boolean;
+        browseDisabled: boolean;
     }
 
-    let { drive, selection, actionsDisabled }: Props = $props();
+    let { drive, selection, actionsDisabled, browseDisabled }: Props = $props();
 </script>
 
 <SelectionScope scope={selection.scope} onreset={selection.clear} />
 
 <SelectionKeys
-    canSelectAll={selection.canSelectAll && !actionsDisabled}
+    canSelectAll={selection.canSelectAll && !browseDisabled}
     canClear={selection.count > 0 && !selection.overlayOpen}
     onselectall={() => selection.selectAll(true)}
     onclear={selection.clear}
@@ -27,7 +28,8 @@
     <SelectionBar
         count={selection.count}
         trash={selection.trash}
-        disabled={actionsDisabled || drive.library.loading}
+        disabled={actionsDisabled || browseDisabled}
+        clearDisabled={browseDisabled}
         running={drive.bulk.runningAction}
         progressDone={drive.bulk.progressDone}
         progressTotal={drive.bulk.progressTotal}

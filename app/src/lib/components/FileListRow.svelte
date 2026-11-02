@@ -3,6 +3,7 @@
     import prettyBytes from 'pretty-bytes';
     import { fileKey, type FileGroup } from '@madkarmaa/phodrive-core/files';
     import type { FileActionKind } from '@madkarmaa/phodrive-core/models';
+    import { handleFileItemKeydown } from '#lib/file-item-keys';
     import LocalizedDate from '#components/LocalizedDate.svelte';
     import FileActions from '#components/FileActions.svelte';
     import MoreButton from '#components/MoreButton.svelte';
@@ -14,7 +15,8 @@
         item: FileGroup;
         selected: boolean;
         selectedCount: number;
-        disabled: boolean;
+        actionsDisabled: boolean;
+        browseDisabled?: boolean;
         showFolder: boolean;
         showOwner: boolean;
         trash: boolean;
@@ -41,7 +43,8 @@
         item,
         selected,
         selectedCount,
-        disabled,
+        actionsDisabled,
+        browseDisabled = false,
         showFolder,
         showOwner,
         trash,
@@ -61,6 +64,7 @@
     }: Props = $props();
     let isChecked = $state(false);
     let dragOrigin: EventTarget | null = null;
+    const actionsBlocked = $derived(actionsDisabled || browseDisabled);
 
     $effect(() => {
         isChecked = selected;
@@ -88,20 +92,31 @@
     }
 
     function rowClick(event: MouseEvent): void {
-        if (event.detail > 1 || interactive(event.target)) return;
+        if (browseDisabled || event.detail > 1 || interactive(event.target)) return;
 
         onselect?.(item, event, 'point');
     }
 
     function rowKeydown(event: KeyboardEvent): void {
-        if (event.key !== ' ' || event.target !== event.currentTarget) return;
+        handleFileItemKeydown(event, {
+            browseDisabled,
+            select: (keyEvent) => onselect?.(item, keyEvent, 'toggle'),
+            preview: openPreview
+        });
+    }
 
-        event.preventDefault();
-        onselect?.(item, event, 'toggle');
+    function openPreview(trigger: HTMLElement): void {
+        trigger.focus();
+        onopenpreview?.(item, trigger);
     }
 
     function startDrag(event: DragEvent): void {
-        if (event.altKey || interactive(event.target) || interactive(dragOrigin)) {
+        if (
+            actionsBlocked ||
+            event.altKey ||
+            interactive(event.target) ||
+            interactive(dragOrigin)
+        ) {
             event.preventDefault();
 
             return;
@@ -116,13 +131,12 @@
     }
 
     function rowDoubleClick(event: MouseEvent): void {
-        if (disabled || interactive(event.target)) return;
+        if (browseDisabled || interactive(event.target)) return;
 
         const row = event.currentTarget;
         if (!(row instanceof HTMLElement)) return;
 
-        row.focus();
-        onopenpreview?.(item, row);
+        openPreview(row);
     }
 </script>
 
@@ -131,7 +145,7 @@
     class:trash
     data-file-key={fileKey(item)}
     tabindex="0"
-    draggable={!disabled}
+    draggable={!actionsBlocked}
     onclick={rowClick}
     ondblclick={rowDoubleClick}
     onkeydown={rowKeydown}
@@ -145,7 +159,7 @@
             <Checkbox
                 aria-label={`Select ${item.name}`}
                 bind:checked={isChecked}
-                {disabled}
+                disabled={browseDisabled}
                 --np-checkbox-margin="7px"
                 onclick={(event) => {
                     event.stopPropagation();
@@ -196,7 +210,7 @@
             <div class="inline-actions">
                 <FileActions
                     {item}
-                    {disabled}
+                    disabled={actionsBlocked}
                     compact={!trash}
                     {trash}
                     {partial}
@@ -209,7 +223,7 @@
             </div>
             <MoreButton
                 label={item.name}
-                {disabled}
+                disabled={actionsBlocked}
                 onopen={(element) => onmenu?.(item, element)}
             />
         </div>

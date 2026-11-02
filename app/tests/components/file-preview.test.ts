@@ -37,6 +37,19 @@ test('an unsupported file shows the fallback without fetching', async () => {
     expect(ondownload).toHaveBeenCalledWith(expect.objectContaining({ name: 'report.pdf' }));
 });
 
+test('download is disabled in an open preview while actions are blocked', async () => {
+    serve({ kind: 'text', text: 'hello', truncated: false });
+    mount(file({ name: 'notes.txt' }), { actionsDisabled: true });
+
+    const download = (await screen.findByRole('button', {
+        name: 'Download'
+    })) as HTMLButtonElement;
+    const details = screen.getByRole('button', { name: 'Details' }) as HTMLButtonElement;
+
+    expect(download.disabled).toBe(true);
+    expect(details.disabled).toBe(true);
+});
+
 test('a multi-chunk image shows the fallback without fetching', async () => {
     mount(
         file({

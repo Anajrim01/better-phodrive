@@ -15,6 +15,7 @@
         count: number;
         trash: boolean;
         disabled: boolean;
+        clearDisabled?: boolean;
         running: FileActionKind | null;
         progressDone?: number;
         progressTotal?: number;
@@ -31,6 +32,7 @@
         count,
         trash,
         disabled,
+        clearDisabled = false,
         running,
         progressDone = 0,
         progressTotal = 0,
@@ -146,7 +148,7 @@
         size="s"
         title="Clear selection"
         aria-label="Clear selection"
-        {disabled}
+        disabled={clearDisabled}
         onclick={onclear}
     >
         <IconClose aria-hidden="true" />

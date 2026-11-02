@@ -3,6 +3,7 @@
     import type { FileActionKind } from '@madkarmaa/phodrive-core/models';
     import type { FileGroup } from '@madkarmaa/phodrive-core/files';
     import { fileKey, fileType } from '@madkarmaa/phodrive-core/files';
+    import { handleFileItemKeydown } from '#lib/file-item-keys';
     import FileActions from '#components/FileActions.svelte';
     import MoreButton from '#components/MoreButton.svelte';
     import FileIncompleteWarning from '#components/FileIncompleteWarning.svelte';
@@ -11,7 +12,8 @@
 
     interface Props {
         item: FileGroup;
-        disabled: boolean;
+        actionsDisabled: boolean;
+        browseDisabled?: boolean;
         working?: FileActionKind | null;
         showOwner?: boolean;
         partial?: boolean;
@@ -35,7 +37,8 @@
 
     let {
         item,
-        disabled,
+        actionsDisabled,
+        browseDisabled = false,
         working = null,
         showOwner = false,
         partial = false,
@@ -54,6 +57,7 @@
     }: Props = $props();
     let isChecked = $state(false);
     let dragOrigin: EventTarget | null = null;
+    const actionsBlocked = $derived(actionsDisabled || browseDisabled);
 
     $effect(() => {
         isChecked = selected;
@@ -69,20 +73,31 @@
     }
 
     function cardClick(event: MouseEvent): void {
-        if (event.detail > 1 || interactive(event.target)) return;
+        if (browseDisabled || event.detail > 1 || interactive(event.target)) return;
 
         onselect?.(item, event, 'point');
     }
 
     function cardKeydown(event: KeyboardEvent): void {
-        if (event.key !== ' ' || event.target !== event.currentTarget) return;
+        handleFileItemKeydown(event, {
+            browseDisabled,
+            select: (keyEvent) => onselect?.(item, keyEvent, 'toggle'),
+            preview: openPreview
+        });
+    }
 
-        event.preventDefault();
-        onselect?.(item, event, 'toggle');
+    function openPreview(trigger: HTMLElement): void {
+        trigger.focus();
+        onopenpreview?.(item, trigger);
     }
 
     function startDrag(event: DragEvent): void {
-        if (event.altKey || interactive(event.target) || interactive(dragOrigin)) {
+        if (
+            actionsBlocked ||
+            event.altKey ||
+            interactive(event.target) ||
+            interactive(dragOrigin)
+        ) {
             event.preventDefault();
 
             return;
@@ -109,13 +124,12 @@
     }
 
     function cardDoubleClick(event: MouseEvent): void {
-        if (disabled || interactive(event.target)) return;
+        if (browseDisabled || interactive(event.target)) return;
 
         const shell = event.currentTarget;
         if (!(shell instanceof HTMLElement)) return;
 
-        shell.focus();
-        onopenpreview?.(item, shell);
+        openPreview(shell);
     }
 </script>
 
@@ -126,7 +140,7 @@
     role="group"
     aria-label={item.name}
     tabindex="0"
-    draggable={!disabled}
+    draggable={!actionsBlocked}
     data-file-key={fileKey(item)}
     onclick={cardClick}
     ondblclick={cardDoubleClick}
@@ -145,7 +159,7 @@
                 aria-label={`Select ${item.name}`}
                 class="card-select shrink-0"
                 bind:checked={isChecked}
-                {disabled}
+                disabled={browseDisabled}
                 --np-checkbox-margin="7px"
                 onclick={(event) => {
                     event.stopPropagation();
@@ -183,7 +197,7 @@
             <div class="card-inline-actions">
                 <FileActions
                     {item}
-                    {disabled}
+                    disabled={actionsBlocked}
                     {working}
                     {partial}
                     shortDelete
@@ -192,7 +206,11 @@
                     {onrestore}
                 />
             </div>
-            <MoreButton label={item.name} {disabled} onopen={(element) => onmenu(item, element)} />
+            <MoreButton
+                label={item.name}
+                disabled={actionsBlocked}
+                onopen={(element) => onmenu(item, element)}
+            />
         </div>
     </Card>
 </div>

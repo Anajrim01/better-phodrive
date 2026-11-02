@@ -93,7 +93,7 @@ test('a complete file row keeps one-click download and delete beside More', asyn
         props: {
             files: [file()],
             sort: FileSort.NameAscending,
-            disabled: false,
+            actionsDisabled: false,
             action: null,
             ...props
         }
@@ -118,7 +118,7 @@ test('an incomplete row still checks the rest before offering quick actions', ()
         props: {
             files: [file({ complete: false, chunkCount: 2, chunks: [chunk({ isLast: false })] })],
             sort: FileSort.NameAscending,
-            disabled: false,
+            actionsDisabled: false,
             partial: true,
             action: null,
             ...props
@@ -143,7 +143,7 @@ test('a partially trashed file offers Restore and Delete remaining chunks', asyn
                 })
             ],
             sort: FileSort.NameAscending,
-            disabled: false,
+            actionsDisabled: false,
             partial: false,
             action: null,
             ...props
@@ -163,7 +163,7 @@ test('a trash row keeps Restore and Delete forever beside More', async () => {
         props: {
             files: [file({ trashed: true, trashedChunks: [chunk({ trashedAt: 1 })] })],
             sort: FileSort.NameAscending,
-            disabled: false,
+            actionsDisabled: false,
             trash: true,
             action: null,
             ...props
@@ -187,7 +187,7 @@ test('the trash view threads inline restore and delete forever', async () => {
         props: {
             files: [file({ trashed: true, trashedChunks: [chunk({ trashedAt: 1 })] })],
             sort: FileSort.NameAscending,
-            disabled: false,
+            actionsDisabled: false,
             loading: false,
             loadFailed: false,
             hasMore: false,
@@ -209,7 +209,7 @@ test('a file card keeps quick actions in a wrapper the narrow layout can hide', 
     const view = render(FileCard, {
         props: {
             item: file(),
-            disabled: false,
+            actionsDisabled: false,
             working: null,
             ...props
         }

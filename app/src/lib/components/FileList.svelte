@@ -15,7 +15,8 @@
     interface Props {
         files: FileGroup[];
         sort: FileSort;
-        disabled: boolean;
+        actionsDisabled: boolean;
+        browseDisabled?: boolean;
         showFolder?: boolean;
         showOwner?: boolean;
         trash?: boolean;
@@ -44,7 +45,8 @@
     let {
         files,
         sort = $bindable(),
-        disabled,
+        actionsDisabled,
+        browseDisabled = false,
         showFolder = false,
         showOwner = false,
         trash = false,
@@ -92,7 +94,7 @@
                             aria-label="Select all visible files"
                             bind:checked={headerChecked}
                             bind:indeterminate={headerMixed}
-                            disabled={disabled || files.length === 0}
+                            disabled={browseDisabled || files.length === 0}
                             onclick={() => {
                                 onselectall?.(!allSelected);
                             }}
@@ -158,7 +160,8 @@
                     {item}
                     selected={selectedKeys.has(fileKey(item))}
                     {selectedCount}
-                    {disabled}
+                    {actionsDisabled}
+                    {browseDisabled}
                     {showFolder}
                     {showOwner}
                     {trash}

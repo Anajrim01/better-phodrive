@@ -78,7 +78,7 @@ test('only the owning file shows the action progress when file ids collide', () 
                 file('second@example.com', 'second.bin')
             ],
             sort: FileSort.ModifiedDescending,
-            disabled: false,
+            actionsDisabled: false,
             action,
             onmenu: vi.fn(),
             ondownload: vi.fn(),
