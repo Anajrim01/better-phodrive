@@ -1,26 +1,13 @@
-import { Err, type Result } from 'results-ts';
 import { previewPlan, savePlan } from './actions';
-import { readPrefix, type AlbumResponse } from './api';
 import { api } from './client';
 import { discoverFiles } from './discover';
-import { failureTitle, viewerFailure, type ViewerFailure } from './errors';
-import { PROBE_BYTES } from './limits';
+import { failureTitle, viewerFailure } from './errors';
 import { decodeManifest, type Manifest } from './manifest';
 import { stopOperations } from './operations';
+import { probeItem } from './probe';
 import { renderError, renderLanding, renderReading, renderShare } from './ui-pages';
 
 let bootToken = 0;
-
-function probeItem(item: AlbumResponse['items'][number]) {
-    return api
-        .fetchBytes(item.url, 'bytes=0-65535')
-        .andThenAsync(async (response): Promise<Result<Uint8Array, ViewerFailure>> => {
-            if (response.status !== 200 && response.status !== 206)
-                return Err(viewerFailure('network_failed', 'A shared item did not answer.'));
-
-            return readPrefix(response, PROBE_BYTES);
-        });
-}
 
 async function loadShare(manifest: Manifest, token: number): Promise<void> {
     const album = await api.loadAlbum(manifest.album);
