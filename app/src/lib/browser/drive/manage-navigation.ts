@@ -28,11 +28,14 @@ export function deleteNavigation(target: EntryTarget): Navigation {
     return target.kind === 'folder' ? { from: target.entry.path, to: '' } : null;
 }
 
-export function navigate(deps: ManageDeps, navigation: Navigation): void {
+export function navigate(
+    deps: Pick<ManageDeps, 'currentFolder' | 'openFolder'>,
+    navigation: Navigation
+): void {
     if (!navigation) return;
 
     const current = deps.currentFolder();
     if (!isInFolder(current, navigation.from)) return;
 
-    deps.openFolder(replacePrefix(current, navigation.from, navigation.to));
+    deps.openFolder(replacePrefix(current, navigation.from, navigation.to), 'replace');
 }

@@ -109,7 +109,7 @@
                     class:current={!drive.library.folder}
                     class:selection-drop={dropCrumb === ''}
                     aria-current={!drive.library.folder ? 'page' : undefined}
-                    onclick={() => drive.library.openFolder('')}
+                    onclick={() => drive.library.openFolder('', 'ancestor')}
                     ondragover={(event) => crumbOver('', event)}
                     ondragleave={(event) => crumbLeave('', event)}
                     ondrop={(event) => crumbDrop('', event)}
@@ -124,7 +124,7 @@
                         class:current={drive.library.folder === crumb.path}
                         class:selection-drop={dropCrumb === crumb.path}
                         aria-current={drive.library.folder === crumb.path ? 'page' : undefined}
-                        onclick={() => drive.library.openFolder(crumb.path)}
+                        onclick={() => drive.library.openFolder(crumb.path, 'ancestor')}
                         ondragover={(event) => crumbOver(crumb.path, event)}
                         ondragleave={(event) => crumbLeave(crumb.path, event)}
                         ondrop={(event) => crumbDrop(crumb.path, event)}

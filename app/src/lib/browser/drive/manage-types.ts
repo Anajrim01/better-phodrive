@@ -4,6 +4,7 @@ import type { RouteMember } from '@madkarmaa/phodrive-core/groups';
 import type { ManageResponse } from '@madkarmaa/phodrive-core/manage';
 import type { RemoteBmp } from '@madkarmaa/phodrive-core/models';
 import type { AsyncResult } from 'results-ts';
+import type { FolderOpenMode } from '#browser/drive/folder-history';
 import type { EntryTarget } from '#browser/drive/menu-types';
 
 export type ManageDialog = 'rename' | 'move' | 'details' | 'delete-folder' | 'preview';
@@ -20,7 +21,7 @@ export type ManageDeps = {
     workers: () => number;
     feedback: (message: string) => void;
     applyItems: (email: string, items: readonly RemoteBmp[], revision: number) => void;
-    openFolder: (path: string) => void;
+    openFolder: (path: string, mode?: FolderOpenMode) => void;
     currentFolder: () => string;
 };
 

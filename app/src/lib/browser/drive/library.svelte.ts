@@ -20,6 +20,8 @@ import {
     refreshGroupLibrary,
     refreshLibrary
 } from '#browser/drive/library-refresh';
+import type { FolderOpenMode } from '#browser/drive/folder-history';
+import { FolderNavigation } from '#browser/drive/folder-navigation';
 
 const POST_UPLOAD_COOLDOWN_MS = 2 * 60 * 1_000;
 
@@ -39,6 +41,11 @@ export class DriveLibrary {
     loadedPages = 0;
     revisions = new Map<string, number>();
     private libraryPageTokens = new Set<string>();
+    private readonly navigation = new FolderNavigation({
+        folder: () => this.folder,
+        setFolder: (folder) => (this.folder = folder),
+        files: () => this.files
+    });
 
     searchTerm = $state('');
     typeFilter = $state('');
@@ -80,7 +87,7 @@ export class DriveLibrary {
         this.searchTerm = '';
         this.typeFilter = '';
         this.modifiedDays = '';
-        this.folder = '';
+        this.navigation.reset();
         this.chunks = [];
         resetLibraryPages(this, this.libraryPageTokens);
         this.libraryRequest++;
@@ -90,16 +97,8 @@ export class DriveLibrary {
         this.retryAt = 0;
     }
 
-    openFolder(path: string) {
-        if (path && !this.hasFolder(path)) return;
-
-        this.folder = path;
-    }
-
-    private hasFolder(path: string): boolean {
-        const prefix = `${path}/`;
-
-        return this.files.some((file) => file.folder === path || file.folder.startsWith(prefix));
+    openFolder(path: string, mode: FolderOpenMode = 'push') {
+        this.navigation.open(path, mode);
     }
 
     async load(reset = true) {
@@ -158,6 +157,7 @@ export class DriveLibrary {
                 if (firstPage) this.revisions.set(email.toLowerCase(), data.revision);
 
                 this.loadedPages++;
+                this.navigation.settle(!!this.nextPageToken);
             },
             Err: (error) => reportLoadFailure(this, error, this.feedback)
         });
@@ -168,18 +168,19 @@ export class DriveLibrary {
         if (this.actionsDisabled() || (!reset && this.loading)) return;
 
         const request = ++this.libraryRequest;
-        await loadGroupLibrary(
+        const applied = await loadGroupLibrary(
             this,
             group,
             reset,
             this.libraryPageTokens,
             this.onAccounts,
-            (path) => this.hasFolder(path),
+            this.navigation.hasOrPending,
             this.feedback,
             () => request === this.libraryRequest
         );
         if (request !== this.libraryRequest) return;
 
+        if (applied) this.navigation.settle(false);
         this.loading = false;
     }
 
@@ -193,16 +194,17 @@ export class DriveLibrary {
             this.loading = true;
             this.feedback('');
 
-            await refreshGroupLibrary(
+            const applied = await refreshGroupLibrary(
                 this,
                 group,
                 this.onAccounts,
-                (path) => this.hasFolder(path),
+                this.navigation.hasOrPending,
                 this.feedback,
                 () => request === this.libraryRequest
             );
             if (request !== this.libraryRequest) return;
 
+            if (applied) this.navigation.settle(false);
             this.loading = false;
 
             return;
@@ -219,18 +221,19 @@ export class DriveLibrary {
 
         if (manual) {
             const cursor = this.revisions.get(email.toLowerCase()) ?? 0;
-            await refreshLibrary(
+            const applied = await refreshLibrary(
                 this,
                 email,
                 token,
                 cursor,
                 this.libraryPageTokens,
-                (path) => this.hasFolder(path),
+                this.navigation.hasOrPending,
                 this.feedback,
                 () => request === this.libraryRequest && email === this.account().email
             );
             if (request !== this.libraryRequest || email !== this.account().email) return;
 
+            if (applied) this.navigation.settle(!!this.nextPageToken);
             this.loading = false;
 
             return;
@@ -241,10 +244,16 @@ export class DriveLibrary {
         if (request !== this.libraryRequest || email !== this.account().email) return;
 
         synced.match({
-            Ok: (update) =>
-                applyLibrarySync(this, email, update, this.libraryPageTokens, (path) =>
-                    this.hasFolder(path)
-                ),
+            Ok: (update) => {
+                applyLibrarySync(
+                    this,
+                    email,
+                    update,
+                    this.libraryPageTokens,
+                    this.navigation.hasOrPending
+                );
+                this.navigation.settle(!!this.nextPageToken);
+            },
             Err: (error) => reportLoadFailure(this, error, this.feedback)
         });
 

@@ -28,10 +28,10 @@ export async function refreshLibrary(
     hasFolder: (path: string) => boolean,
     feedback: (message: string) => void,
     isCurrent: () => boolean
-): Promise<void> {
+): Promise<boolean> {
     if (cursor > 0) {
         const synced = await readLibrarySync(email, token, false, cursor);
-        if (!isCurrent()) return;
+        if (!isCurrent()) return false;
 
         const applied = synced.match({
             Ok: (update) => {
@@ -41,15 +41,23 @@ export async function refreshLibrary(
             },
             Err: () => false
         });
-        if (applied) return;
+        if (applied) return true;
     }
 
     const refreshed = await readLibrarySnapshot(email, token, state.loadedPages);
-    if (!isCurrent()) return;
+    if (!isCurrent()) return false;
 
-    refreshed.match({
-        Ok: (snapshot) => applyLibrarySnapshot(state, email, snapshot, pageTokens, hasFolder),
-        Err: (error) => reportLoadFailure(state, error, feedback)
+    return refreshed.match({
+        Ok: (snapshot) => {
+            applyLibrarySnapshot(state, email, snapshot, pageTokens, hasFolder);
+
+            return true;
+        },
+        Err: (error) => {
+            reportLoadFailure(state, error, feedback);
+
+            return false;
+        }
     });
 }
 
@@ -60,7 +68,7 @@ export async function refreshGroupLibrary(
     hasFolder: (path: string) => boolean,
     feedback: (message: string) => void,
     isCurrent: () => boolean
-): Promise<void> {
+): Promise<boolean> {
     const loaded = await readGroupLibraryUpdates(
         group.members,
         group.missing,
@@ -68,7 +76,7 @@ export async function refreshGroupLibrary(
         state.accounts,
         state.revisions
     );
-    if (!isCurrent()) return;
+    if (!isCurrent()) return false;
 
     const applied = loaded.match({
         Ok: (snapshot) => {
@@ -78,14 +86,22 @@ export async function refreshGroupLibrary(
         },
         Err: () => false
     });
-    if (applied) return;
+    if (applied) return true;
 
     const fallback = await readGroupLibrary(group.members, group.missing);
-    if (!isCurrent()) return;
+    if (!isCurrent()) return false;
 
-    fallback.match({
-        Ok: (snapshot) => applyGroupSnapshot(state, snapshot, onAccounts, hasFolder),
-        Err: (error) => reportLoadFailure(state, error, feedback)
+    return fallback.match({
+        Ok: (snapshot) => {
+            applyGroupSnapshot(state, snapshot, onAccounts, hasFolder);
+
+            return true;
+        },
+        Err: (error) => {
+            reportLoadFailure(state, error, feedback);
+
+            return false;
+        }
     });
 }
 
@@ -98,7 +114,7 @@ export async function loadGroupLibrary(
     hasFolder: (path: string) => boolean,
     feedback: (message: string) => void,
     isCurrent: () => boolean
-): Promise<void> {
+): Promise<boolean> {
     if (reset) {
         state.chunks = [];
         resetLibraryPages(state, pageTokens);
@@ -110,10 +126,18 @@ export async function loadGroupLibrary(
     feedback('');
 
     const loaded = await readGroupLibrary(group.members, group.missing);
-    if (!isCurrent()) return;
+    if (!isCurrent()) return false;
 
-    loaded.match({
-        Ok: (snapshot) => applyGroupSnapshot(state, snapshot, onAccounts, hasFolder),
-        Err: (error) => reportLoadFailure(state, error, feedback)
+    return loaded.match({
+        Ok: (snapshot) => {
+            applyGroupSnapshot(state, snapshot, onAccounts, hasFolder);
+
+            return true;
+        },
+        Err: (error) => {
+            reportLoadFailure(state, error, feedback);
+
+            return false;
+        }
     });
 }
