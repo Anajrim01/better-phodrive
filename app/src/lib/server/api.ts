@@ -23,11 +23,15 @@ export function errorResponse(error: {
     code?: string;
     message: string;
     retryAfterSeconds?: number;
+    recovery?: unknown;
 }): Response {
-    const body =
-        error.retryAfterSeconds === undefined
-            ? { error: error.message }
-            : { error: error.message, retryAfterSeconds: error.retryAfterSeconds };
+    const body = {
+        error: error.message,
+        ...(error.retryAfterSeconds === undefined
+            ? {}
+            : { retryAfterSeconds: error.retryAfterSeconds }),
+        ...(error.recovery === undefined ? {} : { recovery: error.recovery })
+    };
     const status = error.code === 'THROTTLED' ? 429 : 400;
 
     return Response.json(body, { status, headers: NO_STORE_HEADERS });

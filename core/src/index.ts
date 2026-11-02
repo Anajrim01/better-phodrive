@@ -1,4 +1,5 @@
 export * from './models';
+export * from './share-models';
 export * from './errors';
 export * from './files';
 export * from './groups';

@@ -10,10 +10,70 @@ const CREATE_ALBUM_URL =
     'https://photosdata-pa.googleapis.com/6439526531001121323/8386163679468898444';
 const ADD_MEDIA_TO_ALBUM_URL =
     'https://photosdata-pa.googleapis.com/6439526531001121323/484917746253879292';
+const REMOVE_ALBUM_URL =
+    'https://photosdata-pa.googleapis.com/6439526531001121323/11165707358190966680';
 const DEVICE = message(bytesField(3, 'Pixel XL'), bytesField(4, 'Google'), numberField(5, 28));
 const MEDIA_KEY_LENGTH_LIMIT = 2048;
 
 const MAX_ALBUM_NAME_LENGTH = 255;
+
+export function createShareAlbum(
+    email: string,
+    token: string,
+    title: string,
+    mediaKeys: readonly string[],
+    fetcher: Fetcher = photosFetch
+): AsyncResult<string, ServerError> {
+    return validateShareAlbum(title, mediaKeys)
+        .andThenAsync(() => authenticatedHeaders(email, token, fetcher))
+        .andThenAsync(({ rpcHeaders }) =>
+            createAlbum(email, title, mediaKeys, rpcHeaders, fetcher)
+        );
+}
+
+export function removeShareAlbum(
+    email: string,
+    token: string,
+    albumKey: string,
+    fetcher: Fetcher = photosFetch
+): AsyncResult<void, ServerError> {
+    if (!AlbumKeySchema.safeParse(albumKey).success)
+        return Ok(undefined).andThenAsync(async () => Err(SERVER_ERRORS.INVALID_ALBUM_KEY));
+
+    const request = bytesField(1, albumKey);
+
+    return authenticatedHeaders(email, token, fetcher).andThenAsync(({ rpcHeaders }) =>
+        guardedSend(
+            email,
+            fetcher,
+            REMOVE_ALBUM_URL,
+            {
+                method: 'POST',
+                redirect: 'manual',
+                headers: rpcHeaders,
+                body: bodyBytes(request)
+            },
+            'Remove share album'
+        ).andThenAsync((response) => readBody(response, 'Remove share album').map(() => undefined))
+    );
+}
+
+function validateShareAlbum(
+    title: string,
+    mediaKeys: readonly string[]
+): Result<void, ServerError> {
+    if (title.length === 0 || title.length > MAX_ALBUM_NAME_LENGTH)
+        return Err(SERVER_ERRORS.INVALID_SHARE_NAME);
+
+    const validKeys =
+        mediaKeys.length > 0 &&
+        mediaKeys.length <= MAX_ALBUM_BATCH_SIZE &&
+        mediaKeys.every((key) => key.length > 0 && key.length <= MEDIA_KEY_LENGTH_LIMIT);
+
+    if (!validKeys) return Err(SERVER_ERRORS.INVALID_ALBUM_MEDIA_KEYS);
+
+    return Ok(undefined);
+}
 
 export function assignFolderAlbum(
     email: string,
@@ -62,13 +122,13 @@ function validateAssignment(
 
 function createAlbum(
     email: string,
-    folder: string,
+    title: string,
     mediaKeys: readonly string[],
     rpcHeaders: Record<string, string>,
     fetcher: Fetcher
 ): AsyncResult<string, ServerError> {
     const request = message(
-        bytesField(1, albumName(folder)),
+        bytesField(1, albumTitle(title)),
         numberField(2, Date.now()),
         numberField(3, 1),
         ...mediaKeys.map((key) =>
@@ -137,7 +197,7 @@ function albumKeyFromCreate(response: Buffer): Result<string, ServerError> {
         );
 }
 
-/** Google rejects long album names, so deep folders reuse the start of their path. */
-function albumName(folder: string): string {
-    return folder.length > MAX_ALBUM_NAME_LENGTH ? folder.slice(0, MAX_ALBUM_NAME_LENGTH) : folder;
+/** Google rejects long album names, so a long share title uses its start. */
+function albumTitle(title: string): string {
+    return title.length > MAX_ALBUM_NAME_LENGTH ? title.slice(0, MAX_ALBUM_NAME_LENGTH) : title;
 }
