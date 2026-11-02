@@ -31,7 +31,7 @@ function requestFile(item: BulkDeleteFile): BulkDeleteRequest['files'][number] {
     ];
 }
 
-export function input(files: BulkDeleteFile[], workers = 2): BulkDeleteRequest {
+export function saveState(files: BulkDeleteFile[]): void {
     const items = files.flatMap((item) =>
         item.chunks.map((entry, index) => ({
             ...entry,
@@ -49,11 +49,19 @@ export function input(files: BulkDeleteFile[], workers = 2): BulkDeleteRequest {
         items: new Map(items.map((item) => [item.mediaKey, item])),
         log: []
     });
+}
 
+export function request(files: BulkDeleteFile[], workers = 2): BulkDeleteRequest {
     return {
         email: EMAIL,
         token: 'aas_et/test',
         workers,
         files: files.map(requestFile)
     };
+}
+
+export function input(files: BulkDeleteFile[], workers = 2): BulkDeleteRequest {
+    saveState(files);
+
+    return request(files, workers);
 }

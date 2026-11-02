@@ -15,7 +15,12 @@ import {
 import pLimit from 'p-limit';
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import { moveToTrash, moveToTrashBatch } from './photos/index';
-import { markChunksTrashed, readAccountState } from './photos/library/state';
+import { ensureAccountIndex, refreshAccountIndex } from './photos/library/ensure';
+import {
+    markChunksTrashed,
+    readAccountState,
+    type LibraryAccountState
+} from './photos/library/state';
 import { photosFetch, type Fetcher } from './fetcher';
 import { limitWorkers } from './workers';
 
@@ -36,17 +41,13 @@ type ChunkFailures = ReadonlyMap<BulkDeleteChunk, ServerError>;
 
 type ThrottleFailure = Extract<ServerError, { code: 'THROTTLED' }>;
 
-export function validateBulkDelete(
-    input: BulkDeleteRequest
+function validateState(
+    files: BulkDeleteRequest['files'],
+    state: LibraryAccountState
 ): Result<BulkDeleteFile[], ServerError> {
-    const parsed = BulkDeleteRequestSchema.safeParse(input);
-    if (!parsed.success) return Err(SERVER_ERRORS.INVALID_FILE_METADATA);
+    const validated: BulkDeleteFile[] = [];
 
-    const state = readAccountState(input.email);
-    if (!state) return Err(SERVER_ERRORS.LIBRARY_STATE_REQUIRED);
-
-    const files: BulkDeleteFile[] = [];
-    for (const [name, fileHash, fileId, pairs] of parsed.data.files) {
+    for (const [name, fileHash, fileId, pairs] of files) {
         const chunks = pairs.map(([mediaKey, sha1]) => ({ mediaKey, sha1 }));
 
         for (const chunk of chunks) {
@@ -60,10 +61,47 @@ export function validateBulkDelete(
                 return Err(SERVER_ERRORS.INVALID_FILE_METADATA);
         }
 
-        files.push({ name, fileHash, fileId, chunks });
+        validated.push({ name, fileHash, fileId, chunks });
     }
 
-    return Ok(files);
+    return Ok(validated);
+}
+
+export function validateBulkDelete(
+    input: BulkDeleteRequest,
+    fetcher: Fetcher = photosFetch
+): AsyncResult<BulkDeleteFile[], ServerError> {
+    return Ok(undefined).andThenAsync(async () => {
+        const parsed = BulkDeleteRequestSchema.safeParse(input);
+        if (!parsed.success) return Err(SERVER_ERRORS.INVALID_FILE_METADATA);
+
+        if (!readAccountState(input.email)) {
+            const ensured = await ensureAccountIndex(input.email, input.token, fetcher);
+            const ensureError = ensured.match<ServerError | null>({
+                Ok: () => null,
+                Err: (error) => error
+            });
+            if (ensureError) return Err(ensureError);
+        }
+
+        const state = readAccountState(input.email);
+        if (!state) return Err(SERVER_ERRORS.LIBRARY_STATE_REQUIRED);
+
+        const initial = validateState(parsed.data.files, state);
+        if (initial.isOk()) return initial;
+
+        const refreshed = await refreshAccountIndex(input.email, input.token, fetcher);
+        const refreshError = refreshed.match<ServerError | null>({
+            Ok: () => null,
+            Err: (error) => error
+        });
+        if (refreshError) return Err(refreshError);
+
+        const next = readAccountState(input.email);
+        if (!next) return Err(SERVER_ERRORS.LIBRARY_STATE_REQUIRED);
+
+        return validateState(parsed.data.files, next);
+    });
 }
 
 function failureFields(
@@ -176,7 +214,7 @@ export function deleteFiles(
     mode: ThrottleMode = 'auto',
     fetcher: Fetcher = photosFetch
 ): AsyncResult<void, ServerError> {
-    return validateBulkDelete(input).andThenAsync(async (files) => {
+    return validateBulkDelete(input, fetcher).andThenAsync(async (files) => {
         const states: BulkFileState[] = files.map((file) => ({
             deleted: [],
             failures: [],

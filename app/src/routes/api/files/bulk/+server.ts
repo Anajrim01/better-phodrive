@@ -53,5 +53,5 @@ function bulkResponse(input: BulkDeleteRequest): Response {
 
 export const POST: RequestHandler = ({ request }) =>
     readJsonRequest(request, BulkDeleteRequestSchema, 'Invalid request')
-        .andThen((input) => validateBulkDelete(input).map(() => input))
+        .andThenAsync((input) => validateBulkDelete(input).map(() => input))
         .match({ Ok: (input) => bulkResponse(input), Err: errorResponse });
