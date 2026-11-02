@@ -8,6 +8,7 @@ import {
 import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
 import { parse } from '@madkarmaa/phodrive-core/server/protobuf';
 import { authResponse, deleteResponse } from '../helpers/photos';
+import { CAPTURED_ALREADY_TRASHED } from '../helpers/delete-response';
 
 const SHA1 = createHash('sha1').update('transfer body').digest('hex');
 const SHA1_B = createHash('sha1').update('second body').digest('hex');
@@ -61,6 +62,20 @@ test('trash sends one key per sha1 with the trash operation', async () => {
     expect(fields.filter((field) => field.number === 3)).toHaveLength(2);
     expect(fields.some((field) => field.number === 8)).toBe(true);
     expect(fields.some((field) => field.number === 9)).toBe(true);
+});
+
+test('trash accepts an already-trashed response without a requested key', async () => {
+    const fetcher: Fetcher = async (input) => {
+        if (String(input).includes('android.googleapis.com/auth')) return authResponse();
+
+        return new Response(CAPTURED_ALREADY_TRASHED);
+    };
+
+    const result = await moveToTrashBatch('test@example.com', 'aas_et/test', [SHA1], fetcher, [
+        'already-trashed'
+    ]);
+
+    expect(result.isOk()).toBe(true);
 });
 
 test('an empty trash batch sends no request', async () => {

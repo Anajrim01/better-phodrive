@@ -75,7 +75,7 @@ export function moveToTrashBatch(
                 'Move to trash'
             ).andThenAsync((response) =>
                 readBody(response, 'Move to trash').andThen((body) =>
-                    validateDeleteResponse(body, new Set(mediaKeys))
+                    validateDeleteResponse(body, new Set(mediaKeys), { allowAlreadyApplied: true })
                 )
             );
         });
