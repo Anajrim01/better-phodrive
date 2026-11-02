@@ -126,6 +126,11 @@ export class DriveController extends DriveView {
         this.bulk = createDriveBulk(this);
 
         watch(
+            () => this.library.chunks,
+            () => this.uploads.syncRecent(this.library.files)
+        );
+
+        watch(
             [() => this.selectedEmail, () => this.accounts[this.selectedEmail]],
             ([email, token], [previousEmail, previousToken]) => {
                 if (!this.ready || (email === previousEmail && token === previousToken)) return;

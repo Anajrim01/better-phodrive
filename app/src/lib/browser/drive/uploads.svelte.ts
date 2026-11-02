@@ -12,6 +12,7 @@ import {
     existingLookup,
     failUnfinished,
     markPending,
+    pruneRecent,
     rememberUploads,
     selectionPlan,
     settleDuplicates,
@@ -46,6 +47,10 @@ export class DriveUploads {
     private pending = new Set<string>();
 
     constructor(private readonly deps: UploadDeps) {}
+
+    syncRecent(files: readonly FileGroup[]): void {
+        pruneRecent(this.recent, files);
+    }
 
     reset(): void {
         this.jobs = [];
@@ -146,22 +151,6 @@ export class DriveUploads {
         const uploadedChunks: UploadedChunk[] = [];
         const preferences = this.deps.preferences();
         const jobIds = files.map((_, index) => retryId ?? index);
-        const onJob = (job: UploadJob) => {
-            const id = jobIds[job.id] ?? retryId ?? job.id;
-            if (group && job.retryAt !== null && job.account)
-                this.deps.markPaused(job.account, job.retryAt);
-            this.jobs = this.jobs.map((current) => (current.id === id ? { ...job, id } : current));
-
-            if (job.status === UploadJobStatus.Error) this.deps.feedback(job.message);
-        };
-        const onChunk = (saved: UploadedChunk) => {
-            uploadedChunks.push(saved);
-
-            if (group) this.deps.observe(saved.email);
-            else if (this.deps.account().email !== email) return;
-
-            this.deps.onChunk(saved);
-        };
         let failure: string | null = null;
         let waiting = 0;
 
@@ -177,6 +166,22 @@ export class DriveUploads {
             folder,
             compress: preferences?.compression ?? false,
             existing: findExisting
+        };
+        const onJob = (job: UploadJob) => {
+            const id = plan.jobIds[job.id] ?? retryId ?? job.id;
+            if (group && job.retryAt !== null && job.account)
+                this.deps.markPaused(job.account, job.retryAt);
+            this.jobs = this.jobs.map((current) => (current.id === id ? { ...job, id } : current));
+
+            if (job.status === UploadJobStatus.Error) this.deps.feedback(job.message);
+        };
+        const onChunk = (saved: UploadedChunk) => {
+            uploadedChunks.push(saved);
+
+            if (group) this.deps.observe(saved.email);
+            else if (this.deps.account().email !== email) return;
+
+            this.deps.onChunk(saved);
         };
 
         if (group) {

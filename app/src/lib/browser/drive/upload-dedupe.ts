@@ -14,8 +14,8 @@ export function uploadKey(email: string, name: string, fileHash: string): string
     return `${email.toLowerCase()}\u0000${name}\u0000${fileHash}`;
 }
 
-function contentKey(email: string, fileHash: string): string {
-    return `${email.toLowerCase()}\u0000${fileHash}`;
+function contentKey(email: string, fileId: string): string {
+    return `${email.toLowerCase()}\u0000${fileId}`;
 }
 
 export async function selectionPlan(
@@ -77,7 +77,7 @@ export function existingLookup(
     const lookup = new Map<string, ExistingUpload>();
     for (const file of files) {
         if (!file.complete) continue;
-        if (pending.has(contentKey(file.email, file.fileHash))) continue;
+        if (pending.has(contentKey(file.email, file.fileId))) continue;
 
         const chunk = file.chunks.at(-1);
         if (!chunk) continue;
@@ -90,6 +90,14 @@ export function existingLookup(
     for (const [key, existing] of recent) lookup.set(key, existing);
 
     return lookup;
+}
+
+export function pruneRecent(
+    recent: Map<string, ExistingUpload>,
+    files: readonly FileGroup[]
+): void {
+    const available = new Set(files.map((file) => uploadKey(file.email, file.name, file.fileHash)));
+    for (const key of recent.keys()) if (!available.has(key)) recent.delete(key);
 }
 
 export function markPending(
@@ -110,11 +118,11 @@ export function markPending(
                 chunk.mediaKey === result.mediaKey &&
                 chunk.sha1 === result.sha1
         );
-        if (matching) completed.add(contentKey(owner, matching.fileHash));
+        if (matching) completed.add(contentKey(owner, matching.fileId));
     }
 
     for (const chunk of chunks) {
-        const key = contentKey(chunk.email, chunk.fileHash);
+        const key = contentKey(chunk.email, chunk.fileId);
         if (completed.has(key)) pending.delete(key);
         else pending.add(key);
     }
