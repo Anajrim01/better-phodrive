@@ -20,9 +20,12 @@
         onchange
     }: Props = $props();
 
+    // Group ids are limited to 64 characters, so this sentinel cannot collide with a stored id.
+    const CURRENT_ACCOUNT_VALUE = '__current_account__'.padEnd(65, '_');
+
     const options = $derived([
         {
-            value: '',
+            value: CURRENT_ACCOUNT_VALUE,
             label: currentEmail ? `Current account (${currentEmail})` : 'Current account'
         },
         ...groups.map((group) => ({
@@ -31,6 +34,12 @@
             disabled: group.accounts.length < 2
         }))
     ]);
+
+    const selectedValue = $derived(value === '' ? CURRENT_ACCOUNT_VALUE : value);
+
+    function choose(next: string) {
+        onchange(next === CURRENT_ACCOUNT_VALUE ? '' : next);
+    }
 </script>
 
 {#if groups.length}
@@ -40,9 +49,9 @@
             style="display: flex; width: 100%; min-width: 0; --np-select-min-width: 0;"
             label="Upload to"
             {options}
-            {value}
+            value={selectedValue}
             {disabled}
-            onchange={(event) => onchange(event.currentTarget.value)}
+            onchange={(event) => choose(event.currentTarget.value)}
         />
         {#if unavailable}
             <p class="mt-1 text-xs leading-relaxed text-muted">
