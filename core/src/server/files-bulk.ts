@@ -92,7 +92,7 @@ export function deleteFiles(
                     new Map(batch.map(({ chunk }) => [chunk, failure])),
                     now
                 );
-            } else if (canFallBack(failure)) {
+            } else if (canFallBack(failure, action)) {
                 const fallbackThrottle = await fallbackEach(
                     input,
                     action,

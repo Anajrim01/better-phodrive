@@ -149,7 +149,12 @@ test('bulk delete streams one event per file and a done marker', async () => {
 test('a failed provider batch still streams a per-file error', async () => {
     vi.mocked(moveToTrashBatch).mockImplementation(() =>
         Ok(undefined).andThenAsync(async () =>
-            Err({ code: 'REQUEST_FAILED', message: 'Delete failed', status: 400 } as const)
+            Err({
+                code: 'REQUEST_FAILED',
+                message: 'Delete failed',
+                stage: 'Move to trash',
+                status: 400
+            } as const)
         )
     );
     vi.mocked(moveToTrash).mockImplementation(() =>

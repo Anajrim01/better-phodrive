@@ -37,7 +37,8 @@ export function send(
         } catch {
             return Err({
                 code: 'REQUEST_FAILED',
-                message: init.signal?.aborted ? `${stage} timed out` : `${stage} failed`
+                message: init.signal?.aborted ? `${stage} timed out` : `${stage} failed`,
+                stage
             } as const);
         }
         if (response.status !== 200) {
@@ -55,6 +56,7 @@ export function send(
             return Err({
                 code: 'REQUEST_FAILED',
                 message: `${stage} failed (HTTP ${response.status})`,
+                stage,
                 status: response.status,
                 ...(retryAfterSeconds === undefined ? {} : { retryAfterSeconds })
             } as const);

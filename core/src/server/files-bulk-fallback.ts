@@ -18,8 +18,19 @@ import { limitWorkers } from './workers';
 
 export type ThrottleFailure = Extract<ServerError, { code: 'THROTTLED' }>;
 
-export function canFallBack(error: ServerError): boolean {
-    return error.code === 'REQUEST_FAILED' && (error.status === 400 || error.status === 413);
+function actionStage(action: BulkDeleteAction): string {
+    if (action === FileActionKind.DeleteForever) return 'Delete permanently';
+    if (action === FileActionKind.Restore) return 'Restore from trash';
+
+    return 'Move to trash';
+}
+
+export function canFallBack(error: ServerError, action: BulkDeleteAction): boolean {
+    return (
+        error.code === 'REQUEST_FAILED' &&
+        error.stage === actionStage(action) &&
+        (error.status === 400 || error.status === 413)
+    );
 }
 
 function applyBatch(

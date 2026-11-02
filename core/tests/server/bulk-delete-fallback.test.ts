@@ -45,7 +45,12 @@ test('a rejected batch retries each key and keeps confirmed chunks', async () =>
 
     vi.mocked(moveToTrashBatch).mockImplementationOnce(() =>
         Ok(undefined).andThenAsync(async () =>
-            Err({ code: 'REQUEST_FAILED', message: 'Batch rejected', status: 400 } as const)
+            Err({
+                code: 'REQUEST_FAILED',
+                message: 'Batch rejected',
+                stage: 'Move to trash',
+                status: 400
+            } as const)
         )
     );
     vi.mocked(moveToTrash).mockImplementation((_email, _token, sha1) =>
@@ -79,7 +84,12 @@ test('fallback stops sending keys after a throttle', async () => {
 
     vi.mocked(moveToTrashBatch).mockImplementationOnce(() =>
         Ok(undefined).andThenAsync(async () =>
-            Err({ code: 'REQUEST_FAILED', message: 'Batch rejected', status: 400 } as const)
+            Err({
+                code: 'REQUEST_FAILED',
+                message: 'Batch rejected',
+                stage: 'Move to trash',
+                status: 400
+            } as const)
         )
     );
     vi.mocked(moveToTrash).mockImplementation(() =>
@@ -114,7 +124,12 @@ test('a fallback throttle stops later batches', async () => {
 
     vi.mocked(moveToTrashBatch).mockImplementationOnce(() =>
         Ok(undefined).andThenAsync(async () =>
-            Err({ code: 'REQUEST_FAILED', message: 'Batch rejected', status: 400 } as const)
+            Err({
+                code: 'REQUEST_FAILED',
+                message: 'Batch rejected',
+                stage: 'Move to trash',
+                status: 400
+            } as const)
         )
     );
     vi.mocked(moveToTrash).mockImplementation(() =>

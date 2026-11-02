@@ -216,6 +216,7 @@ export type ServerError =
     | {
           readonly code: 'REQUEST_FAILED';
           readonly message: string;
+          readonly stage?: string;
           readonly status?: number;
           readonly retryAfterSeconds?: number;
       }
