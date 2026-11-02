@@ -183,6 +183,7 @@ export function fetcherFor(
     options: {
         delta: Buffer | ((tokens: LibraryRequestTokens) => Buffer);
         deltaStatus?: number;
+        pageStatus?: number;
         prepareStatus?: number;
     }
 ): Fetcher {
@@ -214,6 +215,8 @@ export function fetcherFor(
             }
 
             counts.page++;
+            if (options.pageStatus) return new Response(null, { status: options.pageStatus });
+
             const index = tokens.resume ? Number(tokens.resume.replace('page-', '')) : 0;
 
             return new Response(new Uint8Array(pages[index]));
