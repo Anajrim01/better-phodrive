@@ -7,11 +7,9 @@ import { BULK_TRASH_BATCH_SIZE, deleteFiles } from '@madkarmaa/phodrive-core/ser
 import { moveToTrash, moveToTrashBatch } from '@madkarmaa/phodrive-core/server/photos';
 import {
     clearLibraryState,
-    configureLibraryState,
-    readAccountState,
-    writeAccountState
+    configureLibraryState
 } from '@madkarmaa/phodrive-core/server/photos/library/state';
-import { EMAIL, file, input } from '../helpers/bulk-delete';
+import { file, input } from '../helpers/bulk-delete';
 
 vi.mock('@madkarmaa/phodrive-core/server/photos', () => ({
     moveToTrash: vi.fn(),
@@ -106,6 +104,50 @@ test('fallback stops sending keys after a throttle', async () => {
         { error: expect.stringContaining('limiting requests'), retryAfterSeconds: 5 },
         { error: expect.stringContaining('limiting requests'), retryAfterSeconds: 5 },
         { error: expect.stringContaining('limiting requests'), retryAfterSeconds: 5 }
+    ]);
+});
+
+test('a fallback throttle stops later batches', async () => {
+    const first = file('first.bin', BULK_TRASH_BATCH_SIZE);
+    const second = file('second.bin', 1);
+    const results: { name: string; deleted: number; error?: string }[] = [];
+
+    vi.mocked(moveToTrashBatch).mockImplementationOnce(() =>
+        Ok(undefined).andThenAsync(async () =>
+            Err({ code: 'REQUEST_FAILED', message: 'Batch rejected', status: 400 } as const)
+        )
+    );
+    vi.mocked(moveToTrash).mockImplementation(() =>
+        Ok(undefined).andThenAsync(async () =>
+            Err({
+                code: 'THROTTLED',
+                message: 'Google Photos is limiting requests',
+                retryAfterSeconds: 5
+            } as const)
+        )
+    );
+
+    await deleteFiles({ ...input([first, second]), workers: 1 }, (result) => {
+        results.push({
+            name: result.name,
+            deleted: result.deleted.length,
+            ...(result.error ? { error: result.error } : {})
+        });
+    });
+
+    expect(moveToTrashBatch).toHaveBeenCalledOnce();
+    expect(moveToTrash).toHaveBeenCalledOnce();
+    expect(results).toEqual([
+        {
+            name: 'first.bin',
+            deleted: 0,
+            error: expect.stringContaining('limiting requests')
+        },
+        {
+            name: 'second.bin',
+            deleted: 0,
+            error: expect.stringContaining('limiting requests')
+        }
     ]);
 });
 

@@ -34,6 +34,8 @@ type ChunkEntry = { fileIndex: number; chunk: BulkDeleteChunk };
 
 type ChunkFailures = ReadonlyMap<BulkDeleteChunk, ServerError>;
 
+type ThrottleFailure = Extract<ServerError, { code: 'THROTTLED' }>;
+
 export function validateBulkDelete(
     input: BulkDeleteRequest
 ): Result<BulkDeleteFile[], ServerError> {
@@ -114,9 +116,9 @@ async function trashEach(
     fetcher: Fetcher,
     onFile: (result: BulkDeleteFileResult) => void,
     mode: ThrottleMode
-): Promise<void> {
+): Promise<ThrottleFailure | null> {
     const limit = pLimit(limitWorkers(input.workers));
-    let stopped: ServerError | null = null;
+    let stopped: ThrottleFailure | null = null;
 
     await limit.map(batch, async ({ fileIndex, chunk }) => {
         const state = states[fileIndex];
@@ -143,6 +145,8 @@ async function trashEach(
 
         emitCompletedFiles(files, states, onFile, mode);
     });
+
+    return stopped;
 }
 
 function emitCompletedFiles(
@@ -182,9 +186,26 @@ export function deleteFiles(
         const entries = files.flatMap((file, fileIndex) =>
             file.chunks.map((chunk) => ({ fileIndex, chunk }))
         );
+        let stopped: ThrottleFailure | null = null;
 
         for (let offset = 0; offset < entries.length; offset += BULK_TRASH_BATCH_SIZE) {
             const batch = entries.slice(offset, offset + BULK_TRASH_BATCH_SIZE);
+            const trashedAt = Date.now();
+            if (stopped) {
+                const throttle = stopped;
+                finishBatch(
+                    input,
+                    states,
+                    batch,
+                    [],
+                    new Map(batch.map(({ chunk }) => [chunk, throttle])),
+                    trashedAt
+                );
+                emitCompletedFiles(files, states, onFile, mode);
+
+                continue;
+            }
+
             const moved = await moveToTrashBatch(
                 input.email,
                 input.token,
@@ -195,7 +216,6 @@ export function deleteFiles(
                 Ok: () => null,
                 Err: (error) => error
             });
-            const trashedAt = Date.now();
 
             if (failure === null) {
                 finishBatch(
@@ -207,6 +227,7 @@ export function deleteFiles(
                     trashedAt
                 );
             } else if (isThrottleError(failure)) {
+                stopped = failure;
                 finishBatch(
                     input,
                     states,
@@ -216,7 +237,16 @@ export function deleteFiles(
                     trashedAt
                 );
             } else {
-                await trashEach(input, files, states, batch, fetcher, onFile, mode);
+                const fallbackThrottle = await trashEach(
+                    input,
+                    files,
+                    states,
+                    batch,
+                    fetcher,
+                    onFile,
+                    mode
+                );
+                if (fallbackThrottle) stopped = fallbackThrottle;
             }
 
             emitCompletedFiles(files, states, onFile, mode);
