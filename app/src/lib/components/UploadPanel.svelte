@@ -94,7 +94,7 @@
 >
     <header class="flex min-h-14 items-center gap-1 bg-surface py-1 pr-2 pl-4">
         <div class="min-w-0 flex-1">
-            <h2 class="text-base font-medium break-words">
+            <h2 class="text-base font-medium text-balance break-words">
                 <span aria-live="polite">{status}</span>{#if detail}<span>, {detail}</span>{/if}
             </h2>
             {#if busy && paused.length}
