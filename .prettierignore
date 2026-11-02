@@ -12,3 +12,6 @@ bun.lockb
 /core/LICENSES/
 /cli/dist/
 /cli/LICENSES/
+
+/shared/dist/
+/shared/.wrangler/

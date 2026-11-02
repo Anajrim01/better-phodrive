@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="referrer" content="no-referrer" />
+        <title>Phodrive shared files</title>
+        <meta
+            name="description"
+            content="Open a Phodrive share link, rebuild the original file, and check its SHA-256 before saving."
+        />
+        <meta name="theme-color" content="#f6f2e9" media="(prefers-color-scheme: light)" />
+        <meta name="theme-color" content="#171512" media="(prefers-color-scheme: dark)" />
+        <link rel="icon" href="/mark.svg" type="image/svg+xml" />
+        <link rel="stylesheet" href="/src/styles.css" />
+    </head>
+    <body>
+        <div class="page">
+            <header class="masthead">
+                <a class="brand" href="./" aria-label="Phodrive shared files">
+                    <span class="brand-mark" aria-hidden="true"></span>
+                    <span class="brand-name">phodrive</span>
+                    <span class="brand-sep">/</span>
+                    <span class="brand-part">shared</span>
+                </a>
+                <a class="masthead-link" href="https://phodrive.dev" rel="noreferrer"
+                    >About Phodrive</a
+                >
+            </header>
+
+            <main id="app" class="sheet"></main>
+
+            <footer class="colophon">
+                <div class="colophon-block">
+                    <p class="colophon-title">How this works</p>
+                    <p>
+                        The manifest is read from the part of the link after <code>#</code>. The
+                        decoded public album URL is sent to this site's proxy to read the listing.
+                        Capability URLs are not logged.
+                    </p>
+                </div>
+                <div class="colophon-block">
+                    <p class="colophon-title">Limits</p>
+                    <p>
+                        Free tier: about 100,000 proxy requests per day, four byte streams at once,
+                        and an 8 MiB cap on range requests. Large files download in 8 MiB ranges.
+                    </p>
+                </div>
+            </footer>
+        </div>
+        <script type="module" src="/src/main.ts"></script>
+    </body>
+</html>

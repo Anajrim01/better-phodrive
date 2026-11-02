@@ -1,0 +1,13 @@
+export const MAX_MANIFEST_FRAGMENT_LENGTH = 8_192;
+export const MAX_MANIFEST_FILES = 200;
+export const MAX_MANIFEST_CHUNKS = 1_000;
+export const MAX_CHUNK_BYTES = 200_000_000;
+export const MAX_FILE_BYTES = 4_000_000_000;
+export const MAX_SPLIT_HEADER_BYTES = 65_536;
+export const MAX_PADDING_BYTES = 1_048_576;
+export const PROBE_BYTES = 65_536;
+export const MEDIA_RANGE_BYTES = 8 * 1024 * 1024;
+export const PROBE_CONCURRENCY = 3;
+export const PREVIEW_BYTES = 24 * 1024 * 1024;
+export const TEXT_PREVIEW_CHARS = 200_000;
+export const BLOB_DOWNLOAD_BYTES = 512 * 1024 * 1024;
