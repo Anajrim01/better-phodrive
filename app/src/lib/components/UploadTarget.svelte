@@ -34,8 +34,10 @@
 </script>
 
 {#if groups.length}
-    <div class="mb-2">
+    <div class="mb-2 min-w-0">
         <Select
+            class="upload-target"
+            style="display: flex; width: 100%; min-width: 0; --np-select-min-width: 0;"
             label="Upload to"
             {options}
             {value}
