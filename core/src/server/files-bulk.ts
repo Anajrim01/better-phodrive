@@ -56,6 +56,16 @@ function failureFields(
     return { error: throttled.message, retryAfterSeconds: failure.retryAfterSeconds };
 }
 
+function recordChunk(state: BulkFileState, chunk: BulkDeleteChunk, trashedAt: number): void {
+    state.remaining--;
+    state.deleted.push({ ...chunk, trashedAt });
+}
+
+function recordFailure(state: BulkFileState, error: ServerError): void {
+    state.remaining--;
+    state.failures.push(error);
+}
+
 function finishBatch(
     input: BulkDeleteRequest,
     states: BulkFileState[],
@@ -70,35 +80,37 @@ function finishBatch(
         const state = states[fileIndex];
         const failure = failures.get(chunk);
 
-        state.remaining--;
-        if (failure) state.failures.push(failure);
-        else state.deleted.push({ ...chunk, trashedAt });
+        if (failure) recordFailure(state, failure);
+        else recordChunk(state, chunk, trashedAt);
     }
 }
 
 async function trashEach(
     input: BulkDeleteRequest,
+    files: readonly BulkDeleteFile[],
+    states: BulkFileState[],
     batch: readonly ChunkEntry[],
-    fetcher: Fetcher
-): Promise<{ confirmed: BulkDeleteChunk[]; failures: Map<BulkDeleteChunk, ServerError> }> {
+    fetcher: Fetcher,
+    onFile: (result: BulkDeleteFileResult) => void,
+    mode: ThrottleMode
+): Promise<void> {
     const limit = pLimit(limitWorkers(input.workers));
-    const outcomes = await limit.map(batch, async ({ chunk }) => {
+
+    await limit.map(batch, async ({ fileIndex, chunk }) => {
         const moved = await moveToTrash(input.email, input.token, chunk.sha1, fetcher);
+        const state = states[fileIndex];
+        const trashedAt = Date.now();
 
-        return moved.match<{ chunk: BulkDeleteChunk; error?: ServerError }>({
-            Ok: () => ({ chunk }),
-            Err: (error) => ({ chunk, error })
+        moved.match({
+            Ok: () => {
+                markChunksTrashed(input.email, [chunk], trashedAt);
+                recordChunk(state, chunk, trashedAt);
+            },
+            Err: (error) => recordFailure(state, error)
         });
+
+        emitCompletedFiles(files, states, onFile, mode);
     });
-    const confirmed: BulkDeleteChunk[] = [];
-    const failures = new Map<BulkDeleteChunk, ServerError>();
-
-    for (const outcome of outcomes) {
-        if (outcome.error) failures.set(outcome.chunk, outcome.error);
-        else confirmed.push(outcome.chunk);
-    }
-
-    return { confirmed, failures };
 }
 
 function emitCompletedFiles(
@@ -172,8 +184,7 @@ export function deleteFiles(
                     trashedAt
                 );
             } else {
-                const retried = await trashEach(input, batch, fetcher);
-                finishBatch(input, states, batch, retried.confirmed, retried.failures, trashedAt);
+                await trashEach(input, files, states, batch, fetcher, onFile, mode);
             }
 
             emitCompletedFiles(files, states, onFile, mode);

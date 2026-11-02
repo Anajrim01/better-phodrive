@@ -165,6 +165,38 @@ test('a rejected batch retries each key and keeps confirmed chunks', async () =>
     expect(results).toEqual([{ deleted: 2, error: 'Single key failed' }]);
 });
 
+test('fallback emits a completed file before unrelated retries finish', async () => {
+    const first = file('first.bin', 1);
+    const second = file('second.bin', 1);
+    const results: string[] = [];
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+        release = resolve;
+    });
+
+    vi.mocked(moveToTrashBatch).mockImplementationOnce(() =>
+        Ok(undefined).andThenAsync(async () =>
+            Err({ code: 'REQUEST_FAILED', message: 'Batch rejected', status: 400 } as const)
+        )
+    );
+    vi.mocked(moveToTrash).mockImplementation((_email, _token, sha1) =>
+        Ok(undefined).andThenAsync(async () => {
+            if (sha1 === second.chunks[0].sha1) await gate;
+
+            return Ok(undefined);
+        })
+    );
+
+    const pending = deleteFiles({ ...input([first, second]), workers: 1 }, (result) => {
+        results.push(result.name);
+    });
+
+    await vi.waitFor(() => expect(results).toEqual(['first.bin']));
+    release();
+    await pending;
+    expect(results).toEqual(['first.bin', 'second.bin']);
+});
+
 test('a throttled batch uses manual retry wording and keeps the wait', async () => {
     const results: { error?: string; retryAfterSeconds?: number }[] = [];
 
