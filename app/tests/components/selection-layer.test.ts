@@ -3,6 +3,7 @@ import { cleanup, render, screen } from '@testing-library/svelte';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import type { ComponentProps } from 'svelte';
 import { FileActionKind } from '@madkarmaa/phodrive-core/models';
+import { selectionBarVisible } from '#browser/drive/selection-view.svelte';
 import SelectionLayer from '#components/SelectionLayer.svelte';
 
 type LayerProps = ComponentProps<typeof SelectionLayer>;
@@ -46,6 +47,7 @@ function mount(overrides: Partial<LayerState> = {}) {
         count: state.count,
         trash: state.trash,
         overlayOpen: false,
+        barVisible: selectionBarVisible(state.count, state.running, false),
         canSelectAll: true,
         selected: [],
         clear,
@@ -79,8 +81,19 @@ test.each([
             .filter((button) => button.getAttribute('aria-label') !== 'Clear selection');
         expect(actionButtons.length).toBeGreaterThan(0);
         for (const button of actionButtons) expect(button.hasAttribute('disabled')).toBe(true);
+        expect(
+            screen.getByRole('button', { name: 'Clear selection' }).hasAttribute('disabled')
+        ).toBe(true);
     }
 );
+
+test('keeps the clear action enabled while files are selected and idle', () => {
+    mount({ count: 2 });
+
+    expect(screen.getByRole('button', { name: 'Clear selection' }).hasAttribute('disabled')).toBe(
+        false
+    );
+});
 
 test('leaves the bar absent when nothing is selected and no bulk action runs', () => {
     mount();
