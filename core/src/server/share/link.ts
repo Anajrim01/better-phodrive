@@ -75,8 +75,9 @@ async function canonicalLink(
     const live = await waitForLiveShortUrl(link.shortUrl, fetcher, poll);
     if (live.isErr()) return live;
 
-    const status = live.unwrap();
-    if (status.canonicalUrl === null) return Err(SERVER_ERRORS.SHARE_LINK_NOT_LIVE);
+    const status = live.match({ Ok: (value) => value, Err: () => null });
+    if (status === null || status.canonicalUrl === null)
+        return Err(SERVER_ERRORS.SHARE_LINK_NOT_LIVE);
 
     return Ok({
         shortUrl: link.shortUrl,
@@ -98,13 +99,11 @@ async function retryEnable(
     await sleep(options.retryDelayMs ?? 2000);
 
     const second = await updateLinkState(email, token, envelopeKey, LINK_STATE_ENABLED, fetcher);
-    if (second.isErr()) {
-        const error = second.unwrapErr();
+    const secondError = second.match({ Ok: () => null, Err: (error) => error });
+    if (secondError !== null)
+        return ambiguous(secondError) ? Err(SERVER_ERRORS.SHARE_LINK_UNCERTAIN) : Err(secondError);
 
-        return ambiguous(error) ? Err(SERVER_ERRORS.SHARE_LINK_UNCERTAIN) : Err(error);
-    }
-
-    const link = second.unwrap();
+    const link = second.match({ Ok: (value) => value, Err: () => null });
     if (link === null) return Err(SERVER_ERRORS.SHARE_LINK_RESPONSE_FAILED);
     if (link.shortUrl === first.shortUrl) {
         return canonicalLink(link, fetcher, {
@@ -128,6 +127,7 @@ export function enableShareLink(
     email: string,
     token: string,
     envelopeKey: string,
+    pendingShortUrl: string | undefined,
     previous: PreviousLink | undefined,
     fetcher: Fetcher,
     options: EnableOptions
@@ -143,10 +143,24 @@ export function enableShareLink(
         }
 
         const first = await updateLinkState(email, token, envelopeKey, LINK_STATE_ENABLED, fetcher);
-        if (first.isErr())
-            return ambiguous(first.unwrapErr()) ? Err(SERVER_ERRORS.SHARE_LINK_UNCERTAIN) : first;
+        const firstError = first.match({ Ok: () => null, Err: (error) => error });
+        if (firstError !== null) {
+            if (!ambiguous(firstError)) return Err(firstError);
 
-        const link = first.unwrap();
+            const known = pendingShortUrl ?? previous?.shortUrl;
+            if (known !== undefined) {
+                const pending = await canonicalLink(
+                    { shortUrl: known, authKey: previous?.authKey ?? '' },
+                    fetcher,
+                    options.poll
+                );
+                if (pending.isOk()) return pending;
+            }
+
+            return Err(SERVER_ERRORS.SHARE_LINK_UNCERTAIN);
+        }
+
+        const link = first.match({ Ok: (value) => value, Err: () => null });
         if (link === null) return Err(SERVER_ERRORS.SHARE_LINK_RESPONSE_FAILED);
 
         const live = await canonicalLink(link, fetcher, options.poll);

@@ -114,16 +114,16 @@ export function parseLinkStateResponse(
 }
 
 function optionalShortUrl(body: Buffer): Result<string | undefined, ServerError> {
-    const fields = parse(body);
-    if (fields.isErr()) return fields;
+    return parse(body).andThen((fields) => {
+        const pending = fields.find((field) => field.number === 2);
+        if (pending === undefined) return Ok(undefined);
+        if (typeof pending.value === 'number')
+            return Err(SERVER_ERRORS.SHARE_ENVELOPE_RESPONSE_FAILED);
 
-    const pending = fields.unwrap().find((field) => field.number === 2);
-    if (pending === undefined) return Ok(undefined);
-    if (typeof pending.value === 'number') return Err(SERVER_ERRORS.SHARE_ENVELOPE_RESPONSE_FAILED);
-
-    return utf8(pending.value).andThen((value) =>
-        ShareShortUrlSchema.safeParse(value).success
-            ? Ok(value)
-            : Err(SERVER_ERRORS.SHARE_ENVELOPE_RESPONSE_FAILED)
-    );
+        return utf8(pending.value).andThen((value) =>
+            ShareShortUrlSchema.safeParse(value).success
+                ? Ok(value)
+                : Err(SERVER_ERRORS.SHARE_ENVELOPE_RESPONSE_FAILED)
+        );
+    });
 }

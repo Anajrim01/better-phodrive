@@ -13,9 +13,8 @@ export const SHARE_ALBUM_PATH_PATTERN = /^\/share\/[A-Za-z0-9_-]+$/;
 export const ShareShortUrlSchema = z.string().max(2048).regex(SHARE_SHORT_URL_PATTERN);
 const ShareAuthKeySchema = z
     .string()
-    .min(1)
     .max(4096)
-    .refine((key) => !/[\s\0]/.test(key));
+    .refine((key) => key.length === 0 || !/[\s\0]/.test(key));
 
 export const ShareCanonicalUrlSchema = z.string().max(4096).refine(isCanonicalShareAlbumUrl);
 
@@ -74,8 +73,9 @@ const ShareExistingSchema = z
         envelopeKey: AlbumKeySchema,
         albumKey: AlbumKeySchema,
         shortUrl: ShareShortUrlSchema.optional(),
-        albumUrl: ShareCanonicalUrlSchema.optional(),
-        authKey: ShareAuthKeySchema
+        albumUrl: ShareCanonicalUrlSchema,
+        authKey: ShareAuthKeySchema,
+        shareUrl: z.url().max(MAX_SHARE_URL_LENGTH).startsWith(SHARE_BASE_URL)
     })
     .strict();
 

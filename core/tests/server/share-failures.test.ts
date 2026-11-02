@@ -163,3 +163,62 @@ test('malformed link responses clean up the envelope and album', async () => {
     expect(calls).toContain(DELETE_ENVELOPE);
     expect(calls).toContain(REMOVE_ALBUM);
 });
+
+test('an ambiguous enable falls back to polling the pending album URL', async () => {
+    const pending = 'https://photos.app.goo.gl/pending1';
+    const calls: string[] = [];
+    const fetcher: Fetcher = async (input) => {
+        const url = String(input);
+        calls.push(url);
+        if (url.includes('android.googleapis.com/auth')) return new Response(AUTH_RESPONSE);
+        if (url === CREATE_ALBUM) return bodyResponse(albumResponse(ALBUM_KEY));
+        if (url === CREATE_ENVELOPE) return bodyResponse(envelopeResponse(ENVELOPE_KEY, pending));
+        if (url === UPDATE_LINK) return new Response(null, { status: 503 });
+        if (url === pending) {
+            return new Response(null, { status: 302, headers: { location: CANONICAL } });
+        }
+        if (url === CANONICAL) return htmlPage();
+
+        return new Response(null, { status: 404 });
+    };
+
+    const created = await createShare(request(), fetcher, {
+        poll: { attempts: 2, delayMs: 0, sleep: async () => undefined },
+        retryDelayMs: 0
+    });
+
+    expect(created.unwrap().record.shortUrl).toBe(pending);
+    expect(created.unwrap().record.authKey).toBe('');
+    expect(calls).not.toContain(DELETE_ENVELOPE);
+    expect(calls).not.toContain(REMOVE_ALBUM);
+});
+
+test('failed cleanup returns recovery keys instead of a silent orphan', async () => {
+    const fetcher: Fetcher = async (input, init) => {
+        const url = String(input);
+        if (url.includes('android.googleapis.com/auth')) return new Response(AUTH_RESPONSE);
+        if (url === CREATE_ALBUM) return bodyResponse(albumResponse(ALBUM_KEY));
+        if (url === CREATE_ENVELOPE) return bodyResponse(envelopeResponse(ENVELOPE_KEY, SHORT_URL));
+        if (url === UPDATE_LINK) {
+            return requestState(protobuf(init?.body)) === 2
+                ? new Response(null, { status: 503 })
+                : new Response(null, { status: 500 });
+        }
+        if (url === DELETE_ENVELOPE || url === REMOVE_ALBUM)
+            return new Response(null, { status: 500 });
+
+        return new Response(null, { status: 404 });
+    };
+
+    const created = await createShare(request(), fetcher, {
+        poll: { attempts: 1, delayMs: 0, sleep: async () => undefined },
+        retryDelayMs: 0
+    });
+    const error = created.unwrapErr();
+
+    expect(error.code).toBe('SHARE_LINK_UNCERTAIN');
+    expect('recovery' in error ? error.recovery : null).toEqual({
+        envelopeKey: ENVELOPE_KEY,
+        albumKey: ALBUM_KEY
+    });
+});

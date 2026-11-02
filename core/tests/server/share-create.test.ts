@@ -12,6 +12,7 @@ import {
     CREATE_ENVELOPE,
     DELETE_ENVELOPE,
     ENVELOPE_KEY,
+    EXISTING_SHARE,
     envelopeResponse,
     htmlPage,
     linkResponse,
@@ -107,13 +108,7 @@ test('an existing envelope and live link are reused without creating anything', 
 
     const created = await createShare(
         request({
-            existing: {
-                envelopeKey: ENVELOPE_KEY,
-                albumKey: ALBUM_KEY,
-                shortUrl: SHORT_URL,
-                albumUrl: CANONICAL,
-                authKey: 'auth-key'
-            }
+            existing: EXISTING_SHARE
         }),
         fetcher,
         { poll: { attempts: 2, delayMs: 0, sleep: async () => undefined } }
@@ -147,13 +142,7 @@ test('an existing envelope with a dead link is enabled again without creating an
 
     const created = await createShare(
         request({
-            existing: {
-                envelopeKey: ENVELOPE_KEY,
-                albumKey: ALBUM_KEY,
-                shortUrl: SHORT_URL,
-                albumUrl: CANONICAL,
-                authKey: 'auth-key'
-            }
+            existing: EXISTING_SHARE
         }),
         fetcher,
         { poll: { attempts: 1, delayMs: 0, sleep: async () => undefined }, retryDelayMs: 0 }

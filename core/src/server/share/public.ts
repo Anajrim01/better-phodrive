@@ -77,9 +77,9 @@ export function probeShortUrl(
                 { method: 'GET', redirect: 'manual' },
                 'Read share album'
             );
-            if (canonical.isErr()) return Ok({ status, canonicalUrl: null });
+            const page = canonical.match({ Ok: (value) => value, Err: () => null });
+            if (page === null) return Ok({ status, canonicalUrl: null });
 
-            const page = canonical.unwrap();
             const pageStatus = page.status;
             const pageType = page.headers.get('content-type') ?? '';
             cancelBody(page);
@@ -109,7 +109,8 @@ export function waitForLiveShortUrl(
                 lastStatus = result.status;
             });
 
-            if (probed.isOk() && probed.unwrap().canonicalUrl !== null) return probed;
+            const result = probed.match({ Ok: (value) => value, Err: () => null });
+            if (result !== null && result.canonicalUrl !== null) return probed;
 
             if (attempt + 1 < options.attempts) await sleep(options.delayMs);
         }

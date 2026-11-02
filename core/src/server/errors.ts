@@ -75,6 +75,10 @@ export const SERVER_ERRORS = {
         code: 'SHARE_LINK_UNCERTAIN',
         message: 'The share link state is uncertain. Refresh the library before retrying.'
     },
+    SHARE_REVOKE_UNVERIFIED: {
+        code: 'SHARE_REVOKE_UNVERIFIED',
+        message: 'Could not confirm the old share link stopped serving. Retry revoke.'
+    },
     SHARE_LINK_STILL_LIVE: {
         code: 'SHARE_LINK_STILL_LIVE',
         message: 'The old share link is still serving. Retry revoke before sharing again.'
@@ -259,6 +263,11 @@ export function isThrottleError(
     return error.code === 'THROTTLED';
 }
 
+export type ShareRecovery = {
+    readonly envelopeKey: string;
+    readonly albumKey: string;
+};
+
 export type ServerError =
     | (typeof SERVER_ERRORS)[keyof typeof SERVER_ERRORS]
     | {
@@ -272,4 +281,9 @@ export type ServerError =
     | { readonly code: 'FILE_NAME_EXISTS'; readonly message: string }
     | { readonly code: 'FOLDER_EXISTS'; readonly message: string }
     | { readonly code: 'INVALID_FOLDER_DESTINATION'; readonly message: string }
-    | { readonly code: 'THROTTLED'; readonly message: string; readonly retryAfterSeconds: number };
+    | { readonly code: 'THROTTLED'; readonly message: string; readonly retryAfterSeconds: number }
+    | {
+          readonly code: 'SHARE_LINK_UNCERTAIN';
+          readonly message: string;
+          readonly recovery: ShareRecovery;
+      };

@@ -27,6 +27,12 @@ type Verification = {
     directUrlStatus: number | null;
 };
 
+type VerificationRequirements = {
+    shortUrl: boolean;
+    albumUrl: boolean;
+    directUrl: boolean;
+};
+
 export function revokeShare(
     input: ShareRevokeRequest,
     fetcher: Fetcher = photosFetch,
@@ -38,7 +44,7 @@ export function revokeShare(
             Err({ code: 'REQUEST_FAILED', message: 'Invalid share request' } as const)
         );
 
-    return Ok(undefined).andThenAsync(async () => {
+    return Ok(undefined).andThenAsync<ShareRevokeResponse, ServerError>(async () => {
         const request = parsed.data;
         const directUrl =
             request.shortUrl === undefined
@@ -68,12 +74,23 @@ export function revokeShare(
 
         const verification = await verifyStopped(request, directUrl, fetcher, options);
         if (isLive(verification)) return Err(SERVER_ERRORS.SHARE_LINK_STILL_LIVE);
+        if (
+            !isVerified(verification, {
+                shortUrl: request.shortUrl !== undefined,
+                albumUrl: request.albumUrl !== undefined,
+                directUrl: directUrl !== undefined
+            })
+        )
+            return Err(SERVER_ERRORS.SHARE_REVOKE_UNVERIFIED);
 
         return Ok({
             revoked: true as const,
             ...verification,
-            envelopeDeleted: envelope.isOk() || alreadyGone(envelope.unwrapErr()),
-            albumRemoved: album.isOk() || alreadyGone(album.unwrapErr())
+            envelopeDeleted: envelope.match({
+                Ok: () => true,
+                Err: (error) => alreadyGone(error)
+            }),
+            albumRemoved: album.match({ Ok: () => true, Err: (error) => alreadyGone(error) })
         });
     });
 }
@@ -116,9 +133,12 @@ async function readVerification(
     const direct = directUrl === undefined ? null : await probeStopped(directUrl, fetcher);
 
     return {
-        shortUrlStatus: short === null ? null : short.unwrapOr({ status: null }).status,
-        albumUrlStatus: album?.unwrapOr(null) ?? null,
-        directUrlStatus: direct?.unwrapOr(null) ?? null
+        shortUrlStatus:
+            short === null ? null : short.match({ Ok: (value) => value.status, Err: () => null }),
+        albumUrlStatus:
+            album === null ? null : album.match({ Ok: (value) => value, Err: () => null }),
+        directUrlStatus:
+            direct === null ? null : direct.match({ Ok: (value) => value, Err: () => null })
     };
 }
 
@@ -128,4 +148,12 @@ function isLive(verification: Verification): boolean {
         verification.albumUrlStatus === 200 ||
         verification.directUrlStatus === 200
     );
+}
+
+function isVerified(verification: Verification, required: VerificationRequirements): boolean {
+    if (required.shortUrl && verification.shortUrlStatus === null) return false;
+    if (required.albumUrl && verification.albumUrlStatus === null) return false;
+    if (required.directUrl && verification.directUrlStatus === null) return false;
+
+    return true;
 }

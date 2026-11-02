@@ -18,7 +18,7 @@ export function createEnvelope(
     albumKey: string,
     title: string,
     fetcher: Fetcher
-): AsyncResult<string, ServerError> {
+): AsyncResult<{ envelopeKey: string; pendingShortUrl?: string }, ServerError> {
     const request = createEnvelopeRequest(albumKey, title);
 
     return authenticatedHeaders(email, token, fetcher).andThenAsync(({ rpcHeaders }) =>
@@ -34,9 +34,7 @@ export function createEnvelope(
             },
             'Create share envelope'
         ).andThenAsync((response) =>
-            readBody(response, 'Create share envelope').andThen((body) =>
-                parseEnvelopeResponse(body).map((envelope) => envelope.envelopeKey)
-            )
+            readBody(response, 'Create share envelope').andThen(parseEnvelopeResponse)
         )
     );
 }

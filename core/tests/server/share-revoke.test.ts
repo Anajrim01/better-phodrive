@@ -98,3 +98,16 @@ test('revoke fails when the old link still serves after cleanup', async () => {
 
     expect(revoked.unwrapErr().code).toBe('SHARE_LINK_STILL_LIVE');
 });
+
+test('revoke fails closed when the public URLs cannot be checked', async () => {
+    const fetcher: Fetcher = async () => {
+        throw new Error('network down');
+    };
+
+    const revoked = await revokeShare(revokeRequest(), fetcher, {
+        sleep: async () => undefined,
+        verifyAttempts: 1
+    });
+
+    expect(revoked.unwrapErr().code).toBe('SHARE_REVOKE_UNVERIFIED');
+});

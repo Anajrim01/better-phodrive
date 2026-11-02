@@ -1,10 +1,11 @@
 import { beforeEach, expect, test, vi } from 'vitest';
-import { Ok } from 'results-ts';
+import { Err, Ok } from 'results-ts';
 import type {
     ShareCreateResponse,
     ShareRevokeResponse
 } from '@madkarmaa/phodrive-core/share-models';
 import { createShare, revokeShare } from '@madkarmaa/phodrive-core/server/share';
+import type { ServerError } from '@madkarmaa/phodrive-core/server/errors';
 import { POST } from '../../src/routes/api/share/+server';
 
 vi.mock('@madkarmaa/phodrive-core/server/share', () => ({
@@ -99,4 +100,21 @@ test('invalid bodies never reach the share service', async () => {
     expect(badAction.status).toBe(400);
     expect(createShare).not.toHaveBeenCalled();
     expect(revokeShare).not.toHaveBeenCalled();
+});
+
+test('a cleanup failure returns recovery keys to the owner', async () => {
+    const failure: ServerError = {
+        code: 'SHARE_LINK_UNCERTAIN',
+        message: 'The share link may still be public.',
+        recovery: { envelopeKey: 'envelope', albumKey: 'album' }
+    };
+    vi.mocked(createShare).mockImplementation(() =>
+        Err(failure).andThenAsync(async (value) => Ok(value))
+    );
+
+    const response = await post(CREATE_BODY);
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.recovery).toEqual({ envelopeKey: 'envelope', albumKey: 'album' });
 });

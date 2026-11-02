@@ -1,5 +1,10 @@
 import { bytesField, integer, message, parse } from '@madkarmaa/phodrive-core/server/protobuf';
-import type { ShareCreateRequest, ShareRevokeRequest } from '@madkarmaa/phodrive-core/share-models';
+import type {
+    ShareCreateRequest,
+    ShareExisting,
+    ShareRevokeRequest
+} from '@madkarmaa/phodrive-core/share-models';
+import { buildShareUrl } from '@madkarmaa/phodrive-core/server/share';
 
 export const AUTH_RESPONSE = `Auth=bearer\nExpiry=${Math.floor(Date.now() / 1000) + 3600}`;
 export const ALBUM_KEY = 'AF1QipAlbum';
@@ -51,27 +56,48 @@ export function htmlPage(): Response {
     );
 }
 
+const FILES = [
+    {
+        id: FILE_ID,
+        name: 'photo.jpg',
+        chunks: [
+            { index: 0, mediaKey: 'media-0' },
+            { index: 1, mediaKey: 'media-1' }
+        ]
+    },
+    {
+        id: SECOND_FILE_ID,
+        name: 'notes.txt',
+        chunks: [{ index: 0, mediaKey: 'media-2' }]
+    }
+] as const;
+
+export const EXISTING_SHARE: ShareExisting = {
+    envelopeKey: ENVELOPE_KEY,
+    albumKey: ALBUM_KEY,
+    shortUrl: SHORT_URL,
+    albumUrl: CANONICAL,
+    authKey: 'auth-key',
+    shareUrl: buildShareUrl({
+        v: 1,
+        album: CANONICAL,
+        files: [
+            { id: FILE_ID, chunks: 2, name: 'photo.jpg' },
+            { id: SECOND_FILE_ID, chunks: 1, name: 'notes.txt' }
+        ]
+    }).unwrap()
+};
+
 export function request(overrides: Partial<ShareCreateRequest> = {}): ShareCreateRequest {
     return {
         action: 'create',
         email: `${crypto.randomUUID()}@example.com`,
         token: 'aas_et/test',
         name: 'Share name',
-        files: [
-            {
-                id: FILE_ID,
-                name: 'photo.jpg',
-                chunks: [
-                    { index: 0, mediaKey: 'media-0' },
-                    { index: 1, mediaKey: 'media-1' }
-                ]
-            },
-            {
-                id: SECOND_FILE_ID,
-                name: 'notes.txt',
-                chunks: [{ index: 0, mediaKey: 'media-2' }]
-            }
-        ],
+        files: FILES.map((file) => ({
+            ...file,
+            chunks: file.chunks.map((chunk) => ({ ...chunk }))
+        })),
         ...overrides
     };
 }
