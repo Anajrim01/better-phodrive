@@ -71,8 +71,7 @@ export function guardedSend(
     fetcher: Fetcher,
     url: string | URL,
     init: RequestInit,
-    stage: string,
-    options: { preserveServerFailure?: boolean } = {}
+    stage: string
 ): AsyncResult<Response, ServerError> {
     const startedAt = Date.now();
     const wait = throttleWaitSeconds(email);
@@ -105,9 +104,8 @@ export function guardedSend(
             }
 
             const pause = recordServerFailure(email);
-            if (pause === null || options.preserveServerFailure) return error;
 
-            return throttleError(pause);
+            return pause === null ? error : throttleError(pause);
         });
 }
 
