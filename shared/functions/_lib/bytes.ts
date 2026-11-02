@@ -16,6 +16,7 @@ const BytesRequestSchema = z.object({ url: z.string(), range: z.string().optiona
 export interface BytesDeps {
     fetch: typeof fetch;
     bodyIdleTimeoutMs?: number;
+    maxConcurrency?: number;
 }
 
 const DEFAULT_DEPS: BytesDeps = { fetch: globalThis.fetch.bind(globalThis) };
@@ -174,12 +175,23 @@ function validateUpstream(
     return null;
 }
 
+async function discardUpstream(response: Response, controller: AbortController): Promise<void> {
+    controller.abort();
+
+    try {
+        await response.body?.cancel();
+    } catch {
+        return;
+    }
+}
+
 export function createBytesHandler(deps: BytesDeps = DEFAULT_DEPS) {
     let active = 0;
     const idleTimeoutMs = deps.bodyIdleTimeoutMs ?? BYTES_IDLE_TIMEOUT_MS;
+    const maxConcurrency = deps.maxConcurrency ?? MAX_BYTES_CONCURRENCY;
 
     async function serve(url: string, range: string | undefined): Promise<Response> {
-        if (active >= MAX_BYTES_CONCURRENCY) return errorResponse(proxyError('BUSY'));
+        if (active >= maxConcurrency) return errorResponse(proxyError('BUSY'));
 
         active++;
         let released = false;
@@ -191,21 +203,23 @@ export function createBytesHandler(deps: BytesDeps = DEFAULT_DEPS) {
 
         const upstream = await fetchUpstream(deps, url, range);
         return upstream.match({
-            Err: (error) => {
+            Err: async (error) => {
                 release();
 
                 return errorResponse(error);
             },
-            Ok: ({ response, controller }) => {
+            Ok: async ({ response, controller }) => {
                 const length = contentLength(response);
                 const invalid = validateUpstream(response, range, length);
                 if (invalid) {
+                    await discardUpstream(response, controller);
                     release();
 
                     return errorResponse(invalid);
                 }
 
                 if (!response.body) {
+                    controller.abort();
                     release();
                     if (response.status === 416)
                         return new Response(null, {

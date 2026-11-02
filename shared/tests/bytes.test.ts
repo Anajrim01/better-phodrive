@@ -174,6 +174,7 @@ describe('POST /api/bytes', () => {
     it('stops an oversized stream that omits content-length', async () => {
         let oversized = true;
         const handler = createBytesHandler({
+            maxConcurrency: 1,
             fetch: async () => {
                 if (!oversized)
                     return new Response(new Uint8Array([1]), {
@@ -207,6 +208,7 @@ describe('POST /api/bytes', () => {
         let stalled = true;
         const handler = createBytesHandler({
             bodyIdleTimeoutMs: 50,
+            maxConcurrency: 1,
             fetch: async (_input, init) => {
                 if (!stalled) return new Response(new Uint8Array([1, 2, 3]), { status: 200 });
 
@@ -229,6 +231,31 @@ describe('POST /api/bytes', () => {
 
         const next = await handler(request(MEDIA_URL));
         expect(next.status).toBe(200);
+    });
+
+    it('cancels an upstream body that fails validation', async () => {
+        let cancelled = false;
+        const handler = createBytesHandler({
+            fetch: async () =>
+                new Response(
+                    new ReadableStream({
+                        start(controller) {
+                            controller.enqueue(new Uint8Array([1, 2, 3]));
+                        },
+                        cancel() {
+                            cancelled = true;
+                        }
+                    }),
+                    {
+                        status: 200,
+                        headers: { 'content-length': '200000001' }
+                    }
+                )
+        });
+        const response = await handler(request(MEDIA_URL));
+
+        expect(response.status).toBe(502);
+        expect(cancelled).toBe(true);
     });
 
     it('caps concurrent streams', async () => {
