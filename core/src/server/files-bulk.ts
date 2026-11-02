@@ -14,22 +14,38 @@ import {
     applyBatchAction,
     type ThrottleFailure
 } from './files-bulk-fallback';
-import { validateBulkDelete } from './files-bulk-validation';
+import { validateBulkDelete, type BulkDeleteValidation } from './files-bulk-validation';
 import { photosFetch, type Fetcher } from './fetcher';
 
 export const BULK_TRASH_BATCH_SIZE = 500;
 
 export { validateBulkDelete } from './files-bulk-validation';
 export type { BulkDeleteFileResult } from './files-bulk-batch';
+export type {
+    BulkDeleteInvalidFile,
+    BulkDeleteValidation,
+    ValidatedBulkFile
+} from './files-bulk-validation';
 
-export function deleteFiles(
+export function trashValidatedFiles(
     input: BulkDeleteRequest,
+    validation: BulkDeleteValidation,
     onFile: (result: BulkDeleteFileResult) => void,
     mode: ThrottleMode = 'auto',
     fetcher: Fetcher = photosFetch
 ): AsyncResult<void, ServerError> {
-    return validateBulkDelete(input, fetcher).andThenAsync(async (files) => {
+    return Ok(undefined).andThenAsync(async () => {
         const action: BulkDeleteAction = input.action ?? FileActionKind.Delete;
+        for (const invalid of validation.invalid)
+            onFile({
+                index: invalid.index,
+                name: invalid.name,
+                action,
+                deleted: [],
+                error: invalid.error
+            });
+
+        const files = validation.files;
         const states: BulkFileState[] = files.map((file) => ({
             deleted: [],
             failures: [],
@@ -122,4 +138,15 @@ export function deleteFiles(
 
         return Ok(undefined);
     });
+}
+
+export function deleteFiles(
+    input: BulkDeleteRequest,
+    onFile: (result: BulkDeleteFileResult) => void,
+    mode: ThrottleMode = 'auto',
+    fetcher: Fetcher = photosFetch
+): AsyncResult<void, ServerError> {
+    return validateBulkDelete(input, fetcher).andThenAsync((validation) =>
+        trashValidatedFiles(input, validation, onFile, mode, fetcher)
+    );
 }

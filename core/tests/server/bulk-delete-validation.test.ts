@@ -56,12 +56,21 @@ test('a media key and sha1 mismatch is rejected before any provider request', as
     const first = file('first.bin', 1);
     const payload = input([first]);
     payload.files[0][3][0][1] = file('other.bin', 1).chunks[0].sha1;
-    const results: unknown[] = [];
+    const results: { index: number; name: string; deleted: number; error?: string }[] = [];
 
-    const result = await deleteFiles(payload, (event) => results.push(event));
+    const result = await deleteFiles(payload, (event) => {
+        results.push({
+            index: event.index,
+            name: event.name,
+            deleted: event.deleted.length,
+            ...(event.error ? { error: event.error } : {})
+        });
+    });
 
-    expect(result.unwrapErr().code).toBe('INVALID_FILE_METADATA');
-    expect(results).toEqual([]);
+    expect(result.isOk()).toBe(true);
+    expect(results).toEqual([
+        { index: 0, name: 'first.bin', deleted: 0, error: 'Invalid file metadata.' }
+    ]);
     expect(moveToTrashBatch).not.toHaveBeenCalled();
 });
 
@@ -72,9 +81,11 @@ test('a chunk from another file identity is rejected before any provider request
     payload.files[0][1] = other.fileHash;
     payload.files[0][2] = other.fileId;
 
-    const result = await deleteFiles(payload, () => {});
+    const results: string[] = [];
+    const result = await deleteFiles(payload, (event) => results.push(event.error ?? ''));
 
-    expect(result.unwrapErr().code).toBe('INVALID_FILE_METADATA');
+    expect(result.isOk()).toBe(true);
+    expect(results).toEqual(['Invalid file metadata.']);
     expect(moveToTrashBatch).not.toHaveBeenCalled();
 });
 
@@ -117,9 +128,11 @@ test('a newly built index is not refreshed a second time', async () => {
         return ok();
     });
 
-    const result = await deleteFiles(payload, () => {});
+    const results: string[] = [];
+    const result = await deleteFiles(payload, (event) => results.push(event.error ?? ''));
 
-    expect(result.unwrapErr().code).toBe('INVALID_FILE_METADATA');
+    expect(result.isOk()).toBe(true);
+    expect(results).toEqual(['Invalid file metadata.']);
     expect(ensureAccountIndex).toHaveBeenCalledOnce();
     expect(refreshAccountIndex).not.toHaveBeenCalled();
     expect(moveToTrashBatch).not.toHaveBeenCalled();
@@ -151,11 +164,37 @@ test('validation fails when the refreshed index still misses a chunk', async () 
     saveState([{ ...first, chunks: [first.chunks[0]] }]);
     const payload = request([first]);
 
-    const result = await deleteFiles(payload, () => {});
+    const results: string[] = [];
+    const result = await deleteFiles(payload, (event) => results.push(event.error ?? ''));
 
-    expect(result.unwrapErr().code).toBe('INVALID_FILE_METADATA');
+    expect(result.isOk()).toBe(true);
+    expect(results).toEqual(['Invalid file metadata.']);
     expect(refreshAccountIndex).toHaveBeenCalledOnce();
     expect(moveToTrashBatch).not.toHaveBeenCalled();
+});
+
+test('a stale file fails alone while valid files are still trashed', async () => {
+    const valid = file('valid.bin', 1);
+    const stale = file('stale.bin', 1);
+    saveState([valid]);
+    const payload = request([valid, stale]);
+    const results: { index: number; name: string; deleted: number; error?: string }[] = [];
+
+    const result = await deleteFiles(payload, (event) => {
+        results.push({
+            index: event.index,
+            name: event.name,
+            deleted: event.deleted.length,
+            ...(event.error ? { error: event.error } : {})
+        });
+    });
+
+    expect(result.isOk()).toBe(true);
+    expect(moveToTrashBatch).toHaveBeenCalledOnce();
+    expect(results.toSorted((first, second) => first.index - second.index)).toEqual([
+        { index: 0, name: 'valid.bin', deleted: 1 },
+        { index: 1, name: 'stale.bin', deleted: 0, error: 'Invalid file metadata.' }
+    ]);
 });
 
 test('a failed index refresh stops before any provider request', async () => {

@@ -2,12 +2,12 @@ import { isThrottleError, throttleError, type ServerError, type ThrottleMode } f
 import type {
     BulkDeleteAction,
     BulkDeleteChunk,
-    BulkDeleteFile,
     BulkDeleteFileEvent,
     BulkDeleteRequest
 } from '../bulk-delete';
 import { FileActionKind } from '../models';
 import { markChunksRestored, markChunksTrashed, removeChunks } from './photos/library/state';
+import type { ValidatedBulkFile } from './files-bulk-validation';
 
 export type BulkDeleteFileResult = Omit<BulkDeleteFileEvent, 'type'>;
 
@@ -102,7 +102,7 @@ export function finishBatch(
 }
 
 export function emitCompletedFiles(
-    files: readonly BulkDeleteFile[],
+    files: readonly ValidatedBulkFile[],
     states: BulkFileState[],
     onFile: (result: BulkDeleteFileResult) => void,
     action: BulkDeleteAction,
@@ -115,7 +115,7 @@ export function emitCompletedFiles(
 
         state.emitted = true;
         onFile({
-            index,
+            index: file.index,
             name: file.name,
             action,
             deleted: state.deleted,

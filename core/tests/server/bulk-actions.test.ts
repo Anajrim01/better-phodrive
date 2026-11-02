@@ -126,14 +126,26 @@ test('permanent delete and restore reject active chunks before any request', asy
     for (const scenario of SCENARIOS.slice(1)) {
         vi.clearAllMocks();
         const active = file('active.bin', 1);
-        const results: unknown[] = [];
+        const results: { index: number; name: string; action: string; error?: string }[] = [];
 
-        const result = await deleteFiles(input([active], 2, scenario.action), (event) =>
-            results.push(event)
-        );
+        const result = await deleteFiles(input([active], 2, scenario.action), (event) => {
+            results.push({
+                index: event.index,
+                name: event.name,
+                action: event.action,
+                ...(event.error ? { error: event.error } : {})
+            });
+        });
 
-        expect(result.unwrapErr().code).toBe('NOT_TRASHED');
-        expect(results).toEqual([]);
+        expect(result.isOk()).toBe(true);
+        expect(results).toEqual([
+            {
+                index: 0,
+                name: 'active.bin',
+                action: scenario.action,
+                error: 'Only trashed chunks can be restored or deleted forever.'
+            }
+        ]);
         expect(scenario.batch).not.toHaveBeenCalled();
         expect(scenario.single).not.toHaveBeenCalled();
     }
