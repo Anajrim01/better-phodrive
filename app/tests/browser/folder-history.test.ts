@@ -180,6 +180,36 @@ test('a timed-out traversal does not swallow an unrelated history move', async (
     }
 });
 
+test('a delayed traversal is ignored after an unrelated history move', async () => {
+    const library = makeLibrary(['A', 'A/B', 'C']);
+    await library.load();
+    library.openFolder('A');
+    library.openFolder('A/B');
+    const go = vi.spyOn(window.history, 'go').mockImplementation(() => {});
+    vi.useFakeTimers();
+    try {
+        library.openFolder('A', 'ancestor');
+        vi.advanceTimersByTime(1_000);
+        library.openFolder('C');
+        vi.useRealTimers();
+        go.mockRestore();
+        await traverse('back');
+        expect(library.folder).toBe('A/B');
+
+        window.dispatchEvent(
+            new PopStateEvent('popstate', {
+                state: { folder: 'A', trail: ['', 'A'], generation: 0, index: 1 }
+            })
+        );
+
+        expect(library.folder).toBe('A/B');
+        expect(currentFolder()).toBe('A/B');
+    } finally {
+        vi.useRealTimers();
+        go.mockRestore();
+    }
+});
+
 test('a delayed traversal does not override a newer folder open', async () => {
     const library = makeLibrary(['A', 'A/B', 'C']);
     await library.load();

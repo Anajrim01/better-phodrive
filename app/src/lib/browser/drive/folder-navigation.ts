@@ -119,16 +119,14 @@ export class FolderNavigation {
 
     private follow(folder: string): void {
         const traversal = this.traversal;
-        this.traversal = null;
         this.stopTraversal();
-        if (
-            traversal &&
-            traversal.version !== this.navigationVersion &&
-            folder === traversal.target
-        ) {
-            this.history.restore(this.deps.folder());
+        if (traversal && folder === traversal.target) {
+            this.traversal = null;
+            if (traversal.version !== this.navigationVersion) {
+                this.history.restore(this.deps.folder());
 
-            return;
+                return;
+            }
         }
 
         if (this.initial) {
