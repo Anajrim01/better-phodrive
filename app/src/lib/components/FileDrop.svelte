@@ -73,14 +73,15 @@
         if (event.relatedTarget) overFiles = isOverFiles(event.relatedTarget);
     }
 
-    function dropFiles(event: DragEvent) {
+    async function dropFiles(event: DragEvent) {
         resetDrag();
         if (!isFileDrag(event) || !event.dataTransfer) return;
 
         event.preventDefault();
+        const transfer = event.dataTransfer;
         if (disabled || !isOverFiles(event.target)) return;
 
-        const files = droppedFiles(event.dataTransfer);
+        const files = await droppedFiles(transfer);
         if (!files.length) return;
 
         onupload(files);
