@@ -24,7 +24,7 @@
     onclear={selection.clear}
 />
 
-{#if selection.count > 0 && !selection.overlayOpen}
+{#if (selection.count > 0 || drive.bulk.running) && !selection.overlayOpen}
     <SelectionBar
         count={selection.count}
         trash={selection.trash}
