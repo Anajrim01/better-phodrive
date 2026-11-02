@@ -51,6 +51,50 @@ export const SERVER_ERRORS = {
         code: 'ALBUM_CREATE_RESPONSE_FAILED',
         message: 'Create album response failed'
     },
+    SHARE_ALBUM_REMOVE_FAILED: {
+        code: 'SHARE_ALBUM_REMOVE_FAILED',
+        message: 'Could not remove the share album'
+    },
+    INVALID_SHARE_NAME: {
+        code: 'INVALID_SHARE_NAME',
+        message: 'Invalid share name'
+    },
+    SHARE_ENVELOPE_RESPONSE_FAILED: {
+        code: 'SHARE_ENVELOPE_RESPONSE_FAILED',
+        message: 'Create share response failed'
+    },
+    SHARE_LINK_RESPONSE_FAILED: {
+        code: 'SHARE_LINK_RESPONSE_FAILED',
+        message: 'Share link response failed'
+    },
+    SHARE_LINK_NOT_LIVE: {
+        code: 'SHARE_LINK_NOT_LIVE',
+        message: 'The share link is not serving yet. Check again before retrying.'
+    },
+    SHARE_LINK_UNCERTAIN: {
+        code: 'SHARE_LINK_UNCERTAIN',
+        message: 'The share link state is uncertain. Refresh the library before retrying.'
+    },
+    SHARE_LINK_STILL_LIVE: {
+        code: 'SHARE_LINK_STILL_LIVE',
+        message: 'The old share link is still serving. Retry revoke before sharing again.'
+    },
+    SHARE_LINK_RESOLVE_FAILED: {
+        code: 'SHARE_LINK_RESOLVE_FAILED',
+        message: 'Could not resolve the public share link'
+    },
+    SHARE_PUBLIC_PAGE_FAILED: {
+        code: 'SHARE_PUBLIC_PAGE_FAILED',
+        message: 'Could not read the public share page'
+    },
+    SHARE_MANIFEST_INVALID: {
+        code: 'SHARE_MANIFEST_INVALID',
+        message: 'Could not build the share manifest'
+    },
+    SHARE_URL_TOO_LONG: {
+        code: 'SHARE_URL_TOO_LONG',
+        message: 'This selection is too large for one share link'
+    },
     HASH_LOOKUP_MISMATCH: { code: 'HASH_LOOKUP_MISMATCH', message: 'Hash lookup mismatch' },
     COMMIT_TOKEN_MISMATCH: { code: 'COMMIT_TOKEN_MISMATCH', message: 'Commit token mismatch' },
     COMMIT_REJECTED: { code: 'COMMIT_REJECTED', message: 'Commit rejected' },

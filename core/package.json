@@ -73,6 +73,10 @@
             "@madkarmaa/phodrive-core": "./src/browser/manage.ts",
             "default": "./dist/browser/manage.js"
         },
+        "./browser/shares": {
+            "@madkarmaa/phodrive-core": "./src/browser/shares.ts",
+            "default": "./dist/browser/shares.js"
+        },
         "./browser/upload": {
             "@madkarmaa/phodrive-core": "./src/browser/upload/index.ts",
             "default": "./dist/browser/upload/index.js"
@@ -425,6 +429,38 @@
             "@madkarmaa/phodrive-core": "./src/server/request.ts",
             "default": "./dist/server/request.js"
         },
+        "./server/share": {
+            "@madkarmaa/phodrive-core": "./src/server/share/index.ts",
+            "default": "./dist/server/share/index.js"
+        },
+        "./server/share/create": {
+            "@madkarmaa/phodrive-core": "./src/server/share/create.ts",
+            "default": "./dist/server/share/create.js"
+        },
+        "./server/share/envelope": {
+            "@madkarmaa/phodrive-core": "./src/server/share/envelope.ts",
+            "default": "./dist/server/share/envelope.js"
+        },
+        "./server/share/link": {
+            "@madkarmaa/phodrive-core": "./src/server/share/link.ts",
+            "default": "./dist/server/share/link.js"
+        },
+        "./server/share/manifest": {
+            "@madkarmaa/phodrive-core": "./src/server/share/manifest.ts",
+            "default": "./dist/server/share/manifest.js"
+        },
+        "./server/share/public": {
+            "@madkarmaa/phodrive-core": "./src/server/share/public.ts",
+            "default": "./dist/server/share/public.js"
+        },
+        "./server/share/requests": {
+            "@madkarmaa/phodrive-core": "./src/server/share/requests.ts",
+            "default": "./dist/server/share/requests.js"
+        },
+        "./server/share/revoke": {
+            "@madkarmaa/phodrive-core": "./src/server/share/revoke.ts",
+            "default": "./dist/server/share/revoke.js"
+        },
         "./server/upload": {
             "@madkarmaa/phodrive-core": "./src/server/upload/index.ts",
             "default": "./dist/server/upload/index.js"
@@ -460,6 +496,10 @@
         "./server/workers": {
             "@madkarmaa/phodrive-core": "./src/server/workers.ts",
             "default": "./dist/server/workers.js"
+        },
+        "./share-models": {
+            "@madkarmaa/phodrive-core": "./src/share-models.ts",
+            "default": "./dist/share-models.js"
         },
         "./stats": {
             "@madkarmaa/phodrive-core": "./src/stats.ts",
@@ -520,6 +560,7 @@
             "./browser/files-bulk": "./dist/browser/files-bulk.js",
             "./browser/library": "./dist/browser/library.js",
             "./browser/manage": "./dist/browser/manage.js",
+            "./browser/shares": "./dist/browser/shares.js",
             "./browser/upload": "./dist/browser/upload/index.js",
             "./browser/upload/chunk": "./dist/browser/upload/chunk.js",
             "./browser/upload/eta": "./dist/browser/upload/eta.js",
@@ -608,6 +649,14 @@
             "./server/preview/text-prefix": "./dist/server/preview/text-prefix.js",
             "./server/protobuf": "./dist/server/protobuf.js",
             "./server/request": "./dist/server/request.js",
+            "./server/share": "./dist/server/share/index.js",
+            "./server/share/create": "./dist/server/share/create.js",
+            "./server/share/envelope": "./dist/server/share/envelope.js",
+            "./server/share/link": "./dist/server/share/link.js",
+            "./server/share/manifest": "./dist/server/share/manifest.js",
+            "./server/share/public": "./dist/server/share/public.js",
+            "./server/share/requests": "./dist/server/share/requests.js",
+            "./server/share/revoke": "./dist/server/share/revoke.js",
             "./server/upload": "./dist/server/upload/index.js",
             "./server/upload/bmp": "./dist/server/upload/bmp.js",
             "./server/upload/input": "./dist/server/upload/input.js",
@@ -617,6 +666,7 @@
             "./server/upload/source": "./dist/server/upload/source.js",
             "./server/upload/stream": "./dist/server/upload/stream.js",
             "./server/workers": "./dist/server/workers.js",
+            "./share-models": "./dist/share-models.js",
             "./stats": "./dist/stats.js",
             "./trash": "./dist/trash.js",
             "./upload": "./dist/upload.js",
