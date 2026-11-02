@@ -181,8 +181,11 @@ test('a failed disable is unverified even when the stored URLs are dead', async 
     });
 });
 
-test('a non-canonical share redirect on the short URL is not stopped evidence', async () => {
-    const liveRedirect = 'https://photos.google.com/share/Live?key=Other&hl=en';
+test.each([
+    ['full share path', 'https://photos.google.com/share/Live?key=Other&hl=en'],
+    ['bare share path', 'https://photos.google.com/share'],
+    ['user share path', 'https://photos.google.com/u/0/share/Live']
+])('a %s redirect on the short URL is not stopped evidence', async (_label, liveRedirect) => {
     const fetcher: Fetcher = async (input, init) => {
         const url = String(input);
         if (url.includes('android.googleapis.com/auth')) return new Response(AUTH_RESPONSE);
@@ -205,8 +208,11 @@ test('a non-canonical share redirect on the short URL is not stopped evidence', 
     expect(revoked.unwrapErr().code).toBe('SHARE_REVOKE_UNVERIFIED');
 });
 
-test('a non-canonical share redirect on the album URL is not stopped evidence', async () => {
-    const liveRedirect = 'https://photos.google.com/share/Live?key=Other&hl=en';
+test.each([
+    ['full share path', 'https://photos.google.com/share/Live?key=Other&hl=en'],
+    ['bare share path', 'https://photos.google.com/share'],
+    ['user share path', 'https://photos.google.com/u/0/share/Live']
+])('a %s redirect on the album URL is not stopped evidence', async (_label, liveRedirect) => {
     const fetcher: Fetcher = async (input, init) => {
         const url = String(input);
         if (url.includes('android.googleapis.com/auth')) return new Response(AUTH_RESPONSE);

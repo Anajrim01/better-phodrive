@@ -68,8 +68,12 @@ function pointsToShare(location: string): boolean {
     }
 
     if (url.hostname === 'photos.app.goo.gl') return true;
+    if (url.hostname !== 'photos.google.com') return false;
 
-    return url.hostname === 'photos.google.com' && url.pathname.startsWith('/share/');
+    const segments = url.pathname.split('/').filter(Boolean);
+    if (segments[0] === 'share') return true;
+
+    return segments[0] === 'u' && /^\d+$/.test(segments[1] ?? '') && segments[2] === 'share';
 }
 
 export function isStoppedProbe(probe: PublicProbe): boolean {

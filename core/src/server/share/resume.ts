@@ -51,7 +51,12 @@ export async function resumeShare(
     const nextManifest = { v: 1 as const, album: linked.canonicalUrl, files: manifest.files };
     const nextShareUrl = buildShareUrl(nextManifest);
     const nextUrl = nextShareUrl.match({ Ok: (value) => value, Err: () => '' });
-    if (nextUrl === '') return Err(SERVER_ERRORS.SHARE_MANIFEST_INVALID);
+    if (nextUrl === '') {
+        const clean = await stopExistingShare(request, existing, fetcher);
+        if (!clean) return Err(revokeRecoveryError(existing.envelopeKey, existing.albumKey));
+
+        return Err(SERVER_ERRORS.SHARE_MANIFEST_INVALID);
+    }
 
     return Ok({
         record: {
