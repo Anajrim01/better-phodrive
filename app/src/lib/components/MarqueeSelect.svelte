@@ -42,6 +42,7 @@
         startY: number;
         additive: boolean;
         previous: Set<string>;
+        intersected: Set<string>;
         moved: boolean;
         background: boolean;
     } | null>(null);
@@ -68,6 +69,7 @@
             startY: event.clientY,
             additive: event.ctrlKey || event.metaKey,
             previous: new Set(selected),
+            intersected: new Set(),
             moved: false,
             background: item === null
         };
@@ -89,8 +91,12 @@
         event.preventDefault();
         const next = marqueeRect(drag.startX, drag.startY, event.clientX, event.clientY);
         rectangle = next;
+        const mounted = new Set<string>();
         const hits = new Set<string>();
         for (const element of surface?.querySelectorAll<HTMLElement>('[data-file-key]') ?? []) {
+            const key = element.dataset.fileKey;
+            if (key) mounted.add(key);
+
             const box = element.getBoundingClientRect();
             if (
                 intersects(next, {
@@ -98,12 +104,17 @@
                     top: box.top,
                     right: box.right,
                     bottom: box.bottom
-                })
+                }) &&
+                key
             ) {
-                const key = element.dataset.fileKey;
-                if (key) hits.add(key);
+                hits.add(key);
             }
         }
+
+        for (const key of drag.intersected) {
+            if (!mounted.has(key)) hits.add(key);
+        }
+        drag.intersected = hits;
 
         const keys = drag.additive ? new Set([...drag.previous, ...hits]) : hits;
         onpreview(keys);

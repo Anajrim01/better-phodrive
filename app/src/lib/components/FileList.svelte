@@ -1,13 +1,8 @@
 <script lang="ts">
     import { Button, Checkbox } from 'noph-ui';
     import { FileSort } from '@madkarmaa/phodrive-core/models';
-    import {
-        fileActionKind,
-        fileKey,
-        type FileAction,
-        type FileGroup
-    } from '@madkarmaa/phodrive-core/files';
-    import FileListRow from '#components/FileListRow.svelte';
+    import { fileKey, type FileAction, type FileGroup } from '@madkarmaa/phodrive-core/files';
+    import FileListBody from '#components/FileListBody.svelte';
     import IconArrowUp from '~icons/material-symbols/arrow-upward';
     import IconArrowDown from '~icons/material-symbols/arrow-downward';
     import type { MenuAnchor } from '#browser/drive/menu-types';
@@ -21,6 +16,7 @@
         showOwner?: boolean;
         trash?: boolean;
         partial?: boolean;
+        dragKey?: string | null;
         headingId?: string;
         action?: FileAction | null;
         selected?: ReadonlySet<string>;
@@ -51,6 +47,7 @@
         showOwner = false,
         trash = false,
         partial = false,
+        dragKey = null,
         headingId = 'files-heading',
         action = null,
         selected = new Set<string>(),
@@ -71,29 +68,29 @@
     const ascending = $derived(
         sort === FileSort.NameAscending || sort === FileSort.ModifiedAscending
     );
-    const selectedCount = $derived(files.filter((item) => selected.has(fileKey(item))).length);
-    const selectedKeys = $derived(new Set([...selected]));
+    const selectedCount = $derived(
+        files.reduce((count, item) => count + (selected.has(fileKey(item)) ? 1 : 0), 0)
+    );
+    const multipleSelected = $derived(selectedCount > 1);
     const allSelected = $derived(files.length > 0 && selectedCount === files.length);
     const someSelected = $derived(selectedCount > 0 && !allSelected);
-    let headerChecked = $state(false);
-    let headerMixed = $state(false);
-
-    $effect(() => {
-        headerChecked = allSelected;
-        headerMixed = someSelected;
-    });
 </script>
 
 <div class="file-list-wrap">
-    <table class="file-list" class:trash aria-labelledby={headingId}>
+    <table
+        class="file-list"
+        class:trash
+        aria-labelledby={headingId}
+        aria-rowcount={files.length + 1}
+    >
         <thead>
-            <tr>
+            <tr aria-rowindex="1">
                 <th scope="col" class="select-column">
                     <div class="select-cell">
                         <Checkbox
                             aria-label="Select all visible files"
-                            bind:checked={headerChecked}
-                            bind:indeterminate={headerMixed}
+                            checked={allSelected}
+                            indeterminate={someSelected}
                             disabled={browseDisabled || files.length === 0}
                             onclick={() => {
                                 onselectall?.(!allSelected);
@@ -154,33 +151,30 @@
                 <th scope="col" class="actions-column"><span class="sr-only">Actions</span></th>
             </tr>
         </thead>
-        <tbody>
-            {#each files as item (fileKey(item))}
-                <FileListRow
-                    {item}
-                    selected={selectedKeys.has(fileKey(item))}
-                    {selectedCount}
-                    {actionsDisabled}
-                    {browseDisabled}
-                    {showFolder}
-                    {showOwner}
-                    {trash}
-                    {partial}
-                    working={fileActionKind(action, item)}
-                    {onselect}
-                    {oncontextselect}
-                    {onselectionmenu}
-                    {onstartdrag}
-                    {onenddrag}
-                    {ondownload}
-                    {ondelete}
-                    {onrestore}
-                    {ondeleteforever}
-                    {onopenpreview}
-                    {onmenu}
-                />
-            {/each}
-        </tbody>
+        <FileListBody
+            {files}
+            {actionsDisabled}
+            {browseDisabled}
+            {showFolder}
+            {showOwner}
+            {trash}
+            {partial}
+            {dragKey}
+            {action}
+            {selected}
+            {multipleSelected}
+            {onselect}
+            {oncontextselect}
+            {onselectionmenu}
+            {onstartdrag}
+            {onenddrag}
+            {ondownload}
+            {ondelete}
+            {onrestore}
+            {ondeleteforever}
+            {onopenpreview}
+            {onmenu}
+        />
     </table>
 </div>
 
@@ -189,6 +183,7 @@
         width: 100%;
         min-width: 0;
         container-type: inline-size;
+        overflow-anchor: none;
     }
 
     .file-list {
