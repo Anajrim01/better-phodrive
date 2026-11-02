@@ -53,10 +53,15 @@ function validItem(field: Field): boolean {
     });
 }
 
-// Google returns one field 1 per unique media key plus a field 2 item on success.
+export type DeleteResponseOptions = {
+    allowAlreadyApplied?: boolean;
+};
+
+// Google omits field 1 for keys already in trash while still returning field 2.
 export function validateDeleteResponse(
     body: Buffer,
-    expected: ReadonlySet<string>
+    expected: ReadonlySet<string>,
+    options: DeleteResponseOptions = {}
 ): Result<void, ServerError> {
     return parse(body)
         .mapErr(() => SERVER_ERRORS.INVALID_DELETE_RESPONSE)
@@ -69,10 +74,10 @@ export function validateDeleteResponse(
 
             const uniqueKeys = new Set(keys);
             const items = fields.filter((field) => field.number === RESULT_ITEM_FIELD);
-            const keysMatch =
-                uniqueKeys.size === keys.length &&
-                uniqueKeys.size === expected.size &&
-                [...expected].every((key) => uniqueKeys.has(key));
+            const knownKeys = [...uniqueKeys].every((key) => expected.has(key));
+            const keysMatch = options.allowAlreadyApplied
+                ? uniqueKeys.size === keys.length && knownKeys && uniqueKeys.size <= expected.size
+                : uniqueKeys.size === keys.length && uniqueKeys.size === expected.size && knownKeys;
 
             if (!keysMatch || items.length === 0 || !items.every(validItem))
                 return Err(SERVER_ERRORS.INVALID_DELETE_RESPONSE);

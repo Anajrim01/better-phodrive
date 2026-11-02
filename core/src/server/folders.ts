@@ -145,7 +145,8 @@ function folderFailure(
 
 async function trashFolder(
     input: Extract<FolderManageRequest, { action: FolderManageAction.Delete }>,
-    affected: readonly IndexedFile[]
+    affected: readonly IndexedFile[],
+    fetcher: Fetcher
 ): Promise<Result<FolderManageResult, ServerError>> {
     const deletable = affected.filter((file) =>
         file.items.some((item) => item.trashedAt === undefined)
@@ -163,7 +164,7 @@ async function trashFolder(
             input.email,
             input.token,
             chunk.sha1,
-            undefined,
+            fetcher,
             chunk.mediaKey
         );
         removed.match({
@@ -192,7 +193,8 @@ async function trashFolder(
 }
 
 function manageIndexedFolder(
-    input: FolderManageRequest
+    input: FolderManageRequest,
+    fetcher: Fetcher
 ): AsyncResult<FolderManageResult, ServerError> {
     return Ok(undefined).andThenAsync(async () =>
         withAccountLock(input.email, async () => {
@@ -203,7 +205,7 @@ function manageIndexedFolder(
             const affected = filesInFolder(files, input.folder);
             if (affected.length === 0) return Err(SERVER_ERRORS.FOLDER_NOT_FOUND);
             if (input.action === FolderManageAction.Delete)
-                return await trashFolder(input, affected);
+                return await trashFolder(input, affected, fetcher);
 
             const target = targetFolder(input, files);
             if (target === null) return Err(destinationError());
@@ -248,12 +250,12 @@ export function manageFolder(
             return ensured.map(() => indexed);
         })
         .andThenAsync((indexed) =>
-            manageIndexedFolder(input).orElseAsync(async (error) => {
+            manageIndexedFolder(input, fetcher).orElseAsync(async (error) => {
                 if (error.code !== 'FOLDER_NOT_FOUND' || !indexed) return Err(error);
 
                 const refreshed = await refreshAccountIndex(input.email, input.token, fetcher);
 
-                return refreshed.andThenAsync(() => manageIndexedFolder(input));
+                return refreshed.andThenAsync(() => manageIndexedFolder(input, fetcher));
             })
         );
 }
