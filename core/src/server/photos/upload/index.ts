@@ -82,7 +82,7 @@ export function uploadBmpStream(
             const authenticated = await authenticatedHeaders(email, token, transport);
 
             return await authenticated.andThenAsync((headers) =>
-                uploadAuthenticatedStream(email, name, source, headers, transport)
+                uploadAuthenticatedStream(email, name, source, headers, transport, abort.signal)
             );
         } finally {
             abort.abort();
@@ -103,42 +103,42 @@ function uploadAuthenticatedStream(
     name: string,
     source: UploadBmpSource,
     { commonHeaders, rpcHeaders }: PhotosHeaders,
-    fetcher: Fetcher
+    fetcher: Fetcher,
+    signal?: AbortSignal
 ): AsyncResult<UploadResponse, ServerError> {
     const sha1 = Buffer.from(source.sha1, 'hex');
 
-    return lookupHash(email, sha1, rpcHeaders, fetcher).andThenAsync<UploadResponse, ServerError>(
-        async (existing) => {
-            if (existing) {
-                return source.drain().map(() => ({
-                    status: UploadStatus.AlreadyExists,
-                    mediaKey: existing,
-                    sha1: source.sha1
-                }));
-            }
-
-            const transferred = startUpload(
-                email,
-                source.length,
-                sha1,
-                commonHeaders,
-                fetcher
-            ).andThenAsync((uploadId) =>
-                transferBmp(email, source.body, uploadId, commonHeaders, fetcher, source.length)
-            );
-
-            return transferred
-                .andThenAsync((transfer) => source.verified.map(() => transfer))
-                .andThenAsync((transfer) =>
-                    commitBmp(email, name, sha1, transfer, rpcHeaders, fetcher)
-                )
-                .map((mediaKey) => ({
-                    status: UploadStatus.Uploaded,
-                    mediaKey,
-                    sha1: source.sha1
-                }));
+    return lookupHash(email, sha1, rpcHeaders, fetcher, signal).andThenAsync<
+        UploadResponse,
+        ServerError
+    >(async (existing) => {
+        if (existing) {
+            return source.drain().map(() => ({
+                status: UploadStatus.AlreadyExists,
+                mediaKey: existing,
+                sha1: source.sha1
+            }));
         }
-    );
+
+        const transferred = startUpload(
+            email,
+            source.length,
+            sha1,
+            commonHeaders,
+            fetcher
+        ).andThenAsync((uploadId) =>
+            transferBmp(email, source.body, uploadId, commonHeaders, fetcher, source.length)
+        );
+
+        return transferred
+            .andThenAsync((transfer) => source.verified.map(() => transfer))
+            .andThenAsync((transfer) => commitBmp(email, name, sha1, transfer, rpcHeaders, fetcher))
+            .map((mediaKey) => ({
+                status: UploadStatus.Uploaded,
+                mediaKey,
+                sha1: source.sha1
+            }));
+    });
 }
 
 export function findBmpBySha1(

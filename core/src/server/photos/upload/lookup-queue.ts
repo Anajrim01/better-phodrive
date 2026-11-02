@@ -5,11 +5,16 @@ import { hashLookup, hashLookupMany, type HashLookupResults } from './lookup';
 
 const HASH_LOOKUP_BATCH_SIZE = 20;
 const HASH_LOOKUP_WINDOW_MS = 8;
+const HASH_LOOKUP_ABORTED = {
+    code: 'REQUEST_FAILED',
+    message: 'Hash lookup timed out'
+} as const;
 
 type LookupWaiter = {
     sha1: Buffer;
     rpcHeaders: Record<string, string>;
     fetcher: Fetcher;
+    signal?: AbortSignal;
     resolve: (result: Result<string | null, ServerError>) => void;
 };
 
@@ -19,21 +24,30 @@ type LookupBatch = {
     timer: ReturnType<typeof setTimeout>;
 };
 
+type LookupOutcome = { ok: true; value: HashLookupResults } | { ok: false; error: ServerError };
+
 const lookupBatches = new Map<string, LookupBatch>();
 
 export function lookupHash(
     email: string,
     sha1: Buffer,
     rpcHeaders: Record<string, string>,
-    fetcher: Fetcher
+    fetcher: Fetcher,
+    signal?: AbortSignal
 ): AsyncResult<string | null, ServerError> {
     return Ok(undefined).andThenAsync(
         () =>
             new Promise<Result<string | null, ServerError>>((resolve) => {
+                if (signal?.aborted) {
+                    resolve(Err(HASH_LOOKUP_ABORTED));
+
+                    return;
+                }
+
                 const current = lookupBatches.get(email);
 
                 if (current) {
-                    current.waiters.push({ sha1, rpcHeaders, fetcher, resolve });
+                    current.waiters.push({ sha1, rpcHeaders, fetcher, signal, resolve });
                     if (current.waiters.length >= HASH_LOOKUP_BATCH_SIZE) {
                         clearTimeout(current.timer);
                         void flushLookupBatch(current);
@@ -44,7 +58,7 @@ export function lookupHash(
 
                 const batch: LookupBatch = {
                     email,
-                    waiters: [{ sha1, rpcHeaders, fetcher, resolve }],
+                    waiters: [{ sha1, rpcHeaders, fetcher, signal, resolve }],
                     timer: setTimeout(() => void flushLookupBatch(batch), HASH_LOOKUP_WINDOW_MS)
                 };
                 batch.timer.unref();
@@ -61,32 +75,54 @@ async function flushLookupBatch(batch: LookupBatch): Promise<void> {
     const waiters = batch.waiters.splice(0);
     if (waiters.length === 0) return;
 
-    const unique = new Map<string, Buffer>();
-    const representatives = new Map<string, LookupWaiter>();
-    for (const waiter of waiters) {
-        const hex = waiter.sha1.toString('hex');
-        unique.set(hex, waiter.sha1);
-        if (!representatives.has(hex)) representatives.set(hex, waiter);
+    const activeWaiters = waiters.filter((waiter) => !waiter.signal?.aborted);
+    if (activeWaiters.length === 0) {
+        for (const waiter of waiters) waiter.resolve(Err(HASH_LOOKUP_ABORTED));
+
+        return;
     }
 
-    const first = waiters[0];
+    const unique = new Map<string, Buffer>();
+    const candidates = new Map<string, LookupWaiter[]>();
+    for (const waiter of activeWaiters) {
+        const hex = waiter.sha1.toString('hex');
+        unique.set(hex, waiter.sha1);
+
+        const existing = candidates.get(hex);
+        if (existing) existing.push(waiter);
+        else candidates.set(hex, [waiter]);
+    }
+
+    const first = activeWaiters[0];
     const batchResult = await hashLookupMany(
         batch.email,
         [...unique.values()],
         first.rpcHeaders,
         first.fetcher
     );
-    const outcome = batchResult.match<{
-        value: HashLookupResults | null;
-        error: ServerError | null;
-    }>({
-        Ok: (value) => ({ value, error: null }),
-        Err: (error) => ({ value: null, error })
+    const outcome = batchResult.match<LookupOutcome>({
+        Ok: (value) => ({ ok: true, value }),
+        Err: (error) => ({ ok: false, error })
     });
 
-    if (outcome.value) {
+    if (outcome.ok) {
         for (const waiter of waiters) {
+            if (waiter.signal?.aborted) {
+                waiter.resolve(Err(HASH_LOOKUP_ABORTED));
+
+                continue;
+            }
+
             waiter.resolve(Ok(outcome.value.get(waiter.sha1.toString('hex')) ?? null));
+        }
+
+        return;
+    }
+
+    if (!shouldFallback(outcome.error, unique.size, first.signal?.aborted === true)) {
+        for (const waiter of waiters) {
+            if (waiter.signal?.aborted) waiter.resolve(Err(HASH_LOOKUP_ABORTED));
+            else waiter.resolve(Err(outcome.error));
         }
 
         return;
@@ -94,19 +130,49 @@ async function flushLookupBatch(batch: LookupBatch): Promise<void> {
 
     const singleResults = new Map<string, Result<string | null, ServerError>>();
     await Promise.all(
-        [...representatives].map(async ([hex, waiter]) => {
-            const result = await hashLookup(
-                batch.email,
-                waiter.sha1,
-                waiter.rpcHeaders,
-                waiter.fetcher
-            );
+        [...candidates].map(async ([hex, hashWaiters]) => {
+            const available = hashWaiters.filter((waiter) => !waiter.signal?.aborted);
+            if (available.length === 0) {
+                singleResults.set(hex, Err(HASH_LOOKUP_ABORTED));
+
+                return;
+            }
+
+            let result: Result<string | null, ServerError> = Err(HASH_LOOKUP_ABORTED);
+            for (const waiter of available) {
+                result = await lookupWaiter(batch.email, waiter);
+                if (result.isOk() || !waiter.signal?.aborted) break;
+            }
+
             singleResults.set(hex, result);
         })
     );
 
     for (const waiter of waiters) {
+        if (waiter.signal?.aborted) {
+            waiter.resolve(Err(HASH_LOOKUP_ABORTED));
+
+            continue;
+        }
+
         const result = singleResults.get(waiter.sha1.toString('hex'));
-        waiter.resolve(result ?? Err(outcome.error ?? SERVER_ERRORS.HASH_LOOKUP_MISMATCH));
+        waiter.resolve(result ?? Err(outcome.error));
     }
+}
+
+function lookupWaiter(
+    email: string,
+    waiter: LookupWaiter
+): AsyncResult<string | null, ServerError> {
+    return hashLookup(email, waiter.sha1, waiter.rpcHeaders, waiter.fetcher);
+}
+
+function shouldFallback(error: ServerError, uniqueHashes: number, aborted: boolean): boolean {
+    if (error.code === 'THROTTLED') return false;
+    if (aborted) return true;
+    if (error.code !== 'REQUEST_FAILED') return true;
+    if (error.status === undefined) return false;
+    if (error.status !== 400 && error.status !== 413) return false;
+
+    return uniqueHashes > 1;
 }

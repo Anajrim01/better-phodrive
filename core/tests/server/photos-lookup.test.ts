@@ -1,57 +1,10 @@
-import { createHash } from 'node:crypto';
-import { afterEach, expect, test } from 'vitest';
+import { expect, test } from 'vitest';
 import { hashLookup, hashLookupMany } from '../../src/server/photos/upload/lookup';
-import { lookupHash } from '../../src/server/photos/upload/lookup-queue';
 import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
-import { clearThrottleState } from '@madkarmaa/phodrive-core/server/photos/throttle';
-import {
-    bytesField,
-    message,
-    nested,
-    parse,
-    type Field
-} from '@madkarmaa/phodrive-core/server/protobuf';
+import { SERVER_ERRORS } from '@madkarmaa/phodrive-core/server/errors';
+import { batchResponse, bodyOf, requestShape, sha1 } from '../helpers/lookup';
 
 const EMAIL = 'lookup@example.com';
-
-afterEach(clearThrottleState);
-
-function sha1(value: string): Buffer {
-    return createHash('sha1').update(value).digest();
-}
-
-function requestShape(body: Buffer): { hashes: Buffer[]; pageOptions: Field | undefined } {
-    const request = parse(body).unwrap();
-    expect(request.map((field) => field.number)).toEqual([1]);
-    const cmqr = nested(body, 1).unwrap();
-    const fields = parse(cmqr).unwrap();
-    const hashes = fields.flatMap((field) => {
-        if (field.number !== 1 || typeof field.value === 'number') return [];
-
-        return [nested(field.value, 1).unwrap()];
-    });
-
-    return { hashes, pageOptions: fields.find((field) => field.number === 2) };
-}
-
-function resultEntry(sha1: Buffer, key?: string): Buffer {
-    const fields = [bytesField(1, bytesField(1, sha1))];
-    if (key !== undefined) fields.push(bytesField(2, bytesField(1, key)));
-
-    return bytesField(2, message(...fields));
-}
-
-function batchResponse(entries: { sha1: Buffer; key?: string }[]): Response {
-    return new Response(
-        Uint8Array.from(
-            bytesField(1, message(...entries.map((entry) => resultEntry(entry.sha1, entry.key))))
-        )
-    );
-}
-
-async function bodyOf(init: RequestInit | undefined): Promise<Buffer> {
-    return Buffer.from(await new Response(init?.body).arrayBuffer());
-}
 
 test('batch lookup sends repeated SHA-1 entries and empty page options', async () => {
     const hashes = [sha1('first'), sha1('second')];
@@ -90,121 +43,27 @@ test('single lookup keeps the existing one-hash request contract', async () => {
     expect(requestShape(requestBody!).hashes).toEqual([hash]);
 });
 
-test('twenty concurrent lookups flush as one request', async () => {
-    const hashes = Array.from({ length: 20 }, (_, index) => sha1(`batch-${index}`));
-    const requests: Buffer[] = [];
-    const fetcher: Fetcher = async (_input, init) => {
-        const body = await bodyOf(init);
-        requests.push(body);
+test('an unrequested echoed hash fails the batch', async () => {
+    const requested = sha1('requested');
+    const wrong = sha1('wrong');
+    const fetcher: Fetcher = async () => batchResponse([{ sha1: wrong, key: 'wrong-key' }]);
 
-        return batchResponse(
-            requestShape(body).hashes.map((hash, index) => ({
-                sha1: hash,
-                key: `key-${index}`
-            }))
-        );
-    };
+    const result = await hashLookupMany(EMAIL, [requested], {}, fetcher);
 
-    const results = await Promise.all(hashes.map((hash) => lookupHash(EMAIL, hash, {}, fetcher)));
-
-    expect(requests).toHaveLength(1);
-    expect(requestShape(requests[0]).hashes).toHaveLength(20);
-    expect(results.map((result) => result.unwrap())).toEqual(
-        hashes.map((_, index) => `key-${index}`)
-    );
+    expect(result.unwrapErr()).toEqual(SERVER_ERRORS.HASH_LOOKUP_MISMATCH);
 });
 
-test('lookups batch by account across per-request transport wrappers', async () => {
-    const hashes = [sha1('wrapper-a'), sha1('wrapper-b')];
-    let requests = 0;
-    const fetcher: Fetcher = async (_input, init) => {
-        requests++;
-        const shape = requestShape(await bodyOf(init));
-
-        return batchResponse(shape.hashes.map((hash) => ({ sha1: hash, key: 'key' })));
-    };
-    const wrappers = hashes.map((): Fetcher => (input, init) => fetcher(input, init));
-
-    const results = await Promise.all(
-        hashes.map((hash, index) => lookupHash(EMAIL, hash, {}, wrappers[index]))
-    );
-
-    expect(requests).toBe(1);
-    expect(results.map((result) => result.unwrap())).toEqual(['key', 'key']);
-});
-
-test('duplicate hashes in one batch resolve every caller', async () => {
-    const duplicate = sha1('duplicate');
-    const other = sha1('other');
-    const requests: Buffer[] = [];
-    const fetcher: Fetcher = async (_input, init) => {
-        const body = await bodyOf(init);
-        requests.push(body);
-
-        return batchResponse(
-            requestShape(body).hashes.map((hash) => ({
-                sha1: hash,
-                key: hash.equals(duplicate) ? 'duplicate-key' : 'other-key'
-            }))
-        );
-    };
-
-    const results = await Promise.all([
-        lookupHash(EMAIL, duplicate, {}, fetcher),
-        lookupHash(EMAIL, duplicate, {}, fetcher),
-        lookupHash(EMAIL, other, {}, fetcher)
-    ]);
-
-    expect(requests).toHaveLength(1);
-    expect(requestShape(requests[0]).hashes).toEqual([duplicate, other]);
-    expect(results.map((result) => result.unwrap())).toEqual([
-        'duplicate-key',
-        'duplicate-key',
-        'other-key'
-    ]);
-});
-
-test('a failed batch falls back to one request per hash', async () => {
-    const hashes = [sha1('fallback-a'), sha1('fallback-b'), sha1('fallback-c')];
-    const requests: Buffer[] = [];
-    const fetcher: Fetcher = async (_input, init) => {
-        const body = await bodyOf(init);
-        requests.push(body);
-        const shape = requestShape(body);
-
-        if (shape.hashes.length > 1) return new Response(null, { status: 400 });
-
-        return batchResponse([
-            { sha1: shape.hashes[0], key: `key-${shape.hashes[0].toString('hex')}` }
+test('duplicate echoed results fail the batch', async () => {
+    const hash = sha1('duplicated-result');
+    const fetcher: Fetcher = async () =>
+        batchResponse([
+            { sha1: hash, key: 'first-key' },
+            { sha1: hash, key: 'second-key' }
         ]);
-    };
 
-    const results = await Promise.all(hashes.map((hash) => lookupHash(EMAIL, hash, {}, fetcher)));
+    const result = await hashLookupMany(EMAIL, [hash], {}, fetcher);
 
-    expect(requests).toHaveLength(4);
-    expect(results.map((result) => result.unwrap())).toEqual(
-        hashes.map((hash) => `key-${hash.toString('hex')}`)
-    );
-});
-
-test('a throttled batch propagates without extra fallback requests', async () => {
-    const hashes = [sha1('throttled-a'), sha1('throttled-b')];
-    let requests = 0;
-    const fetcher: Fetcher = async () => {
-        requests++;
-
-        return new Response(null, { status: 429, headers: { 'retry-after': '120' } });
-    };
-
-    const results = await Promise.all(
-        hashes.map((hash) => lookupHash('throttled@example.com', hash, {}, fetcher))
-    );
-
-    expect(requests).toBe(1);
-    expect(results.map((result) => result.unwrapErr())).toEqual([
-        expect.objectContaining({ code: 'THROTTLED', retryAfterSeconds: 120 }),
-        expect.objectContaining({ code: 'THROTTLED', retryAfterSeconds: 120 })
-    ]);
+    expect(result.unwrapErr()).toEqual(SERVER_ERRORS.HASH_LOOKUP_MISMATCH);
 });
 
 test('missing results map to null for every requested hash', async () => {

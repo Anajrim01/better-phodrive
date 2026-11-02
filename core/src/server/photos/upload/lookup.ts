@@ -111,6 +111,8 @@ function existingMediaMany(
     const results = new Map<string, string | null>();
     for (const hex of hashes.keys()) results.set(hex, null);
 
+    const seen = new Set<string>();
+
     return nested(response, 1)
         .andThen(parse)
         .andThen((entries) => {
@@ -121,7 +123,11 @@ function existingMediaMany(
 
                 const failure = existingMediaEntry(entry.value).match<ServerError | null>({
                     Ok: ({ hash, key }) => {
-                        if (results.has(hash)) results.set(hash, key);
+                        if (!results.has(hash) || seen.has(hash))
+                            return SERVER_ERRORS.HASH_LOOKUP_MISMATCH;
+
+                        seen.add(hash);
+                        results.set(hash, key);
 
                         return null;
                     },
