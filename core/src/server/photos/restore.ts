@@ -4,6 +4,7 @@ import { Sha1HexSchema } from '../../models';
 import { authenticatedHeaders } from './auth';
 import { photosFetch, type Fetcher } from '../fetcher';
 import { guardedSend, readBody } from './transport';
+import { validateDeleteResponse } from './delete-response';
 import { message, numberField, bytesField, bodyBytes } from '../protobuf';
 
 const RESTORE_URL = 'https://photosdata-pa.googleapis.com/6439526531001121323/17490284929287180316';
@@ -14,7 +15,8 @@ export function restoreFromTrash(
     email: string,
     token: string,
     sha1s: readonly string[],
-    fetcher: Fetcher = photosFetch
+    fetcher: Fetcher = photosFetch,
+    mediaKeys: readonly string[]
 ): AsyncResult<void, ServerError> {
     if (sha1s.length === 0) return Ok(undefined).andThenAsync(async () => Ok(undefined));
 
@@ -65,7 +67,9 @@ export function restoreFromTrash(
                 },
                 'Restore from trash'
             ).andThenAsync((response) =>
-                readBody(response, 'Restore from trash').map(() => undefined)
+                readBody(response, 'Restore from trash').andThen((body) =>
+                    validateDeleteResponse(body, new Set(mediaKeys))
+                )
             );
         });
 }

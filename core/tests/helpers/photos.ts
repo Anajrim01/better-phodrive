@@ -117,3 +117,16 @@ export function libraryPrepareMetadata(key: string, data: Buffer): Buffer {
         ])
     );
 }
+
+export function deleteResponse(mediaKeys: readonly string[]): Response {
+    const itemKey = `item-${mediaKeys[0]}`;
+    const itemId = '1';
+    const item = Buffer.concat([
+        bytes(1, itemKey),
+        bytes(2, itemId),
+        bytes(6, Buffer.concat([bytes(1, itemKey), bytes(2, itemId)]))
+    ]);
+    const body = Buffer.concat([...mediaKeys.map((key) => bytes(1, key)), bytes(2, item)]);
+
+    return new Response(body);
+}

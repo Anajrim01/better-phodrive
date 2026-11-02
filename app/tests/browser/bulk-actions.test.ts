@@ -270,6 +270,36 @@ test('bulk delete forever groups files by account and batches each account once'
     expect(selection.size).toBe(0);
 });
 
+test('a malformed permanent delete response leaves the file selected', async () => {
+    const item = file({
+        name: 'first.bin',
+        trashed: true,
+        trashedChunks: [chunk({ trashedAt: 1 })]
+    });
+    vi.mocked(filesApi.deleteFiles).mockImplementation(
+        (_email, _token, files, _workers, onFile, action = FileActionKind.Delete) =>
+            Ok(undefined).andThenAsync(async () => {
+                onFile(files[0], {
+                    action,
+                    deleted: [],
+                    error: 'Invalid delete response.'
+                });
+
+                return Ok(undefined);
+            })
+    );
+    const onRemoved = vi.fn();
+    const { bulk, selection, feedback, setFiles } = makeBulk({ onRemoved });
+    setFiles([item]);
+    selection.selectAll([fileKey(item)]);
+
+    await bulk.deleteForever([item]);
+
+    expect(onRemoved).not.toHaveBeenCalled();
+    expect(selection.selectedKeys.has(fileKey(item))).toBe(true);
+    expect(feedback).toHaveBeenCalledWith(expect.stringContaining('Invalid delete response.'));
+});
+
 test('bulk download streams one file at a time in the visible order', async () => {
     const first = file({ fileId: 'a'.repeat(64), name: 'first.bin' });
     const second = file({ fileId: 'b'.repeat(64), name: 'second.bin' });

@@ -7,18 +7,21 @@ import {
 } from '@madkarmaa/phodrive-core/server/photos';
 import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
 import { parse } from '@madkarmaa/phodrive-core/server/protobuf';
-import { authResponse } from '../helpers/photos';
+import { authResponse, deleteResponse } from '../helpers/photos';
 
 const SHA1 = createHash('sha1').update('transfer body').digest('hex');
 const SHA1_B = createHash('sha1').update('second body').digest('hex');
 
-function bodyFetcher(request: { body?: Buffer }): Fetcher {
+function bodyFetcher(
+    request: { body?: Buffer },
+    mediaKeys: readonly string[] = ['media-a', 'media-b']
+): Fetcher {
     return async (input, init) => {
         if (String(input).includes('android.googleapis.com/auth')) return authResponse();
 
         request.body = Buffer.from(await new Response(init?.body).arrayBuffer());
 
-        return new Response(new Uint8Array());
+        return deleteResponse(mediaKeys);
     };
 }
 
@@ -28,7 +31,8 @@ test('restore sends one key per sha1 with the restore operation', async () => {
         'test@example.com',
         'aas_et/test',
         [SHA1, SHA1_B],
-        bodyFetcher(request)
+        bodyFetcher(request),
+        ['media-a', 'media-b']
     );
     const fields = parse(request.body!).unwrap();
 
@@ -46,7 +50,8 @@ test('trash sends one key per sha1 with the trash operation', async () => {
         'test@example.com',
         'aas_et/test',
         [SHA1, SHA1_B],
-        bodyFetcher(request)
+        bodyFetcher(request),
+        ['media-a', 'media-b']
     );
     const fields = parse(request.body!).unwrap();
 
@@ -66,7 +71,7 @@ test('an empty trash batch sends no request', async () => {
         return new Response();
     };
 
-    const result = await moveToTrashBatch('test@example.com', 'aas_et/test', [], fetcher);
+    const result = await moveToTrashBatch('test@example.com', 'aas_et/test', [], fetcher, []);
 
     expect(result.isOk()).toBe(true);
     expect(calls).toBe(0);
@@ -78,7 +83,8 @@ test('permanent delete sends the delete operation with an empty client context',
         'test@example.com',
         'aas_et/test',
         [SHA1],
-        bodyFetcher(request)
+        bodyFetcher(request, ['media-a']),
+        ['media-a']
     );
     const fields = parse(request.body!).unwrap();
 
@@ -88,4 +94,35 @@ test('permanent delete sends the delete operation with an empty client context',
     expect(fields.filter((field) => field.number === 3)).toHaveLength(1);
     expect(fields.some((field) => field.number === 8)).toBe(true);
     expect(fields.find((field) => field.number === 9)?.value).toEqual(Buffer.alloc(0));
+});
+
+test('a malformed successful permanent delete response is rejected', async () => {
+    const request: { body?: Buffer } = {};
+    const fetcher: Fetcher = async (input, init) => {
+        if (String(input).includes('android.googleapis.com/auth')) return authResponse();
+
+        request.body = Buffer.from(await new Response(init?.body).arrayBuffer());
+
+        return new Response('not a protobuf delete result');
+    };
+
+    const result = await deletePermanently('test@example.com', 'aas_et/test', [SHA1], fetcher, [
+        'media-a'
+    ]);
+
+    expect(request.body).toBeDefined();
+    expect(result.unwrapErr().code).toBe('INVALID_DELETE_RESPONSE');
+});
+
+test('a delete response for another media key is rejected', async () => {
+    const request: { body?: Buffer } = {};
+    const result = await deletePermanently(
+        'test@example.com',
+        'aas_et/test',
+        [SHA1],
+        bodyFetcher(request, ['other-media']),
+        ['media-a']
+    );
+
+    expect(result.unwrapErr().code).toBe('INVALID_DELETE_RESPONSE');
 });

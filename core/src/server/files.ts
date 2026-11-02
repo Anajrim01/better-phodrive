@@ -12,6 +12,7 @@ import { expectedChunks, incompleteChunkMessage, missingChunks } from '../files'
 import { deletePermanently, moveToTrash, restoreFromTrash } from './photos/index';
 import { markChunksRestored, markChunksTrashed, removeChunks } from './photos/library/state';
 import { streamDownload } from './download';
+import { validateTrashedFileState } from './files-state-validation';
 import { limitWorkers } from './workers';
 
 export {
@@ -87,7 +88,13 @@ export function deleteFile(
         const failures: ServerError[] = [];
         const limit = pLimit(limitWorkers(input.workers));
         await limit.map(chunks, async (chunk) => {
-            const removed = await moveToTrash(input.email, input.token, chunk.sha1);
+            const removed = await moveToTrash(
+                input.email,
+                input.token,
+                chunk.sha1,
+                undefined,
+                chunk.mediaKey
+            );
 
             removed.match({
                 Ok: () => {
@@ -134,9 +141,17 @@ export function restoreFile(
 ): AsyncResult<{ restored: RemoteBmp[] }, ServerError> {
     return validateChunks(input)
         .andThen((chunks) => requireTrashed(chunks))
+        .andThenAsync((chunks) => validateTrashedFileState(input, chunks).map(() => chunks))
         .andThenAsync(async (chunks) => {
             const sha1s = [...new Set(chunks.map((chunk) => chunk.sha1))];
-            const restored = await restoreFromTrash(input.email, input.token, sha1s);
+            const mediaKeys = chunks.map((chunk) => chunk.mediaKey);
+            const restored = await restoreFromTrash(
+                input.email,
+                input.token,
+                sha1s,
+                undefined,
+                mediaKeys
+            );
 
             return restored
                 .mapErr((error) =>
@@ -159,9 +174,17 @@ export function deleteForeverFile(
 ): AsyncResult<{ deleted: RemoteBmp[] }, ServerError> {
     return validateChunks(input)
         .andThen((chunks) => requireTrashed(chunks))
+        .andThenAsync((chunks) => validateTrashedFileState(input, chunks).map(() => chunks))
         .andThenAsync(async (chunks) => {
             const sha1s = [...new Set(chunks.map((chunk) => chunk.sha1))];
-            const removed = await deletePermanently(input.email, input.token, sha1s);
+            const mediaKeys = chunks.map((chunk) => chunk.mediaKey);
+            const removed = await deletePermanently(
+                input.email,
+                input.token,
+                sha1s,
+                undefined,
+                mediaKeys
+            );
 
             return removed
                 .mapErr((error) =>

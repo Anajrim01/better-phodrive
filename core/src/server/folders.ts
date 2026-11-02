@@ -159,7 +159,13 @@ async function trashFolder(
     const limit = pLimit(limitWorkers(input.workers));
     const now = Date.now();
     await limit.map(chunks, async (chunk) => {
-        const removed = await moveToTrash(input.email, input.token, chunk.sha1);
+        const removed = await moveToTrash(
+            input.email,
+            input.token,
+            chunk.sha1,
+            undefined,
+            chunk.mediaKey
+        );
         removed.match({
             Ok: () => {
                 successes.push(chunk);

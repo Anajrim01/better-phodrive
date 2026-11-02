@@ -37,39 +37,42 @@ function applyBatch(
     input: BulkDeleteRequest,
     action: BulkDeleteAction,
     sha1s: readonly string[],
+    mediaKeys: readonly string[],
     fetcher: Fetcher
 ): AsyncResult<void, ServerError> {
     if (action === FileActionKind.Delete)
-        return moveToTrashBatch(input.email, input.token, sha1s, fetcher);
+        return moveToTrashBatch(input.email, input.token, sha1s, fetcher, mediaKeys);
 
     if (action === FileActionKind.DeleteForever)
-        return deletePermanently(input.email, input.token, sha1s, fetcher);
+        return deletePermanently(input.email, input.token, sha1s, fetcher, mediaKeys);
 
-    return restoreFromTrash(input.email, input.token, sha1s, fetcher);
+    return restoreFromTrash(input.email, input.token, sha1s, fetcher, mediaKeys);
 }
 
 function applySingle(
     input: BulkDeleteRequest,
     action: BulkDeleteAction,
     sha1: string,
+    mediaKey: string,
     fetcher: Fetcher
 ): AsyncResult<void, ServerError> {
     if (action === FileActionKind.Delete)
-        return moveToTrash(input.email, input.token, sha1, fetcher);
+        return moveToTrash(input.email, input.token, sha1, fetcher, mediaKey);
 
     if (action === FileActionKind.DeleteForever)
-        return deletePermanently(input.email, input.token, [sha1], fetcher);
+        return deletePermanently(input.email, input.token, [sha1], fetcher, [mediaKey]);
 
-    return restoreFromTrash(input.email, input.token, [sha1], fetcher);
+    return restoreFromTrash(input.email, input.token, [sha1], fetcher, [mediaKey]);
 }
 
 export function applyBatchAction(
     input: BulkDeleteRequest,
     action: BulkDeleteAction,
     sha1s: readonly string[],
+    mediaKeys: readonly string[],
     fetcher: Fetcher = photosFetch
 ): AsyncResult<void, ServerError> {
-    return applyBatch(input, action, sha1s, fetcher);
+    return applyBatch(input, action, sha1s, mediaKeys, fetcher);
 }
 
 export async function fallbackEach(
@@ -94,7 +97,7 @@ export async function fallbackEach(
             return;
         }
 
-        const applied = await applySingle(input, action, chunk.sha1, fetcher);
+        const applied = await applySingle(input, action, chunk.sha1, chunk.mediaKey, fetcher);
         const now = Date.now();
         const failure = applied.match<ServerError | null>({
             Ok: () => null,

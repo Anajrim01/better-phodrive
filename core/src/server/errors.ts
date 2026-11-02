@@ -175,6 +175,10 @@ export const SERVER_ERRORS = {
         code: 'NOT_TRASHED',
         message: 'Only trashed chunks can be restored or deleted forever.'
     },
+    INVALID_DELETE_RESPONSE: {
+        code: 'INVALID_DELETE_RESPONSE',
+        message: 'Invalid delete response.'
+    },
     DOWNLOAD_CHUNK_MISMATCH: {
         code: 'DOWNLOAD_CHUNK_MISMATCH',
         message: 'Downloaded chunks do not match this file.'

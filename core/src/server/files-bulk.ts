@@ -64,6 +64,7 @@ export function deleteFiles(
                 input,
                 action,
                 batch.map(({ chunk }) => chunk.sha1),
+                batch.map(({ chunk }) => chunk.mediaKey),
                 fetcher
             );
             const failure = applied.match<ServerError | null>({

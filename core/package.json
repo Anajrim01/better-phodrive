@@ -229,6 +229,10 @@
             "@madkarmaa/phodrive-core": "./src/server/files-bulk-validation.ts",
             "default": "./dist/server/files-bulk-validation.js"
         },
+        "./server/files-state-validation": {
+            "@madkarmaa/phodrive-core": "./src/server/files-state-validation.ts",
+            "default": "./dist/server/files-state-validation.js"
+        },
         "./server/folders": {
             "@madkarmaa/phodrive-core": "./src/server/folders.ts",
             "default": "./dist/server/folders.js"
@@ -256,6 +260,10 @@
         "./server/photos/auth-cache": {
             "@madkarmaa/phodrive-core": "./src/server/photos/auth-cache.ts",
             "default": "./dist/server/photos/auth-cache.js"
+        },
+        "./server/photos/delete-response": {
+            "@madkarmaa/phodrive-core": "./src/server/photos/delete-response.ts",
+            "default": "./dist/server/photos/delete-response.js"
         },
         "./server/photos/download": {
             "@madkarmaa/phodrive-core": "./src/server/photos/download.ts",
@@ -539,6 +547,7 @@
             "./server/files-bulk-batch": "./dist/server/files-bulk-batch.js",
             "./server/files-bulk-fallback": "./dist/server/files-bulk-fallback.js",
             "./server/files-bulk-validation": "./dist/server/files-bulk-validation.js",
+            "./server/files-state-validation": "./dist/server/files-state-validation.js",
             "./server/folders": "./dist/server/folders.js",
             "./server/manage": "./dist/server/manage.js",
             "./server/manage-auth": "./dist/server/manage-auth.js",
@@ -546,6 +555,7 @@
             "./server/photos/albums": "./dist/server/photos/albums.js",
             "./server/photos/auth": "./dist/server/photos/auth.js",
             "./server/photos/auth-cache": "./dist/server/photos/auth-cache.js",
+            "./server/photos/delete-response": "./dist/server/photos/delete-response.js",
             "./server/photos/download": "./dist/server/photos/download.js",
             "./server/photos/library": "./dist/server/photos/library/index.js",
             "./server/photos/library/apply-delta": "./dist/server/photos/library/apply-delta.js",
