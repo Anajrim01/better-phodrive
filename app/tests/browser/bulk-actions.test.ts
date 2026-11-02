@@ -349,5 +349,8 @@ test('a failed download stays selected and is reported', async () => {
 
     expect([...selection.selectedKeys]).toEqual([fileKey(second)]);
     expect(feedback).toHaveBeenCalledWith(expect.stringContaining('Downloaded 1 of 2 files.'));
-    expect(feedback).toHaveBeenCalledWith(expect.stringContaining('second.bin: Download failed'));
+    expect(feedback).toHaveBeenCalledWith(
+        expect.stringContaining('1 failure with "Download failed" from first@example.com.')
+    );
+    expect(feedback).toHaveBeenCalledWith(expect.stringContaining('Examples: second.bin.'));
 });

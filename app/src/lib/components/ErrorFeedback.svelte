@@ -7,6 +7,7 @@
 
 <Snackbar
     class="error-feedback"
+    style="max-height: 40vh"
     label={message}
     timeout={0}
     bind:open={
@@ -26,6 +27,18 @@
         margin: 0;
         min-width: 0;
         max-width: min(560px, calc(100vw - 32px));
+        overflow: hidden;
+    }
+
+    :global(:root .error-feedback.np-snackbar .np-snackbar-inner) {
+        max-height: inherit;
+    }
+
+    :global(:root .error-feedback.np-snackbar .np-snackbar-label-container) {
+        box-sizing: border-box;
+        max-height: inherit;
+        overflow-y: auto;
+        overscroll-behavior: contain;
     }
 
     :global(:root .error-feedback.np-snackbar .np-snackbar-label) {
