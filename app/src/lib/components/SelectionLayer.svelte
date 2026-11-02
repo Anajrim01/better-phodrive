@@ -24,12 +24,12 @@
     onclear={selection.clear}
 />
 
-{#if selection.count > 0 && !selection.overlayOpen}
+{#if selection.barVisible}
     <SelectionBar
         count={selection.count}
         trash={selection.trash}
         disabled={actionsDisabled || browseDisabled}
-        clearDisabled={browseDisabled}
+        clearDisabled={browseDisabled || selection.count === 0}
         running={drive.bulk.runningAction}
         progressDone={drive.bulk.progressDone}
         progressTotal={drive.bulk.progressTotal}

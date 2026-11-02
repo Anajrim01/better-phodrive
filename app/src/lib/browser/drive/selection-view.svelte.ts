@@ -8,6 +8,14 @@ import { isSelectionBackground } from '#browser/drive/selection-background';
 import { selectionFiles, selectedFiles, selectionScope } from '#browser/drive/selection-files';
 import type { MenuAction } from '#lib/menus';
 
+export function selectionBarVisible(
+    count: number,
+    running: boolean,
+    overlayOpen: boolean
+): boolean {
+    return (count > 0 || running) && !overlayOpen;
+}
+
 export function createSelectionView(
     drive: DriveController,
     manage: DriveManage,
@@ -32,6 +40,7 @@ export function createSelectionView(
             drive.bulk.moveOpen ||
             drive.bulk.detailsOpen
     );
+    const barVisible = $derived(selectionBarVisible(count, drive.bulk.running, overlayOpen));
 
     function selectFile(
         item: FileGroup,
@@ -95,6 +104,9 @@ export function createSelectionView(
         },
         get overlayOpen() {
             return overlayOpen;
+        },
+        get barVisible() {
+            return barVisible;
         },
         get canSelectAll() {
             return view() !== AppView.Settings && available.length > 0 && !overlayOpen;
