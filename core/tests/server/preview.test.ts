@@ -16,12 +16,16 @@ vi.mock('@madkarmaa/phodrive-core/server/photos', () => ({
 
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const PNG_IEND = Buffer.from([0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82]);
+const TRAILING_DATA = Buffer.from('SEFT', 'latin1');
 
-beforeEach(() => {
-    vi.clearAllMocks();
-});
+function webp(): Buffer {
+    const bytes = Buffer.from('RIFF\0\0\0\0WEBP-photo', 'latin1');
+    bytes.writeUInt32LE(bytes.length - 8, 4);
 
-test.each([
+    return bytes;
+}
+
+const COMPLETE_IMAGES: [string, Buffer][] = [
     [
         'image/jpeg',
         Buffer.concat([
@@ -32,26 +36,57 @@ test.each([
     ],
     ['image/png', Buffer.concat([PNG_SIGNATURE, Buffer.from('photo'), PNG_IEND])],
     ['image/gif', Buffer.from('GIF89a-photo;', 'latin1')],
-    [
-        'image/webp',
-        (() => {
-            const bytes = Buffer.from('RIFF\0\0\0\0WEBP-photo', 'latin1');
-            bytes.writeUInt32LE(bytes.length - 8, 4);
+    ['image/webp', webp()]
+];
 
-            return bytes;
-        })()
-    ]
-])('a complete single-chunk %s image is returned from chunk zero', async (mime, bytes) => {
-    const { input, bmps } = await fixture('photo.png', PreviewMode.Image, [bytes]);
+beforeEach(() => {
+    vi.clearAllMocks();
+});
+
+test.each(COMPLETE_IMAGES)(
+    'a complete single-chunk %s image is returned from chunk zero',
+    async (mime, bytes) => {
+        const { input, bmps } = await fixture('photo.png', PreviewMode.Image, [bytes]);
+        serve(bmps);
+
+        const result = (await previewFile(input)).unwrap();
+        expect(result.kind).toBe('image');
+        if (result.kind !== 'image') return;
+
+        expect(result.contentType).toBe(mime);
+        expect(Buffer.from(result.bytes)).toEqual(Buffer.from(bytes));
+        expect(downloadBmp).toHaveBeenCalledOnce();
+    }
+);
+
+test.each(COMPLETE_IMAGES)(
+    'a complete %s image with trailing data is returned from chunk zero',
+    async (mime, complete) => {
+        const bytes = Buffer.concat([complete, TRAILING_DATA]);
+        const { input, bmps } = await fixture('photo.png', PreviewMode.Image, [bytes]);
+        serve(bmps);
+
+        const result = (await previewFile(input)).unwrap();
+        expect(result.kind).toBe('image');
+        if (result.kind !== 'image') return;
+
+        expect(result.contentType).toBe(mime);
+        expect(Buffer.from(result.bytes)).toEqual(bytes);
+    }
+);
+
+test('a JPEG header without image data stays unavailable', async () => {
+    const bytes = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00]);
+    expect(bytes).toHaveLength(11);
+
+    const { input, bmps } = await fixture('photo.jpg', PreviewMode.Image, [bytes]);
     serve(bmps);
 
     const result = (await previewFile(input)).unwrap();
-    expect(result.kind).toBe('image');
-    if (result.kind !== 'image') return;
-
-    expect(result.contentType).toBe(mime);
-    expect(Buffer.from(result.bytes)).toEqual(Buffer.from(bytes));
-    expect(downloadBmp).toHaveBeenCalledOnce();
+    expect(result).toEqual({
+        kind: 'unavailable',
+        reason: PreviewUnavailableReason.IncompleteImage
+    });
 });
 
 test('a multi-chunk image falls back before contacting Photos', async () => {
