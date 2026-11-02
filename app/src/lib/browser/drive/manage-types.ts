@@ -16,6 +16,7 @@ export type ManageDeps = {
     files: () => readonly FileGroup[];
     busy: () => boolean;
     loading: () => boolean;
+    initialLoading: () => boolean;
     workers: () => number;
     feedback: (message: string) => void;
     applyItems: (email: string, items: readonly RemoteBmp[], revision: number) => void;

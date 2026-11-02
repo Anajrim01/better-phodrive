@@ -49,6 +49,7 @@ function makeManage(overrides: Partial<Deps> = {}) {
         files: () => [file()],
         busy: () => false,
         loading: () => false,
+        initialLoading: () => false,
         workers: () => 2,
         feedback,
         applyItems: vi.fn(),
@@ -134,11 +135,20 @@ test('an upload running does not block a preview', () => {
 });
 
 test('a loading library still blocks a preview', () => {
-    const { manage } = makeManage({ loading: () => true });
+    const { manage } = makeManage({ initialLoading: () => true });
 
     manage.openPreview({ kind: 'file', item: file() });
 
     expect(manage.dialog).toBeNull();
+});
+
+test('a refresh with loaded files does not block a preview', () => {
+    const { manage } = makeManage({ loading: () => true });
+
+    manage.openPreview({ kind: 'file', item: file() });
+
+    expect(manage.dialog).toBe('preview');
+    expect(manage.previewToken).toBe('token-first');
 });
 
 test('an upload running still blocks rename', () => {

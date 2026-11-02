@@ -40,7 +40,7 @@
     const actionsDisabled = $derived(
         uploadBusy || !!drive.fileAction || manage.busy || drive.bulk.running || drive.bulk.moveBusy
     );
-    const browseDisabled = $derived(drive.library.loading);
+    const browseDisabled = $derived(drive.library.initialLoading);
     const stats = $derived(libraryStats(drive.library.files));
     const drag = createDriveDrag(
         drive,

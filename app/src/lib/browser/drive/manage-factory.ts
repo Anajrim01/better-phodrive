@@ -14,6 +14,7 @@ export function createDriveManage(drive: DriveController): DriveManage {
         files: () => drive.library.files,
         busy: () => drive.busy || drive.bulk.running,
         loading: () => drive.library.loading,
+        initialLoading: () => drive.library.initialLoading,
         workers: () => drive.settings.concurrentWorkers,
         feedback: (message) => {
             drive.feedbackMessage = message;
