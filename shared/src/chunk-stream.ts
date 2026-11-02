@@ -17,7 +17,7 @@ function declaredLength(response: ByteResponse): number | null {
 }
 
 function matchesRange(value: string | null, start: number, end: number, total: number): boolean {
-    if (value === null) return true;
+    if (value === null) return false;
 
     const match = /^bytes (\d+)-(\d+)\/(\d+)$/.exec(value);
     if (!match) return false;

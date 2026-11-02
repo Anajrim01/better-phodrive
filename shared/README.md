@@ -103,8 +103,7 @@ The proxy uses little CPU because it only copies streams, so the 10 ms CPU limit
 ## Abuse and cost controls
 
 - The byte proxy allows only `https://lh3.googleusercontent.com/` and a narrow path shape. It does not follow redirects and rejects cross-host redirects.
-- Only closed single ranges are accepted, with an 8 MiB span cap. A request without a range is rejected. When the upstream declares a valid length within the cap, the proxy passes the body through with a release-only transform; otherwise it counts bytes and enforces the cap itself.
-- Bodies without a valid length are counted and have a 30 second idle timeout. Bodies with a valid length are passed through; a client cancel releases the slot.
+- Only closed single ranges are accepted, with an 8 MiB span cap. A request without a range is rejected. The proxy counts streamed bytes, enforces the cap, and releases the slot on completion, cancellation, error, or a 30 second idle timeout.
 - Four byte streams and two album listings may run at once per isolate. These are best-effort in-memory caps, not a durable per-IP quota. The 8 MiB range cap controls request size, not request volume.
 - The proxy accepts capability URLs only in POST bodies, does not log them, and does not cache responses.
 - The viewer uses `showSaveFilePicker` when available and streams chunks to disk. The Blob fallback is limited to 512 MB. A failed hash check aborts the staged write before the file is offered.

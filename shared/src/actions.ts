@@ -49,7 +49,7 @@ export async function savePlan(plan: PlannedFile, ui: FileUi): Promise<void> {
                     finishBusy(ui);
                 },
                 Ok: (value) => {
-                    if (value.blob) saveBlob(value.blob, plan.name);
+                    if (value.blob && !signal.aborted) saveBlob(value.blob, plan.name);
                     showVerified(ui, value);
                     finishBusy(ui);
                 }

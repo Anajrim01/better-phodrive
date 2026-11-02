@@ -101,15 +101,3 @@ export function discardUpstream(response: Response, controller: AbortController)
         return;
     }
 }
-
-export function releaseAfterStream(
-    body: ReadableStream<Uint8Array>,
-    release: () => void
-): ReadableStream<Uint8Array> {
-    const transformer = {
-        flush: release,
-        cancel: release
-    } as Transformer<Uint8Array, Uint8Array> & { cancel: () => void };
-
-    return body.pipeThrough(new TransformStream(transformer));
-}

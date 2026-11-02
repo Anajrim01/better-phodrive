@@ -8,7 +8,7 @@ import {
     MAX_RANGE_BYTES,
     UPSTREAM_TIMEOUT_MS
 } from './limits';
-import { discardUpstream, releaseAfterStream, releaseBody } from './bytes-stream';
+import { discardUpstream, releaseBody } from './bytes-stream';
 import { parseMediaUrl, parseRange } from './media-url';
 
 const BytesRequestSchema = z.object({ url: z.string(), range: z.string().optional() }).strict();
@@ -90,9 +90,9 @@ function responseHeaders(response: Response, length: number | null): Headers {
 function validateUpstream(response: Response, length: number | null): ProxyError | null {
     if (response.status >= 300 && response.status < 400) return proxyError('UPSTREAM_REDIRECT');
     if (response.status === 404 || response.status === 410) return proxyError('MEDIA_UNAVAILABLE');
+    if (length !== null && length > MAX_RANGE_BYTES) return proxyError('UPSTREAM_STATUS');
     if (response.status === 416) return null;
     if (response.status !== 206) return proxyError('UPSTREAM_STATUS');
-    if (length !== null && length > MAX_RANGE_BYTES) return proxyError('UPSTREAM_STATUS');
 
     const encoding = response.headers.get('content-encoding');
     if (encoding && encoding !== 'identity') return proxyError('UPSTREAM_STATUS');
@@ -145,16 +145,13 @@ export function createBytesHandler(deps: BytesDeps = DEFAULT_DEPS) {
                     return errorResponse(proxyError('UPSTREAM_UNAVAILABLE'));
                 }
 
-                const body =
-                    length !== null
-                        ? releaseAfterStream(response.body, release)
-                        : releaseBody(
-                              response.body,
-                              release,
-                              MAX_RANGE_BYTES,
-                              controller,
-                              idleTimeoutMs
-                          );
+                const body = releaseBody(
+                    response.body,
+                    release,
+                    MAX_RANGE_BYTES,
+                    controller,
+                    idleTimeoutMs
+                );
 
                 return new Response(body, {
                     status: response.status,
