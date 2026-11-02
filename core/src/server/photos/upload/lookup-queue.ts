@@ -172,8 +172,12 @@ function abortIdleBatch(batch: LookupBatch | undefined): void {
 }
 
 function lookupBatchKey(email: string, rpcHeaders: Record<string, string>): string {
+    const authorization =
+        Object.entries(rpcHeaders).find(([name]) => name.toLowerCase() === 'authorization')?.[1] ??
+        '';
+
     return `${email}
-${rpcHeaders.authorization ?? ''}`;
+${authorization}`;
 }
 
 function shouldFallback(error: ServerError, callers: number): boolean {

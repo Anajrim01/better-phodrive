@@ -106,8 +106,8 @@ test('lookups with different credentials for one account stay separate', async (
     };
 
     const results = await Promise.all([
-        lookupHash(EMAIL, expiredHash, { authorization: 'Bearer expired' }, fetcher),
-        lookupHash(EMAIL, validHash, { authorization: 'Bearer valid' }, fetcher)
+        lookupHash(EMAIL, expiredHash, { Authorization: 'Bearer expired' }, fetcher),
+        lookupHash(EMAIL, validHash, { Authorization: 'Bearer valid' }, fetcher)
     ]);
 
     expect(authorizations.sort()).toEqual(['Bearer expired', 'Bearer valid']);
