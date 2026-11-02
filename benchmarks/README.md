@@ -18,6 +18,10 @@ Byte workloads include 0 B, 1 B, 1 KiB, 64 KiB, 8 MiB, 64 MiB, a full 195,000,00
 
 Each cold hash or upload sample creates new File objects. Only the retry case reuses its File. The suite does not bypass or prepopulate production caches.
 
+## Request counts
+
+`bun run perf:requests` runs 100 one-chunk uploads through the browser preparation, server transfer, and synthetic provider. It prints protocol request counts and elapsed time for upload concurrency 8, 12, 16, and 20. The run needs no Google account or network.
+
 ## Upload verification
 
 Uploads run the production browser preparation, chunk scheduling, FormData, multipart parsing, BMP encoding, Google Photos protocol, SSE handling, and confirmation checks. A test provider replaces external transport. It consumes and hashes every transferred byte, checks content length, calls progress callbacks, and returns deterministic protobuf responses.
