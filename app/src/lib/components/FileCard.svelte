@@ -17,8 +17,9 @@
         working?: FileActionKind | null;
         showOwner?: boolean;
         partial?: boolean;
+        virtualIndex?: number;
         selected?: boolean;
-        selectedCount?: number;
+        multipleSelected?: boolean;
         onselect?: (
             item: FileGroup,
             event: MouseEvent | KeyboardEvent,
@@ -33,6 +34,7 @@
         onmenu: (item: FileGroup, anchor: MenuAnchor) => void;
         onstartdrag?: (item: FileGroup, event: DragEvent) => void;
         onenddrag?: (event: DragEvent) => void;
+        onnavigate?: (event: KeyboardEvent) => void;
     }
 
     let {
@@ -42,8 +44,9 @@
         working = null,
         showOwner = false,
         partial = false,
+        virtualIndex,
         selected = false,
-        selectedCount = 0,
+        multipleSelected = false,
         onselect,
         oncontextselect,
         onselectionmenu,
@@ -53,15 +56,11 @@
         onopenpreview,
         onmenu,
         onstartdrag,
-        onenddrag
+        onenddrag,
+        onnavigate
     }: Props = $props();
-    let isChecked = $state(false);
     let dragOrigin: EventTarget | null = null;
     const actionsBlocked = $derived(actionsDisabled || browseDisabled);
-
-    $effect(() => {
-        isChecked = selected;
-    });
 
     function interactive(target: EventTarget | null): boolean {
         return (
@@ -84,6 +83,7 @@
             select: (keyEvent) => onselect?.(item, keyEvent, 'toggle'),
             preview: openPreview
         });
+        onnavigate?.(event);
     }
 
     function openPreview(trigger: HTMLElement): void {
@@ -113,7 +113,7 @@
 
     function contextMenu(event: MouseEvent): void {
         event.preventDefault();
-        if (selectedCount > 1 && selected) {
+        if (multipleSelected && selected) {
             onselectionmenu?.({ x: event.clientX, y: event.clientY });
 
             return;
@@ -142,6 +142,7 @@
     tabindex="0"
     draggable={!actionsBlocked}
     data-file-key={fileKey(item)}
+    data-file-index={virtualIndex}
     onclick={cardClick}
     ondblclick={cardDoubleClick}
     onkeydown={cardKeydown}
@@ -158,7 +159,7 @@
             <Checkbox
                 aria-label={`Select ${item.name}`}
                 class="card-select shrink-0"
-                bind:checked={isChecked}
+                checked={selected}
                 disabled={browseDisabled}
                 --np-checkbox-margin="7px"
                 onclick={(event) => {

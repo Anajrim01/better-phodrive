@@ -53,7 +53,7 @@ test('a card exposes a direct checkbox after its name', async () => {
             actionsDisabled: false,
             working: null,
             selected: true,
-            selectedCount: 2,
+            multipleSelected: true,
             ...props
         }
     });
@@ -75,6 +75,34 @@ test('a card exposes a direct checkbox after its name', async () => {
     await fireEvent.click(checkbox);
     expect(props.onselect).toHaveBeenCalledTimes(1);
     expect(props.onselect.mock.calls[0]?.[2]).toBe('toggle');
+});
+
+test('the card checkbox follows the selected prop without a local effect', () => {
+    const item = file({ name: 'card.bin' });
+    const props = selectionCallbacks();
+    const view = render(FileCard, {
+        props: {
+            item,
+            actionsDisabled: false,
+            working: null,
+            selected: false,
+            ...props
+        }
+    });
+    const checkbox = () =>
+        screen.getByRole('checkbox', { name: 'Select card.bin' }) as HTMLInputElement;
+
+    expect(checkbox().checked).toBe(false);
+
+    view.rerender({
+        item,
+        actionsDisabled: false,
+        working: null,
+        selected: true,
+        ...props
+    });
+
+    expect(checkbox().checked).toBe(true);
 });
 
 test('clicking the card body sends a point gesture and actions do not', async () => {
@@ -107,7 +135,7 @@ test('clicking a card tooltip keeps a multi selection', async () => {
             actionsDisabled: false,
             working: null,
             selected: true,
-            selectedCount: 2,
+            multipleSelected: true,
             ...props
         }
     });
@@ -186,7 +214,7 @@ test('right-clicking a selected card in a multi selection opens the bulk menu', 
             actionsDisabled: false,
             working: null,
             selected: true,
-            selectedCount: 2,
+            multipleSelected: true,
             ...props
         }
     });

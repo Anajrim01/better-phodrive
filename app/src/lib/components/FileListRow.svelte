@@ -14,7 +14,8 @@
     interface Props {
         item: FileGroup;
         selected: boolean;
-        selectedCount: number;
+        multipleSelected?: boolean;
+        virtualIndex?: number;
         actionsDisabled: boolean;
         browseDisabled?: boolean;
         showFolder: boolean;
@@ -37,12 +38,14 @@
         onmenu?: (item: FileGroup, anchor: MenuAnchor) => void;
         onstartdrag?: (item: FileGroup, event: DragEvent) => void;
         onenddrag?: (event: DragEvent) => void;
+        onnavigate?: (event: KeyboardEvent) => void;
     }
 
     let {
         item,
         selected,
-        selectedCount,
+        multipleSelected = false,
+        virtualIndex,
         actionsDisabled,
         browseDisabled = false,
         showFolder,
@@ -60,15 +63,11 @@
         onopenpreview,
         onmenu,
         onstartdrag,
-        onenddrag
+        onenddrag,
+        onnavigate
     }: Props = $props();
-    let isChecked = $state(false);
     let dragOrigin: EventTarget | null = null;
     const actionsBlocked = $derived(actionsDisabled || browseDisabled);
-
-    $effect(() => {
-        isChecked = selected;
-    });
 
     function interactive(target: EventTarget | null): boolean {
         return (
@@ -81,7 +80,7 @@
 
     function contextMenu(event: MouseEvent): void {
         event.preventDefault();
-        if (selectedCount > 1 && selected) {
+        if (multipleSelected && selected) {
             onselectionmenu?.({ x: event.clientX, y: event.clientY });
 
             return;
@@ -103,6 +102,7 @@
             select: (keyEvent) => onselect?.(item, keyEvent, 'toggle'),
             preview: openPreview
         });
+        onnavigate?.(event);
     }
 
     function openPreview(trigger: HTMLElement): void {
@@ -144,6 +144,9 @@
     class:selected
     class:trash
     data-file-key={fileKey(item)}
+    data-index={virtualIndex}
+    data-file-index={virtualIndex}
+    aria-rowindex={virtualIndex === undefined ? undefined : virtualIndex + 2}
     tabindex="0"
     draggable={!actionsBlocked}
     onclick={rowClick}
@@ -158,7 +161,7 @@
         <div class="select-cell">
             <Checkbox
                 aria-label={`Select ${item.name}`}
-                bind:checked={isChecked}
+                checked={selected}
                 disabled={browseDisabled}
                 --np-checkbox-margin="7px"
                 onclick={(event) => {

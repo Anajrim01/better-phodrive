@@ -1,9 +1,6 @@
 <script lang="ts">
     import { Button, LoadingIndicator } from 'noph-ui';
     import { FileLayout, FileSort } from '@madkarmaa/phodrive-core/models';
-    import { fade } from 'svelte/transition';
-    import { flip } from 'svelte/animate';
-    import { prefersReducedMotion } from 'svelte/motion';
     import {
         fileActionKind,
         type FileAction,
@@ -16,6 +13,10 @@
     import MarqueeSelect from '#components/MarqueeSelect.svelte';
     import EmptyFiles from '#components/EmptyFiles.svelte';
     import FolderTiles from '#components/FolderTiles.svelte';
+    import { fileArrowStep, focusedFileIndex } from '#lib/file-item-keys';
+    import { createFileFocus } from '#lib/file-focus.svelte';
+    import { createWindowRows } from '#lib/virtual-window.svelte';
+    import { GRID_GAP, gridColumnCount, gridRowCount } from '#lib/file-window';
     import type { MenuAnchor } from '#browser/drive/menu-types';
 
     interface Props {
@@ -91,8 +92,76 @@
         onfoldermenu,
         onmore
     }: Props = $props();
-    const selectedCount = $derived(files.filter((item) => selected.has(fileKey(item))).length);
-    const selectedKeys = $derived(new Set([...selected]));
+    const selectedCount = $derived(
+        files.reduce((count, item) => count + (selected.has(fileKey(item)) ? 1 : 0), 0)
+    );
+    const multipleSelected = $derived(selectedCount > 1);
+    let grid = $state<HTMLDivElement>();
+    let gridWidth = $state(0);
+    let dragKey = $state<string | null>(null);
+    const columns = $derived(gridColumnCount(gridWidth));
+    const rowCount = $derived(gridRowCount(files.length, columns));
+    const dragRow = $derived.by(() => {
+        if (!dragKey) return -1;
+
+        const index = files.findIndex((item) => fileKey(item) === dragKey);
+
+        return index < 0 ? -1 : Math.floor(index / columns);
+    });
+    const view = createWindowRows<HTMLDivElement>({
+        count: () => rowCount,
+        estimateSize: () => 246,
+        gap: GRID_GAP,
+        overscan: 2,
+        getItemKey: (index) => {
+            const item = files[index * columns];
+
+            return item ? `${columns}:${fileKey(item)}` : `row:${index}`;
+        },
+        extraIndexes: () => (dragRow >= 0 ? [dragRow] : [])
+    });
+    const focus = createFileFocus({
+        rows: () => view.rows,
+        count: () => files.length,
+        key: (index) => {
+            const item = files[index];
+
+            return item ? fileKey(item) : undefined;
+        },
+        container: () => grid,
+        row: (index) => Math.floor(index / columns),
+        scrollToRow: (row) => view.scrollToRow(row)
+    });
+
+    function moveFocus(event: KeyboardEvent): void {
+        const step = fileArrowStep(event, columns);
+        if (step === null) return;
+
+        const index = focusedFileIndex(event);
+        if (index === null) return;
+
+        const next = (focus.pending ?? index) + step;
+        if (next < 0 || next >= files.length) return;
+
+        event.preventDefault();
+        focus.move(next);
+    }
+
+    function startDrag(item: FileGroup, event: DragEvent): void {
+        focus.cancel();
+        dragKey = fileKey(item);
+        onstartdrag(item, event);
+    }
+
+    function endDrag(): void {
+        dragKey = null;
+        onenddrag();
+    }
+
+    view.trackMargin(() => grid);
+    view.measureRendered(
+        () => grid?.querySelectorAll<HTMLDivElement>('.file-grid-row[data-index]') ?? []
+    );
 </script>
 
 <MarqueeSelect
@@ -117,6 +186,7 @@
                 <FileList
                     {files}
                     bind:sort
+                    {dragKey}
                     {actionsDisabled}
                     {browseDisabled}
                     {showFolder}
@@ -127,8 +197,8 @@
                     {onselectall}
                     {oncontextselect}
                     {onselectionmenu}
-                    {onstartdrag}
-                    {onenddrag}
+                    onstartdrag={startDrag}
+                    onenddrag={endDrag}
                     partial={hasMore}
                     {ondownload}
                     {ondelete}
@@ -137,38 +207,60 @@
                     onmenu={onfilemenu}
                 />
             {:else}
-                <ul
-                    class="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(min(100%,220px),1fr))] gap-4 p-0"
+                <div
+                    class="file-grid-window"
+                    bind:this={grid}
+                    bind:clientWidth={gridWidth}
+                    style:height={`${view.totalSize}px`}
+                    role="list"
                 >
-                    {#each files as item (fileKey(item))}
-                        <li
-                            class="min-w-0"
-                            animate:flip={{ duration: prefersReducedMotion.current ? 0 : 180 }}
-                            transition:fade={{ duration: prefersReducedMotion.current ? 0 : 150 }}
+                    {#each view.rows as row (row.key)}
+                        <div
+                            class="file-grid-row"
+                            data-index={row.index}
+                            role="presentation"
+                            style:transform={`translateY(${row.start - view.scrollMargin}px)`}
                         >
-                            <FileCard
-                                {item}
-                                {actionsDisabled}
-                                {browseDisabled}
-                                {showOwner}
-                                partial={hasMore}
-                                working={fileActionKind(action, item)}
-                                selected={selectedKeys.has(fileKey(item))}
-                                {selectedCount}
-                                {onselect}
-                                {oncontextselect}
-                                {onselectionmenu}
-                                {onstartdrag}
-                                {onenddrag}
-                                {ondownload}
-                                {ondelete}
-                                {onrestore}
-                                {onopenpreview}
-                                onmenu={onfilemenu}
-                            />
-                        </li>
+                            <ul
+                                class="file-grid-cards"
+                                style={`--file-grid-columns: ${columns}`}
+                                role="presentation"
+                            >
+                                {#each files.slice(row.index * columns, row.index * columns + columns) as item, offset (fileKey(item))}
+                                    <li
+                                        class="min-w-0"
+                                        role="listitem"
+                                        aria-setsize={files.length}
+                                        aria-posinset={row.index * columns + offset + 1}
+                                    >
+                                        <FileCard
+                                            {item}
+                                            virtualIndex={row.index * columns + offset}
+                                            {actionsDisabled}
+                                            {browseDisabled}
+                                            {showOwner}
+                                            partial={hasMore}
+                                            working={fileActionKind(action, item)}
+                                            selected={selected.has(fileKey(item))}
+                                            {multipleSelected}
+                                            {onselect}
+                                            {oncontextselect}
+                                            {onselectionmenu}
+                                            onstartdrag={startDrag}
+                                            onenddrag={endDrag}
+                                            onnavigate={moveFocus}
+                                            {ondownload}
+                                            {ondelete}
+                                            {onrestore}
+                                            {onopenpreview}
+                                            onmenu={onfilemenu}
+                                        />
+                                    </li>
+                                {/each}
+                            </ul>
+                        </div>
                     {/each}
-                </ul>
+                </div>
             {/if}
         {:else if !folders.length}
             <div
@@ -201,3 +293,27 @@
         {/if}
     </section>
 </MarqueeSelect>
+
+<style>
+    .file-grid-window {
+        position: relative;
+        width: 100%;
+        min-width: 0;
+        overflow-anchor: none;
+    }
+
+    .file-grid-row {
+        position: absolute;
+        inset-inline: 0;
+        top: 0;
+    }
+
+    .file-grid-cards {
+        display: grid;
+        grid-template-columns: repeat(var(--file-grid-columns), minmax(0, 1fr));
+        gap: 16px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+    }
+</style>

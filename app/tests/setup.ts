@@ -41,6 +41,13 @@ if (typeof window !== 'undefined') {
         });
     }
 
+    if (typeof window.scrollTo === 'function') {
+        Object.defineProperty(window, 'scrollTo', {
+            configurable: true,
+            value: () => {}
+        });
+    }
+
     if (typeof HTMLDialogElement !== 'undefined') {
         Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
             configurable: true,
