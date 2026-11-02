@@ -82,9 +82,10 @@ test('bulk delete posts once per account and keeps failed files selected', async
     expect(reloadGroup).toHaveBeenCalledTimes(1);
     expect(feedback).toHaveBeenCalledWith(
         expect.stringContaining(
-            '1 failure with "Google Photos refused the request" from second@example.com: second.bin.'
+            '1 failure with "Google Photos refused the request" from second@example.com.'
         )
     );
+    expect(feedback).toHaveBeenCalledWith(expect.stringContaining('Examples: second.bin.'));
     expect(feedback).toHaveBeenCalledWith(expect.stringContaining('Deleted 1 of 2 files.'));
 });
 

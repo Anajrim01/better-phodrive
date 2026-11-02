@@ -217,9 +217,10 @@ test('bulk failures are reported per owner with the file name', () => {
     );
 
     expect(message).toContain('Deleted 2 of 5 files. 3 failed.');
-    expect(message).toContain('1 failure with "No access" from first@example.com: first.bin.');
-    expect(message).toContain('1 failure with "Paused" from second@example.com: second.bin.');
-    expect(message).toContain('1 failure with "Timeout" from second@example.com: third.bin.');
+    expect(message).toContain('1 failure with "No access" from first@example.com.');
+    expect(message).toContain('1 failure with "Paused" from second@example.com.');
+    expect(message).toContain('1 failure with "Timeout" from second@example.com.');
+    expect(message).toContain('Examples: first.bin, second.bin, third.bin.');
 });
 
 test('a fully failed bulk action says nothing changed', () => {

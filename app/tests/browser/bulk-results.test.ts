@@ -47,8 +47,8 @@ test('1,095 identical failures are counted with only three examples', () => {
     );
 
     expect(message).toContain('Could not delete any files.');
-    expect(message).toContain('1,095 failures with "Move to trash failed" from first@example.com:');
-    expect(message).toContain('photo-0.jpg, photo-1.jpg, photo-2.jpg and 1,092 more.');
+    expect(message).toContain('1,095 failures with "Move to trash failed" from first@example.com.');
+    expect(message).toContain('Examples: photo-0.jpg, photo-1.jpg, photo-2.jpg and 1,092 more.');
     expect(message).not.toContain('photo-3.jpg');
     expect(message.length).toBeLessThan(250);
 });
@@ -68,13 +68,10 @@ test('mixed failure messages keep the success count, failure count, and a few ex
     );
 
     expect(message).toContain('Deleted 1 of 7 files. 6 failed.');
-    expect(message).toContain(
-        '3 failures with "Paused" from second@example.com: second.jpg, third.jpg, fourth.jpg.'
-    );
-    expect(message).toContain(
-        '2 failures with "No access" from first@example.com: first.jpg, fifth.jpg.'
-    );
-    expect(message).toContain('1 failure with "Timeout" from third@example.com: sixth.jpg.');
+    expect(message).toContain('3 failures with "Paused" from second@example.com.');
+    expect(message).toContain('2 failures with "No access" from first@example.com.');
+    expect(message).toContain('1 failure with "Timeout" from third@example.com.');
+    expect(message).toContain('Examples: second.jpg, third.jpg, fourth.jpg and 3 more.');
 });
 
 test('multiple owners with the same failure stay separate and counted', () => {
@@ -88,10 +85,9 @@ test('multiple owners with the same failure stay separate and counted', () => {
         'delete'
     );
 
-    expect(message).toContain(
-        '2 failures with "Paused" from first@example.com: first.jpg, second.jpg.'
-    );
-    expect(message).toContain('1 failure with "Paused" from second@example.com: third.jpg.');
+    expect(message).toContain('2 failures with "Paused" from first@example.com.');
+    expect(message).toContain('1 failure with "Paused" from second@example.com.');
+    expect(message).toContain('Examples: first.jpg, second.jpg, third.jpg.');
 });
 
 test('a long mixed failure list caps the groups shown', () => {
@@ -108,6 +104,7 @@ test('a long mixed failure list caps the groups shown', () => {
 
     expect(message).toContain('Could not delete any files.');
     expect(message).toContain('And 1 more failure.');
+    expect(message).toContain('Examples: d.jpg, a.jpg, c.jpg and 1 more.');
     expect(message).not.toContain('"Two"');
 });
 
@@ -121,8 +118,9 @@ test('a mixed stale and access failure keeps both outcomes visible', () => {
         'delete'
     );
 
-    expect(message).toContain('1 failure with "Invalid file metadata."');
-    expect(message).toContain('1 failure with "No access"');
+    expect(message).toContain('1 failure with "Invalid file metadata." from first@example.com.');
+    expect(message).toContain('1 failure with "No access" from first@example.com.');
+    expect(message).toContain('Examples: stale.jpg, denied.jpg.');
     expect(message).not.toBe(
         'This selection no longer matches your library. Refresh and try again.'
     );

@@ -50,19 +50,20 @@ function groupFailures(failures: readonly BulkFailure[]): FailureGroup[] {
     );
 }
 
-function formatNames(names: readonly string[]): string {
-    const examples = names.slice(0, EXAMPLE_LIMIT);
-    const hidden = names.length - examples.length;
-    const suffix = hidden > 0 ? ` and ${formatCount(hidden)} more` : '';
-
-    return `${examples.join(', ')}${suffix}`;
-}
-
 function formatGroup(group: FailureGroup): string {
     const count = group.names.length;
     const subject = count === 1 ? 'failure' : 'failures';
 
-    return `${formatCount(count)} ${subject} with "${group.message}" from ${group.email}: ${formatNames(group.names)}.`;
+    return `${formatCount(count)} ${subject} with "${group.message}" from ${group.email}.`;
+}
+
+function formatExamples(groups: readonly FailureGroup[]): string {
+    const names = groups.flatMap((group) => group.names);
+    const examples = names.slice(0, EXAMPLE_LIMIT);
+    const hidden = names.length - examples.length;
+    const suffix = hidden > 0 ? ` and ${formatCount(hidden)} more` : '';
+
+    return `Examples: ${examples.join(', ')}${suffix}.`;
 }
 
 function isStaleFailure(failure: BulkFailure): boolean {
@@ -96,6 +97,7 @@ export function bulkFailureMessage(
         details.push(
             `And ${formatCount(hiddenFailures)} more ${hiddenFailures === 1 ? 'failure' : 'failures'}.`
         );
+    details.push(formatExamples(groups));
 
     return `${summary} ${details.join(' ')}`;
 }

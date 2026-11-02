@@ -35,6 +35,7 @@
     }
 
     :global(:root .error-feedback.np-snackbar .np-snackbar-label-container) {
+        box-sizing: border-box;
         max-height: inherit;
         overflow-y: auto;
         overscroll-behavior: contain;
