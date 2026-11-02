@@ -8,7 +8,8 @@ import {
     extractInitDataCallbacks,
     extractServiceRequests,
     pickServiceRequest,
-    type InitDataCallback
+    type InitDataCallback,
+    type ServiceRequest
 } from './listing-html';
 import { parseBatchExecute } from './listing-rpc';
 import { MAX_ALBUM_JSON_BYTES, MAX_ALBUM_PAGE_BYTES, UPSTREAM_TIMEOUT_MS } from './limits';
@@ -133,31 +134,45 @@ function parseCallbacks(callbacks: InitDataCallback[]): Result<AlbumListing, Pro
     return Ok(first);
 }
 
+async function readServiceListing(
+    entries: ServiceRequest[],
+    fallback: Result<AlbumListing, ProxyError>,
+    reference: AlbumReference,
+    deps: AlbumDeps
+): Promise<Result<AlbumListing, ProxyError>> {
+    const service = pickServiceRequest(entries, reference.uid, reference.key);
+    if (!service) return fallback;
+
+    const rpc = await callListingRpc(reference, service.id, service.request, deps);
+    return rpc.match({
+        Err: (error) => (fallback.isErr() ? Err(error) : fallback),
+        Ok: (data) =>
+            parseListingData(data).match({
+                Err: (error) => Err(error),
+                Ok: (primary) =>
+                    fallback.match({
+                        Err: () => Ok(primary),
+                        Ok: (other) =>
+                            sameListing(primary, other)
+                                ? Ok(primary)
+                                : Err(proxyError('ALBUM_MISMATCH'))
+                    })
+            })
+    });
+}
+
 function readListing(
     html: string,
     reference: AlbumReference,
     deps: AlbumDeps
 ): AsyncResult<AlbumListing, ProxyError> {
-    return extractServiceRequests(html).andThenAsync(async (entries) => {
+    return Ok(undefined).andThenAsync(async () => {
         const fallback = parseCallbacks(extractInitDataCallbacks(html));
-        const service = pickServiceRequest(entries, reference.uid, reference.key);
-        if (!service) return fallback;
+        const services = extractServiceRequests(html);
 
-        const rpc = await callListingRpc(reference, service.id, service.request, deps);
-        return rpc.match({
-            Err: (error) => (fallback.isErr() ? Err(error) : fallback),
-            Ok: (data) =>
-                parseListingData(data).match({
-                    Err: (error) => Err(error),
-                    Ok: (primary) =>
-                        fallback.match({
-                            Err: () => Ok(primary),
-                            Ok: (other) =>
-                                sameListing(primary, other)
-                                    ? Ok(primary)
-                                    : Err(proxyError('ALBUM_MISMATCH'))
-                        })
-                })
+        return services.match({
+            Err: async (error) => (fallback.isErr() ? Err(error) : fallback),
+            Ok: (entries) => readServiceListing(entries, fallback, reference, deps)
         });
     });
 }

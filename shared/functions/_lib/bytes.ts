@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { proxyError, type ProxyError } from './errors';
 import { errorResponse, readJsonBody } from './http';
 import {
+    BYTES_IDLE_TIMEOUT_MS,
     MAX_BYTES_CONCURRENCY,
     MAX_CHUNK_BYTES,
     MAX_RANGE_BYTES,
@@ -14,6 +15,7 @@ const BytesRequestSchema = z.object({ url: z.string(), range: z.string().optiona
 
 export interface BytesDeps {
     fetch: typeof fetch;
+    bodyIdleTimeoutMs?: number;
 }
 
 const DEFAULT_DEPS: BytesDeps = { fetch: globalThis.fetch.bind(globalThis) };
@@ -29,11 +31,16 @@ const RESPONSE_HEADERS = {
     'x-content-type-options': 'nosniff'
 } as const;
 
+interface Upstream {
+    response: Response;
+    controller: AbortController;
+}
+
 function fetchUpstream(
     deps: BytesDeps,
     url: string,
     range: string | undefined
-): AsyncResult<Response, ProxyError> {
+): AsyncResult<Upstream, ProxyError> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
     const headers: Record<string, string> = {
@@ -50,7 +57,7 @@ function fetchUpstream(
                 signal: controller.signal
             });
 
-            return Ok(response);
+            return Ok({ response, controller });
         } catch {
             return Err(proxyError('UPSTREAM_UNAVAILABLE'));
         } finally {
@@ -81,29 +88,67 @@ function responseHeaders(response: Response, length: number | null): Headers {
 
 function releaseBody(
     body: ReadableStream<Uint8Array>,
-    release: () => void
+    release: () => void,
+    limit: number,
+    controller: AbortController,
+    idleTimeoutMs: number
 ): ReadableStream<Uint8Array> {
     const reader = body.getReader();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let forwarded = 0;
+    let finished = false;
+
+    const clearTimer = () => {
+        if (timer === undefined) return;
+
+        clearTimeout(timer);
+        timer = undefined;
+    };
+    const finish = () => {
+        if (finished) return;
+        finished = true;
+        clearTimer();
+        release();
+    };
+    const armTimer = () => {
+        clearTimer();
+        timer = setTimeout(() => {
+            controller.abort();
+            finish();
+        }, idleTimeoutMs);
+    };
+
+    armTimer();
 
     return new ReadableStream<Uint8Array>({
-        async pull(controller) {
+        async pull(output) {
             try {
                 const next = await reader.read();
                 if (next.done) {
-                    release();
-                    controller.close();
+                    finish();
+                    output.close();
 
                     return;
                 }
 
-                controller.enqueue(next.value);
+                if (forwarded + next.value.byteLength > limit) {
+                    finish();
+                    await reader.cancel();
+                    output.error(new Error('Upstream body exceeded the proxy limit'));
+
+                    return;
+                }
+
+                forwarded += next.value.byteLength;
+                output.enqueue(next.value);
+                armTimer();
             } catch (error) {
-                release();
-                controller.error(error);
+                finish();
+                output.error(error);
             }
         },
         async cancel(reason) {
-            release();
+            finish();
             await reader.cancel(reason);
         }
     });
@@ -131,6 +176,7 @@ function validateUpstream(
 
 export function createBytesHandler(deps: BytesDeps = DEFAULT_DEPS) {
     let active = 0;
+    const idleTimeoutMs = deps.bodyIdleTimeoutMs ?? BYTES_IDLE_TIMEOUT_MS;
 
     async function serve(url: string, range: string | undefined): Promise<Response> {
         if (active >= MAX_BYTES_CONCURRENCY) return errorResponse(proxyError('BUSY'));
@@ -150,7 +196,7 @@ export function createBytesHandler(deps: BytesDeps = DEFAULT_DEPS) {
 
                 return errorResponse(error);
             },
-            Ok: (response) => {
+            Ok: ({ response, controller }) => {
                 const length = contentLength(response);
                 const invalid = validateUpstream(response, range, length);
                 if (invalid) {
@@ -170,10 +216,19 @@ export function createBytesHandler(deps: BytesDeps = DEFAULT_DEPS) {
                     return errorResponse(proxyError('UPSTREAM_UNAVAILABLE'));
                 }
 
-                return new Response(releaseBody(response.body, release), {
-                    status: response.status,
-                    headers: responseHeaders(response, length)
-                });
+                return new Response(
+                    releaseBody(
+                        response.body,
+                        release,
+                        range ? MAX_RANGE_BYTES : MAX_CHUNK_BYTES,
+                        controller,
+                        idleTimeoutMs
+                    ),
+                    {
+                        status: response.status,
+                        headers: responseHeaders(response, length)
+                    }
+                );
             }
         });
     }

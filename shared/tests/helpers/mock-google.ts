@@ -15,6 +15,7 @@ export interface MockAlbum {
     items: MockItem[];
     declaredCount?: number;
     omitRpc?: boolean;
+    corruptRpc?: boolean;
     omitInit?: boolean;
     batchMode?: 'ok' | 'http500' | 'malformed' | 'wrongId';
     itemTransform?: (item: MockItem) => unknown;
@@ -55,7 +56,9 @@ function pageHtml(album: MockAlbum): string {
     const data = JSON.stringify(listingData(album));
     const services = album.omitRpc
         ? ''
-        : `<script>var AF_dataServiceRequests = {'ds:0' : {id:'UJlKrf',request:[${JSON.stringify(album.uid)},${JSON.stringify(album.key)}]},'ds:1' : {id:'snAcKc',ext: 7.1E7,request:[${JSON.stringify(album.uid)},null,null,${JSON.stringify(album.key)}]}};</script>`;
+        : album.corruptRpc
+          ? `<script>var AF_dataServiceRequests = {'ds:1' : {id:'snAcKc',request:"not-an-array"}};</script>`
+          : `<script>var AF_dataServiceRequests = {'ds:0' : {id:'UJlKrf',request:[${JSON.stringify(album.uid)},${JSON.stringify(album.key)}]},'ds:1' : {id:'snAcKc',ext: 7.1E7,request:[${JSON.stringify(album.uid)},null,null,${JSON.stringify(album.key)}]}};</script>`;
     const init = album.omitInit
         ? ''
         : `<script>AF_initDataCallback({key: 'ds:1', hash: '1', data:${data}, sideChannel: {}});</script>`;

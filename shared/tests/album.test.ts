@@ -73,6 +73,18 @@ describe('POST /api/album', () => {
         expect(server.rpcBodies).toHaveLength(0);
     });
 
+    it('falls back when service metadata is malformed', async () => {
+        server = await startMockGoogle({ ...baseAlbum, corruptRpc: true });
+        const response = await handleAlbum(request(albumBody(baseAlbum)), {
+            fetch: globalThis.fetch,
+            pageOrigin: server.origin
+        });
+
+        expect(response.status).toBe(200);
+        expect((await response.json()).items).toHaveLength(2);
+        expect(server.rpcBodies).toHaveLength(0);
+    });
+
     it('falls back when the RPC fails', async () => {
         server = await startMockGoogle({ ...baseAlbum, batchMode: 'http500' });
         const response = await handleAlbum(request(albumBody(baseAlbum)), {

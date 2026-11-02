@@ -5,6 +5,7 @@ export const MAX_CHUNK_BYTES = 200_000_000;
 export const MAX_RANGE_BYTES = 8 * 1024 * 1024;
 export const MAX_ALBUM_CONCURRENCY = 2;
 export const MAX_BYTES_CONCURRENCY = 4;
+export const BYTES_IDLE_TIMEOUT_MS = 30_000;
 export const UPSTREAM_TIMEOUT_MS = 12_000;
 export const MAX_ALBUM_ITEMS = 5_000;
 export const MAX_URL_LENGTH = 2_048;
