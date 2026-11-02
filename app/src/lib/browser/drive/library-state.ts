@@ -7,7 +7,6 @@ import type { GroupAccountState } from '@madkarmaa/phodrive-core/groups';
 import type { UploadedChunk } from '@madkarmaa/phodrive-core/files';
 import type { RemoteBmp } from '@madkarmaa/phodrive-core/models';
 import { nextRetryAt } from '#browser/drive/group-target';
-import { resetFolderHistory } from '#browser/drive/folder-history';
 
 export type LibraryState = {
     chunks: UploadedChunk[];
@@ -67,10 +66,7 @@ export function applyLibrarySync(
         state.chunks = applyLibraryDelta(state.chunks, email, update);
     }
 
-    if (state.folder && !hasFolder(state.folder)) {
-        state.folder = '';
-        resetFolderHistory();
-    }
+    if (state.folder && !hasFolder(state.folder)) state.folder = '';
 }
 
 export function applyLibrarySnapshot(
@@ -102,10 +98,7 @@ export function applyLibrarySnapshot(
     pageTokens.clear();
     if (snapshot.nextPageToken) pageTokens.add(snapshot.nextPageToken);
     state.revisions.set(email.toLowerCase(), snapshot.revision);
-    if (state.folder && !hasFolder(state.folder)) {
-        state.folder = '';
-        resetFolderHistory();
-    }
+    if (state.folder && !hasFolder(state.folder)) state.folder = '';
 }
 
 export function reportLoadFailure(
@@ -135,8 +128,5 @@ export function applyGroupSnapshot(
     for (const [email, revision] of Object.entries(snapshot.revisions)) {
         state.revisions.set(email.toLowerCase(), revision);
     }
-    if (state.folder && !hasFolder(state.folder)) {
-        state.folder = '';
-        resetFolderHistory();
-    }
+    if (state.folder && !hasFolder(state.folder)) state.folder = '';
 }

@@ -22,6 +22,9 @@ export class FolderNavigation {
     private startup = true;
     private traversing = false;
     private traversalTimer: ReturnType<typeof setTimeout> | undefined;
+    private hasMore = true;
+    private navigationVersion = 0;
+    private traversal: { target: string; version: number } | null = null;
 
     constructor(private readonly deps: FolderNavigationDeps) {
         this.pending = this.history.start();
@@ -46,6 +49,8 @@ export class FolderNavigation {
         }
 
         if (mode === 'ancestor' && this.history.navigate(path, current)) {
+            this.navigationVersion += 1;
+            this.traversal = { target: path, version: this.navigationVersion };
             this.traversing = true;
             clearTimeout(this.traversalTimer);
             this.traversalTimer = setTimeout(() => {
@@ -55,12 +60,15 @@ export class FolderNavigation {
             return;
         }
 
+        this.navigationVersion += 1;
         this.deps.setFolder(path);
         if (mode !== 'ancestor') this.history.open(path, current, mode);
     }
 
     reset(): void {
         this.deps.setFolder('');
+        this.navigationVersion += 1;
+        this.hasMore = true;
         this.stopTraversal();
         if (this.startup && this.initial) {
             this.startup = false;
@@ -75,6 +83,7 @@ export class FolderNavigation {
     }
 
     settle(hasMore: boolean): void {
+        this.hasMore = hasMore;
         if (!this.initial) {
             if (!this.deps.folder()) this.history.reset();
 
@@ -109,10 +118,21 @@ export class FolderNavigation {
     }
 
     private follow(folder: string): void {
+        const traversal = this.traversal;
+        this.traversal = null;
         this.stopTraversal();
+        if (
+            traversal &&
+            (traversal.version !== this.navigationVersion || folder !== traversal.target)
+        ) {
+            this.history.restore(this.deps.folder());
+
+            return;
+        }
+
         if (this.initial) {
             if (folder === this.pending) {
-                this.deps.setFolder(folder);
+                this.settle(this.hasMore);
 
                 return;
             }
@@ -121,9 +141,21 @@ export class FolderNavigation {
             this.pending = null;
         }
 
-        const valid = folder && folderExists(this.deps.files(), folder) ? folder : '';
+        if (folder && !folderExists(this.deps.files(), folder)) {
+            if (this.hasMore) {
+                this.initial = true;
+                this.pending = folder;
+                this.deps.setFolder(folder);
 
-        this.deps.setFolder(valid);
-        if (valid !== folder) this.history.restore('');
+                return;
+            }
+
+            this.deps.setFolder('');
+            this.history.restore('');
+
+            return;
+        }
+
+        this.deps.setFolder(folder);
     }
 }

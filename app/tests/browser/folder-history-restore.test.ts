@@ -73,6 +73,7 @@ test('a refresh does not discard a pending deep link', async () => {
     expect(library.folder).toBe('Later');
     expect(currentFolder()).toBe('Later');
 
+    library.revisions.clear();
     await library.refresh(true);
 
     expect(library.folder).toBe('Later');
@@ -105,10 +106,84 @@ test('a refresh with no more pages settles a missing deep link to root', async (
     expect(library.folder).toBe('Missing');
     expect(currentFolder()).toBe('Missing');
 
+    library.revisions.clear();
     await library.refresh(true);
 
     expect(library.folder).toBe('');
     expect(new URL(window.location.href).searchParams.has('folder')).toBe(false);
+});
+
+test('a popstate to a later-page folder stays pending until it loads', async () => {
+    window.history.replaceState(null, '', '/');
+    window.history.pushState(null, '', '/?folder=Later');
+    const library = makeLibrary([]);
+    vi.mocked(libraryApi.readLibraryPage).mockReset();
+    vi.mocked(libraryApi.readLibraryPage)
+        .mockReturnValueOnce(page(['A'], 'next-page'))
+        .mockReturnValueOnce(page(['Later'], '', 1));
+
+    library.reset();
+    await library.load();
+    expect(library.folder).toBe('Later');
+
+    await traverse('back');
+    expect(library.folder).toBe('');
+    expect(currentFolder()).toBe('');
+
+    await traverse('forward');
+    expect(library.folder).toBe('Later');
+    expect(currentFolder()).toBe('Later');
+
+    await library.load(false);
+    expect(library.folder).toBe('Later');
+    expect(currentFolder()).toBe('Later');
+});
+
+test('a popstate during the first load keeps the target pending', async () => {
+    window.history.replaceState(
+        { folder: 'Earlier', trail: ['Earlier'], generation: 0, index: 0 },
+        '',
+        '/?folder=Earlier'
+    );
+    window.history.pushState(
+        { folder: 'Later', trail: ['Earlier', 'Later'], generation: 0, index: 1 },
+        '',
+        '/?folder=Later'
+    );
+    const library = makeLibrary([]);
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+        release = resolve;
+    });
+    vi.mocked(libraryApi.readLibraryPage)
+        .mockReset()
+        .mockReturnValueOnce(
+            Ok(undefined).andThenAsync(async () => {
+                await gate;
+
+                return Ok({
+                    items: [remoteBmp('A', 0)],
+                    nextPageToken: 'next-page',
+                    revision: 1
+                });
+            })
+        )
+        .mockReturnValueOnce(page(['Earlier'], '', 1));
+
+    library.reset();
+    const loading = library.load();
+    await traverse('back');
+
+    expect(library.folder).toBe('Earlier');
+    expect(currentFolder()).toBe('Earlier');
+
+    release();
+    await loading;
+    expect(library.folder).toBe('Earlier');
+
+    await library.load(false);
+    expect(library.folder).toBe('Earlier');
+    expect(currentFolder()).toBe('Earlier');
 });
 
 test('a history move during the initial restore cancels the pending deep link', async () => {
@@ -158,6 +233,7 @@ test('a refresh that removes the open folder resets the URL', async () => {
         )
     );
 
+    library.revisions.clear();
     await library.refresh(true);
 
     expect(library.folder).toBe('');

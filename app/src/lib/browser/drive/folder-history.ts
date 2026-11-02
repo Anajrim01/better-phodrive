@@ -1,6 +1,18 @@
 const FOLDER_PARAM = 'folder';
 
-type FolderHistoryState = { folder?: unknown; trail?: unknown };
+type FolderHistoryState = {
+    folder?: unknown;
+    trail?: unknown;
+    generation?: unknown;
+    index?: unknown;
+};
+
+type ParsedFolderState = {
+    folder: string | null;
+    trail: string[];
+    generation: number;
+    index: number;
+};
 
 let cleanup: (() => void) | null = null;
 
@@ -10,15 +22,21 @@ function historyAvailable(): boolean {
     return typeof window !== 'undefined' && !!window.history && !!window.location;
 }
 
-function readState(state: unknown): { folder: string | null; trail: string[] } {
-    if (typeof state !== 'object' || state === null) return { folder: null, trail: [] };
+function readState(state: unknown): ParsedFolderState {
+    if (typeof state !== 'object' || state === null)
+        return { folder: null, trail: [], generation: 0, index: 0 };
 
-    const { folder, trail } = state as FolderHistoryState;
+    const { folder, trail, generation, index } = state as FolderHistoryState;
     const validTrail = Array.isArray(trail)
         ? trail.filter((item): item is string => typeof item === 'string')
         : [];
 
-    return { folder: typeof folder === 'string' ? folder : null, trail: validTrail };
+    return {
+        folder: typeof folder === 'string' ? folder : null,
+        trail: validTrail,
+        generation: typeof generation === 'number' ? generation : 0,
+        index: typeof index === 'number' ? index : 0
+    };
 }
 
 function folderUrl(folder: string): string {
@@ -36,13 +54,11 @@ export function folderFromUrl(url: string): string {
     return new URL(url).searchParams.get(FOLDER_PARAM) ?? '';
 }
 
-export function resetFolderHistory(): void {
-    if (!historyAvailable()) return;
-
-    window.history.replaceState({ folder: '', trail: [''] }, '', folderUrl(''));
-}
-
 export class FolderHistory {
+    private generation = 0;
+    private index = 0;
+    private current = '';
+
     constructor(private readonly onFolder: (folder: string) => void) {}
 
     start(): string {
@@ -52,21 +68,35 @@ export class FolderHistory {
         window.addEventListener('popstate', this.receive);
         cleanup = () => window.removeEventListener('popstate', this.receive);
 
-        return folderFromUrl(window.location.href);
+        const state = readState(window.history.state);
+        this.current = folderFromUrl(window.location.href);
+        this.generation = state.generation;
+        this.index = state.index;
+
+        return this.current;
     }
 
     restore(folder: string): void {
         if (!historyAvailable()) return;
 
-        this.replace(folder, this.trailFor(folder));
+        this.current = folder;
+        this.replace(folder, this.trailFor(folder), this.generation, this.index);
     }
 
     open(folder: string, current: string, mode: Exclude<FolderOpenMode, 'ancestor'>): void {
         if (!historyAvailable() || folder === current) return;
 
         const trail = this.trailFor(current);
-        if (mode === 'replace') this.replace(folder, [...trail.slice(0, -1), folder]);
-        else this.push(folder, [...trail, folder]);
+        this.current = folder;
+        if (mode === 'replace') {
+            this.generation += 1;
+            this.replace(folder, [...trail.slice(0, -1), folder], this.generation, this.index);
+
+            return;
+        }
+
+        this.index += 1;
+        this.push(folder, [...trail, folder], this.generation, this.index);
     }
 
     navigate(folder: string, current: string): boolean {
@@ -80,13 +110,19 @@ export class FolderHistory {
             return true;
         }
 
-        this.replace(folder, [...trail.slice(0, -1), folder]);
+        this.current = folder;
+        this.generation += 1;
+        this.replace(folder, [...trail.slice(0, -1), folder], this.generation, this.index);
 
         return false;
     }
 
     reset(): void {
-        resetFolderHistory();
+        if (!historyAvailable()) return;
+
+        this.current = '';
+        this.generation += 1;
+        this.replace('', [''], this.generation, this.index);
     }
 
     private trailFor(folder: string): string[] {
@@ -96,16 +132,28 @@ export class FolderHistory {
         return [folder];
     }
 
-    private push(folder: string, trail: string[]): void {
-        window.history.pushState({ folder, trail }, '', folderUrl(folder));
+    private push(folder: string, trail: string[], generation: number, index: number): void {
+        window.history.pushState({ folder, trail, generation, index }, '', folderUrl(folder));
     }
 
-    private replace(folder: string, trail: string[]): void {
-        window.history.replaceState({ folder, trail }, '', folderUrl(folder));
+    private replace(folder: string, trail: string[], generation: number, index: number): void {
+        window.history.replaceState({ folder, trail, generation, index }, '', folderUrl(folder));
     }
 
     private readonly receive = (event: PopStateEvent): void => {
         const state = readState(event.state);
-        this.onFolder(state.folder ?? folderFromUrl(window.location.href));
+        const folder = state.folder ?? folderFromUrl(window.location.href);
+        if (state.index > this.index && state.generation < this.generation) {
+            const trail =
+                this.current && this.current !== folder ? [this.current, folder] : [folder];
+            this.generation += 1;
+            this.replace(folder, trail, this.generation, state.index);
+        } else {
+            this.generation = Math.max(this.generation, state.generation);
+        }
+
+        this.index = state.index;
+        this.current = folder;
+        this.onFolder(folder);
     };
 }
