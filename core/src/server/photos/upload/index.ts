@@ -6,6 +6,7 @@ import { authenticatedHeaders, type PhotosHeaders } from '../auth';
 import { photosFetch, type Fetcher } from '../../fetcher';
 import { bodyBytes } from '../../protobuf';
 import { hashLookup } from './lookup';
+import { lookupHash } from './lookup-queue';
 import { commitBmp, startUpload, transferBmp } from './transfer';
 import type { UploadBmpSource } from '../../upload/bmp';
 
@@ -35,7 +36,7 @@ function uploadAuthenticatedBmp(
     const sha1 = createHash('sha1').update(bmp).digest();
     const sha1Hex = sha1.toString('hex');
 
-    return hashLookup(email, sha1, rpcHeaders, fetcher).andThenAsync<UploadResponse, ServerError>(
+    return lookupHash(email, sha1, rpcHeaders, fetcher).andThenAsync<UploadResponse, ServerError>(
         async (foundKey) => {
             if (foundKey)
                 return Ok<UploadResponse>({
@@ -106,7 +107,7 @@ function uploadAuthenticatedStream(
 ): AsyncResult<UploadResponse, ServerError> {
     const sha1 = Buffer.from(source.sha1, 'hex');
 
-    return hashLookup(email, sha1, rpcHeaders, fetcher).andThenAsync<UploadResponse, ServerError>(
+    return lookupHash(email, sha1, rpcHeaders, fetcher).andThenAsync<UploadResponse, ServerError>(
         async (existing) => {
             if (existing) {
                 return source.drain().map(() => ({

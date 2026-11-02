@@ -10,7 +10,13 @@ import { encodeSplitBmp } from '@madkarmaa/phodrive-core/server/bmp';
 import { decodeSplitBmp } from './bmp';
 import { encodeSplitPrefix, MAX_CHUNK_PAYLOAD_BYTES } from '@madkarmaa/phodrive-core/bmp/format';
 import { fileIdentity } from '@madkarmaa/phodrive-core/server/chunks';
-import { bytesField, message, nested, numberField } from '@madkarmaa/phodrive-core/server/protobuf';
+import {
+    bytesField,
+    message,
+    nested,
+    numberField,
+    parse
+} from '@madkarmaa/phodrive-core/server/protobuf';
 import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
 
 export function uploadForm(
@@ -142,12 +148,24 @@ export function photosUploadHarness(options: { duplicate?: boolean; failCommit?:
         if (url.includes('android.googleapis.com/auth'))
             return new Response(`Auth=bearer\nExpiry=${Date.now() / 1000 + 3600}`);
         if (url.includes('5084965799730810217')) {
-            const data = await new Response(init?.body).arrayBuffer();
-            const sha1 = nested(Buffer.from(data), 1, 1, 1).unwrap();
-            const fields = [bytesField(1, bytesField(1, sha1))];
-            if (options.duplicate || stored.has(sha1.toString('hex')))
-                fields.push(bytesField(2, bytesField(1, 'existing-key')));
-            return new Response(Uint8Array.from(bytesField(1, bytesField(2, message(...fields)))));
+            const data = Buffer.from(await new Response(init?.body).arrayBuffer());
+            const cmqr = nested(data, 1).unwrap();
+            const hashes = parse(cmqr)
+                .unwrap()
+                .flatMap((field) => {
+                    if (field.number !== 1 || typeof field.value === 'number') return [];
+
+                    return [nested(field.value, 1).unwrap()];
+                });
+            const entries = hashes.map((sha1) => {
+                const fields = [bytesField(1, bytesField(1, sha1))];
+                if (options.duplicate || stored.has(sha1.toString('hex')))
+                    fields.push(bytesField(2, bytesField(1, 'existing-key')));
+
+                return bytesField(2, message(...fields));
+            });
+
+            return new Response(Uint8Array.from(bytesField(1, message(...entries))));
         }
         if (init?.method === 'PUT') {
             counts.transfers++;
