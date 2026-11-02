@@ -1,0 +1,104 @@
+import { isThrottleError, type ServerError, type ThrottleMode } from './errors';
+import type { BulkDeleteAction, BulkDeleteFile, BulkDeleteRequest } from '../bulk-delete';
+import { FileActionKind } from '../models';
+import pLimit from 'p-limit';
+import { Ok, type AsyncResult } from 'results-ts';
+import { deletePermanently, moveToTrash, moveToTrashBatch, restoreFromTrash } from './photos/index';
+import {
+    applyState,
+    emitCompletedFiles,
+    recordChunk,
+    recordFailure,
+    type BulkDeleteFileResult,
+    type BulkFileState,
+    type ChunkEntry
+} from './files-bulk-batch';
+import { photosFetch, type Fetcher } from './fetcher';
+import { limitWorkers } from './workers';
+
+export type ThrottleFailure = Extract<ServerError, { code: 'THROTTLED' }>;
+
+export function canFallBack(error: ServerError): boolean {
+    return error.code === 'REQUEST_FAILED' && (error.status === 400 || error.status === 413);
+}
+
+function applyBatch(
+    input: BulkDeleteRequest,
+    action: BulkDeleteAction,
+    sha1s: readonly string[],
+    fetcher: Fetcher
+): AsyncResult<void, ServerError> {
+    if (action === FileActionKind.Delete)
+        return moveToTrashBatch(input.email, input.token, sha1s, fetcher);
+
+    if (action === FileActionKind.DeleteForever)
+        return deletePermanently(input.email, input.token, sha1s, fetcher);
+
+    return restoreFromTrash(input.email, input.token, sha1s, fetcher);
+}
+
+function applySingle(
+    input: BulkDeleteRequest,
+    action: BulkDeleteAction,
+    sha1: string,
+    fetcher: Fetcher
+): AsyncResult<void, ServerError> {
+    if (action === FileActionKind.Delete)
+        return moveToTrash(input.email, input.token, sha1, fetcher);
+
+    if (action === FileActionKind.DeleteForever)
+        return deletePermanently(input.email, input.token, [sha1], fetcher);
+
+    return restoreFromTrash(input.email, input.token, [sha1], fetcher);
+}
+
+export function applyBatchAction(
+    input: BulkDeleteRequest,
+    action: BulkDeleteAction,
+    sha1s: readonly string[],
+    fetcher: Fetcher = photosFetch
+): AsyncResult<void, ServerError> {
+    return applyBatch(input, action, sha1s, fetcher);
+}
+
+export async function fallbackEach(
+    input: BulkDeleteRequest,
+    action: BulkDeleteAction,
+    files: readonly BulkDeleteFile[],
+    states: BulkFileState[],
+    batch: readonly ChunkEntry[],
+    fetcher: Fetcher,
+    onFile: (result: BulkDeleteFileResult) => void,
+    mode: ThrottleMode
+): Promise<ThrottleFailure | null> {
+    const limit = pLimit(limitWorkers(input.workers));
+    let stopped: ThrottleFailure | null = null;
+
+    await limit.map(batch, async ({ fileIndex, chunk }) => {
+        const state = states[fileIndex];
+        if (stopped) {
+            recordFailure(state, stopped);
+            emitCompletedFiles(files, states, onFile, action, mode);
+
+            return;
+        }
+
+        const applied = await applySingle(input, action, chunk.sha1, fetcher);
+        const now = Date.now();
+        const failure = applied.match<ServerError | null>({
+            Ok: () => null,
+            Err: (error) => error
+        });
+        if (failure) {
+            if (isThrottleError(failure)) stopped = failure;
+            recordFailure(state, failure);
+        } else {
+            applyState(input, action, [chunk], now);
+            recordChunk(state, chunk, action, now);
+        }
+
+        emitCompletedFiles(files, states, onFile, action, mode);
+    });
+
+    return stopped;
+}

@@ -1,8 +1,11 @@
 import { createHash } from 'node:crypto';
+import { FileActionKind } from '@madkarmaa/phodrive-core/models';
 import { writeAccountState } from '@madkarmaa/phodrive-core/server/photos/library/state';
 import type { BulkDeleteFile, BulkDeleteRequest } from '@madkarmaa/phodrive-core/bulk-delete';
 
 export const EMAIL = 'test@example.com';
+
+export type TestFile = BulkDeleteFile & { trashed: boolean };
 
 export function chunk(name: string, index: number) {
     return {
@@ -11,14 +14,15 @@ export function chunk(name: string, index: number) {
     };
 }
 
-export function file(name: string, count: number): BulkDeleteFile {
+export function file(name: string, count: number, trashed = false): TestFile {
     const hash = createHash('sha256').update(name).digest('hex');
 
     return {
         name,
         fileHash: hash,
         fileId: hash,
-        chunks: Array.from({ length: count }, (_, index) => chunk(name, index))
+        chunks: Array.from({ length: count }, (_, index) => chunk(name, index)),
+        trashed
     };
 }
 
@@ -31,7 +35,7 @@ function requestFile(item: BulkDeleteFile): BulkDeleteRequest['files'][number] {
     ];
 }
 
-export function saveState(files: BulkDeleteFile[]): void {
+export function saveState(files: readonly BulkDeleteFile[]): void {
     const items = files.flatMap((item) =>
         item.chunks.map((entry, index) => ({
             ...entry,
@@ -40,7 +44,8 @@ export function saveState(files: BulkDeleteFile[]): void {
             chunkIndex: index,
             isLast: index === item.chunks.length - 1,
             size: 1,
-            at: 1
+            at: 1,
+            ...('trashed' in item && item.trashed ? { trashedAt: 1 } : {})
         }))
     );
     writeAccountState(EMAIL, {
@@ -51,17 +56,26 @@ export function saveState(files: BulkDeleteFile[]): void {
     });
 }
 
-export function request(files: BulkDeleteFile[], workers = 2): BulkDeleteRequest {
+export function request(
+    files: readonly BulkDeleteFile[],
+    workers = 2,
+    action: BulkDeleteRequest['action'] = FileActionKind.Delete
+): BulkDeleteRequest {
     return {
         email: EMAIL,
         token: 'aas_et/test',
+        action,
         workers,
         files: files.map(requestFile)
     };
 }
 
-export function input(files: BulkDeleteFile[], workers = 2): BulkDeleteRequest {
+export function input(
+    files: readonly BulkDeleteFile[],
+    workers = 2,
+    action: BulkDeleteRequest['action'] = FileActionKind.Delete
+): BulkDeleteRequest {
     saveState(files);
 
-    return request(files, workers);
+    return request(files, workers, action);
 }

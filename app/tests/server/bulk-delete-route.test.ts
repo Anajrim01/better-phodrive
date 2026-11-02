@@ -10,6 +10,7 @@ import {
     refreshAccountIndex
 } from '@madkarmaa/phodrive-core/server/photos/library/ensure';
 import type { BulkDeleteRequest } from '@madkarmaa/phodrive-core/bulk-delete';
+import { FileActionKind } from '@madkarmaa/phodrive-core/models';
 import {
     clearLibraryState,
     configureLibraryState,
@@ -49,10 +50,14 @@ afterEach(async () => {
     await rm(folder, { recursive: true, force: true });
 });
 
-function payload(files = 1): BulkDeleteRequest {
+function payload(
+    files = 1,
+    action: BulkDeleteRequest['action'] = FileActionKind.Delete
+): BulkDeleteRequest {
     return {
         email: EMAIL,
         token: 'aas_et/test',
+        action,
         workers: 2,
         files: Array.from({ length: files }, (_, index) => {
             const name = `file-${index}.bin`;
@@ -68,7 +73,7 @@ function payload(files = 1): BulkDeleteRequest {
     };
 }
 
-function save(body: BulkDeleteRequest, limit?: number): void {
+function save(body: BulkDeleteRequest, limit?: number, trashed = false): void {
     const items = body.files.flatMap(([, fileHash, fileId, chunks]) =>
         chunks.slice(0, limit).map(([mediaKey, sha1]) => ({
             fileHash,
@@ -78,7 +83,8 @@ function save(body: BulkDeleteRequest, limit?: number): void {
             size: 1,
             at: 1,
             mediaKey,
-            sha1
+            sha1,
+            ...(trashed ? { trashedAt: 1 } : {})
         }))
     );
     writeAccountState(EMAIL, {
@@ -126,12 +132,14 @@ test('bulk delete streams one event per file and a done marker', async () => {
             type: 'file',
             index: 0,
             name: 'file-0.bin',
+            action: FileActionKind.Delete,
             deleted: [{ mediaKey: 'media-0', sha1: SHA1, trashedAt: expect.any(Number) }]
         },
         {
             type: 'file',
             index: 1,
             name: 'file-1.bin',
+            action: FileActionKind.Delete,
             deleted: [{ mediaKey: 'media-1', sha1: SHA1, trashedAt: expect.any(Number) }]
         },
         { type: 'done' }
@@ -158,6 +166,7 @@ test('a failed provider batch still streams a per-file error', async () => {
     expect(events[0]).toMatchObject({
         type: 'file',
         name: 'file-0.bin',
+        action: FileActionKind.Delete,
         deleted: [],
         error: 'Delete failed'
     });

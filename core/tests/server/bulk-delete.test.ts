@@ -86,7 +86,11 @@ test('a failed batch falls back to per-key requests for later files', async () =
         .mockImplementationOnce(() => Ok(undefined).andThenAsync(async () => Ok(undefined)))
         .mockImplementationOnce(() =>
             Ok(undefined).andThenAsync(async () =>
-                Err({ code: 'REQUEST_FAILED', message: 'Delete failed' } as const)
+                Err({
+                    code: 'REQUEST_FAILED',
+                    message: 'Delete failed',
+                    status: 400
+                } as const)
             )
         );
 
