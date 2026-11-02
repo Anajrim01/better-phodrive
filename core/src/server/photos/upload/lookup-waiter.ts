@@ -71,13 +71,19 @@ export async function lookupWaiterOrAbort(
     if (!signal) return hashLookup(email, waiter.sha1, waiter.rpcHeaders, waiter.fetcher);
     if (signal.aborted) return null;
 
+    const abort = new AbortController();
+    const requestFetcher: Fetcher = (url, init) =>
+        waiter.fetcher(url, { ...init, signal: abort.signal });
     let onAbort: (() => void) | undefined;
     const aborted = new Promise<null>((resolve) => {
-        onAbort = () => resolve(null);
+        onAbort = () => {
+            abort.abort();
+            resolve(null);
+        };
         signal.addEventListener('abort', onAbort, { once: true });
     });
     const request = Promise.resolve(
-        hashLookup(email, waiter.sha1, waiter.rpcHeaders, waiter.fetcher)
+        hashLookup(email, waiter.sha1, waiter.rpcHeaders, requestFetcher)
     );
     void request.catch(() => undefined);
 

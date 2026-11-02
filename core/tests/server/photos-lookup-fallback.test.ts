@@ -46,11 +46,12 @@ test('a held fallback does not block a completed fallback', async () => {
     expect(fastResult).toBe(`key-${fastHash.toString('hex')}`);
 });
 
-test('an aborted fallback waiter does not block a duplicate', async () => {
+test('an aborted fallback request is canceled and does not block a duplicate', async () => {
     const hash = sha1('aborted-fallback-duplicate');
     const abort = new AbortController();
     let requests = 0;
     let singleRequests = 0;
+    let fallbackSignal: AbortSignal | undefined;
     let heldStarted!: () => void;
     const heldStart = new Promise<void>((resolve) => {
         heldStarted = resolve;
@@ -66,6 +67,7 @@ test('an aborted fallback waiter does not block a duplicate', async () => {
 
         singleRequests++;
         if (singleRequests === 1) {
+            fallbackSignal = init?.signal ?? undefined;
             heldStarted();
             await held;
         }
@@ -75,17 +77,20 @@ test('an aborted fallback waiter does not block a duplicate', async () => {
 
     const first = lookupHash(EMAIL, hash, {}, fetcher, abort.signal);
     const second = lookupHash(EMAIL, hash, {}, fetcher);
+    const firstDone = first.then((result) => result);
+    const secondDone = second.then((result) => result);
     await heldStart;
     abort.abort();
     const secondResult = await Promise.race([
-        second.then((result) => result.unwrap()),
+        secondDone.then((result) => result.unwrap()),
         new Promise<string>((resolve) => setTimeout(() => resolve('pending'), 100))
     ]);
     release();
-    const firstResult = await first;
+    const firstResult = await firstDone;
 
     expect(secondResult).toBe('key');
     expect(firstResult.unwrapErr()).toMatchObject({ code: 'REQUEST_FAILED' });
+    expect(fallbackSignal?.aborted).toBe(true);
 });
 
 test('a server failure propagates without fallback requests', async () => {
