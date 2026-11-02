@@ -123,7 +123,8 @@ export class FolderNavigation {
         this.stopTraversal();
         if (
             traversal &&
-            (traversal.version !== this.navigationVersion || folder !== traversal.target)
+            traversal.version !== this.navigationVersion &&
+            folder === traversal.target
         ) {
             this.history.restore(this.deps.folder());
 

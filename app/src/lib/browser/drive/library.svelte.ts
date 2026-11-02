@@ -168,7 +168,7 @@ export class DriveLibrary {
         if (this.actionsDisabled() || (!reset && this.loading)) return;
 
         const request = ++this.libraryRequest;
-        await loadGroupLibrary(
+        const applied = await loadGroupLibrary(
             this,
             group,
             reset,
@@ -180,7 +180,7 @@ export class DriveLibrary {
         );
         if (request !== this.libraryRequest) return;
 
-        this.navigation.settle(false);
+        if (applied) this.navigation.settle(false);
         this.loading = false;
     }
 
@@ -194,7 +194,7 @@ export class DriveLibrary {
             this.loading = true;
             this.feedback('');
 
-            await refreshGroupLibrary(
+            const applied = await refreshGroupLibrary(
                 this,
                 group,
                 this.onAccounts,
@@ -204,7 +204,7 @@ export class DriveLibrary {
             );
             if (request !== this.libraryRequest) return;
 
-            this.navigation.settle(false);
+            if (applied) this.navigation.settle(false);
             this.loading = false;
 
             return;
@@ -221,7 +221,7 @@ export class DriveLibrary {
 
         if (manual) {
             const cursor = this.revisions.get(email.toLowerCase()) ?? 0;
-            await refreshLibrary(
+            const applied = await refreshLibrary(
                 this,
                 email,
                 token,
@@ -233,7 +233,7 @@ export class DriveLibrary {
             );
             if (request !== this.libraryRequest || email !== this.account().email) return;
 
-            this.navigation.settle(!!this.nextPageToken);
+            if (applied) this.navigation.settle(!!this.nextPageToken);
             this.loading = false;
 
             return;

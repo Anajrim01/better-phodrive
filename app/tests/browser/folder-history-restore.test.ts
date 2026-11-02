@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import { beforeEach, expect, test, vi } from 'vitest';
-import { Ok } from 'results-ts';
+import { Err, Ok } from 'results-ts';
 import * as libraryApi from '@madkarmaa/phodrive-core/browser/library';
 import {
     currentFolder,
+    makeGroupLibrary,
     makeLibrary,
     page,
     remoteBmp,
@@ -19,7 +20,9 @@ vi.mock('@madkarmaa/phodrive-core/browser/library', async (importOriginal) => {
         ...actual,
         readLibraryPage: vi.fn(),
         readLibrarySnapshot: vi.fn(),
-        readLibrarySync: vi.fn()
+        readLibrarySync: vi.fn(),
+        readGroupLibrary: vi.fn(),
+        readGroupLibraryUpdates: vi.fn()
     };
 });
 
@@ -210,6 +213,37 @@ test('a history move during the initial restore cancels the pending deep link', 
 
     expect(library.folder).toBe('');
     expect(new URL(window.location.href).searchParams.has('folder')).toBe(false);
+});
+
+test('a failed group load keeps a pending deep link', async () => {
+    window.history.replaceState(null, '', '/?folder=Later');
+    const library = makeGroupLibrary();
+    vi.mocked(libraryApi.readGroupLibrary).mockReturnValue(
+        Ok(undefined).andThenAsync(async () =>
+            Err({ code: 'REQUEST_FAILED', message: 'Group load failed' })
+        )
+    );
+
+    library.reset();
+    await library.load();
+
+    expect(library.folder).toBe('');
+    expect(currentFolder()).toBe('Later');
+
+    vi.mocked(libraryApi.readGroupLibrary).mockReturnValue(
+        Ok(undefined).andThenAsync(async () =>
+            Ok({
+                chunks: [{ ...remoteBmp('Later', 0), email: 'test@example.com' }],
+                accounts: [{ email: 'test@example.com', status: 'ok' as const }],
+                partial: false,
+                revisions: {}
+            })
+        )
+    );
+    await library.load();
+
+    expect(library.folder).toBe('Later');
+    expect(currentFolder()).toBe('Later');
 });
 
 test('a later reset before the first load clears the pending deep link', async () => {

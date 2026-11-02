@@ -20,7 +20,9 @@ vi.mock('@madkarmaa/phodrive-core/browser/library', async (importOriginal) => {
         ...actual,
         readLibraryPage: vi.fn(),
         readLibrarySnapshot: vi.fn(),
-        readLibrarySync: vi.fn()
+        readLibrarySync: vi.fn(),
+        readGroupLibrary: vi.fn(),
+        readGroupLibraryUpdates: vi.fn()
     };
 });
 
@@ -154,6 +156,28 @@ test('a forward entry with a stale trail cannot drive an ancestor traversal', as
     await traverse('back');
     expect(library.folder).toBe('C');
     expect(currentFolder()).toBe('C');
+});
+
+test('a timed-out traversal does not swallow an unrelated history move', async () => {
+    const library = makeLibrary(['A', 'A/B']);
+    await library.load();
+    library.openFolder('A');
+    library.openFolder('A/B');
+    const go = vi.spyOn(window.history, 'go').mockImplementation(() => {});
+    vi.useFakeTimers();
+    try {
+        library.openFolder('', 'ancestor');
+        vi.advanceTimersByTime(1_000);
+        vi.useRealTimers();
+        go.mockRestore();
+        await traverse('back');
+
+        expect(library.folder).toBe('A');
+        expect(currentFolder()).toBe('A');
+    } finally {
+        vi.useRealTimers();
+        go.mockRestore();
+    }
 });
 
 test('a delayed traversal does not override a newer folder open', async () => {

@@ -42,10 +42,25 @@ export function makeLibrary(folders: string[]): DriveLibrary {
     );
 }
 
+export function makeGroupLibrary(): DriveLibrary {
+    return new DriveLibrary(
+        () => ({ email: 'test@example.com', token: 'aas_et/test' }),
+        () => false,
+        () => FileSort.NameAscending,
+        () => {},
+        () => ({
+            members: [{ email: 'test@example.com', token: 'aas_et/test' }],
+            missing: []
+        })
+    );
+}
+
 export function resetLibraryMocks(): void {
     vi.mocked(libraryApi.readLibraryPage).mockReset();
     vi.mocked(libraryApi.readLibrarySnapshot).mockReset();
     vi.mocked(libraryApi.readLibrarySync).mockReset();
+    vi.mocked(libraryApi.readGroupLibrary).mockReset();
+    vi.mocked(libraryApi.readGroupLibraryUpdates).mockReset();
 }
 
 export function waitForPopState(): Promise<void> {
