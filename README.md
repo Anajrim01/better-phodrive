@@ -133,7 +133,7 @@ The navigation sidebar totals My files: the original size of the loaded chunks, 
 
 ## File and folder actions
 
-Right-click a file or folder, press the context-menu key, or choose **More** to open its actions. File rows and cards keep their quick **Download** and **Delete** buttons, and Trash keeps **Restore** and **Delete forever**. On screens narrower than 800px, rows and cards show only **More**, and its menu carries the same actions. The menu adds **Rename**, **Move**, **Details**, and the folder actions **Move folder**, **Move contents to My files**, and **Delete folder and files**.
+Right-click a file or folder, press the context-menu key, or choose **More** to open its actions. File rows keep their quick **Download** and **Delete** buttons on wide lists and show only **More** when the list is narrow. Cards keep those buttons when the card is wide enough. Trash shows **Restore** and **Delete forever** on wide screens and only **More** on narrow ones; its menu carries the same actions. The menu adds **Preview**, **Rename**, **Move**, **Details**, and the folder actions **Move folder**, **Move contents to My files**, and **Delete folder and files**.
 
 ![The file actions menu](./docs/screenshots/context-menu.png)
 
@@ -143,9 +143,9 @@ Renames and moves are Phodrive listing metadata only. They are saved by the serv
 
 ## Selecting several files
 
-Each file row and card has a checkbox. The list header selects every visible file, and its checkbox turns indeterminate when only some visible files are selected. In the list, Shift-click extends the range from the last file you toggled, Ctrl-click or Cmd-click toggles one row, Space toggles the focused row, Ctrl+A or Cmd+A selects every visible file, and Escape clears the selection. Cards select through their checkbox. Dragging on empty space in the list or grid draws a selection box over the files it touches. Ctrl-drag or Cmd-drag adds to the current selection; Escape cancels the drag. This uses mouse or pen only. Selection clears when you switch accounts, change folder, change view, search, or change a filter. Changing the sort order keeps it.
+Each file row and card has a checkbox that appears when you hover or focus it, and stays visible on touch screens. Click a row or card to select it. Ctrl-click or Cmd-click toggles one row, Shift-click extends the range from the last file you toggled, Space toggles the focused row, Ctrl+A or Cmd+A selects every visible file, and Escape clears the selection. Clicking empty space clears it too.
 
-Selecting files opens a bar with the count and the actions for the current view. My files offers Download, Move, Delete, and Details. Trash offers Restore, Delete forever, and Details. Clear removes the selection. There is no bulk rename because several files have no single sensible name. The bar stays above the mobile upload button, and the page adds space so it does not cover the last row.
+Selecting files opens a bar with the count and the actions for the current view. My files offers Download, Move, Delete, and Details. Trash offers Restore, Delete forever, and Details. Clear removes the selection. Bulk rename is not offered because several files cannot share one name. The bar stays above the mobile upload button, and the page adds space so it does not cover the last row.
 
 ![Two selected files with the bulk action bar](./docs/screenshots/selection-desktop.png)
 
@@ -153,7 +153,15 @@ The same actions open from the context menu when several files are selected.
 
 ![The bulk file actions menu](./docs/screenshots/selection-menu.png)
 
-Download saves one file at a time through the same path as a single download. Browsers may ask you to allow multiple downloads. Delete asks once and moves every selected file to Google Photos trash, where you can restore them. Move asks for one destination, and with a group selected it offers only folders that every owner has. Phodrive changes each file on the account that owns it. Files that succeed leave the selection, failed files stay selected, and the message names each failing owner and file.
+Download saves one file at a time, as a single download does. Browsers may ask you to allow multiple downloads. Delete asks once and moves every selected file to Google Photos trash, where you can restore them. Move asks for one destination, and with a group selected it offers only folders that every owner has. Phodrive changes each file on the account that owns it. Files that succeed leave the selection, failed files stay selected, and the message names each failing owner and file.
+
+Drag a file or card onto a folder tile or a breadcrumb to move it. Hold Alt and drag over the list or grid to draw a selection box instead. Ctrl-drag or Cmd-drag adds to the current selection, and Escape cancels the drag.
+
+## Previewing files
+
+Double-click a file or card to preview it. Images open when the file is one chunk, in a supported format, and within the size limit. Text files show their start, and the preview says when it stops early. Other files explain why they cannot be previewed. Download and Details stay available in the preview.
+
+![An image preview](./docs/screenshots/preview.png)
 
 ## Trash and incomplete files
 

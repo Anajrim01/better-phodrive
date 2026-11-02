@@ -50,7 +50,7 @@ test('an active upload appends a measured estimate or names the uncertainty', ()
     );
 
     expect(withEstimate).toBe('Uploading 50%, about 1 min 20 s left');
-    expect(withoutEstimate).toBe('Uploading 50%, estimating...');
+    expect(withoutEstimate).toBe('Uploading 50%, no estimate yet');
 });
 
 test('a sub-second estimate never reads as zero seconds left', () => {
@@ -103,7 +103,7 @@ test('a silent upload expires its estimate instead of keeping a stale number', (
     expect(uploadRate(running, now)).toBe(100);
     expect(uploadJobDetail(running, now)).toBe('Uploading 50%, about 8 s left');
     expect(uploadRate(running, now + ETA_STALE_MS + 1)).toBe(0);
-    expect(uploadJobDetail(running, now + ETA_STALE_MS + 1)).toBe('Uploading 50%, estimating...');
+    expect(uploadJobDetail(running, now + ETA_STALE_MS + 1)).toBe('Uploading 50%, no estimate yet');
 });
 
 test('completed and deduplicated uploads keep their existing wording', () => {

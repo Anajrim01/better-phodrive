@@ -21,8 +21,8 @@
     const valid = $derived(FileNameSchema.safeParse(name).success);
     const note = $derived(
         target?.kind === 'folder'
-            ? 'This renames the folder in Phodrive only. Google Photos files are not renamed.'
-            : 'This renames the file in Phodrive only. The file in Google Photos is unchanged.'
+            ? 'Only the Phodrive folder name changes. The Google Photos album keeps its name.'
+            : 'Only the Phodrive file name changes. The file in Google Photos keeps its name.'
     );
 
     $effect(() => {

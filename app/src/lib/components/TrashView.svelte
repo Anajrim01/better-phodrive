@@ -75,7 +75,7 @@
         </h1>
     </div>
     <p class="m-0 mb-6 max-w-2xl text-sm text-muted">
-        Files here are in Google Photos trash. Restore them or delete them forever.
+        Google Photos deletes trashed files after 30 days. Restore them or delete them forever.
     </p>
 
     {#if groupName}
@@ -115,9 +115,9 @@
                 {#if loading}
                     <LoadingIndicator aria-label="Loading trash" />
                 {:else if loadFailed}
-                    <p>Use Refresh to load your files again</p>
+                    <p>Use Refresh to load your trash again</p>
                 {:else if more}
-                    <p role="status">No trashed files in the loaded pages.</p>
+                    <p role="status">No trashed files in the loaded pages</p>
                 {:else}
                     <p role="status">Trash is empty</p>
                 {/if}

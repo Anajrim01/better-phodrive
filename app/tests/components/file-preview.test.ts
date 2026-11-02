@@ -26,7 +26,7 @@ test('an unsupported file shows the fallback without fetching', async () => {
 
     await screen.findByText('Preview not available');
     expect(
-        screen.getByText('This file type cannot be previewed here. Download it to view it.')
+        screen.getByText('This file type cannot be previewed. Download it to view the full file.')
     ).toBeTruthy();
     expect(previewApi.fetchFilePreview).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'Download' })).toBeTruthy();

@@ -84,6 +84,13 @@ body {
     }
 }
 
+/* Noph animates focus outlines from 3px to 6px; keep one steady 2px accent ring. */
+:root :is(.np-item, .np-button, .np-icon-button, .np-navigation-drawer-item):focus-visible {
+    outline-color: var(--app-primary) !important;
+    outline-width: 2px !important;
+    animation: none !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
     *,
     *::before,

@@ -43,14 +43,14 @@
             ? `Sign out of ${target.email} on this browser? Files in Google Photos will stay online.`
             : selection
               ? permanent
-                  ? `This deletes ${selectedCount} ${selectedNoun} forever. This cannot be undone.`
+                  ? `This deletes ${selectedCount} ${selectedNoun} forever. You cannot undo this.`
                   : `This moves ${selectedCount} ${selectedNoun} to Google Photos trash. You can restore ${
                         selectedCount === 1 ? 'it' : 'them'
-                    } from Trash.${incompleteCount > 0 ? ` ${incompleteCount} incomplete ${incompleteCount === 1 ? 'file moves' : 'files move'} only the remaining chunks.` : ''}`
+                    } from Trash.${incompleteCount > 0 ? ` For ${incompleteCount} incomplete ${incompleteCount === 1 ? 'file' : 'files'}, only the remaining chunks move.` : ''}`
               : file === null
                 ? ''
                 : permanent
-                  ? `This deletes ${file.name}. This cannot be undone.`
+                  ? `This deletes ${file.name} forever. You cannot undo this.`
                   : deletingRemaining
                     ? `This moves the remaining chunks of ${file.name} to Google Photos trash. You can restore the chunks that are still there from Trash.`
                     : `This moves ${file.name} to Google Photos trash. You can restore it from Trash.`

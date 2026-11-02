@@ -64,7 +64,7 @@ afterEach(() => cleanup());
 test('the floating bar names the count and offers the main list bulk actions', () => {
     render(SelectionBar, { props: props() });
 
-    expect(screen.getByRole('toolbar', { name: 'Selected files' })).toBeTruthy();
+    expect(screen.getByRole('toolbar', { name: 'Selection actions' })).toBeTruthy();
     expect(screen.getByText('3 selected')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Download selected files' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Move selected files' })).toBeTruthy();

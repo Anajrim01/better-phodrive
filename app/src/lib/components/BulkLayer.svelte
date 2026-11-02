@@ -13,7 +13,7 @@
     const noun = $derived(count === 1 ? 'file' : 'files');
     const headline = $derived(`Move ${count} ${noun}`);
     const note = $derived(
-        `This moves ${count} ${noun} in Phodrive only. Google Photos albums are unchanged.`
+        `Only the Phodrive listing moves. The Google Photos albums are unchanged.`
     );
 </script>
 

@@ -34,7 +34,11 @@
             class="text-xs tabular-nums"
             class:text-error={job.status === UploadJobStatus.Error}
             class:text-muted={job.status !== UploadJobStatus.Error}
-            role={job.status === UploadJobStatus.Error ? 'alert' : 'status'}
+            role={job.status === UploadJobStatus.Error
+                ? 'alert'
+                : job.status === UploadJobStatus.Complete
+                  ? 'status'
+                  : undefined}
         >
             {detail}
         </p>

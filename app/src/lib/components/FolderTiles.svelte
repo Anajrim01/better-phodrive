@@ -56,7 +56,7 @@
         <h2 id="folder-tiles-heading" class="folder-tiles-heading">Folders</h2>
 
         <ul
-            class="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(min(100%,220px),1fr))] gap-4 p-0"
+            class="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(min(100%,220px),1fr))] gap-4 p-0 max-[800px]:grid-cols-2 max-[800px]:gap-3"
         >
             {#each folders as folder (folder.path)}
                 <li
@@ -97,7 +97,7 @@
                     </button>
                     <span class="folder-more">
                         <MoreButton
-                            label={`folder ${folder.name}`}
+                            label={folder.name}
                             {disabled}
                             onopen={(element) => onmenu(folder, element)}
                         />

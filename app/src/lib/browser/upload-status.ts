@@ -62,7 +62,7 @@ export function uploadJobDetail(job: UploadJob, now = Date.now()): string {
 
     const eta =
         job.etaSeconds === null || !etaIsFresh(job, now)
-            ? ', estimating...'
+            ? ', no estimate yet'
             : `, about ${formatDuration(Math.max(1, job.etaSeconds))} left`;
 
     return `Uploading ${percent}%${eta}`;

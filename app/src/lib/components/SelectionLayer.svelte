@@ -23,7 +23,7 @@
     onclear={selection.clear}
 />
 
-{#if selection.count > 0}
+{#if selection.count > 0 && !selection.overlayOpen}
     <SelectionBar
         count={selection.count}
         trash={selection.trash}

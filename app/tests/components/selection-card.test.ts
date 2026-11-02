@@ -85,7 +85,7 @@ test('clicking the card body sends a point gesture and actions do not', async ()
     await fireEvent.click(card);
     expect(props.onselect).toHaveBeenLastCalledWith(item, expect.any(MouseEvent), 'point');
 
-    await fireEvent.click(screen.getByRole('button', { name: 'Download' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Download card.bin' }));
     expect(props.onselect).toHaveBeenCalledTimes(1);
 });
 
@@ -132,7 +132,7 @@ test('dragging from card controls does not start a file drag', async () => {
     const card = screen.getByRole('group', { name: 'card.bin' });
 
     await fireEvent.dragStart(screen.getByRole('checkbox', { name: 'Select card.bin' }));
-    await fireEvent.dragStart(screen.getByRole('button', { name: 'Download' }));
+    await fireEvent.dragStart(screen.getByRole('button', { name: 'Download card.bin' }));
     await fireEvent.dragStart(screen.getByRole('button', { name: 'More actions for card.bin' }));
 
     expect(onstartdrag).not.toHaveBeenCalled();
@@ -141,7 +141,7 @@ test('dragging from card controls does not start a file drag', async () => {
     await fireEvent.dragStart(card);
     expect(onstartdrag).not.toHaveBeenCalled();
 
-    await fireEvent.pointerDown(screen.getByRole('button', { name: 'Download' }));
+    await fireEvent.pointerDown(screen.getByRole('button', { name: 'Download card.bin' }));
     await fireEvent.dragStart(card);
     expect(onstartdrag).not.toHaveBeenCalled();
 
@@ -215,5 +215,5 @@ test('Trash keeps a checkbox on every row and threads the same selection', () =>
         name: 'Select old.bin'
     }) as HTMLInputElement;
     expect(checkbox.checked).toBe(true);
-    expect(screen.getByRole('checkbox', { name: 'Select all files' })).toBeTruthy();
+    expect(screen.getByRole('checkbox', { name: 'Select all visible files' })).toBeTruthy();
 });

@@ -50,14 +50,14 @@
         shortDelete || item.complete ? 'Delete' : 'Delete remaining chunks'
     );
     const restoreLabel = $derived(`Restore ${item.name}`);
-    const deleteForeverLabel = $derived(`Delete ${item.name} forever`);
+    const deleteForeverLabel = $derived(`Delete forever: ${item.name}`);
 </script>
 
 <div class="file-actions flex shrink-0 items-center">
     {#if waiting}
         <span class="sr-only">Load more to check the rest of this file.</span>
     {:else if compact}
-        {#if trash}
+        {#if canRestore}
             <IconButton
                 size="xs"
                 title={restoreLabel}
@@ -66,50 +66,30 @@
                 loadingAriaLabel={`Restoring ${item.name}`}
                 onclick={() => onrestore?.(item)}><IconRestore aria-hidden="true" /></IconButton
             >
+        {/if}
+        {#if item.complete}
             <IconButton
                 size="xs"
-                title={deleteForeverLabel}
+                title={`Download ${item.name}`}
                 {disabled}
-                loading={working === FileActionKind.DeleteForever}
-                loadingAriaLabel={`Deleting ${item.name} forever`}
-                onclick={() => ondeleteforever?.(item)}
-                ><IconDeleteForever aria-hidden="true" /></IconButton
-            >
-        {:else}
-            {#if canRestore}
-                <IconButton
-                    size="xs"
-                    title={restoreLabel}
-                    {disabled}
-                    loading={working === FileActionKind.Restore}
-                    loadingAriaLabel={`Restoring ${item.name}`}
-                    onclick={() => onrestore?.(item)}><IconRestore aria-hidden="true" /></IconButton
-                >
-            {/if}
-            {#if item.complete}
-                <IconButton
-                    size="xs"
-                    title={`Download ${item.name}`}
-                    {disabled}
-                    loading={working === FileActionKind.Download}
-                    loadingAriaLabel={`Downloading ${item.name}`}
-                    onclick={() => ondownload?.(item)}
-                    ><IconDownload aria-hidden="true" /></IconButton
-                >
-            {/if}
-            <IconButton
-                size="xs"
-                title={deleteLabel}
-                {disabled}
-                loading={working === FileActionKind.Delete}
-                loadingAriaLabel={`Deleting ${item.name}`}
-                onclick={() => ondelete?.(item)}><IconDelete aria-hidden="true" /></IconButton
+                loading={working === FileActionKind.Download}
+                loadingAriaLabel={`Downloading ${item.name}`}
+                onclick={() => ondownload?.(item)}><IconDownload aria-hidden="true" /></IconButton
             >
         {/if}
+        <IconButton
+            size="xs"
+            title={deleteLabel}
+            {disabled}
+            loading={working === FileActionKind.Delete}
+            loadingAriaLabel={`Deleting ${item.name}`}
+            onclick={() => ondelete?.(item)}><IconDelete aria-hidden="true" /></IconButton
+        >
     {:else if trash}
         <Button
             variant="text"
             size="xs"
+            aria-label={restoreLabel}
             {disabled}
             loading={working === FileActionKind.Restore}
             loadingAriaLabel={`Restoring ${item.name}`}
@@ -121,6 +101,7 @@
         <Button
             variant="text"
             size="xs"
+            aria-label={deleteForeverLabel}
             {disabled}
             loading={working === FileActionKind.DeleteForever}
             loadingAriaLabel={`Deleting ${item.name} forever`}
@@ -134,6 +115,7 @@
             <Button
                 variant="text"
                 size="xs"
+                aria-label={restoreLabel}
                 {disabled}
                 loading={working === FileActionKind.Restore}
                 loadingAriaLabel={`Restoring ${item.name}`}
@@ -147,6 +129,7 @@
             <Button
                 variant="text"
                 size="xs"
+                aria-label={`Download ${item.name}`}
                 {disabled}
                 loading={working === FileActionKind.Download}
                 loadingAriaLabel={`Downloading ${item.name}`}
@@ -159,6 +142,7 @@
         <Button
             variant="text"
             size="xs"
+            aria-label={deleteLabel}
             {disabled}
             loading={working === FileActionKind.Delete}
             loadingAriaLabel={`Deleting ${item.name}`}
