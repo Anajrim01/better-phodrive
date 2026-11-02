@@ -1,0 +1,36 @@
+{
+    "name": "phodrive-shared",
+    "private": true,
+    "version": "0.1.0",
+    "description": "Recipient-side share viewer and stateless Google Photos proxy for Phodrive",
+    "type": "module",
+    "license": "MIT",
+    "engines": {
+        "node": ">=24"
+    },
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build",
+        "preview": "vite preview",
+        "check": "tsc --project tsconfig.json",
+        "test": "vitest run",
+        "test:live": "vitest run tests/live.test.ts",
+        "lint": "prettier --check .",
+        "format": "prettier --write .",
+        "deploy": "wrangler pages deploy dist"
+    },
+    "dependencies": {
+        "brotli-dec-wasm": "^2.3.0",
+        "hash-wasm": "^4.12.0",
+        "results-ts": "^4.4.0",
+        "zod": "^4.6.5"
+    },
+    "devDependencies": {
+        "@types/node": "^24.19.2",
+        "prettier": "^3.9.10",
+        "typescript": "^6.0.3",
+        "vite": "^8.3.4",
+        "vitest": "^5.0.3",
+        "wrangler": "^4.42.0"
+    }
+}
