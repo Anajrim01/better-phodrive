@@ -349,6 +349,18 @@
             "@madkarmaa/phodrive-core": "./src/server/photos/upload/index.ts",
             "default": "./dist/server/photos/upload/index.js"
         },
+        "./server/photos/upload/commit-queue": {
+            "@madkarmaa/phodrive-core": "./src/server/photos/upload/commit-queue.ts",
+            "default": "./dist/server/photos/upload/commit-queue.js"
+        },
+        "./server/photos/upload/commit-recovery": {
+            "@madkarmaa/phodrive-core": "./src/server/photos/upload/commit-recovery.ts",
+            "default": "./dist/server/photos/upload/commit-recovery.js"
+        },
+        "./server/photos/upload/commit-waiter": {
+            "@madkarmaa/phodrive-core": "./src/server/photos/upload/commit-waiter.ts",
+            "default": "./dist/server/photos/upload/commit-waiter.js"
+        },
         "./server/photos/upload/lookup": {
             "@madkarmaa/phodrive-core": "./src/server/photos/upload/lookup.ts",
             "default": "./dist/server/photos/upload/lookup.js"
@@ -557,6 +569,9 @@
             "./server/photos/transport": "./dist/server/photos/transport.js",
             "./server/photos/trash": "./dist/server/photos/trash.js",
             "./server/photos/upload": "./dist/server/photos/upload/index.js",
+            "./server/photos/upload/commit-queue": "./dist/server/photos/upload/commit-queue.js",
+            "./server/photos/upload/commit-recovery": "./dist/server/photos/upload/commit-recovery.js",
+            "./server/photos/upload/commit-waiter": "./dist/server/photos/upload/commit-waiter.js",
             "./server/photos/upload/lookup": "./dist/server/photos/upload/lookup.js",
             "./server/photos/upload/lookup-queue": "./dist/server/photos/upload/lookup-queue.js",
             "./server/photos/upload/lookup-waiter": "./dist/server/photos/upload/lookup-waiter.js",

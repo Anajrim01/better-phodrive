@@ -141,8 +141,8 @@ export async function browserUploadResponse(
 
 export function photosUploadHarness(options: { duplicate?: boolean; failCommit?: boolean } = {}) {
     const stored = new Map<string, Buffer>();
+    const tokens = new Map<string, Buffer>();
     const counts = { transfers: 0, commits: 0, largestBlock: 0 };
-    const scotty = message(numberField(1, 2), bytesField(2, Uint8Array.of(7)));
     const fetcher: Fetcher = async (input, init) => {
         const url = String(input);
         if (url.includes('android.googleapis.com/auth'))
@@ -168,7 +168,7 @@ export function photosUploadHarness(options: { duplicate?: boolean; failCommit?:
             return new Response(Uint8Array.from(bytesField(1, message(...entries))));
         }
         if (init?.method === 'PUT') {
-            counts.transfers++;
+            const transfer = ++counts.transfers;
             const reader = new Response(init.body).body!.getReader();
             const chunks: Uint8Array[] = [];
             while (true) {
@@ -182,6 +182,9 @@ export function photosUploadHarness(options: { duplicate?: boolean; failCommit?:
             const sha1 = createHash('sha1').update(bmp).digest('hex');
             stored.set(sha1, bmp);
             expectLength(init, bmp.length);
+            const token = Buffer.from(`token-${transfer}`);
+            const scotty = message(numberField(1, 2), bytesField(2, token));
+            tokens.set(token.toString('hex'), scotty);
             return new Response(Uint8Array.from(scotty));
         }
         if (url.includes('uploadmedia/interactive'))
@@ -189,18 +192,28 @@ export function photosUploadHarness(options: { duplicate?: boolean; failCommit?:
         if (url.includes('16538846908252377752')) {
             counts.commits++;
             if (options.failCommit) return new Response(null, { status: 503 });
-            return new Response(
-                Uint8Array.from(
-                    bytesField(
-                        1,
-                        message(
-                            bytesField(1, scotty),
-                            numberField(2, 0),
-                            bytesField(3, bytesField(1, 'media-key'))
+            const data = Buffer.from(await new Response(init?.body).arrayBuffer());
+            const entries = parse(data)
+                .unwrap()
+                .flatMap((field) => {
+                    if (field.number !== 1 || typeof field.value === 'number') return [];
+                    const token = nested(field.value, 1, 2).unwrap();
+                    const scotty = tokens.get(token.toString('hex'));
+                    if (!scotty) throw new Error('Unknown commit token');
+
+                    return [
+                        bytesField(
+                            1,
+                            message(
+                                bytesField(1, scotty),
+                                numberField(2, 0),
+                                bytesField(3, bytesField(1, `media-key-${token.toString('hex')}`))
+                            )
                         )
-                    )
-                )
-            );
+                    ];
+                });
+
+            return new Response(Uint8Array.from(message(...entries)));
         }
         throw new Error('Unexpected provider request');
     };
