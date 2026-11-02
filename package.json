@@ -42,8 +42,7 @@
         "lint": "prettier --check .",
         "format": "prettier --write .",
         "perf": "node scripts/performance.mjs",
-        "perf:check": "tsc --project benchmarks/tsconfig.json",
-        "perf:requests": "vitest run --config benchmarks/vitest.config.ts benchmarks/request-counts.test.ts"
+        "perf:check": "tsc --project benchmarks/tsconfig.json"
     },
     "devDependencies": {
         "@commitlint/cli": "^21.2.3",

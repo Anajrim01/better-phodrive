@@ -1,10 +1,10 @@
 import { UploadStatus } from '@madkarmaa/phodrive-core/models';
 import { expect, test } from 'vitest';
 import { createHash } from 'node:crypto';
-import { uploadBmp, uploadBmpStream } from '@madkarmaa/phodrive-core/server/photos';
+import { uploadBmp } from '@madkarmaa/phodrive-core/server/photos';
+import { commitBmp } from '@madkarmaa/phodrive-core/server/photos/upload/transfer';
+import { recordServerFailure } from '@madkarmaa/phodrive-core/server/photos/throttle';
 import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
-import type { UploadBmpSource } from '@madkarmaa/phodrive-core/server/upload/bmp';
-import { Ok } from 'results-ts';
 import { authResponse, bytes, num } from '../helpers/photos';
 
 test('Pixel XL flow hashes, transfers, and commits one BMP', async () => {
@@ -20,7 +20,7 @@ test('Pixel XL flow hashes, transfers, and commits one BMP', async () => {
     const fakeFetch: Fetcher = async (input, init) => {
         const url = String(input);
         const headers = new Headers(init?.headers);
-        if (!url.includes('5084965799730810217')) expect(init?.signal).toBeUndefined();
+        expect(init?.signal).toBeUndefined();
         if (step++ === 0) {
             expect(url).toBe('https://android.googleapis.com/auth');
             expect(headers.get('user-agent')).toContain('Pixel XL');
@@ -62,6 +62,25 @@ test('Pixel XL flow hashes, transfers, and commits one BMP', async () => {
     expect(step).toBe(5);
 });
 
+test('a commit server failure stays uncertain after earlier server failures', async () => {
+    const email = 'commit-failure@example.com';
+    recordServerFailure(email);
+    recordServerFailure(email);
+    const transfer = {
+        scotty: Buffer.from([8, 2, 18, 1, 7]),
+        type: 2,
+        token: Buffer.from([7])
+    };
+    const fetcher: Fetcher = async () => new Response(null, { status: 503 });
+
+    const committed = await commitBmp(email, 'sample.bmp', Buffer.alloc(20), transfer, {}, fetcher);
+
+    expect(committed.unwrapErr()).toEqual({
+        code: 'COMMIT_OUTCOME_UNCERTAIN',
+        message: 'Commit outcome uncertain. Check Google Photos before retrying.'
+    });
+});
+
 test('a connection timeout during commit remains uncertain and is never retried automatically', async () => {
     const bmp = Buffer.from('BM test pixels');
     const sha1 = createHash('sha1').update(bmp).digest();
@@ -98,86 +117,4 @@ test('a connection timeout during commit remains uncertain and is never retried 
         message: 'Commit outcome uncertain. Check Google Photos before retrying.'
     });
     expect(requests).toBe(5);
-});
-
-test('cancelling the first duplicate upload keeps the active batch lookup alive', async () => {
-    const bmp = Buffer.from('BM duplicate pixels');
-    const sha1 = createHash('sha1').update(bmp).digest();
-    const existing = bytes(
-        1,
-        bytes(2, Buffer.concat([bytes(1, bytes(1, sha1)), bytes(2, bytes(1, 'existing-key'))]))
-    );
-    let started!: () => void;
-    const start = new Promise<void>((resolve) => {
-        started = resolve;
-    });
-    let release!: () => void;
-    const held = new Promise<void>((resolve) => {
-        release = resolve;
-    });
-    let lookupRequests = 0;
-    const fakeFetch: Fetcher = async (input, init) => {
-        const url = String(input);
-        if (url.includes('android.googleapis.com/auth')) return authResponse();
-        if (url.includes('5084965799730810217')) {
-            lookupRequests++;
-            started();
-
-            const signal = init?.signal;
-            if (signal) {
-                await Promise.race([
-                    held,
-                    new Promise<void>((_, reject) => {
-                        signal.addEventListener('abort', () => reject(new Error('aborted')), {
-                            once: true
-                        });
-                    })
-                ]);
-            } else {
-                await held;
-            }
-
-            return new Response(Uint8Array.from(existing));
-        }
-        throw new Error('Unexpected provider request');
-    };
-    const source = (): UploadBmpSource => ({
-        body: new Blob([bmp]).stream(),
-        length: bmp.length,
-        sha1: sha1.toString('hex'),
-        originalSize: bmp.length,
-        storedSize: bmp.length,
-        compressed: false,
-        last: true,
-        verified: Ok(undefined).andThenAsync(async () => Ok(undefined)),
-        drain: () => Ok(undefined).andThenAsync(async () => Ok(undefined))
-    });
-    const abort = new AbortController();
-    const first = uploadBmpStream(
-        'test@example.com',
-        'aas_et/test',
-        'sample.bmp',
-        source(),
-        fakeFetch,
-        abort.signal
-    );
-    const second = uploadBmpStream(
-        'test@example.com',
-        'aas_et/test',
-        'sample.bmp',
-        source(),
-        fakeFetch
-    );
-    await start;
-    abort.abort();
-    const firstResult = await first;
-    release();
-    const secondResult = await second;
-
-    expect(firstResult.unwrapErr()).toMatchObject({ code: 'REQUEST_FAILED' });
-    expect(secondResult.unwrap()).toMatchObject({
-        status: UploadStatus.AlreadyExists,
-        mediaKey: 'existing-key'
-    });
-    expect(lookupRequests).toBe(1);
 });

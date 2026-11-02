@@ -15,18 +15,17 @@ import type { Fetcher } from '../../fetcher';
 
 const HASH_URL = 'https://photosdata-pa.googleapis.com/6439526531001121323/5084965799730810217';
 
-export type HashLookupResults = ReadonlyMap<string, string | null>;
-export type HashLookupEntries = {
-    readonly results: HashLookupResults;
-    readonly present: ReadonlySet<string>;
-};
-
 export function hashLookup(
     email: string,
     sha1: Buffer,
     rpcHeaders: Record<string, string>,
     fetcher: Fetcher
 ): AsyncResult<string | null, ServerError> {
+    const hashRequest = bytesField(
+        1,
+        message(bytesField(1, bytesField(1, sha1)), bytesField(2, Buffer.alloc(0)))
+    );
+
     return guardedSend(
         email,
         fetcher,
@@ -35,58 +34,11 @@ export function hashLookup(
             method: 'POST',
             redirect: 'manual',
             headers: rpcHeaders,
-            body: bodyBytes(hashRequestBody([sha1]))
+            body: bodyBytes(hashRequest)
         },
         'Hash lookup'
     ).andThenAsync((response) =>
         readBody(response, 'Hash lookup').andThen((body) => existingMedia(body, sha1))
-    );
-}
-
-export function hashLookupMany(
-    email: string,
-    sha1s: readonly Buffer[],
-    rpcHeaders: Record<string, string>,
-    fetcher: Fetcher
-): AsyncResult<HashLookupResults, ServerError> {
-    return hashLookupManyWithPresence(email, sha1s, rpcHeaders, fetcher).map((entries) => {
-        const results = new Map(entries.results);
-        for (const sha1 of sha1s) {
-            const hex = sha1.toString('hex');
-            if (!results.has(hex)) results.set(hex, null);
-        }
-
-        return results;
-    });
-}
-
-export function hashLookupManyWithPresence(
-    email: string,
-    sha1s: readonly Buffer[],
-    rpcHeaders: Record<string, string>,
-    fetcher: Fetcher
-): AsyncResult<HashLookupEntries, ServerError> {
-    const unique = new Map<string, Buffer>();
-    for (const sha1 of sha1s) unique.set(sha1.toString('hex'), sha1);
-
-    if (unique.size === 0)
-        return Ok(undefined).andThenAsync<HashLookupEntries, ServerError>(async () =>
-            Ok({ results: new Map(), present: new Set() })
-        );
-
-    return guardedSend(
-        email,
-        fetcher,
-        HASH_URL,
-        {
-            method: 'POST',
-            redirect: 'manual',
-            headers: rpcHeaders,
-            body: bodyBytes(hashRequestBody([...unique.values()]))
-        },
-        'Hash lookup'
-    ).andThenAsync((response) =>
-        readBody(response, 'Hash lookup').andThen((body) => existingMediaMany(body, unique))
     );
 }
 
@@ -99,16 +51,6 @@ export function readMediaKey(item: Field[], field: number): Result<string, Serve
 
             return Ok(key);
         });
-}
-
-function hashRequestBody(sha1s: readonly Buffer[]): Buffer {
-    return bytesField(
-        1,
-        message(
-            ...sha1s.map((sha1) => bytesField(1, bytesField(1, sha1))),
-            bytesField(2, Buffer.alloc(0))
-        )
-    );
 }
 
 function existingMedia(response: Buffer, sha1: Buffer): Result<string | null, ServerError> {
@@ -125,54 +67,4 @@ function existingMedia(response: Buffer, sha1: Buffer): Result<string | null, Se
 
             return readMediaKey(matched, 2);
         });
-}
-
-function existingMediaMany(
-    response: Buffer,
-    hashes: ReadonlyMap<string, Buffer>
-): Result<HashLookupEntries, ServerError> {
-    const results = new Map<string, string | null>();
-    const present = new Set<string>();
-
-    return nested(response, 1)
-        .andThen(parse)
-        .andThen((entries) => {
-            for (const entry of entries) {
-                if (entry.number !== 2) continue;
-                if (typeof entry.value === 'number')
-                    return Err(SERVER_ERRORS.INVALID_PROTOBUF_FIELD_TYPE);
-
-                const failure = existingMediaEntry(entry.value).match<ServerError | null>({
-                    Ok: ({ hash, key }) => {
-                        if (!hashes.has(hash) || present.has(hash))
-                            return SERVER_ERRORS.HASH_LOOKUP_MISMATCH;
-
-                        present.add(hash);
-                        results.set(hash, key);
-
-                        return null;
-                    },
-                    Err: (error) => error
-                });
-                if (failure) return Err(failure);
-            }
-
-            return Ok({ results, present });
-        });
-}
-
-function existingMediaEntry(
-    entry: Buffer
-): Result<{ hash: string; key: string | null }, ServerError> {
-    return parse(entry).andThen((fields) =>
-        bytes(fields, 1)
-            .andThen((data) => nested(data, 1))
-            .andThen((foundHash) => {
-                const hash = foundHash.toString('hex');
-                if (!fields.some((field) => field.number === 2))
-                    return Ok<{ hash: string; key: string | null }>({ hash, key: null });
-
-                return readMediaKey(fields, 2).map((key) => ({ hash, key }));
-            })
-    );
 }

@@ -48,6 +48,29 @@ test('multipart ingestion and BMP transfer stream without allocating files on di
     await input.cancel();
 });
 
+test('a normal upload sends one lookup, start, transfer, and commit per chunk', async () => {
+    const harness = photosUploadHarness();
+    const timeout = vi.spyOn(globalThis, 'setTimeout');
+    const payloads = [Buffer.from('BM first chunk'), Buffer.from('BM second chunk')];
+
+    for (const [index, payload] of payloads.entries()) {
+        const fixture = uploadForm(payload, `chunk-${index}.bin`);
+        const received = await receiveUpload(fixture.request());
+        const uploaded = await uploadFiles(received.unwrap(), () => {}, harness.fetcher);
+
+        expect(uploaded.isOk()).toBe(true);
+        await received.unwrap().cancel();
+    }
+
+    expect(harness.counts).toMatchObject({
+        lookups: payloads.length,
+        starts: payloads.length,
+        transfers: payloads.length,
+        commits: payloads.length
+    });
+    expect(timeout.mock.calls.filter((call) => call[1] === 8)).toEqual([]);
+});
+
 test.each(['hash', 'short', 'long'] as const)(
     'invalid %s is never committed to Google',
     async (damage) => {
