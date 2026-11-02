@@ -206,3 +206,17 @@ test('an aborted first caller does not trigger fallback on a server failure', as
     expect(secondResult.unwrapErr()).toMatchObject({ code: 'REQUEST_FAILED', status: 500 });
     expect(requests).toBe(1);
 });
+
+test('a pending lookup batch keeps a referenced timer', async () => {
+    const hash = sha1('referenced-timer');
+    const before = process.getActiveResourcesInfo().filter((type) => type === 'Timeout').length;
+    const lookup = lookupHash(EMAIL, hash, {}, async () =>
+        batchResponse([{ sha1: hash, key: 'key' }])
+    );
+    await Promise.resolve();
+    const during = process.getActiveResourcesInfo().filter((type) => type === 'Timeout').length;
+    const result = await lookup;
+
+    expect(during).toBeGreaterThan(before);
+    expect(result.unwrap()).toBe('key');
+});

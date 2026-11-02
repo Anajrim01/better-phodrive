@@ -64,7 +64,6 @@ export function lookupHash(
                     waiters: [waiter],
                     timer: setTimeout(() => void flushLookupBatch(batch), HASH_LOOKUP_WINDOW_MS)
                 };
-                batch.timer.unref();
                 lookupBatches.set(email, batch);
             })
     );
@@ -119,7 +118,7 @@ async function flushLookupBatch(batch: LookupBatch): Promise<void> {
         return;
     }
 
-    if (!shouldFallback(outcome.error, unique.size)) {
+    if (!shouldFallback(outcome.error, activeWaiters.length)) {
         for (const waiter of waiters) {
             settleWaiter(
                 waiter,
@@ -139,14 +138,22 @@ async function flushLookupBatch(batch: LookupBatch): Promise<void> {
                 return;
             }
 
-            let result: Result<string | null, ServerError> = Err(HASH_LOOKUP_ABORTED);
+            let result: Result<string | null, ServerError> | null = null;
             for (const waiter of available) {
-                result = await lookupWaiter(batch.email, waiter);
+                const attempt = await lookupWaiterOrAbort(batch.email, waiter);
+                if (attempt === null) continue;
+
+                result = attempt;
                 if (result.isOk() || !waiter.signal?.aborted) break;
             }
 
             for (const waiter of hashWaiters) {
-                settleWaiter(waiter, waiter.signal?.aborted ? Err(HASH_LOOKUP_ABORTED) : result);
+                settleWaiter(
+                    waiter,
+                    waiter.signal?.aborted
+                        ? Err(HASH_LOOKUP_ABORTED)
+                        : (result ?? Err(HASH_LOOKUP_ABORTED))
+                );
             }
         })
     );
@@ -184,6 +191,29 @@ function settleWaiter(waiter: LookupWaiter, result: Result<string | null, Server
     waiter.resolve(result);
 }
 
+async function lookupWaiterOrAbort(
+    email: string,
+    waiter: LookupWaiter
+): Promise<Result<string | null, ServerError> | null> {
+    const signal = waiter.signal;
+    if (!signal) return lookupWaiter(email, waiter);
+    if (signal.aborted) return null;
+
+    let onAbort: (() => void) | undefined;
+    const aborted = new Promise<null>((resolve) => {
+        onAbort = () => resolve(null);
+        signal.addEventListener('abort', onAbort, { once: true });
+    });
+    const request = Promise.resolve(lookupWaiter(email, waiter));
+    void request.catch(() => undefined);
+
+    try {
+        return await Promise.race([request, aborted]);
+    } finally {
+        if (onAbort) signal.removeEventListener('abort', onAbort);
+    }
+}
+
 function lookupWaiter(
     email: string,
     waiter: LookupWaiter
@@ -191,11 +221,11 @@ function lookupWaiter(
     return hashLookup(email, waiter.sha1, waiter.rpcHeaders, waiter.fetcher);
 }
 
-function shouldFallback(error: ServerError, uniqueHashes: number): boolean {
+function shouldFallback(error: ServerError, callers: number): boolean {
     if (error.code === 'THROTTLED') return false;
     if (error.code !== 'REQUEST_FAILED') return true;
     if (error.status === undefined) return false;
     if (error.status !== 400 && error.status !== 413) return false;
 
-    return uniqueHashes > 1;
+    return callers > 1;
 }

@@ -46,6 +46,48 @@ test('a held fallback does not block a completed fallback', async () => {
     expect(fastResult).toBe(`key-${fastHash.toString('hex')}`);
 });
 
+test('an aborted fallback waiter does not block a duplicate', async () => {
+    const hash = sha1('aborted-fallback-duplicate');
+    const abort = new AbortController();
+    let requests = 0;
+    let singleRequests = 0;
+    let heldStarted!: () => void;
+    const heldStart = new Promise<void>((resolve) => {
+        heldStarted = resolve;
+    });
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+        release = resolve;
+    });
+    const fetcher: Fetcher = async (_input, init) => {
+        const shape = requestShape(await bodyOf(init));
+        requests++;
+        if (requests === 1) return new Response(null, { status: 400 });
+
+        singleRequests++;
+        if (singleRequests === 1) {
+            heldStarted();
+            await held;
+        }
+
+        return batchResponse([{ sha1: shape.hashes[0], key: 'key' }]);
+    };
+
+    const first = lookupHash(EMAIL, hash, {}, fetcher, abort.signal);
+    const second = lookupHash(EMAIL, hash, {}, fetcher);
+    await heldStart;
+    abort.abort();
+    const secondResult = await Promise.race([
+        second.then((result) => result.unwrap()),
+        new Promise<string>((resolve) => setTimeout(() => resolve('pending'), 100))
+    ]);
+    release();
+    const firstResult = await first;
+
+    expect(secondResult).toBe('key');
+    expect(firstResult.unwrapErr()).toMatchObject({ code: 'REQUEST_FAILED' });
+});
+
 test('a server failure propagates without fallback requests', async () => {
     const hashes = [sha1('server-a'), sha1('server-b')];
     let requests = 0;
