@@ -2,10 +2,12 @@ import { SERVER_ERRORS, type ServerError } from '../errors';
 import { Err, Ok, type AsyncResult } from 'results-ts';
 import type { Fetcher } from '../fetcher';
 import type { ShareCreateRequest, ShareCreateResponse } from '../../share-models';
-import { enableShareLink } from './link';
+import { enableShareLink, updateLinkState } from './link';
 import { buildShareUrl, decodeShareUrl } from './manifest';
-import type { PollOptions } from './public';
-import { recoveryError } from './recovery';
+import { isStoppedProbe, probeShortUrl, probeStopped, type PollOptions } from './public';
+import { LINK_STATE_DISABLED } from './requests';
+import { alreadyGone } from './envelope';
+import { revokeRecoveryError } from './recovery';
 
 export type ResumeOptions = {
     poll: PollOptions;
@@ -37,9 +39,10 @@ export async function resumeShare(
     );
     const linked = link.match({ Ok: (value) => value, Err: () => null });
     if (linked === null) {
+        const clean = await stopExistingShare(request, existing, fetcher);
+        if (!clean) return Err(revokeRecoveryError(existing.envelopeKey, existing.albumKey));
+
         const linkError = link.match({ Ok: () => null, Err: (error) => error });
-        if (linkError !== null && linkError.code === 'SHARE_LINK_UNCERTAIN')
-            return Err(recoveryError(existing.envelopeKey, existing.albumKey));
         if (linkError !== null) return Err(linkError);
 
         return Err(SERVER_ERRORS.SHARE_LINK_UNCERTAIN);
@@ -59,8 +62,35 @@ export async function resumeShare(
             albumUrl: linked.canonicalUrl,
             authKey: linked.authKey,
             shareUrl: nextUrl,
-            createdAt: options.now()
+            createdAt: existing.createdAt
         },
         manifest: nextManifest
     });
+}
+
+async function stopExistingShare(
+    request: ShareCreateRequest,
+    existing: NonNullable<ShareCreateRequest['existing']>,
+    fetcher: Fetcher
+): Promise<boolean> {
+    const disabled = await updateLinkState(
+        request.email,
+        request.token,
+        existing.envelopeKey,
+        LINK_STATE_DISABLED,
+        fetcher
+    );
+    const disableError = disabled.match({ Ok: () => null, Err: (error) => error });
+    if (disableError !== null && !alreadyGone(disableError)) return false;
+
+    if (existing.shortUrl !== undefined) {
+        const short = await probeShortUrl(existing.shortUrl, fetcher);
+        const stopped = short.match({ Ok: (value) => isStoppedProbe(value), Err: () => false });
+        if (!stopped) return false;
+    }
+
+    const album = await probeStopped(existing.albumUrl, fetcher);
+    const albumStopped = album.match({ Ok: (value) => isStoppedProbe(value), Err: () => false });
+
+    return albumStopped;
 }

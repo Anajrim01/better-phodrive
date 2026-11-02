@@ -132,3 +132,13 @@ test('a storage read failure does not overwrite the other saved shares', () => {
     read.mockRestore();
     expect(store.list(EMAIL)).toEqual([RECORD]);
 });
+
+test('invalid stored shares block writes and keep the raw data', () => {
+    const invalid = '{"owner@example.com":[{"name":"bad"}]}';
+    storage.setItem(SHARES_KEY, invalid);
+    const store = new ShareStore();
+
+    expect(store.save(EMAIL, RECORD).isErr()).toBe(true);
+    expect(store.remove(EMAIL, RECORD.envelopeKey).isErr()).toBe(true);
+    expect(storage.getItem(SHARES_KEY)).toBe(invalid);
+});

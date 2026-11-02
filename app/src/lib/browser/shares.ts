@@ -3,7 +3,7 @@ import { PersistedState } from 'runed';
 import { Err, type Result } from 'results-ts';
 import { EmailSchema } from '@madkarmaa/phodrive-core/models';
 import {
-    MAX_SHARE_FILES,
+    MAX_STORED_SHARES,
     ShareRecordSchema,
     StoredSharesSchema,
     type ShareRecord,
@@ -13,21 +13,31 @@ import { readState, readStoredJson, STORAGE_UNAVAILABLE, writeState } from '#bro
 
 export const SHARES_KEY = 'phodrive-shares';
 
-export const SHARES_SERIALIZER = {
-    serialize: (shares: StoredShares) => JSON.stringify(shares),
-    deserialize: (raw: string): StoredShares => {
-        const parsed = StoredSharesSchema.safeParse(readStoredJson(raw));
+function sharesSerializer(onInvalid: () => void) {
+    return {
+        serialize: (shares: StoredShares) => JSON.stringify(shares),
+        deserialize: (raw: string): StoredShares => {
+            const parsed = StoredSharesSchema.safeParse(readStoredJson(raw));
+            if (parsed.success) return parsed.data;
 
-        return parsed.success ? parsed.data : {};
-    }
-};
+            onInvalid();
+
+            return {};
+        }
+    };
+}
+
+export const SHARES_SERIALIZER = sharesSerializer(() => undefined);
 
 export class ShareStore {
+    private corrupt = false;
     private readonly state = new PersistedState<StoredShares>(
         SHARES_KEY,
         {},
         {
-            serializer: SHARES_SERIALIZER
+            serializer: sharesSerializer(() => {
+                this.corrupt = true;
+            })
         }
     );
 
@@ -45,6 +55,8 @@ export class ShareStore {
     }
 
     save(email: string, record: ShareRecord): Result<void, ApplicationError> {
+        if (this.corrupt) return Err(STORAGE_UNAVAILABLE);
+
         const parsedEmail = EmailSchema.safeParse(email);
         const parsedRecord = ShareRecordSchema.safeParse(record);
         if (!parsedEmail.success || !parsedRecord.success)
@@ -63,7 +75,7 @@ export class ShareStore {
         const existing = current.some(
             (entry) => entry.envelopeKey === parsedRecord.data.envelopeKey
         );
-        if (!existing && current.length >= MAX_SHARE_FILES)
+        if (!existing && current.length >= MAX_STORED_SHARES)
             return Err({
                 code: 'INVALID_SCHEMA',
                 message: 'Could not save more than 100 shares in this browser.'
@@ -78,6 +90,8 @@ export class ShareStore {
     }
 
     remove(email: string, envelopeKey: string): Result<void, ApplicationError> {
+        if (this.corrupt) return Err(STORAGE_UNAVAILABLE);
+
         const parsed = EmailSchema.safeParse(email);
         if (!parsed.success) return Err({ code: 'INVALID_SCHEMA', message: 'Invalid account.' });
 

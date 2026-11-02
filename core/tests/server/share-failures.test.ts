@@ -12,6 +12,7 @@ import {
     CREATE_ENVELOPE,
     DELETE_ENVELOPE,
     ENVELOPE_KEY,
+    EXISTING_SHARE,
     envelopeResponse,
     htmlPage,
     linkResponse,

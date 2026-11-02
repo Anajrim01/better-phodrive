@@ -12,7 +12,7 @@ import {
 import { LINK_STATE_DISABLED } from './requests';
 import { enableShareLink, updateLinkState } from './link';
 import { buildShareUrl, manifestFile } from './manifest';
-import type { PollOptions } from './public';
+import { isStoppedProbe, probeShortUrl, type PollOptions } from './public';
 import { recoveryError } from './recovery';
 import { resumeShare } from './resume';
 
@@ -99,7 +99,15 @@ async function createDedicatedShare(
     );
     const linked = link.match({ Ok: (value) => value, Err: () => null });
     if (linked === null) {
-        const clean = await cleanup(request, created.envelopeKey, albumKey, true, true, fetcher);
+        const clean = await cleanup(
+            request,
+            created.envelopeKey,
+            albumKey,
+            true,
+            true,
+            created.pendingShortUrl,
+            fetcher
+        );
         if (!clean) return Err(recoveryError(created.envelopeKey, albumKey));
 
         const linkError = link.match({ Ok: () => null, Err: (error) => error });
@@ -114,7 +122,15 @@ async function createDedicatedShare(
     const shareUrl = buildShareUrl(manifest);
     const createdUrl = shareUrl.match({ Ok: (value) => value, Err: () => '' });
     if (createdUrl === '') {
-        const clean = await cleanup(request, created.envelopeKey, albumKey, true, true, fetcher);
+        const clean = await cleanup(
+            request,
+            created.envelopeKey,
+            albumKey,
+            true,
+            true,
+            linked.shortUrl,
+            fetcher
+        );
         if (!clean) return Err(recoveryError(created.envelopeKey, albumKey));
 
         const shareError = shareUrl.match({ Ok: () => null, Err: (error) => error });
@@ -159,6 +175,7 @@ async function cleanup(
     albumKey: string,
     createdEnvelope: boolean,
     createdAlbum: boolean,
+    shortUrl: string | undefined,
     fetcher: Fetcher
 ): Promise<boolean> {
     let clean = true;
@@ -180,6 +197,15 @@ async function cleanup(
     }
 
     if (createdAlbum && !(await removeCreatedAlbum(request, albumKey, fetcher))) clean = false;
+
+    if (shortUrl !== undefined) {
+        const probe = await probeShortUrl(shortUrl, fetcher);
+        const stopped = probe.match({
+            Ok: (value) => isStoppedProbe(value),
+            Err: () => false
+        });
+        if (!stopped) clean = false;
+    }
 
     return clean;
 }

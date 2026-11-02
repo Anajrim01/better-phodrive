@@ -14,3 +14,18 @@ export function recoveryError(
         recovery: { albumKey, ...(envelopeKey === undefined ? {} : { envelopeKey }) }
     };
 }
+
+export function revokeRecoveryError(
+    envelopeKey: string,
+    albumKey: string
+): {
+    code: 'SHARE_REVOKE_UNVERIFIED';
+    message: string;
+    recovery: ShareRecovery;
+} {
+    return {
+        code: 'SHARE_REVOKE_UNVERIFIED',
+        message: 'Could not confirm the old share link stopped serving. Retry revoke.',
+        recovery: { envelopeKey, albumKey }
+    };
+}

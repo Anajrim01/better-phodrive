@@ -154,3 +154,78 @@ test('a failed canonical page probe leaves revoke unverified', async () => {
 
     expect(revoked.unwrapErr().code).toBe('SHARE_REVOKE_UNVERIFIED');
 });
+
+test('a failed disable is unverified even when the stored URLs are dead', async () => {
+    const fetcher: Fetcher = async (input, init) => {
+        const url = String(input);
+        if (url.includes('android.googleapis.com/auth')) return new Response(AUTH_RESPONSE);
+        if (url === UPDATE_LINK) return new Response(null, { status: 500 });
+        if (url === DELETE_ENVELOPE || url === REMOVE_ALBUM)
+            return new Response(null, { status: 404 });
+        if (url === SHORT_URL) return new Response(null, { status: 404 });
+        if (url === CANONICAL) return new Response(null, { status: 404 });
+
+        return new Response(null, { status: 404 });
+    };
+
+    const revoked = await revokeShare(revokeRequest(), fetcher, {
+        sleep: async () => undefined,
+        verifyAttempts: 1
+    });
+    const error = revoked.unwrapErr();
+
+    expect(error.code).toBe('SHARE_REVOKE_UNVERIFIED');
+    expect('recovery' in error ? error.recovery : null).toEqual({
+        envelopeKey: 'AF1QipEnvelope',
+        albumKey: 'AF1QipAlbum'
+    });
+});
+
+test('a non-canonical share redirect on the short URL is not stopped evidence', async () => {
+    const liveRedirect = 'https://photos.google.com/share/Live?key=Other&hl=en';
+    const fetcher: Fetcher = async (input, init) => {
+        const url = String(input);
+        if (url.includes('android.googleapis.com/auth')) return new Response(AUTH_RESPONSE);
+        if (url === UPDATE_LINK || url === DELETE_ENVELOPE || url === REMOVE_ALBUM)
+            return new Response(null);
+        if (url === SHORT_URL) {
+            if (init?.redirect === 'follow') return new Response(null, { status: 302 });
+            return new Response(null, { status: 302, headers: { location: liveRedirect } });
+        }
+        if (url === CANONICAL) return new Response(null, { status: 404 });
+
+        return new Response(null, { status: 404 });
+    };
+
+    const revoked = await revokeShare(revokeRequest(), fetcher, {
+        sleep: async () => undefined,
+        verifyAttempts: 1
+    });
+
+    expect(revoked.unwrapErr().code).toBe('SHARE_REVOKE_UNVERIFIED');
+});
+
+test('a non-canonical share redirect on the album URL is not stopped evidence', async () => {
+    const liveRedirect = 'https://photos.google.com/share/Live?key=Other&hl=en';
+    const fetcher: Fetcher = async (input, init) => {
+        const url = String(input);
+        if (url.includes('android.googleapis.com/auth')) return new Response(AUTH_RESPONSE);
+        if (url === UPDATE_LINK || url === DELETE_ENVELOPE || url === REMOVE_ALBUM)
+            return new Response(null);
+        if (url === SHORT_URL) {
+            if (init?.redirect === 'follow') return new Response(null, { status: 404 });
+            return new Response(null, { status: 404 });
+        }
+        if (url === CANONICAL)
+            return new Response(null, { status: 302, headers: { location: liveRedirect } });
+
+        return new Response(null, { status: 404 });
+    };
+
+    const revoked = await revokeShare(revokeRequest(), fetcher, {
+        sleep: async () => undefined,
+        verifyAttempts: 1
+    });
+
+    expect(revoked.unwrapErr().code).toBe('SHARE_REVOKE_UNVERIFIED');
+});

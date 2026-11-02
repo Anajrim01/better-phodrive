@@ -5,6 +5,7 @@ export const SHARE_MANIFEST_VERSION = 1;
 export const SHARE_BASE_URL = 'https://shared.phodrive.dev/#share=';
 export const MAX_SHARE_NAME_LENGTH = 200;
 export const MAX_SHARE_FILES = 100;
+export const MAX_STORED_SHARES = 100;
 export const MAX_SHARE_CHUNKS = 500;
 export const MAX_SHARE_URL_LENGTH = 8000;
 export const SHARE_SHORT_URL_PATTERN = /^https:\/\/photos\.app\.goo\.gl\/[A-Za-z0-9_-]+$/;
@@ -75,7 +76,8 @@ const ShareExistingSchema = z
         shortUrl: ShareShortUrlSchema.optional(),
         albumUrl: ShareCanonicalUrlSchema,
         authKey: ShareAuthKeySchema,
-        shareUrl: z.url().max(MAX_SHARE_URL_LENGTH).startsWith(SHARE_BASE_URL)
+        shareUrl: z.url().max(MAX_SHARE_URL_LENGTH).startsWith(SHARE_BASE_URL),
+        createdAt: z.int().nonnegative()
     })
     .strict();
 
@@ -163,7 +165,7 @@ export const ShareRecordSchema = z
 
 export const StoredSharesSchema = z.record(
     EmailSchema,
-    z.array(ShareRecordSchema).max(MAX_SHARE_FILES)
+    z.array(ShareRecordSchema).max(MAX_STORED_SHARES)
 );
 
 export const ShareCreateResponseSchema = z

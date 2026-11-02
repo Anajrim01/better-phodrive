@@ -85,7 +85,8 @@ export const EXISTING_SHARE: ShareExisting = {
             { id: FILE_ID, chunks: 2, name: 'photo.jpg' },
             { id: SECOND_FILE_ID, chunks: 1, name: 'notes.txt' }
         ]
-    }).unwrap()
+    }).unwrap(),
+    createdAt: 1_700_000_000_000
 };
 
 export function request(overrides: Partial<ShareCreateRequest> = {}): ShareCreateRequest {

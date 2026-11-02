@@ -9,12 +9,18 @@ import {
     type ShareRevokeRequest,
     type ShareRevokeResponse
 } from '../../share-models';
-import { probeShortUrl, probeStopped, readFirstDirectUrl } from './public';
+import {
+    isStoppedProbe,
+    probeShortUrl,
+    probeStopped,
+    readFirstDirectUrl,
+    type PublicProbe
+} from './public';
 import { LINK_STATE_DISABLED } from './requests';
+import { revokeRecoveryError } from './recovery';
 
 const VERIFY_ATTEMPTS = 5;
 const VERIFY_DELAY_MS = 500;
-const STOPPED_STATUSES = new Set([301, 302, 303, 307, 308, 401, 403, 404, 410]);
 
 export type ShareRevokeOptions = {
     sleep?: (milliseconds: number) => Promise<void>;
@@ -23,9 +29,9 @@ export type ShareRevokeOptions = {
 };
 
 type Verification = {
-    shortUrlStatus: number | null;
-    albumUrlStatus: number | null;
-    directUrlStatus: number | null;
+    shortUrl: PublicProbe;
+    albumUrl: PublicProbe;
+    directUrl: PublicProbe;
 };
 
 type VerificationRequirements = {
@@ -33,6 +39,8 @@ type VerificationRequirements = {
     albumUrl: boolean;
     directUrl: boolean;
 };
+
+const UNKNOWN_PROBE: PublicProbe = { status: null, location: null };
 
 export function revokeShare(
     input: ShareRevokeRequest,
@@ -47,18 +55,19 @@ export function revokeShare(
 
     return Ok(undefined).andThenAsync<ShareRevokeResponse, ServerError>(async () => {
         const request = parsed.data;
-        const directUrl =
-            request.shortUrl === undefined
-                ? undefined
-                : (await readFirstDirectUrl(request.shortUrl, fetcher)).unwrapOr(undefined);
+        const direct = await readFirstDirectUrl(request.shortUrl, fetcher);
+        const directReadError = direct.isErr();
+        const directUrl = direct.match({ Ok: (value) => value, Err: () => undefined });
 
-        await updateLinkState(
+        const disabled = await updateLinkState(
             request.email,
             request.token,
             request.envelopeKey,
             LINK_STATE_DISABLED,
             fetcher
         );
+        const disableError = disabled.match({ Ok: () => null, Err: (error) => error });
+        const disableOk = disableError === null || alreadyGone(disableError);
 
         const envelope = await deleteEnvelope(
             request.email,
@@ -75,18 +84,22 @@ export function revokeShare(
 
         const verification = await verifyStopped(request, directUrl, fetcher, options);
         if (isLive(verification)) return Err(SERVER_ERRORS.SHARE_LINK_STILL_LIVE);
+        if (!disableOk || directReadError)
+            return Err(revokeRecoveryError(request.envelopeKey, request.albumKey));
         if (
             !isVerified(verification, {
-                shortUrl: request.shortUrl !== undefined,
-                albumUrl: request.albumUrl !== undefined,
+                shortUrl: true,
+                albumUrl: true,
                 directUrl: directUrl !== undefined
             })
         )
-            return Err(SERVER_ERRORS.SHARE_REVOKE_UNVERIFIED);
+            return Err(revokeRecoveryError(request.envelopeKey, request.albumKey));
 
         return Ok({
             revoked: true as const,
-            ...verification,
+            shortUrlStatus: verification.shortUrl.status,
+            albumUrlStatus: verification.albumUrl.status,
+            directUrlStatus: verification.directUrl.status,
             envelopeDeleted: envelope.match({
                 Ok: () => true,
                 Err: (error) => alreadyGone(error)
@@ -107,9 +120,9 @@ async function verifyStopped(
         ((milliseconds: number) => new Promise<void>((done) => setTimeout(done, milliseconds)));
     const attempts = options.verifyAttempts ?? VERIFY_ATTEMPTS;
     let verification: Verification = {
-        shortUrlStatus: null,
-        albumUrlStatus: null,
-        directUrlStatus: null
+        shortUrl: UNKNOWN_PROBE,
+        albumUrl: UNKNOWN_PROBE,
+        directUrl: UNKNOWN_PROBE
     };
 
     for (let attempt = 0; attempt < attempts; attempt++) {
@@ -127,38 +140,32 @@ async function readVerification(
     directUrl: string | undefined,
     fetcher: Fetcher
 ): Promise<Verification> {
-    const short =
-        request.shortUrl === undefined ? null : await probeShortUrl(request.shortUrl, fetcher);
-    const album =
-        request.albumUrl === undefined ? null : await probeStopped(request.albumUrl, fetcher);
+    const short = await probeShortUrl(request.shortUrl, fetcher);
+    const album = await probeStopped(request.albumUrl, fetcher);
     const direct = directUrl === undefined ? null : await probeStopped(directUrl, fetcher);
 
     return {
-        shortUrlStatus:
-            short === null ? null : short.match({ Ok: (value) => value.status, Err: () => null }),
-        albumUrlStatus:
-            album === null ? null : album.match({ Ok: (value) => value, Err: () => null }),
-        directUrlStatus:
-            direct === null ? null : direct.match({ Ok: (value) => value, Err: () => null })
+        shortUrl: short.match({ Ok: (value) => value, Err: () => UNKNOWN_PROBE }),
+        albumUrl: album.match({ Ok: (value) => value, Err: () => UNKNOWN_PROBE }),
+        directUrl:
+            direct === null
+                ? UNKNOWN_PROBE
+                : direct.match({ Ok: (value) => value, Err: () => UNKNOWN_PROBE })
     };
 }
 
 function isLive(verification: Verification): boolean {
     return (
-        verification.shortUrlStatus === 200 ||
-        verification.albumUrlStatus === 200 ||
-        verification.directUrlStatus === 200
+        verification.shortUrl.status === 200 ||
+        verification.albumUrl.status === 200 ||
+        verification.directUrl.status === 200
     );
 }
 
 function isVerified(verification: Verification, required: VerificationRequirements): boolean {
-    if (required.shortUrl && !stopped(verification.shortUrlStatus)) return false;
-    if (required.albumUrl && !stopped(verification.albumUrlStatus)) return false;
-    if (required.directUrl && !stopped(verification.directUrlStatus)) return false;
+    if (required.shortUrl && !isStoppedProbe(verification.shortUrl)) return false;
+    if (required.albumUrl && !isStoppedProbe(verification.albumUrl)) return false;
+    if (required.directUrl && !isStoppedProbe(verification.directUrl)) return false;
 
     return true;
-}
-
-function stopped(status: number | null): boolean {
-    return status !== null && STOPPED_STATUSES.has(status);
 }

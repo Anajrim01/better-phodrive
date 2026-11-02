@@ -286,4 +286,9 @@ export type ServerError =
           readonly code: 'SHARE_LINK_UNCERTAIN';
           readonly message: string;
           readonly recovery: ShareRecovery;
+      }
+    | {
+          readonly code: 'SHARE_REVOKE_UNVERIFIED';
+          readonly message: string;
+          readonly recovery: ShareRecovery;
       };

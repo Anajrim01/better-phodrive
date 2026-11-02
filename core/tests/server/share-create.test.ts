@@ -116,6 +116,7 @@ test('an existing envelope and live link are reused without creating anything', 
     );
 
     expect(created.unwrap().record.envelopeKey).toBe(ENVELOPE_KEY);
+    expect(created.unwrap().record.createdAt).toBe(EXISTING_SHARE.createdAt);
     expect(calls).toEqual([SHORT_URL, CANONICAL]);
 });
 
