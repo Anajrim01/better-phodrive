@@ -94,14 +94,18 @@ export function existingLookup(
 
 export function pruneRecent(
     recent: Map<string, ExistingUpload>,
-    files: readonly FileGroup[]
+    files: readonly FileGroup[],
+    pending: ReadonlySet<string>
 ): void {
     const available = new Set(
-        files.flatMap((file) =>
-            file.chunks.map(
-                (chunk) => `${chunk.email.toLowerCase()}\u0000${chunk.mediaKey}\u0000${chunk.sha1}`
+        files
+            .filter((file) => file.complete && !pending.has(contentKey(file.email, file.fileId)))
+            .flatMap((file) =>
+                file.chunks.map(
+                    (chunk) =>
+                        `${chunk.email.toLowerCase()}\u0000${chunk.mediaKey}\u0000${chunk.sha1}`
+                )
             )
-        )
     );
     for (const [key, existing] of recent) {
         const identity = `${key.split('\u0000')[0]}\u0000${existing.mediaKey}\u0000${existing.sha1}`;

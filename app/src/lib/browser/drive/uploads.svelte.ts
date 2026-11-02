@@ -49,7 +49,7 @@ export class DriveUploads {
     constructor(private readonly deps: UploadDeps) {}
 
     syncRecent(files: readonly FileGroup[]): void {
-        pruneRecent(this.recent, files);
+        pruneRecent(this.recent, files, this.pending);
     }
 
     reset(): void {

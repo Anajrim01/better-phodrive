@@ -8,6 +8,7 @@ import {
 } from '@madkarmaa/phodrive-core/models';
 import { groupChunks, type FileGroup, type UploadedChunk } from '@madkarmaa/phodrive-core/files';
 import type { GroupUploadMember } from '@madkarmaa/phodrive-core/browser/upload';
+import type { BrowserPreferences } from '#browser/storage';
 import { DriveUploads, type UploadDeps } from '#browser/drive/uploads.svelte';
 import { pruneRecent, uploadKey } from '#browser/drive/upload-dedupe';
 import { browserUploadResponse } from '../../../core/tests/helpers/upload';
@@ -19,7 +20,7 @@ const SHA1 = 'a'.repeat(40);
 
 afterEach(() => vi.restoreAllMocks());
 
-function existingFile(name: string, email = EMAIL, folder = ''): FileGroup {
+function existingFile(name: string, email = EMAIL, folder = '', compressed = false): FileGroup {
     const fileHash = createHash('sha256').update(PAYLOAD).digest('hex');
     const chunk: UploadedChunk = {
         email,
@@ -32,7 +33,8 @@ function existingFile(name: string, email = EMAIL, folder = ''): FileGroup {
         size: PAYLOAD.length,
         at: 1,
         mediaKey: `${name}-key`,
-        sha1: SHA1
+        sha1: SHA1,
+        compressed: compressed || undefined
     };
 
     return groupChunks([chunk])[0]!;
@@ -42,6 +44,7 @@ function driveUploads(
     options: {
         files?: readonly FileGroup[] | (() => readonly FileGroup[]);
         folder?: string;
+        compression?: boolean;
         group?: GroupUploadMember[] | null;
         onChunk?: (chunk: UploadedChunk) => void;
     } = {}
@@ -55,7 +58,10 @@ function driveUploads(
         workers: () => 1,
         loading: () => false,
         blocked: () => false,
-        preferences: () => null,
+        preferences: () =>
+            options.compression === undefined
+                ? null
+                : ({ compression: options.compression } as BrowserPreferences),
         feedback: () => {},
         onChunk: options.onChunk ?? (() => {}),
         afterUpload: () => {},
@@ -114,6 +120,25 @@ test('identical content under a different name still uploads', async () => {
     expect(uploads.jobs[0]?.result?.status).toBe(UploadStatus.Uploaded);
 });
 
+test.each([
+    { libraryCompressed: true, uploadCompressed: false },
+    { libraryCompressed: false, uploadCompressed: true }
+])(
+    'compression state does not enter the dedupe key: library $libraryCompressed, upload $uploadCompressed',
+    async ({ libraryCompressed, uploadCompressed }) => {
+        const fetch = vi.spyOn(globalThis, 'fetch');
+        const uploads = driveUploads({
+            files: [existingFile('proof.bin', EMAIL, '', libraryCompressed)],
+            compression: uploadCompressed
+        });
+
+        await uploads.upload([new File([PAYLOAD], 'proof.bin')]);
+
+        expect(fetch).not.toHaveBeenCalled();
+        expect(uploads.jobs[0]?.result?.status).toBe(UploadStatus.AlreadyExists);
+    }
+);
+
 test('same-selection duplicates produce one network upload', async () => {
     const fetch = mockUpload();
     const chunks: UploadedChunk[] = [];
@@ -156,15 +181,21 @@ test('a recent entry only survives while its exact uploaded copy exists', () => 
         [uploadKey(EMAIL, file.name, file.fileHash), { mediaKey: 'deleted-key', sha1: SHA1 }]
     ]);
 
-    pruneRecent(recent, [file]);
+    pruneRecent(recent, [file], new Set());
     expect(recent.size).toBe(0);
 
     recent.set(uploadKey(EMAIL, file.name, file.fileHash), {
         mediaKey: file.chunks[0]!.mediaKey,
         sha1: SHA1
     });
-    pruneRecent(recent, [file]);
+    pruneRecent(recent, [file], new Set());
     expect(recent.size).toBe(1);
+
+    pruneRecent(recent, [{ ...file, complete: false }], new Set());
+    expect(recent.size).toBe(0);
+
+    pruneRecent(recent, [file], new Set([`${EMAIL.toLowerCase()}\u0000${file.fileId}`]));
+    expect(recent.size).toBe(0);
 });
 
 test('a deleted in-session upload is not reused', async () => {
