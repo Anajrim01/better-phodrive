@@ -353,6 +353,14 @@
             "@madkarmaa/phodrive-core": "./src/server/photos/upload/lookup.ts",
             "default": "./dist/server/photos/upload/lookup.js"
         },
+        "./server/photos/upload/lookup-queue": {
+            "@madkarmaa/phodrive-core": "./src/server/photos/upload/lookup-queue.ts",
+            "default": "./dist/server/photos/upload/lookup-queue.js"
+        },
+        "./server/photos/upload/lookup-waiter": {
+            "@madkarmaa/phodrive-core": "./src/server/photos/upload/lookup-waiter.ts",
+            "default": "./dist/server/photos/upload/lookup-waiter.js"
+        },
         "./server/photos/upload/transfer": {
             "@madkarmaa/phodrive-core": "./src/server/photos/upload/transfer.ts",
             "default": "./dist/server/photos/upload/transfer.js"
@@ -550,6 +558,8 @@
             "./server/photos/trash": "./dist/server/photos/trash.js",
             "./server/photos/upload": "./dist/server/photos/upload/index.js",
             "./server/photos/upload/lookup": "./dist/server/photos/upload/lookup.js",
+            "./server/photos/upload/lookup-queue": "./dist/server/photos/upload/lookup-queue.js",
+            "./server/photos/upload/lookup-waiter": "./dist/server/photos/upload/lookup-waiter.js",
             "./server/photos/upload/transfer": "./dist/server/photos/upload/transfer.js",
             "./server/preview": "./dist/server/preview.js",
             "./server/preview/image": "./dist/server/preview/image.js",

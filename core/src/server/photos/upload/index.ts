@@ -6,6 +6,7 @@ import { authenticatedHeaders, type PhotosHeaders } from '../auth';
 import { photosFetch, type Fetcher } from '../../fetcher';
 import { bodyBytes } from '../../protobuf';
 import { hashLookup } from './lookup';
+import { lookupHash } from './lookup-queue';
 import { commitBmp, startUpload, transferBmp } from './transfer';
 import type { UploadBmpSource } from '../../upload/bmp';
 
@@ -35,7 +36,7 @@ function uploadAuthenticatedBmp(
     const sha1 = createHash('sha1').update(bmp).digest();
     const sha1Hex = sha1.toString('hex');
 
-    return hashLookup(email, sha1, rpcHeaders, fetcher).andThenAsync<UploadResponse, ServerError>(
+    return lookupHash(email, sha1, rpcHeaders, fetcher).andThenAsync<UploadResponse, ServerError>(
         async (foundKey) => {
             if (foundKey)
                 return Ok<UploadResponse>({
@@ -81,7 +82,15 @@ export function uploadBmpStream(
             const authenticated = await authenticatedHeaders(email, token, transport);
 
             return await authenticated.andThenAsync((headers) =>
-                uploadAuthenticatedStream(email, name, source, headers, transport)
+                uploadAuthenticatedStream(
+                    email,
+                    name,
+                    source,
+                    headers,
+                    transport,
+                    fetcher,
+                    abort.signal
+                )
             );
         } finally {
             abort.abort();
@@ -102,42 +111,43 @@ function uploadAuthenticatedStream(
     name: string,
     source: UploadBmpSource,
     { commonHeaders, rpcHeaders }: PhotosHeaders,
-    fetcher: Fetcher
+    fetcher: Fetcher,
+    lookupFetcher: Fetcher,
+    signal?: AbortSignal
 ): AsyncResult<UploadResponse, ServerError> {
     const sha1 = Buffer.from(source.sha1, 'hex');
 
-    return hashLookup(email, sha1, rpcHeaders, fetcher).andThenAsync<UploadResponse, ServerError>(
-        async (existing) => {
-            if (existing) {
-                return source.drain().map(() => ({
-                    status: UploadStatus.AlreadyExists,
-                    mediaKey: existing,
-                    sha1: source.sha1
-                }));
-            }
-
-            const transferred = startUpload(
-                email,
-                source.length,
-                sha1,
-                commonHeaders,
-                fetcher
-            ).andThenAsync((uploadId) =>
-                transferBmp(email, source.body, uploadId, commonHeaders, fetcher, source.length)
-            );
-
-            return transferred
-                .andThenAsync((transfer) => source.verified.map(() => transfer))
-                .andThenAsync((transfer) =>
-                    commitBmp(email, name, sha1, transfer, rpcHeaders, fetcher)
-                )
-                .map((mediaKey) => ({
-                    status: UploadStatus.Uploaded,
-                    mediaKey,
-                    sha1: source.sha1
-                }));
+    return lookupHash(email, sha1, rpcHeaders, lookupFetcher, signal).andThenAsync<
+        UploadResponse,
+        ServerError
+    >(async (existing) => {
+        if (existing) {
+            return source.drain().map(() => ({
+                status: UploadStatus.AlreadyExists,
+                mediaKey: existing,
+                sha1: source.sha1
+            }));
         }
-    );
+
+        const transferred = startUpload(
+            email,
+            source.length,
+            sha1,
+            commonHeaders,
+            fetcher
+        ).andThenAsync((uploadId) =>
+            transferBmp(email, source.body, uploadId, commonHeaders, fetcher, source.length)
+        );
+
+        return transferred
+            .andThenAsync((transfer) => source.verified.map(() => transfer))
+            .andThenAsync((transfer) => commitBmp(email, name, sha1, transfer, rpcHeaders, fetcher))
+            .map((mediaKey) => ({
+                status: UploadStatus.Uploaded,
+                mediaKey,
+                sha1: source.sha1
+            }));
+    });
 }
 
 export function findBmpBySha1(
