@@ -202,6 +202,23 @@ test('a group manual refresh falls back to a full read when updates fail', async
     expect(library.loading).toBe(false);
 });
 
+test('a stale group load cannot overwrite a reset library', async () => {
+    const members = [{ email: EMAIL, token: TOKEN }];
+    const library = makeLibrary(() => ({ members, missing: [] }));
+    const pending = deferred<Awaited<ReturnType<typeof readGroupLibrary>>>();
+    vi.mocked(readGroupLibrary).mockReturnValueOnce(
+        Ok(undefined).andThenAsync(() => pending.promise)
+    );
+
+    const load = library.load();
+    library.reset();
+    pending.resolve(Ok(groupSnapshot([{ email: EMAIL, status: 'ok' }])));
+    await load;
+
+    expect(library.chunks).toEqual([]);
+    expect(library.accounts).toEqual([]);
+});
+
 test('initial loading stays blocked until the first page arrives', async () => {
     const library = makeLibrary();
     const pending = deferred<Awaited<ReturnType<typeof readLibraryPage>>>();

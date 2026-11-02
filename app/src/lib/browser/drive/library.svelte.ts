@@ -175,7 +175,8 @@ export class DriveLibrary {
             this.libraryPageTokens,
             this.onAccounts,
             (path) => this.hasFolder(path),
-            this.feedback
+            this.feedback,
+            () => request === this.libraryRequest
         );
         if (request !== this.libraryRequest) return;
 

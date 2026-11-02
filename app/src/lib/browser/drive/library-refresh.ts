@@ -96,7 +96,8 @@ export async function loadGroupLibrary(
     pageTokens: Set<string>,
     onAccounts: (accounts: GroupAccountState[]) => void,
     hasFolder: (path: string) => boolean,
-    feedback: (message: string) => void
+    feedback: (message: string) => void,
+    isCurrent: () => boolean
 ): Promise<void> {
     if (reset) {
         state.chunks = [];
@@ -109,6 +110,8 @@ export async function loadGroupLibrary(
     feedback('');
 
     const loaded = await readGroupLibrary(group.members, group.missing);
+    if (!isCurrent()) return;
+
     loaded.match({
         Ok: (snapshot) => applyGroupSnapshot(state, snapshot, onAccounts, hasFolder),
         Err: (error) => reportLoadFailure(state, error, feedback)
