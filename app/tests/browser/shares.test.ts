@@ -120,3 +120,15 @@ test('the store refuses a 101st share instead of invalidating the whole list', (
     expect(overflow.isErr()).toBe(true);
     expect(store.list(EMAIL)).toHaveLength(100);
 });
+
+test('a storage read failure does not overwrite the other saved shares', () => {
+    const store = new ShareStore();
+    store.save(EMAIL, RECORD);
+    const read = vi.spyOn(storage, 'getItem').mockImplementation(() => {
+        throw new Error('storage blocked');
+    });
+
+    expect(store.save(EMAIL, { ...RECORD, envelopeKey: 'AF1QipNext' }).isErr()).toBe(true);
+    read.mockRestore();
+    expect(store.list(EMAIL)).toEqual([RECORD]);
+});

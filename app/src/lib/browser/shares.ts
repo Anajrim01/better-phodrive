@@ -9,7 +9,7 @@ import {
     type ShareRecord,
     type StoredShares
 } from '@madkarmaa/phodrive-core/share-models';
-import { readState, readStoredJson, writeState } from '#browser/persisted';
+import { readState, readStoredJson, STORAGE_UNAVAILABLE, writeState } from '#browser/persisted';
 
 export const SHARES_KEY = 'phodrive-shares';
 
@@ -53,7 +53,12 @@ export class ShareStore {
                 message: 'Could not save the share in this browser.'
             } as const);
 
-        const shares: StoredShares = readState(this.state).unwrapOr({});
+        const shares = readState(this.state).match({
+            Ok: (value) => value,
+            Err: () => null
+        });
+        if (shares === null) return Err(STORAGE_UNAVAILABLE);
+
         const current = shares[parsedEmail.data] ?? [];
         const existing = current.some(
             (entry) => entry.envelopeKey === parsedRecord.data.envelopeKey
@@ -76,7 +81,12 @@ export class ShareStore {
         const parsed = EmailSchema.safeParse(email);
         if (!parsed.success) return Err({ code: 'INVALID_SCHEMA', message: 'Invalid account.' });
 
-        const shares: StoredShares = readState(this.state).unwrapOr({});
+        const shares = readState(this.state).match({
+            Ok: (value) => value,
+            Err: () => null
+        });
+        if (shares === null) return Err(STORAGE_UNAVAILABLE);
+
         const updated = (shares[parsed.data] ?? []).filter(
             (record) => record.envelopeKey !== envelopeKey
         );
