@@ -87,12 +87,32 @@ function responseHeaders(response: Response, length: number | null): Headers {
     return headers;
 }
 
-function validateUpstream(response: Response, length: number | null): ProxyError | null {
+function matchesRequestedRange(value: string | null, requested: string): boolean {
+    if (value === null) return true;
+
+    const upstream = /^bytes (\d+)-(\d+)\/(\d+|\*)$/.exec(value);
+    const expected = /^bytes=(\d+)-(\d+)$/.exec(requested);
+    if (!upstream || !expected) return false;
+
+    const start = Number(upstream[1]);
+    const end = Number(upstream[2]);
+    if (start !== Number(expected[1]) || end > Number(expected[2]) || end < start) return false;
+
+    return upstream[3] === '*' || Number(upstream[3]) > end;
+}
+
+function validateUpstream(
+    response: Response,
+    length: number | null,
+    range: string
+): ProxyError | null {
     if (response.status >= 300 && response.status < 400) return proxyError('UPSTREAM_REDIRECT');
     if (response.status === 404 || response.status === 410) return proxyError('MEDIA_UNAVAILABLE');
     if (length !== null && length > MAX_RANGE_BYTES) return proxyError('UPSTREAM_STATUS');
     if (response.status === 416) return null;
     if (response.status !== 206) return proxyError('UPSTREAM_STATUS');
+    if (!matchesRequestedRange(response.headers.get('content-range'), range))
+        return proxyError('UPSTREAM_STATUS');
 
     const encoding = response.headers.get('content-encoding');
     if (encoding && encoding !== 'identity') return proxyError('UPSTREAM_STATUS');
@@ -125,7 +145,7 @@ export function createBytesHandler(deps: BytesDeps = DEFAULT_DEPS) {
             },
             Ok: async ({ response, controller }) => {
                 const length = contentLength(response);
-                const invalid = validateUpstream(response, length);
+                const invalid = validateUpstream(response, length, range);
                 if (invalid) {
                     discardUpstream(response, controller);
                     release();

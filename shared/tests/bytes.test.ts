@@ -84,6 +84,39 @@ describe('POST /api/bytes', () => {
         expect(calls).toHaveLength(0);
     });
 
+    it('accepts an upstream range clamped to a smaller item', async () => {
+        const handler = createBytesHandler({
+            fetch: fetchReturning(
+                [],
+                () =>
+                    new Response(new Uint8Array([1, 2]), {
+                        status: 206,
+                        headers: { 'content-range': 'bytes 0-1/2', 'content-length': '2' }
+                    })
+            )
+        });
+        const response = await handler(request(MEDIA_URL, 'bytes=0-3'));
+
+        expect(response.status).toBe(206);
+        expect(response.headers.get('content-range')).toBe('bytes 0-1/2');
+    });
+
+    it('rejects an upstream range that does not match the request', async () => {
+        const handler = createBytesHandler({
+            fetch: fetchReturning(
+                [],
+                () =>
+                    new Response(new Uint8Array([1, 2]), {
+                        status: 206,
+                        headers: { 'content-range': 'bytes 1-2/10' }
+                    })
+            )
+        });
+        const response = await handler(request(MEDIA_URL, 'bytes=0-1'));
+
+        expect(response.status).toBe(502);
+    });
+
     it('refuses cross host redirects', async () => {
         const calls: Call[] = [];
         const handler = createBytesHandler({

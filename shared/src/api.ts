@@ -111,18 +111,24 @@ export function createApi(fetchImpl: typeof fetch = globalThis.fetch.bind(global
         });
     }
 
-    const fetchBytes: ByteFetcher = (url, range) =>
+    const fetchBytes: ByteFetcher = (url, range, signal) =>
         Ok(undefined).andThenAsync(async () => {
             let response: Response;
             try {
                 response = await fetchImpl('/api/bytes', {
                     method: 'POST',
                     headers: BODY_HEADERS,
-                    body: JSON.stringify(range ? { url, range } : { url }),
+                    body: JSON.stringify({ url, range }),
                     cache: 'no-store',
-                    credentials: 'omit'
+                    credentials: 'omit',
+                    signal
                 });
             } catch {
+                if (signal?.aborted)
+                    return Err(
+                        viewerFailure('cancelled', 'The share changed, so the download stopped.')
+                    );
+
                 return Err(
                     viewerFailure('network_failed', 'The shared item could not be reached.')
                 );

@@ -24,7 +24,7 @@ function truncateBytes(value: string, limit: number): string {
 }
 
 function avoidReserved(name: string): string {
-    const dot = name.lastIndexOf('.');
+    const dot = name.indexOf('.');
     const base = dot > 0 ? name.slice(0, dot) : name;
 
     if (!RESERVED.test(base)) return name;

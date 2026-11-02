@@ -85,6 +85,8 @@ async function readSegment(
             }
         }
     } catch {
+        void reader.cancel().catch(() => undefined);
+
         if (signal.aborted) return Err(cancelled());
 
         return Err(

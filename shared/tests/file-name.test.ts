@@ -23,6 +23,7 @@ describe('file name sanitizer', () => {
     it('avoids Windows reserved names', () => {
         expect(sanitizeFileName('CON.txt')).toBe('CON_.txt');
         expect(sanitizeFileName('nul')).toBe('nul_');
+        expect(sanitizeFileName('CON.tar.gz')).toBe('CON_.tar.gz');
     });
 
     it('caps multibyte names by UTF-8 bytes', () => {
