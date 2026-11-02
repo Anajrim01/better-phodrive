@@ -167,6 +167,8 @@ export function showVerified(ui: FileUi, result: ReassemblyResult): void {
     ui.verified.append(mark, copy);
     ui.verified.hidden = false;
     ui.save.textContent = 'Saved';
+    ui.save.title = 'This copy is already saved.';
+    ui.save.setAttribute('aria-label', 'Saved. This copy is already saved.');
     ui.save.disabled = true;
     ui.saved = true;
     ui.progress.hidden = true;

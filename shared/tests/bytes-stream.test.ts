@@ -67,10 +67,10 @@ describe('byte stream limits', () => {
                             return new Promise<void>(() => undefined);
                         }
                     }),
-                    { status: 200 }
+                    { status: 206 }
                 )
         });
-        const response = await handler(request(MEDIA_URL));
+        const response = await handler(request(MEDIA_URL, 'bytes=0-2'));
         const outcome = await Promise.race([
             response.body?.cancel().then(() => 'cancelled'),
             new Promise((resolve) => setTimeout(() => resolve('timeout'), 500))
@@ -79,13 +79,39 @@ describe('byte stream limits', () => {
         expect(outcome).toBe('cancelled');
     });
 
+    it('releases a pass-through body when the client cancels', async () => {
+        let first = true;
+        const handler = createBytesHandler({
+            maxConcurrency: 1,
+            fetch: async () => {
+                if (!first) return new Response(new Uint8Array([1, 2, 3]), { status: 206 });
+
+                return new Response(
+                    new ReadableStream({
+                        start() {
+                            return;
+                        }
+                    }),
+                    { status: 206, headers: { 'content-length': '1' } }
+                );
+            }
+        });
+        const response = await handler(request(MEDIA_URL, 'bytes=0-0'));
+
+        await response.body?.cancel();
+        first = false;
+
+        const next = await handler(request(MEDIA_URL, 'bytes=0-2'));
+        expect(next.status).toBe(206);
+    });
+
     it('stops a stalled stream and releases the slot', async () => {
         let stalled = true;
         const handler = createBytesHandler({
             bodyIdleTimeoutMs: 50,
             maxConcurrency: 1,
             fetch: async (_input, init) => {
-                if (!stalled) return new Response(new Uint8Array([1, 2, 3]), { status: 200 });
+                if (!stalled) return new Response(new Uint8Array([1, 2, 3]), { status: 206 });
 
                 const stream = new ReadableStream({
                     start(controller) {
@@ -95,17 +121,17 @@ describe('byte stream limits', () => {
                     }
                 });
 
-                return new Response(stream, { status: 200 });
+                return new Response(stream, { status: 206 });
             }
         });
-        const response = await handler(request(MEDIA_URL));
+        const response = await handler(request(MEDIA_URL, 'bytes=0-65535'));
 
         await expect(response.arrayBuffer()).rejects.toThrow();
         await new Promise((resolve) => setTimeout(resolve, 80));
         stalled = false;
 
-        const next = await handler(request(MEDIA_URL));
-        expect(next.status).toBe(200);
+        const next = await handler(request(MEDIA_URL, 'bytes=0-2'));
+        expect(next.status).toBe(206);
     });
 
     it('cancels an upstream body that fails validation', async () => {
@@ -122,12 +148,12 @@ describe('byte stream limits', () => {
                         }
                     }),
                     {
-                        status: 200,
-                        headers: { 'content-length': '200000001' }
+                        status: 206,
+                        headers: { 'content-length': String(MAX_RANGE_BYTES + 1) }
                     }
                 )
         });
-        const response = await handler(request(MEDIA_URL));
+        const response = await handler(request(MEDIA_URL, 'bytes=0-2'));
 
         expect(response.status).toBe(502);
         await Promise.resolve();
@@ -136,17 +162,17 @@ describe('byte stream limits', () => {
 
     it('caps concurrent streams', async () => {
         const handler = createBytesHandler({
-            fetch: async () => new Response(new Uint8Array([1, 2, 3]), { status: 200 })
+            fetch: async () => new Response(new Uint8Array([1, 2, 3]), { status: 206 })
         });
         const responses = await Promise.all([
-            handler(request(MEDIA_URL)),
-            handler(request(MEDIA_URL)),
-            handler(request(MEDIA_URL)),
-            handler(request(MEDIA_URL))
+            handler(request(MEDIA_URL, 'bytes=0-2')),
+            handler(request(MEDIA_URL, 'bytes=0-2')),
+            handler(request(MEDIA_URL, 'bytes=0-2')),
+            handler(request(MEDIA_URL, 'bytes=0-2'))
         ]);
-        const busy = await handler(request(MEDIA_URL));
+        const busy = await handler(request(MEDIA_URL, 'bytes=0-2'));
 
-        expect(responses.every((response) => response.status === 200)).toBe(true);
+        expect(responses.every((response) => response.status === 206)).toBe(true);
         expect(busy.status).toBe(429);
 
         await Promise.all(responses.map((response) => response.body?.cancel()));

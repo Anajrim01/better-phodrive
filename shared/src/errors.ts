@@ -10,6 +10,7 @@ export type ViewerCode =
     | 'network_failed'
     | 'preview_too_large'
     | 'save_cancelled'
+    | 'cancelled'
     | 'save_failed'
     | 'too_large';
 

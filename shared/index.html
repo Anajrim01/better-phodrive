@@ -34,17 +34,16 @@
                 <div class="colophon-block">
                     <p class="colophon-title">How this works</p>
                     <p>
-                        The share is read from the part of the link after <code>#</code>. That part
-                        stays in this browser. Google Photos is read through this site's proxy, and
-                        the file is rebuilt and hashed here.
+                        The manifest is read from the part of the link after <code>#</code>. The
+                        decoded public album URL is sent to this site's proxy to read the listing.
+                        Capability URLs are not logged.
                     </p>
                 </div>
                 <div class="colophon-block">
                     <p class="colophon-title">Limits</p>
                     <p>
                         Free tier: about 100,000 proxy requests per day, four byte streams at once,
-                        and an 8 MiB cap on range requests. Large files download one chunk at a
-                        time.
+                        and an 8 MiB cap on range requests. Large files download in 8 MiB ranges.
                     </p>
                 </div>
             </footer>

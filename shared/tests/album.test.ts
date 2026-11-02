@@ -96,6 +96,18 @@ describe('POST /api/album', () => {
         expect((await response.json()).items).toHaveLength(2);
     });
 
+    it('fails closed when the RPC payload is malformed even with a valid callback', async () => {
+        server = await startMockGoogle({ ...baseAlbum, batchMode: 'malformed' });
+        const response = await handleAlbum(request(albumBody(baseAlbum)), {
+            fetch: globalThis.fetch,
+            pageOrigin: server.origin
+        });
+        const body = await response.json();
+
+        expect(response.status).toBe(502);
+        expect(body.error.code).toBe('ALBUM_SHAPE_CHANGED');
+    });
+
     it('fails closed when both listings are missing', async () => {
         server = await startMockGoogle({ ...baseAlbum, omitRpc: true, omitInit: true });
         const response = await handleAlbum(request(albumBody(baseAlbum)), {
@@ -143,6 +155,19 @@ describe('POST /api/album', () => {
 
         expect(response.status).toBe(400);
         expect((await response.json()).error.code).toBe('INVALID_ALBUM');
+    });
+
+    it('uses an album page error, not a media error', async () => {
+        server = await startMockGoogle({ ...baseAlbum, pageStatus: 500 });
+        const response = await handleAlbum(request(albumBody(baseAlbum)), {
+            fetch: globalThis.fetch,
+            pageOrigin: server.origin
+        });
+        const body = await response.json();
+
+        expect(response.status).toBe(502);
+        expect(body.error.code).toBe('ALBUM_UPSTREAM_STATUS');
+        expect(body.error.message).toContain('album');
     });
 
     it('maps a missing album to 404', async () => {

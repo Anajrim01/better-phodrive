@@ -58,7 +58,7 @@ function fetchAlbumPage(
         .andThen((response) => {
             if (response.status === 404 || response.status === 410)
                 return Err(proxyError('ALBUM_UNAVAILABLE'));
-            if (response.status !== 200) return Err(proxyError('UPSTREAM_STATUS'));
+            if (response.status !== 200) return Err(proxyError('ALBUM_UPSTREAM_STATUS'));
 
             const type = response.headers.get('content-type') ?? '';
             if (!type.includes('text/html')) return Err(proxyError('ALBUM_SHAPE_CHANGED'));
@@ -99,7 +99,7 @@ function callListingRpc(
         proxyError('UPSTREAM_UNAVAILABLE')
     )
         .andThen((response) =>
-            response.status === 200 ? Ok(response) : Err(proxyError('UPSTREAM_STATUS'))
+            response.status === 200 ? Ok(response) : Err(proxyError('ALBUM_UPSTREAM_STATUS'))
         )
         .andThenAsync((response) => readCappedText(response, MAX_ALBUM_JSON_BYTES))
         .andThen((text) => parseBatchExecute(text, rpcId));
@@ -145,7 +145,15 @@ async function readServiceListing(
 
     const rpc = await callListingRpc(reference, service.id, service.request, deps);
     return rpc.match({
-        Err: (error) => (fallback.isErr() ? Err(error) : fallback),
+        Err: (error) => {
+            const transport =
+                error.code === 'UPSTREAM_UNAVAILABLE' ||
+                error.code === 'UPSTREAM_STATUS' ||
+                error.code === 'ALBUM_UPSTREAM_STATUS';
+            if (transport && fallback.isOk()) return fallback;
+
+            return Err(error);
+        },
         Ok: (data) =>
             parseListingData(data).match({
                 Err: (error) => Err(error),

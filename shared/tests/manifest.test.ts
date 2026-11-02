@@ -63,9 +63,31 @@ describe('manifest', () => {
         expect(zero.unwrapErr().code).toBe('manifest_invalid');
     });
 
-    it('rejects bad base64url and JSON', () => {
+    it('rejects bad base64url and malformed JSON', () => {
+        const malformed = btoa('not json')
+            .replace(/\+/g, '-')
+            .replace(/\//g, '_')
+            .replace(/=+$/, '');
+
         expect(decodeManifest('#share=***').unwrapErr().code).toBe('manifest_invalid');
         expect(decodeManifest('#share=eyJ2IjoxfQ').unwrapErr().code).toBe('manifest_invalid');
+        expect(decodeManifest(`#share=${malformed}`).unwrapErr().code).toBe('manifest_invalid');
+        expect(decodeManifest('#share=eyJ2IjoxfQ==').unwrapErr().code).toBe('manifest_invalid');
+    });
+
+    it('rejects the wrong version and missing or extra fields', () => {
+        expect(encodeManifest({ ...manifest, v: 2 }).unwrapErr().code).toBe('manifest_invalid');
+        expect(encodeManifest({ v: 1, album: ALBUM }).unwrapErr().code).toBe('manifest_invalid');
+        expect(encodeManifest({ v: 1, files: [] }).unwrapErr().code).toBe('manifest_invalid');
+        expect(encodeManifest({ ...manifest, extra: true }).unwrapErr().code).toBe(
+            'manifest_invalid'
+        );
+        expect(
+            encodeManifest({
+                ...manifest,
+                files: [{ ...manifest.files[0], extra: true }]
+            }).unwrapErr().code
+        ).toBe('manifest_invalid');
     });
 
     it('rejects an oversized fragment', () => {

@@ -36,14 +36,14 @@ export function parseMediaUrl(input: string): Result<MediaReference, ProxyError>
 
     if (!isAllowedMediaUrl(url)) return Err(proxyError('INVALID_BYTES_URL'));
 
-    const base = url.href;
+    const base = `${url.origin}${url.pathname}`;
     const downloadUrl = url.pathname.endsWith('=d') ? base : `${base}=d`;
 
     return Ok({ url: base, downloadUrl });
 }
 
 export function parseRange(input: string | undefined): Result<string, ProxyError> {
-    if (input === undefined) return Ok('');
+    if (input === undefined) return Err(proxyError('RANGE_REQUIRED'));
 
     const match = BYTE_RANGE.exec(input);
     if (!match) return Err(proxyError('INVALID_RANGE'));

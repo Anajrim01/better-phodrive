@@ -2,6 +2,7 @@ import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import { parseChunkPrefix, isSplitChunk, type ChunkHeader } from './bmp';
 import type { AlbumItem } from './api';
 import { viewerFailure, type ViewerFailure } from './errors';
+import { sanitizeFileName } from './file-name';
 import { MAX_FILE_BYTES, PROBE_CONCURRENCY } from './limits';
 import type { Manifest, ManifestFile } from './manifest';
 
@@ -101,7 +102,7 @@ function candidatesFor(
 
     const plan: PlannedFile = {
         id: file.id,
-        name: first.header.fileName,
+        name: sanitizeFileName(first.header.fileName),
         fileHash: first.header.fileHash,
         chunks,
         size,

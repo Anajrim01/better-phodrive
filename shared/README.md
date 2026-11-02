@@ -6,10 +6,10 @@ The app has no R2, D1, or KV binding. It stores no files, keeps no database, and
 
 ## What it does
 
-- Reads `#share=<base64url(JSON)>` from the URL fragment. The fragment is never sent to the server or written to an API request.
+- Reads `#share=<base64url(JSON)>` from the URL fragment. The raw fragment is never sent. The viewer decodes the public album URL and sends it in the POST body to `/api/album`; the proxy does not log it.
 - `POST /api/album` reads the public Google Photos page, uses the current `snAcKc` RPC declared in `AF_dataServiceRequests`, falls back to `AF_initDataCallback`, and returns normalized items with `=d` original URLs.
-- `POST /api/bytes` accepts an `lh3.googleusercontent.com` URL and an optional closed byte range. It streams the response with `application/octet-stream`, `Content-Disposition: attachment`, and `nosniff`.
-- The viewer probes each item for `BMSPLIT`, groups chunks by `fileId`, checks contiguous indices, the last flag, zero padding, per-chunk Brotli, and the final SHA-256.
+- `POST /api/bytes` accepts an `lh3.googleusercontent.com` URL and a closed byte range. It streams the response with `application/octet-stream`, `Content-Disposition: attachment`, and `nosniff`.
+- The viewer probes each item for `BMSPLIT`, groups chunks by `fileId`, downloads chunks in sequential 8 MiB ranges, checks contiguous indices, the last flag, zero padding, per-chunk Brotli, and the final SHA-256. Brotli output is bounded by the declared original size, and file names are sanitized before saving.
 - Missing files, missing chunks, and a missing final marker produce `Share incomplete` and no file.
 
 ## Manifest v1
@@ -57,7 +57,7 @@ bunx wrangler pages dev
 bun run test
 ```
 
-The suite covers manifest encoding, the BMP split parser, compressed and uncompressed chunks, 1, 3, and 20 chunk reassembly, missing files and chunks, zero padding, SHA-256 failures, range proxying, the host allowlist, malformed album listings, and a local mock Google server.
+The suite covers manifest validation, the BMP split parser, a real-WASM Brotli bomb, compressed and uncompressed chunks, 1, 3, 20, and multi-range chunk reassembly, missing files and chunks, duplicate and mismatched chunks, zero padding, SHA-256 failures, file name sanitization, range-only proxying, the host allowlist, malformed album listings, and a local mock Google server.
 
 A live check is optional and read-only. It needs a public album URL and does not create a share:
 
@@ -103,9 +103,9 @@ The proxy uses little CPU because it only copies streams, so the 10 ms CPU limit
 ## Abuse and cost controls
 
 - The byte proxy allows only `https://lh3.googleusercontent.com/` and a narrow path shape. It does not follow redirects and rejects cross-host redirects.
-- Only closed single ranges are accepted, with an 8 MiB span cap. A full chunk request has no range and is capped at 200 MB.
-- The proxy counts streamed bytes, so a missing `Content-Length` cannot bypass either cap. A 30 second idle timeout drops stalled bodies and frees the concurrency slot.
-- Four byte streams and two album listings may run at once per isolate. These are best-effort in-memory caps, not a durable per-IP quota.
+- Only closed single ranges are accepted, with an 8 MiB span cap. A request without a range is rejected. When the upstream declares a valid length within the cap, the proxy passes the body through with a release-only transform; otherwise it counts bytes and enforces the cap itself.
+- Bodies without a valid length are counted and have a 30 second idle timeout. Bodies with a valid length are passed through; a client cancel releases the slot.
+- Four byte streams and two album listings may run at once per isolate. These are best-effort in-memory caps, not a durable per-IP quota. The 8 MiB range cap controls request size, not request volume.
 - The proxy accepts capability URLs only in POST bodies, does not log them, and does not cache responses.
 - The viewer uses `showSaveFilePicker` when available and streams chunks to disk. The Blob fallback is limited to 512 MB. A failed hash check aborts the staged write before the file is offered.
 - There is no durable rate limiter because the free plan has no KV or D1 binding in this app. Add a Cloudflare rate limiting rule on `/api/*` if the public deployment sees abuse.

@@ -2,6 +2,7 @@ import { decompressChunk } from './brotli';
 import { api } from './client';
 import type { PlannedFile } from './discover';
 import { failureDetail } from './errors';
+import { operationSignal } from './operations';
 import { buildPreview } from './preview';
 import { replacePreviewUrl } from './preview-url';
 import { reassembleFile } from './reassemble';
@@ -17,6 +18,8 @@ import {
 
 export async function savePlan(plan: PlannedFile, ui: FileUi): Promise<void> {
     if (ui.busy || ui.saved) return;
+
+    const signal = operationSignal();
 
     return openSink(plan.name, plan.size, false).match({
         Err: async (error) => {
@@ -35,7 +38,8 @@ export async function savePlan(plan: PlannedFile, ui: FileUi): Promise<void> {
                 sink,
                 api.fetchBytes,
                 decompressChunk,
-                (written, total) => setProgress(ui, written, total)
+                (written, total) => setProgress(ui, written, total),
+                signal
             );
 
             return result.match({
@@ -67,6 +71,8 @@ export async function previewPlan(plan: PlannedFile, ui: FileUi): Promise<void> 
         return;
     }
 
+    const signal = operationSignal();
+
     ui.busy = true;
     previewButton.disabled = true;
     ui.save.disabled = true;
@@ -79,7 +85,8 @@ export async function previewPlan(plan: PlannedFile, ui: FileUi): Promise<void> 
         new MemorySink(),
         api.fetchBytes,
         decompressChunk,
-        (written, total) => setProgress(ui, written, total)
+        (written, total) => setProgress(ui, written, total),
+        signal
     );
 
     return result.match({
@@ -96,7 +103,23 @@ export async function previewPlan(plan: PlannedFile, ui: FileUi): Promise<void> 
                 return;
             }
 
-            const preview = await buildPreview(value.blob, kind, plan.name);
+            if (signal.aborted) {
+                finishBusy(ui);
+
+                return;
+            }
+
+            let preview;
+            try {
+                preview = await buildPreview(value.blob, kind, plan.name);
+            } catch {
+                showMessage(ui, 'The preview could not be built.');
+                ui.progress.hidden = true;
+                finishBusy(ui);
+
+                return;
+            }
+
             replacePreviewUrl(preview.objectUrl);
             ui.previewBox.replaceChildren(preview.node);
             ui.previewBox.hidden = false;

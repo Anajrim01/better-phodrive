@@ -53,7 +53,11 @@ export interface ByteResponse {
     body: ReadableStream<Uint8Array>;
 }
 
-export type ByteFetcher = (url: string, range?: string) => AsyncResult<ByteResponse, ViewerFailure>;
+export type ByteFetcher = (
+    url: string,
+    range: string,
+    signal?: AbortSignal
+) => AsyncResult<ByteResponse, ViewerFailure>;
 
 const BODY_HEADERS = { 'content-type': 'application/json' };
 

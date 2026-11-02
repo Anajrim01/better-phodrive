@@ -1,7 +1,7 @@
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import { createSHA256 } from 'hash-wasm';
 import type { ByteFetcher } from './api';
-import { consumeChunk, type Decompressor } from './chunk-stream';
+import { consumeChunkRanges, type Decompressor } from './chunk-stream';
 import { viewerFailure, type ViewerFailure } from './errors';
 import type { PlannedFile } from './discover';
 import type { ByteSink } from './sink';
@@ -28,10 +28,17 @@ export function reassembleFile(
     sink: ByteSink,
     fetchBytes: ByteFetcher,
     decompress: Decompressor,
-    onProgress: Progress
+    onProgress: Progress,
+    signal: AbortSignal
 ): AsyncResult<ReassemblyResult, ViewerFailure> {
     return Ok(undefined).andThenAsync(
         async (): Promise<Result<ReassemblyResult, ViewerFailure>> => {
+            if (signal.aborted)
+                return abortWith(
+                    sink,
+                    viewerFailure('cancelled', 'The share changed, so the download stopped.')
+                );
+
             let hasher;
             try {
                 hasher = await createSHA256();
@@ -47,40 +54,30 @@ export function reassembleFile(
             onProgress(0, plan.size);
 
             for (const chunk of plan.chunks) {
-                const response = await fetchBytes(chunk.item.downloadUrl);
-                const consumed = await response.match({
-                    Err: (error) => abortWith<void>(sink, error),
-                    Ok: async (value) => {
-                        if (value.status !== 200)
-                            return abortWith<void>(
-                                sink,
-                                viewerFailure(
-                                    'chunk_invalid',
-                                    'A chunk did not download completely.'
-                                )
-                            );
+                if (signal.aborted)
+                    return abortWith(
+                        sink,
+                        viewerFailure('cancelled', 'The share changed, so the download stopped.')
+                    );
 
-                        const copied = await consumeChunk(
-                            value,
-                            chunk.header,
-                            sink,
-                            hasher,
-                            decompress,
-                            (bytes) => onProgress(bytes, plan.size),
-                            written
-                        );
-
-                        return copied.match({
-                            Err: async (error) => abortWith<void>(sink, error),
-                            Ok: async (bytes) => {
-                                written += bytes;
-
-                                return Ok(undefined);
-                            }
-                        });
-                    }
+                const consumed = await consumeChunkRanges(
+                    chunk.item.downloadUrl,
+                    chunk.header,
+                    fetchBytes,
+                    sink,
+                    hasher,
+                    decompress,
+                    (bytes) => onProgress(bytes, plan.size),
+                    written,
+                    signal
+                );
+                const copied = consumed.match<{ bytes: number } | { error: ViewerFailure }>({
+                    Ok: (bytes) => ({ bytes }),
+                    Err: (error) => ({ error })
                 });
-                if (consumed.isErr()) return consumed;
+                if ('error' in copied) return abortWith(sink, copied.error);
+
+                written += copied.bytes;
             }
 
             if (written !== plan.size)
@@ -106,6 +103,12 @@ export function reassembleFile(
                         'integrity_failed',
                         'The file failed its SHA-256 check. Nothing was saved.'
                     )
+                );
+
+            if (signal.aborted)
+                return abortWith(
+                    sink,
+                    viewerFailure('cancelled', 'The share changed, so the download stopped.')
                 );
 
             const closed = await sink.close();

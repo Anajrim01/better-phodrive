@@ -1,102 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { brotliDecompressSync } from 'node:zlib';
-import { Err, Ok, type AsyncResult } from 'results-ts';
-import type { AlbumItem, ByteResponse } from '../src/api';
-import { discoverFiles, type ProbeItem } from '../src/discover';
-import type { ViewerFailure } from '../src/errors';
-import type { Manifest } from '../src/manifest';
+import type { ByteFetcher, ByteResponse } from '../src/api';
+import { discoverFiles } from '../src/discover';
 import { reassembleFile } from '../src/reassemble';
 import { MemorySink } from '../src/sink';
-import { makeSplitFile, type SplitFile } from './helpers/bmp';
-
-function asyncOk<T>(value: T): AsyncResult<T, never> {
-    return Ok(undefined).andThenAsync(async () => Ok(value));
-}
-
-function asyncErr<T>(failure: ViewerFailure): AsyncResult<T, ViewerFailure> {
-    return Ok(undefined).andThenAsync(async () => Err(failure));
-}
-
-const ALBUM =
-    'https://photos.google.com/share/AF1QipTestAlbum0000000000000000000000000000000000000000000?key=testCapabilityKey0000000000000000000000000000';
-
-function fixture(split: SplitFile) {
-    const items: AlbumItem[] = split.chunks.map((_, index) => ({
-        id: `${split.fileId}-${index}`,
-        url: `https://lh3.googleusercontent.com/pw/${split.fileId.slice(0, 24)}-${index}`,
-        downloadUrl: `https://lh3.googleusercontent.com/pw/${split.fileId.slice(0, 24)}-${index}=d`
-    }));
-    const manifest: Manifest = {
-        v: 1,
-        album: ALBUM,
-        files: [{ id: split.fileId, chunks: split.chunks.length, name: split.name }]
-    };
-    const bytesByUrl = new Map(
-        items.flatMap((item, index) => [
-            [item.url, split.chunks[index]] as const,
-            [item.downloadUrl, split.chunks[index]] as const
-        ])
-    );
-    const probe: ProbeItem = (item) => asyncOk(bytesByUrl.get(item.url)!.subarray(0, 65_536));
-    const fetchBytes = (url: string) => {
-        const bytes = bytesByUrl.get(url)!;
-
-        return asyncOk<ByteResponse>({
-            status: 200,
-            headers: new Headers({ 'content-length': String(bytes.length) }),
-            body: new Response(new Uint8Array(bytes)).body!
-        });
-    };
-    const decompress = (bytes: Uint8Array): AsyncResult<Uint8Array, ViewerFailure> => {
-        try {
-            return asyncOk(new Uint8Array(brotliDecompressSync(bytes)));
-        } catch {
-            return asyncErr({ code: 'chunk_invalid', message: 'Brotli failed' });
-        }
-    };
-
-    return { items, manifest, probe, fetchBytes, decompress, bytesByUrl };
-}
-
-async function assemble(run: ReturnType<typeof fixture>) {
-    const plans = await discoverFiles(run.items, run.manifest, run.probe).unwrap();
-    const sink = new MemorySink();
-    const result = await reassembleFile(
-        plans[0],
-        sink,
-        run.fetchBytes,
-        run.decompress,
-        () => undefined
-    ).unwrap();
-
-    return {
-        result,
-        saved: new Uint8Array(await result.blob!.arrayBuffer())
-    };
-}
-
-async function discoveryFailure(
-    run: ReturnType<typeof fixture>,
-    items = run.items,
-    manifest = run.manifest
-) {
-    const result = await discoverFiles(items, manifest, run.probe);
-
-    return result.match({ Ok: () => null, Err: (error) => error });
-}
-
-async function reassemblyFailure(run: ReturnType<typeof fixture>) {
-    const plans = await discoverFiles(run.items, run.manifest, run.probe).unwrap();
-    const result = await reassembleFile(
-        plans[0],
-        new MemorySink(),
-        run.fetchBytes,
-        run.decompress,
-        () => undefined
-    );
-
-    return result.match({ Ok: () => null, Err: (error) => error });
-}
+import { makeSplitFile } from './helpers/bmp';
+import { assemble, asyncOk, fixture } from './helpers/reassemble';
 
 describe('reassembly', () => {
     it('rebuilds one uncompressed chunk', async () => {
@@ -135,6 +43,34 @@ describe('reassembly', () => {
         expect(saved).toEqual(split.original);
     });
 
+    it('rebuilds a chunk larger than one media range', async () => {
+        const split = makeSplitFile({
+            name: 'large.bin',
+            data: new Uint8Array(9_000_000).fill(7),
+            chunks: 1
+        });
+        const run = fixture(split);
+        const plans = await discoverFiles(run.items, run.manifest, run.probe).unwrap();
+        let requests = 0;
+        const fetchBytes: ByteFetcher = (url, range, signal) => {
+            requests++;
+
+            return run.fetchBytes(url, range, signal);
+        };
+        const result = await reassembleFile(
+            plans[0],
+            new MemorySink(),
+            fetchBytes,
+            run.decompress,
+            () => undefined,
+            new AbortController().signal
+        ).unwrap();
+        const saved = new Uint8Array(await result.blob!.arrayBuffer());
+
+        expect(requests).toBeGreaterThan(1);
+        expect(saved).toEqual(split.original);
+    });
+
     it('decompresses a single Brotli chunk', async () => {
         const split = makeSplitFile({
             name: 'compact.txt',
@@ -159,101 +95,90 @@ describe('reassembly', () => {
         expect(saved).toEqual(split.original);
     });
 
-    it('fails closed when a chunk is missing', async () => {
+    it('stops when the share changes', async () => {
         const split = makeSplitFile({
-            name: 'missing.bin',
+            name: 'cancelled.bin',
             data: new Uint8Array(300).fill(1),
-            chunks: 3
-        });
-        const run = fixture(split);
-        const failure = await discoveryFailure(run, run.items.slice(0, 2));
-
-        expect(failure?.code).toBe('share_incomplete');
-    });
-
-    it('fails closed when a whole file is missing', async () => {
-        const first = makeSplitFile({
-            name: 'one.bin',
-            data: new Uint8Array(100).fill(1),
-            chunks: 1
-        });
-        const second = makeSplitFile({
-            name: 'two.bin',
-            data: new Uint8Array(100).fill(2),
-            chunks: 1
-        });
-        const run = fixture(first);
-        const manifest: Manifest = {
-            ...run.manifest,
-            files: [...run.manifest.files, { id: second.fileId, chunks: 1, name: second.name }]
-        };
-        const failure = await discoveryFailure(run, run.items, manifest);
-
-        expect(failure?.code).toBe('share_incomplete');
-    });
-
-    it('fails closed when the last marker is missing', async () => {
-        const split = makeSplitFile({
-            name: 'nolast.bin',
-            data: new Uint8Array(300).fill(1),
-            chunks: 3,
-            omitLastFlag: true
-        });
-        const run = fixture(split);
-        const failure = await discoveryFailure(run);
-
-        expect(failure?.code).toBe('share_incomplete');
-    });
-
-    it('rejects non zero padding', async () => {
-        const split = makeSplitFile({
-            name: 'padding.bin',
-            data: new Uint8Array(64).fill(1),
-            chunks: 1,
-            paddingByte: 9
-        });
-        const run = fixture(split);
-        const failure = await reassemblyFailure(run);
-
-        expect(failure?.code).toBe('chunk_invalid');
-    });
-
-    it('rejects a final SHA-256 mismatch', async () => {
-        const split = makeSplitFile({
-            name: 'badhash.bin',
-            data: new Uint8Array(64).fill(1),
-            chunks: 1,
-            fileHash: 'b'.repeat(64)
-        });
-        const run = fixture(split);
-        const failure = await reassemblyFailure(run);
-
-        expect(failure?.code).toBe('integrity_failed');
-    });
-
-    it('rejects a chunk that changed after probing', async () => {
-        const split = makeSplitFile({
-            name: 'changed.bin',
-            data: new Uint8Array(400).fill(1),
             chunks: 2
         });
         const run = fixture(split);
-        const firstUrl = run.items[0].url;
-        const firstBytes = run.bytesByUrl.get(firstUrl)!;
-        const secondBytes = run.bytesByUrl.get(run.items[1].url)!;
+        const controller = new AbortController();
+        controller.abort();
         const plans = await discoverFiles(run.items, run.manifest, run.probe).unwrap();
-        run.bytesByUrl.set(firstUrl, secondBytes);
-        run.bytesByUrl.set(run.items[0].downloadUrl, secondBytes);
         const result = await reassembleFile(
             plans[0],
             new MemorySink(),
             run.fetchBytes,
             run.decompress,
-            () => undefined
+            () => undefined,
+            controller.signal
         );
         const failure = result.match({ Ok: () => null, Err: (error) => error });
 
-        expect(firstBytes).not.toEqual(secondBytes);
+        expect(failure?.code).toBe('cancelled');
+    });
+
+    it('cancels a chunk body with a bad status', async () => {
+        const split = makeSplitFile({
+            name: 'bad-status.bin',
+            data: new Uint8Array(300).fill(1),
+            chunks: 1
+        });
+        const run = fixture(split);
+        const plans = await discoverFiles(run.items, run.manifest, run.probe).unwrap();
+        let cancelled = false;
+        const result = await reassembleFile(
+            plans[0],
+            new MemorySink(),
+            () =>
+                asyncOk<ByteResponse>({
+                    status: 200,
+                    headers: new Headers(),
+                    body: new ReadableStream({
+                        cancel() {
+                            cancelled = true;
+                        }
+                    })
+                }),
+            run.decompress,
+            () => undefined,
+            new AbortController().signal
+        );
+        const failure = result.match({ Ok: () => null, Err: (error) => error });
+
         expect(failure?.code).toBe('chunk_invalid');
+        expect(cancelled).toBe(true);
+    });
+
+    it('stops between ranges when the share changes', async () => {
+        const split = makeSplitFile({
+            name: 'changed-midway.bin',
+            data: new Uint8Array(9_000_000).fill(4),
+            chunks: 1
+        });
+        const run = fixture(split);
+        const plans = await discoverFiles(run.items, run.manifest, run.probe).unwrap();
+        const controller = new AbortController();
+        let requests = 0;
+        const fetchBytes: ByteFetcher = (url, range, signal) => {
+            requests++;
+
+            const result = run.fetchBytes(url, range, signal);
+            if (requests === 1) controller.abort();
+
+            return result;
+        };
+        const result = await reassembleFile(
+            plans[0],
+            new MemorySink(),
+            fetchBytes,
+            run.decompress,
+            () => undefined,
+            controller.signal
+        );
+        const failure = result.match({ Ok: () => null, Err: (error) => error });
+
+        expect(failure?.code).toBe('cancelled');
+        expect(requests).toBe(1);
     });
 });

@@ -1,5 +1,6 @@
 import { Err, Ok, type AsyncResult } from 'results-ts';
 import { viewerFailure, type ViewerFailure } from './errors';
+import { sanitizeFileName } from './file-name';
 import { BLOB_DOWNLOAD_BYTES } from './limits';
 
 export interface ByteSink {
@@ -32,7 +33,7 @@ class PickerSink implements ByteSink {
                 return Err(viewerFailure('save_failed', 'Saving to disk is not available.'));
 
             try {
-                const handle = await picker({ suggestedName: name });
+                const handle = await picker({ suggestedName: sanitizeFileName(name) });
 
                 return Ok(new PickerSink(await handle.createWritable()));
             } catch (error) {
@@ -126,7 +127,7 @@ export function saveBlob(blob: Blob, name: string): void {
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = name;
+    anchor.download = sanitizeFileName(name);
     anchor.rel = 'noopener';
     document.body.append(anchor);
     anchor.click();

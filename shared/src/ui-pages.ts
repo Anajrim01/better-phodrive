@@ -28,7 +28,7 @@ export function renderLanding(onOpen: () => void, note?: string): void {
     const lede = element(
         'p',
         'lede',
-        'Phodrive share links carry the album in the part after the hash. Paste one here, or open the original link.'
+        'Phodrive share links carry the album in the part after the hash. Paste one here, or open the original link. The hash is not sent; only the public album URL goes to the proxy.'
     );
     section.append(lede);
 
@@ -52,7 +52,7 @@ export function renderLanding(onOpen: () => void, note?: string): void {
     const hint = element(
         'p',
         'field-hint',
-        note ?? 'The link is read in your browser. The hash is not uploaded.'
+        note ?? 'The link is read in your browser. Only the public album URL is sent to the proxy.'
     );
     hint.setAttribute('role', 'status');
 

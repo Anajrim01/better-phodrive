@@ -5,11 +5,10 @@ import { errorResponse, readJsonBody } from './http';
 import {
     BYTES_IDLE_TIMEOUT_MS,
     MAX_BYTES_CONCURRENCY,
-    MAX_CHUNK_BYTES,
     MAX_RANGE_BYTES,
     UPSTREAM_TIMEOUT_MS
 } from './limits';
-import { discardUpstream, releaseBody } from './bytes-stream';
+import { discardUpstream, releaseAfterStream, releaseBody } from './bytes-stream';
 import { parseMediaUrl, parseRange } from './media-url';
 
 const BytesRequestSchema = z.object({ url: z.string(), range: z.string().optional() }).strict();
@@ -41,7 +40,7 @@ interface Upstream {
 function fetchUpstream(
     deps: BytesDeps,
     url: string,
-    range: string | undefined
+    range: string
 ): AsyncResult<Upstream, ProxyError> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
@@ -49,7 +48,7 @@ function fetchUpstream(
         accept: '*/*',
         'accept-encoding': 'identity'
     };
-    if (range) headers.range = range;
+    headers.range = range;
 
     return Ok(undefined).andThenAsync(async () => {
         try {
@@ -88,19 +87,12 @@ function responseHeaders(response: Response, length: number | null): Headers {
     return headers;
 }
 
-function validateUpstream(
-    response: Response,
-    range: string | undefined,
-    length: number | null
-): ProxyError | null {
+function validateUpstream(response: Response, length: number | null): ProxyError | null {
     if (response.status >= 300 && response.status < 400) return proxyError('UPSTREAM_REDIRECT');
     if (response.status === 404 || response.status === 410) return proxyError('MEDIA_UNAVAILABLE');
     if (response.status === 416) return null;
-    if (response.status !== 200 && response.status !== 206) return proxyError('UPSTREAM_STATUS');
-    if (range && response.status !== 206) return proxyError('UPSTREAM_STATUS');
-    if (!range && response.status !== 200) return proxyError('UPSTREAM_STATUS');
-    if (length !== null && length > MAX_CHUNK_BYTES) return proxyError('UPSTREAM_STATUS');
-    if (range && length !== null && length > MAX_RANGE_BYTES) return proxyError('UPSTREAM_STATUS');
+    if (response.status !== 206) return proxyError('UPSTREAM_STATUS');
+    if (length !== null && length > MAX_RANGE_BYTES) return proxyError('UPSTREAM_STATUS');
 
     const encoding = response.headers.get('content-encoding');
     if (encoding && encoding !== 'identity') return proxyError('UPSTREAM_STATUS');
@@ -113,7 +105,7 @@ export function createBytesHandler(deps: BytesDeps = DEFAULT_DEPS) {
     const idleTimeoutMs = deps.bodyIdleTimeoutMs ?? BYTES_IDLE_TIMEOUT_MS;
     const maxConcurrency = deps.maxConcurrency ?? MAX_BYTES_CONCURRENCY;
 
-    async function serve(url: string, range: string | undefined): Promise<Response> {
+    async function serve(url: string, range: string): Promise<Response> {
         if (active >= maxConcurrency) return errorResponse(proxyError('BUSY'));
 
         active++;
@@ -133,7 +125,7 @@ export function createBytesHandler(deps: BytesDeps = DEFAULT_DEPS) {
             },
             Ok: async ({ response, controller }) => {
                 const length = contentLength(response);
-                const invalid = validateUpstream(response, range, length);
+                const invalid = validateUpstream(response, length);
                 if (invalid) {
                     discardUpstream(response, controller);
                     release();
@@ -153,19 +145,21 @@ export function createBytesHandler(deps: BytesDeps = DEFAULT_DEPS) {
                     return errorResponse(proxyError('UPSTREAM_UNAVAILABLE'));
                 }
 
-                return new Response(
-                    releaseBody(
-                        response.body,
-                        release,
-                        range ? MAX_RANGE_BYTES : MAX_CHUNK_BYTES,
-                        controller,
-                        idleTimeoutMs
-                    ),
-                    {
-                        status: response.status,
-                        headers: responseHeaders(response, length)
-                    }
-                );
+                const body =
+                    length !== null
+                        ? releaseAfterStream(response.body, release)
+                        : releaseBody(
+                              response.body,
+                              release,
+                              MAX_RANGE_BYTES,
+                              controller,
+                              idleTimeoutMs
+                          );
+
+                return new Response(body, {
+                    status: response.status,
+                    headers: responseHeaders(response, length)
+                });
             }
         });
     }
@@ -180,7 +174,7 @@ export function createBytesHandler(deps: BytesDeps = DEFAULT_DEPS) {
                     Ok: async (media) =>
                         parseRange(value.range).match({
                             Err: async (error) => errorResponse(error),
-                            Ok: (range) => serve(media.url, range || undefined)
+                            Ok: (range) => serve(media.url, range)
                         })
                 })
         });

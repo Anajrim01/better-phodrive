@@ -21,6 +21,10 @@ const errors = {
         message: 'That byte range is not allowed.',
         status: 400
     },
+    RANGE_REQUIRED: {
+        message: 'A byte range is required.',
+        status: 400
+    },
     CROSS_ORIGIN: {
         message: 'Cross-origin requests are not allowed.',
         status: 403
@@ -28,6 +32,10 @@ const errors = {
     ALBUM_UNAVAILABLE: {
         message: 'This album is not public or no longer exists.',
         status: 404
+    },
+    ALBUM_UPSTREAM_STATUS: {
+        message: 'Google Photos did not answer the album request.',
+        status: 502
     },
     MEDIA_UNAVAILABLE: {
         message: 'This shared item is no longer available.',

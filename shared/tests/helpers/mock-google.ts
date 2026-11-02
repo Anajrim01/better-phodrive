@@ -18,6 +18,7 @@ export interface MockAlbum {
     corruptRpc?: boolean;
     omitInit?: boolean;
     batchMode?: 'ok' | 'http500' | 'malformed' | 'wrongId';
+    pageStatus?: number;
     itemTransform?: (item: MockItem) => unknown;
 }
 
@@ -98,6 +99,10 @@ function handle(album: MockAlbum, mock: MockGoogle) {
         if (request.method === 'GET' && url.pathname === `/share/${album.uid}`) {
             if (url.searchParams.get('key') !== album.key) {
                 response.writeHead(404).end();
+                return;
+            }
+            if (album.pageStatus && album.pageStatus !== 200) {
+                response.writeHead(album.pageStatus).end();
                 return;
             }
 

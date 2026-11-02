@@ -96,7 +96,7 @@ describe('POST /api/bytes', () => {
                     })
             )
         });
-        const response = await handler(request(MEDIA_URL));
+        const response = await handler(request(MEDIA_URL, 'bytes=0-1'));
 
         expect(response.status).toBe(502);
         expect((await response.json()).error.code).toBe('UPSTREAM_REDIRECT');
@@ -119,14 +119,14 @@ describe('POST /api/bytes', () => {
         expect(calls).toHaveLength(0);
     });
 
-    it('rejects a partial response when no range was requested', async () => {
+    it('requires a range', async () => {
         const handler = createBytesHandler({
             fetch: fetchReturning([], () => new Response(new Uint8Array([1]), { status: 206 }))
         });
         const response = await handler(request(MEDIA_URL));
 
-        expect(response.status).toBe(502);
-        expect((await response.json()).error.code).toBe('UPSTREAM_STATUS');
+        expect(response.status).toBe(400);
+        expect((await response.json()).error.code).toBe('RANGE_REQUIRED');
     });
 
     it('rejects a full response when a range was requested', async () => {
@@ -138,18 +138,18 @@ describe('POST /api/bytes', () => {
         expect(response.status).toBe(502);
     });
 
-    it('rejects content that is too large', async () => {
+    it('rejects range content that is too large', async () => {
         const handler = createBytesHandler({
             fetch: fetchReturning(
                 [],
                 () =>
                     new Response(new Uint8Array([1]), {
-                        status: 200,
-                        headers: { 'content-length': '200000001' }
+                        status: 206,
+                        headers: { 'content-length': String(MAX_RANGE_BYTES + 1) }
                     })
             )
         });
-        const response = await handler(request(MEDIA_URL));
+        const response = await handler(request(MEDIA_URL, 'bytes=0-0'));
 
         expect(response.status).toBe(502);
     });

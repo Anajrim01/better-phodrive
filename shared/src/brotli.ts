@@ -1,6 +1,7 @@
 import { Err, Ok, type AsyncResult } from 'results-ts';
-import initBrotli, { decompress } from 'brotli-dec-wasm/web';
+import initBrotli, { BrotliDecStream } from 'brotli-dec-wasm/web';
 import wasmUrl from 'brotli-dec-wasm/web/bg.wasm?url';
+import { decodeBounded } from './brotli-decode';
 import { viewerFailure, type ViewerFailure } from './errors';
 
 const BROTLI_WASM_SRI = 'sha384-j+9fIg/IGKCbeQUGsFGU8eJ7AgMfJU6h0SruIfEoxLkFxgJV9ZfT7YVL86vfgPP3';
@@ -17,13 +18,16 @@ async function initialize(): Promise<void> {
     await initBrotli({ module_or_path: response });
 }
 
-export function decompressChunk(bytes: Uint8Array): AsyncResult<Uint8Array, ViewerFailure> {
+export function decompressChunk(
+    bytes: Uint8Array,
+    originalSize: number
+): AsyncResult<Uint8Array, ViewerFailure> {
     return Ok(undefined).andThenAsync(async () => {
         try {
             ready ??= initialize();
             await ready;
 
-            return Ok(decompress(bytes));
+            return decodeBounded(new BrotliDecStream(), bytes, originalSize);
         } catch {
             ready = null;
 

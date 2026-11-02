@@ -6,6 +6,7 @@ import { discoverFiles } from './discover';
 import { failureTitle, viewerFailure, type ViewerFailure } from './errors';
 import { PROBE_BYTES } from './limits';
 import { decodeManifest, type Manifest } from './manifest';
+import { stopOperations } from './operations';
 import { renderError, renderLanding, renderReading, renderShare } from './ui-pages';
 
 let bootToken = 0;
@@ -54,6 +55,7 @@ async function loadShare(manifest: Manifest, token: number): Promise<void> {
 }
 
 function boot(): void {
+    stopOperations();
     const token = ++bootToken;
     return decodeManifest(location.hash).match({
         Err: (error) => {
