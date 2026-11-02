@@ -130,12 +130,11 @@ async function flushLookupBatch(batch: LookupBatch): Promise<void> {
         return;
     }
 
-    const singleResults = new Map<string, Result<string | null, ServerError>>();
     await Promise.all(
-        [...candidates].map(async ([hex, hashWaiters]) => {
+        [...candidates].map(async ([, hashWaiters]) => {
             const available = hashWaiters.filter((waiter) => !waiter.signal?.aborted);
             if (available.length === 0) {
-                singleResults.set(hex, Err(HASH_LOOKUP_ABORTED));
+                for (const waiter of hashWaiters) settleWaiter(waiter, Err(HASH_LOOKUP_ABORTED));
 
                 return;
             }
@@ -146,20 +145,11 @@ async function flushLookupBatch(batch: LookupBatch): Promise<void> {
                 if (result.isOk() || !waiter.signal?.aborted) break;
             }
 
-            singleResults.set(hex, result);
+            for (const waiter of hashWaiters) {
+                settleWaiter(waiter, waiter.signal?.aborted ? Err(HASH_LOOKUP_ABORTED) : result);
+            }
         })
     );
-
-    for (const waiter of waiters) {
-        if (waiter.signal?.aborted) {
-            settleWaiter(waiter, Err(HASH_LOOKUP_ABORTED));
-
-            continue;
-        }
-
-        const result = singleResults.get(waiter.sha1.toString('hex'));
-        settleWaiter(waiter, result ?? Err(outcome.error));
-    }
 }
 
 function makeWaiter(

@@ -82,7 +82,15 @@ export function uploadBmpStream(
             const authenticated = await authenticatedHeaders(email, token, transport);
 
             return await authenticated.andThenAsync((headers) =>
-                uploadAuthenticatedStream(email, name, source, headers, transport, abort.signal)
+                uploadAuthenticatedStream(
+                    email,
+                    name,
+                    source,
+                    headers,
+                    transport,
+                    fetcher,
+                    abort.signal
+                )
             );
         } finally {
             abort.abort();
@@ -104,11 +112,12 @@ function uploadAuthenticatedStream(
     source: UploadBmpSource,
     { commonHeaders, rpcHeaders }: PhotosHeaders,
     fetcher: Fetcher,
+    lookupFetcher: Fetcher,
     signal?: AbortSignal
 ): AsyncResult<UploadResponse, ServerError> {
     const sha1 = Buffer.from(source.sha1, 'hex');
 
-    return lookupHash(email, sha1, rpcHeaders, fetcher, signal).andThenAsync<
+    return lookupHash(email, sha1, rpcHeaders, lookupFetcher, signal).andThenAsync<
         UploadResponse,
         ServerError
     >(async (existing) => {

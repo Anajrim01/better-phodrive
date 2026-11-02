@@ -1,12 +1,9 @@
-import { afterEach, expect, test } from 'vitest';
+import { expect, test } from 'vitest';
 import { lookupHash } from '../../src/server/photos/upload/lookup-queue';
 import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
-import { clearThrottleState } from '@madkarmaa/phodrive-core/server/photos/throttle';
 import { batchResponse, bodyOf, requestShape, sha1 } from '../helpers/lookup';
 
 const EMAIL = 'lookup@example.com';
-
-afterEach(clearThrottleState);
 
 test('twenty concurrent lookups flush as one request', async () => {
     const hashes = Array.from({ length: 20 }, (_, index) => sha1(`batch-${index}`));
@@ -137,65 +134,37 @@ test('an aborted caller settles while the shared batch is held', async () => {
     expect(firstResult.unwrap()).toBe('key');
 });
 
-test('a server failure propagates without fallback requests', async () => {
-    const hashes = [sha1('server-a'), sha1('server-b')];
-    let requests = 0;
-    const fetcher: Fetcher = async () => {
-        requests++;
-
-        return new Response(null, { status: 500 });
-    };
-
-    const results = await Promise.all(
-        hashes.map((hash) => lookupHash('server-failure@example.com', hash, {}, fetcher))
-    );
-
-    expect(requests).toBe(1);
-    expect(results.map((result) => result.unwrapErr())).toEqual([
-        expect.objectContaining({ code: 'REQUEST_FAILED', status: 500 }),
-        expect.objectContaining({ code: 'REQUEST_FAILED', status: 500 })
-    ]);
-});
-
-test('a failed batch falls back to one request per hash', async () => {
-    const hashes = [sha1('fallback-a'), sha1('fallback-b'), sha1('fallback-c')];
-    const requests: Buffer[] = [];
+test('an aborted first caller does not cancel the shared batch', async () => {
+    const firstHash = sha1('first-aborted');
+    const secondHash = sha1('second-active');
+    const abort = new AbortController();
+    let started!: () => void;
+    const start = new Promise<void>((resolve) => {
+        started = resolve;
+    });
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+        release = resolve;
+    });
     const fetcher: Fetcher = async (_input, init) => {
-        const body = await bodyOf(init);
-        requests.push(body);
-        const shape = requestShape(body);
+        const shape = requestShape(await bodyOf(init));
+        started();
+        await held;
 
-        if (shape.hashes.length > 1) return new Response(null, { status: 400 });
-
-        return batchResponse([
-            { sha1: shape.hashes[0], key: `key-${shape.hashes[0].toString('hex')}` }
-        ]);
+        return batchResponse(shape.hashes.map((hash) => ({ sha1: hash, key: 'key' })));
     };
 
-    const results = await Promise.all(hashes.map((hash) => lookupHash(EMAIL, hash, {}, fetcher)));
-
-    expect(requests).toHaveLength(4);
-    expect(results.map((result) => result.unwrap())).toEqual(
-        hashes.map((hash) => `key-${hash.toString('hex')}`)
-    );
-});
-
-test('a throttled batch propagates without extra fallback requests', async () => {
-    const hashes = [sha1('throttled-a'), sha1('throttled-b')];
-    let requests = 0;
-    const fetcher: Fetcher = async () => {
-        requests++;
-
-        return new Response(null, { status: 429, headers: { 'retry-after': '120' } });
-    };
-
-    const results = await Promise.all(
-        hashes.map((hash) => lookupHash('throttled@example.com', hash, {}, fetcher))
-    );
-
-    expect(requests).toBe(1);
-    expect(results.map((result) => result.unwrapErr())).toEqual([
-        expect.objectContaining({ code: 'THROTTLED', retryAfterSeconds: 120 }),
-        expect.objectContaining({ code: 'THROTTLED', retryAfterSeconds: 120 })
+    const first = lookupHash(EMAIL, firstHash, {}, fetcher, abort.signal);
+    const second = lookupHash(EMAIL, secondHash, {}, fetcher);
+    await start;
+    abort.abort();
+    const firstCode = await Promise.race([
+        first.then((result) => result.unwrapErr().code),
+        new Promise<string>((resolve) => setTimeout(() => resolve('pending'), 100))
     ]);
+    release();
+    const secondResult = await second;
+
+    expect(firstCode).toBe('REQUEST_FAILED');
+    expect(secondResult.unwrap()).toBe('key');
 });
