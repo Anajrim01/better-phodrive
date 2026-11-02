@@ -20,7 +20,7 @@ import {
     ensureAccountIndex,
     refreshAccountIndex
 } from '@madkarmaa/phodrive-core/server/photos/library/ensure';
-import { EMAIL, file, input } from '../helpers/bulk-delete';
+import { EMAIL, file, input, request, saveState } from '../helpers/bulk-delete';
 
 vi.mock('@madkarmaa/phodrive-core/server/photos', () => ({
     deletePermanently: vi.fn(),
@@ -122,18 +122,82 @@ test('permanent delete removes chunks and restore clears the trashed mark', asyn
     expect(afterRestore?.items.get('restored.bin-1')?.trashedAt).toBeUndefined();
 });
 
+test('a valid file after an index gap is processed for every action', async () => {
+    for (const scenario of SCENARIOS) {
+        vi.clearAllMocks();
+        const stale = file('stale.bin', 1, scenario.trashed);
+        const valid = file('valid.bin', 1, scenario.trashed);
+        saveState([valid]);
+        const results: { index: number; name: string; action: string; error?: string }[] = [];
+
+        await deleteFiles(request([stale, valid], 2, scenario.action), (event) => {
+            results.push({
+                index: event.index,
+                name: event.name,
+                action: event.action,
+                ...(event.error ? { error: event.error } : {})
+            });
+        });
+
+        expect(scenario.batch).toHaveBeenCalledOnce();
+        expect(results.toSorted((first, second) => first.index - second.index)).toEqual([
+            {
+                index: 0,
+                name: 'stale.bin',
+                action: scenario.action,
+                error: 'Invalid file metadata.'
+            },
+            { index: 1, name: 'valid.bin', action: scenario.action }
+        ]);
+    }
+});
+
+test('delete rejects a file when one selected chunk is already trashed', async () => {
+    const mixed = file('mixed.bin', 2);
+    saveState([mixed]);
+    const stored = readAccountState(EMAIL)?.items.get('mixed.bin-1');
+    if (stored) stored.trashedAt = 1;
+    const results: { index: number; name: string; error?: string }[] = [];
+
+    const result = await deleteFiles(request([mixed]), (event) => {
+        results.push({
+            index: event.index,
+            name: event.name,
+            ...(event.error ? { error: event.error } : {})
+        });
+    });
+
+    expect(result.isOk()).toBe(true);
+    expect(results).toEqual([
+        { index: 0, name: 'mixed.bin', error: 'Only active chunks can be moved to trash.' }
+    ]);
+    expect(moveToTrashBatch).not.toHaveBeenCalled();
+});
+
 test('permanent delete and restore reject active chunks before any request', async () => {
     for (const scenario of SCENARIOS.slice(1)) {
         vi.clearAllMocks();
         const active = file('active.bin', 1);
-        const results: unknown[] = [];
+        const results: { index: number; name: string; action: string; error?: string }[] = [];
 
-        const result = await deleteFiles(input([active], 2, scenario.action), (event) =>
-            results.push(event)
-        );
+        const result = await deleteFiles(input([active], 2, scenario.action), (event) => {
+            results.push({
+                index: event.index,
+                name: event.name,
+                action: event.action,
+                ...(event.error ? { error: event.error } : {})
+            });
+        });
 
-        expect(result.unwrapErr().code).toBe('NOT_TRASHED');
-        expect(results).toEqual([]);
+        expect(result.isOk()).toBe(true);
+        expect(results).toEqual([
+            {
+                index: 0,
+                name: 'active.bin',
+                action: scenario.action,
+                error: 'Only trashed chunks can be restored or deleted forever.'
+            }
+        ]);
         expect(scenario.batch).not.toHaveBeenCalled();
         expect(scenario.single).not.toHaveBeenCalled();
     }

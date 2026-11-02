@@ -18,8 +18,12 @@ import { limitWorkers } from './workers';
 export {
     BULK_TRASH_BATCH_SIZE,
     deleteFiles,
+    trashValidatedFiles,
     validateBulkDelete,
-    type BulkDeleteFileResult
+    type BulkDeleteFileResult,
+    type BulkDeleteInvalidFile,
+    type BulkDeleteValidation,
+    type ValidatedBulkFile
 } from './files-bulk';
 
 function incompleteDownloadError(chunks: readonly RemoteBmp[]): ServerError {

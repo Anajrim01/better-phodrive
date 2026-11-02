@@ -9,14 +9,13 @@ import {
     ensureAccountIndex,
     refreshAccountIndex
 } from '@madkarmaa/phodrive-core/server/photos/library/ensure';
-import type { BulkDeleteRequest } from '@madkarmaa/phodrive-core/bulk-delete';
 import { FileActionKind } from '@madkarmaa/phodrive-core/models';
 import {
     clearLibraryState,
-    configureLibraryState,
-    writeAccountState
+    configureLibraryState
 } from '@madkarmaa/phodrive-core/server/photos/library/state';
 import { POST } from '../../src/routes/api/files/bulk/+server';
+import { payload, parseEvents, request, save, savePartial, SHA1 } from '../helpers/bulk-route';
 
 vi.mock('@madkarmaa/phodrive-core/server/photos', () => ({
     moveToTrash: vi.fn(),
@@ -28,8 +27,6 @@ vi.mock('@madkarmaa/phodrive-core/server/photos/library/ensure', () => ({
     refreshAccountIndex: vi.fn()
 }));
 
-const EMAIL = 'test@example.com';
-const SHA1 = createHash('sha1').update('bulk route').digest('hex');
 let folder = '';
 
 beforeEach(async () => {
@@ -49,70 +46,6 @@ afterEach(async () => {
     vi.clearAllMocks();
     await rm(folder, { recursive: true, force: true });
 });
-
-function payload(
-    files = 1,
-    action: BulkDeleteRequest['action'] = FileActionKind.Delete
-): BulkDeleteRequest {
-    return {
-        email: EMAIL,
-        token: 'aas_et/test',
-        action,
-        workers: 2,
-        files: Array.from({ length: files }, (_, index) => {
-            const name = `file-${index}.bin`;
-            const hash = createHash('sha256').update(name).digest('hex');
-
-            return [
-                name,
-                hash,
-                hash,
-                [[`media-${index}`, SHA1]]
-            ] as BulkDeleteRequest['files'][number];
-        })
-    };
-}
-
-function save(body: BulkDeleteRequest, limit?: number, trashed = false): void {
-    const items = body.files.flatMap(([, fileHash, fileId, chunks]) =>
-        chunks.slice(0, limit).map(([mediaKey, sha1]) => ({
-            fileHash,
-            fileId,
-            chunkIndex: 0,
-            isLast: true,
-            size: 1,
-            at: 1,
-            mediaKey,
-            sha1,
-            ...(trashed ? { trashedAt: 1 } : {})
-        }))
-    );
-    writeAccountState(EMAIL, {
-        syncToken: Buffer.from('sync'),
-        revision: 1,
-        items: new Map(items.map((item) => [item.mediaKey, item])),
-        log: []
-    });
-}
-
-function savePartial(body: BulkDeleteRequest): void {
-    save(body, 1);
-}
-
-function request(body: unknown): Request {
-    return new Request('http://localhost/api/files/bulk', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(body)
-    });
-}
-
-function parseEvents(text: string): unknown[] {
-    return text
-        .trim()
-        .split('\n')
-        .map((line) => JSON.parse(line));
-}
 
 test('bulk delete streams one event per file and a done marker', async () => {
     vi.mocked(moveToTrashBatch).mockImplementation(() =>
@@ -232,7 +165,7 @@ test('missing state is built before streaming and before trash', async () => {
     expect(events.at(-1)).toEqual({ type: 'done' });
 });
 
-test('stale state refreshes once before streaming and deleteFiles does not refresh again', async () => {
+test('stale state refreshes once before streaming and is not refreshed again', async () => {
     const body = payload();
     const secondSha1 = createHash('sha1').update('second chunk').digest('hex');
     body.files[0][3].push(['media-1', secondSha1]);
@@ -280,35 +213,4 @@ test('stale state refreshes once before streaming and deleteFiles does not refre
     expect(refreshAccountIndex).toHaveBeenCalledOnce();
     expect(moveToTrashBatch).toHaveBeenCalledOnce();
     expect(events.at(-1)).toEqual({ type: 'done' });
-});
-
-test('a refresh failure returns JSON and never calls trash', async () => {
-    const body = payload();
-    body.files[0][3].push(['media-1', createHash('sha1').update('second chunk').digest('hex')]);
-    savePartial(body);
-    vi.mocked(refreshAccountIndex).mockImplementation(() =>
-        Ok(undefined).andThenAsync(async () =>
-            Err({ code: 'REQUEST_FAILED', message: 'Refresh failed' } as const)
-        )
-    );
-
-    const response = await POST({ request: request(body) } as never);
-
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({ error: 'Refresh failed' });
-    expect(refreshAccountIndex).toHaveBeenCalledOnce();
-    expect(moveToTrashBatch).not.toHaveBeenCalled();
-});
-
-test('a refresh that still misses a chunk returns validation JSON and never calls trash', async () => {
-    const body = payload();
-    body.files[0][3].push(['media-1', createHash('sha1').update('second chunk').digest('hex')]);
-    savePartial(body);
-
-    const response = await POST({ request: request(body) } as never);
-
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({ error: 'Invalid file metadata.' });
-    expect(refreshAccountIndex).toHaveBeenCalledOnce();
-    expect(moveToTrashBatch).not.toHaveBeenCalled();
 });

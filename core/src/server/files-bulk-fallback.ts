@@ -1,5 +1,5 @@
 import { isThrottleError, type ServerError, type ThrottleMode } from './errors';
-import type { BulkDeleteAction, BulkDeleteFile, BulkDeleteRequest } from '../bulk-delete';
+import type { BulkDeleteAction, BulkDeleteRequest } from '../bulk-delete';
 import { FileActionKind } from '../models';
 import pLimit from 'p-limit';
 import { Ok, type AsyncResult } from 'results-ts';
@@ -15,6 +15,7 @@ import {
 } from './files-bulk-batch';
 import { photosFetch, type Fetcher } from './fetcher';
 import { limitWorkers } from './workers';
+import type { ValidatedBulkFile } from './files-bulk-validation';
 
 export type ThrottleFailure = Extract<ServerError, { code: 'THROTTLED' }>;
 
@@ -78,7 +79,7 @@ export function applyBatchAction(
 export async function fallbackEach(
     input: BulkDeleteRequest,
     action: BulkDeleteAction,
-    files: readonly BulkDeleteFile[],
+    files: readonly ValidatedBulkFile[],
     states: BulkFileState[],
     batch: readonly ChunkEntry[],
     fetcher: Fetcher,

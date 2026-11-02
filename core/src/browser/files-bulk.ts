@@ -172,7 +172,7 @@ function readBulkDeleteResponse(
             if (event.type === 'done') return;
 
             const item = pending.get(event.index);
-            if (!item) {
+            if (!item || event.action !== action || event.name !== item.name) {
                 invalid = true;
                 failBulkFiles([...pending.values()], INVALID_DELETE_RESPONSE, action, onFile);
                 pending.clear();

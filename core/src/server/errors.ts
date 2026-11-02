@@ -175,6 +175,10 @@ export const SERVER_ERRORS = {
         code: 'NOT_TRASHED',
         message: 'Only trashed chunks can be restored or deleted forever.'
     },
+    NOT_ACTIVE: {
+        code: 'NOT_ACTIVE',
+        message: 'Only active chunks can be moved to trash.'
+    },
     INVALID_DELETE_RESPONSE: {
         code: 'INVALID_DELETE_RESPONSE',
         message: 'Invalid delete response.'
