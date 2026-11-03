@@ -9,6 +9,7 @@ import { deleteFile, deleteForeverFile, restoreFile } from '@madkarmaa/phodrive-
 import {
     deletePermanently,
     moveToTrash,
+    moveToTrashBatch,
     restoreFromTrash
 } from '@madkarmaa/phodrive-core/server/photos';
 import {
@@ -54,6 +55,9 @@ beforeEach(async () => {
     clearLibraryState();
     configureLibraryState(statePath);
     vi.mocked(moveToTrash).mockImplementation(() =>
+        Ok(undefined).andThenAsync(async () => Ok(undefined))
+    );
+    vi.mocked(moveToTrashBatch).mockImplementation(() =>
         Ok(undefined).andThenAsync(async () => Ok(undefined))
     );
     vi.mocked(restoreFromTrash).mockImplementation(() =>
@@ -109,6 +113,31 @@ test('moving to trash marks chunks immediately and keeps them in the index', asy
     clearLibraryState();
     configureLibraryState(statePath);
     expect(readAccountState(EMAIL)?.items.get('chunk-0')?.trashedAt).toEqual(expect.any(Number));
+});
+
+test('a 513-chunk trash action uses two bounded batches', async () => {
+    const base = chunks()[0]!;
+    const items = Array.from({ length: 513 }, (_, index) => ({
+        ...base,
+        chunkIndex: index,
+        mediaKey: `chunk-${index}`,
+        sha1: index.toString(16).padStart(40, '0')
+    }));
+    save(items);
+    const { input } = downloadFixture();
+
+    const result = await deleteFile({
+        ...input,
+        action: FileActionKind.Delete,
+        chunks: items,
+        workers: 1
+    });
+
+    const calls = vi.mocked(moveToTrashBatch).mock.calls;
+    expect(calls).toHaveLength(2);
+    expect(calls[0]?.[2]).toHaveLength(500);
+    expect(calls[1]?.[2]).toHaveLength(13);
+    expect(result.unwrap().deleted).toHaveLength(513);
 });
 
 test('restoring clears the trashed mark and keeps the chunks', async () => {
@@ -211,6 +240,47 @@ test('restore and delete forever send one key per sha1', async () => {
 
     expect(vi.mocked(restoreFromTrash).mock.calls[0]?.[2]).toEqual(['c'.repeat(40)]);
     expect(vi.mocked(deletePermanently).mock.calls[0]?.[2]).toEqual(['c'.repeat(40)]);
+});
+
+test('restore and delete forever keep earlier batches after a later failure', async () => {
+    const base = chunks()[0]!;
+    const items = Array.from({ length: 501 }, (_, index) => ({
+        ...base,
+        chunkIndex: index,
+        mediaKey: `chunk-${index}`,
+        sha1: index.toString(16).padStart(40, '0'),
+        trashedAt: 1
+    }));
+    const failure = { code: 'REQUEST_FAILED', message: 'Later batch failed' } as const;
+
+    save(items);
+    const { input } = downloadFixture();
+    vi.mocked(restoreFromTrash)
+        .mockImplementationOnce(() => Ok(undefined).andThenAsync(async () => Ok(undefined)))
+        .mockImplementationOnce(() => Ok(undefined).andThenAsync(async () => Err(failure)));
+
+    const restored = await restoreFile({
+        ...input,
+        action: FileActionKind.Restore,
+        chunks: items
+    });
+
+    expect(restored.unwrap().restored).toHaveLength(500);
+    expect(restored.unwrap().error).toBe(failure.message);
+
+    save(items);
+    vi.mocked(deletePermanently)
+        .mockImplementationOnce(() => Ok(undefined).andThenAsync(async () => Ok(undefined)))
+        .mockImplementationOnce(() => Ok(undefined).andThenAsync(async () => Err(failure)));
+
+    const deleted = await deleteForeverFile({
+        ...input,
+        action: FileActionKind.DeleteForever,
+        chunks: items
+    });
+
+    expect(deleted.unwrap().deleted).toHaveLength(500);
+    expect(deleted.unwrap().error).toBe(failure.message);
 });
 
 test('manual trash actions report retry wording for throttled requests', async () => {

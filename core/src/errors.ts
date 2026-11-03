@@ -22,6 +22,7 @@ export type ApplicationError =
               | 'OWNER_NOT_IN_GROUP'
               | 'OWNER_PAUSED'
               | 'REPEATED_LIBRARY_PAGE'
+              | 'RESTORE_FAILED'
               | 'REQUEST_FAILED'
               | 'STORAGE_UNAVAILABLE'
               | 'UPLOAD_FAILED'

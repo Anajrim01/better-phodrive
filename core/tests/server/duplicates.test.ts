@@ -3,16 +3,16 @@ import { Ok } from 'results-ts';
 import { groupChunks } from '@madkarmaa/phodrive-core/files';
 import { FileActionKind } from '@madkarmaa/phodrive-core/models';
 import { deleteFile } from '@madkarmaa/phodrive-core/server/files';
-import { moveToTrash } from '@madkarmaa/phodrive-core/server/photos';
+import { moveToTrashBatch } from '@madkarmaa/phodrive-core/server/photos';
 import { downloadFixture } from '../helpers/download';
 
 vi.mock('@madkarmaa/phodrive-core/server/photos', () => ({
     downloadBmp: vi.fn(),
-    moveToTrash: vi.fn()
+    moveToTrashBatch: vi.fn()
 }));
 
 beforeEach(() => {
-    vi.mocked(moveToTrash).mockImplementation(() =>
+    vi.mocked(moveToTrashBatch).mockImplementation(() =>
         Ok(undefined).andThenAsync(async () => Ok(undefined))
     );
 });
@@ -54,5 +54,6 @@ test('delete removes both stored copies after a compression toggle and re-upload
     });
 
     expect(result.unwrap().deleted).toHaveLength(2);
-    expect(moveToTrash).toHaveBeenCalledTimes(2);
+    expect(moveToTrashBatch).toHaveBeenCalledOnce();
+    expect(vi.mocked(moveToTrashBatch).mock.calls[0]?.[2]).toHaveLength(2);
 });

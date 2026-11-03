@@ -3,18 +3,18 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { createHash } from 'node:crypto';
 import { Err, Ok } from 'results-ts';
 import { downloadFile, deleteFile } from '@madkarmaa/phodrive-core/server/files';
-import { downloadBmp, moveToTrash } from '@madkarmaa/phodrive-core/server/photos';
+import { downloadBmp, moveToTrashBatch } from '@madkarmaa/phodrive-core/server/photos';
 import { decodeSplitHeader } from '@madkarmaa/phodrive-core/server/bmp';
 import { FileActionKind } from '@madkarmaa/phodrive-core/models';
 import { bmpResponse, downloadFixture } from '../helpers/download';
 
 vi.mock('@madkarmaa/phodrive-core/server/photos', () => ({
     downloadBmp: vi.fn(),
-    moveToTrash: vi.fn()
+    moveToTrashBatch: vi.fn()
 }));
 
 beforeEach(() => {
-    vi.mocked(moveToTrash).mockImplementation(() =>
+    vi.mocked(moveToTrashBatch).mockImplementation(() =>
         Ok(undefined).andThenAsync(async () => Ok(undefined))
     );
 });
@@ -254,32 +254,18 @@ test('a later Photos failure errors the response after earlier bytes have arrive
     await expect(reader.read()).rejects.toEqual(failure);
 });
 
-test('server deletion bounds workers, attempts all known chunks and preserves partial confirmation', async () => {
+test('server deletion uses one bounded batch for a small file', async () => {
     const { input } = fixture();
-    let active = 0;
-    let peak = 0;
-    let attempted = 0;
-    vi.mocked(moveToTrash).mockImplementation((_email, _token, sha1) =>
-        Ok(undefined).andThenAsync(async () => {
-            active++;
-            attempted++;
-            peak = Math.max(peak, active);
-            await new Promise<void>((resolve) => setTimeout(resolve, 5));
-            active--;
-            return sha1 === input.chunks[0].sha1
-                ? Err({ code: 'REQUEST_FAILED', message: 'Delete failed' } as const)
-                : Ok(undefined);
-        })
-    );
     const chunks = Array.from({ length: 5 }, (_, index) => ({
         ...input.chunks[index % 2],
         chunkIndex: index,
         mediaKey: `chunk-${index}`
     }));
+
     const result = await deleteFile({ ...input, action: FileActionKind.Delete, chunks });
-    expect(result.unwrap().deleted).toHaveLength(2);
-    expect(result.unwrap().error).toBe('Delete failed');
-    expect(attempted).toBe(chunks.length);
-    expect(peak).toBe(input.workers);
-    expect(active).toBe(0);
+
+    expect(moveToTrashBatch).toHaveBeenCalledOnce();
+    expect(vi.mocked(moveToTrashBatch).mock.calls[0]?.[2]).toHaveLength(5);
+    expect(result.unwrap().deleted).toHaveLength(5);
+    expect(result.unwrap().error).toBeUndefined();
 });

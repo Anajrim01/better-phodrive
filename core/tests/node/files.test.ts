@@ -9,13 +9,13 @@ import {
     throttleError,
     type ServerError
 } from '@madkarmaa/phodrive-core/server/errors';
-import { downloadBmp, moveToTrash } from '@madkarmaa/phodrive-core/server/photos';
+import { downloadBmp, moveToTrashBatch } from '@madkarmaa/phodrive-core/server/photos';
 import { deleteFile, downloadFile } from '@madkarmaa/phodrive-core/node';
 import { bmpResponse, downloadFixture } from '../helpers/download';
 
 vi.mock('@madkarmaa/phodrive-core/server/photos', () => ({
     downloadBmp: vi.fn(),
-    moveToTrash: vi.fn()
+    moveToTrashBatch: vi.fn()
 }));
 
 let folder = '';
@@ -100,13 +100,14 @@ test('incomplete files are not downloaded', async () => {
 
 test('delete moves every chunk to the trash', async () => {
     const { item } = fixture();
-    vi.mocked(moveToTrash).mockImplementation(() =>
+    vi.mocked(moveToTrashBatch).mockImplementation(() =>
         Ok(undefined).andThenAsync(async () => Ok(undefined))
     );
 
     const deleted = await deleteFile(item, 'aas_et/test', 2);
 
     expect(deleted.unwrap().deleted).toHaveLength(item.chunks.length);
+    expect(vi.mocked(moveToTrashBatch).mock.calls[0]?.[2]).toHaveLength(item.chunks.length);
     expect(deleted.unwrap().error).toBeUndefined();
 });
 
