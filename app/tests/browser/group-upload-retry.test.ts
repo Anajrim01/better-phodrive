@@ -62,7 +62,6 @@ test('retrying a failed group file stays on its owner and waits while paused', a
         onChunk: () => {},
         afterUpload: () => {},
         reload: () => {},
-        reloadGroup: () => {},
         markPaused: () => {},
         observe: () => {}
     });

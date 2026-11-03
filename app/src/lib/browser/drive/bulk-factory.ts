@@ -19,7 +19,7 @@ export function createDriveBulk(drive: DriveController): DriveBulk {
             applyManageItems(drive.library, email, items, revision);
         },
         reload: (email, token) => drive.reloadAccount(email, token),
-        reloadGroup: () => void drive.library.load(),
+        reloadGroup: () => void drive.library.refresh(),
         closeUploads: () => {
             drive.uploadPanelOpen = false;
         },

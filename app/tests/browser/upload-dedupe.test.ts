@@ -66,7 +66,6 @@ function driveUploads(
         onChunk: options.onChunk ?? (() => {}),
         afterUpload: () => {},
         reload: () => {},
-        reloadGroup: () => {},
         markPaused: () => {},
         observe: () => {}
     };

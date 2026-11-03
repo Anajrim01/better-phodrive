@@ -4,7 +4,7 @@ import { chunkHandlers } from '#browser/drive/chunk-handlers';
 import { groupFileAccess } from '#browser/drive/wiring';
 
 export function createDriveFiles(drive: DriveController): DriveFiles {
-    const group = groupFileAccess(drive.groupMode, () => void drive.library.load());
+    const group = groupFileAccess(drive.groupMode, () => void drive.library.refresh());
 
     return new DriveFiles({
         account: () => drive.currentAccount,

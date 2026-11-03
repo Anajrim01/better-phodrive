@@ -15,6 +15,8 @@ const SECOND = 'second@example.com';
 
 test('a throttled group upload marks its owner paused', async () => {
     const markPaused = vi.fn();
+    const afterUpload = vi.fn();
+    const reload = vi.fn();
     vi.mocked(uploadGroupFiles).mockImplementation((files, _members, _workers, onJob) => {
         const file = files[0]!;
         onJob({
@@ -54,9 +56,8 @@ test('a throttled group upload marks its owner paused', async () => {
         preferences: () => null,
         feedback: () => {},
         onChunk: () => {},
-        afterUpload: () => {},
-        reload: () => {},
-        reloadGroup: () => {},
+        afterUpload,
+        reload,
         markPaused,
         observe: () => {}
     });
@@ -64,4 +65,6 @@ test('a throttled group upload marks its owner paused', async () => {
     await uploads.upload([new File(['x'], 'x.bin')]);
 
     expect(markPaused).toHaveBeenCalledWith(FIRST, expect.any(Number));
+    expect(afterUpload).toHaveBeenCalledOnce();
+    expect(reload).not.toHaveBeenCalled();
 });
