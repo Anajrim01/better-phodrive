@@ -42,3 +42,30 @@ test('identical stored copies share one header probe and keep their own media ke
     expect(warm).toHaveLength(2);
     expect(counts).toEqual({ prepare: 1, range: 1 });
 });
+
+test('identical stored copies keep their own filename chunk counts', async () => {
+    const file = fixture('note.txt', 'duplicate chunk count content');
+    const fileHash = 'a'.repeat(64);
+    const first = {
+        ...file,
+        fileName: `note.txt.phodrive-${fileHash}-0-of-1.bmp`
+    };
+    const second = {
+        ...file,
+        mediaKey: 'duplicate-count-key',
+        at: 2,
+        fileName: `note.txt.phodrive-${fileHash}-0-of-2.bmp`
+    };
+    const counts: ProbeCounts = { prepare: 0, range: 0 };
+    const fetcher = fetcherFor(
+        libraryPage([first, second]),
+        { mediaKey: first.mediaKey, sha1: first.sha1, url: `${DOWNLOAD_HOST}/photo` },
+        () => new Response(file.bmp),
+        counts
+    );
+
+    const items = (await listBmps(EMAIL, TOKEN, '', fetcher)).unwrap().items;
+
+    expect(counts).toEqual({ prepare: 1, range: 1 });
+    expect(items.map((item) => item.chunkCount)).toEqual([1, 2]);
+});

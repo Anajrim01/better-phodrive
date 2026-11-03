@@ -14,7 +14,13 @@ import {
     type ParsedLibraryPage
 } from './metadata';
 import { LIBRARY_STATE_REQUEST } from './requests';
-import { namedAsNonPhodrive, parseChunkName, probeLibraryItem, trashedChunkItem } from './probe';
+import {
+    expectedChunkCount,
+    namedAsNonPhodrive,
+    parseChunkName,
+    probeLibraryItem,
+    trashedChunkItem
+} from './probe';
 
 const LIBRARY_URL = 'https://photosdata-pa.googleapis.com/6439526531001121323/18047484249733410717';
 const LIBRARY_PROBE_CONCURRENCY = 2;
@@ -131,9 +137,12 @@ function scanLibraryPage(
             result.inspect((item) => {
                 if (item === null) return;
 
+                const { chunkCount: _sharedChunkCount, ...shared } = item;
                 for (const candidate of group) {
-                    const copy = {
-                        ...item,
+                    const expected = expectedChunkCount(candidate.fileName);
+                    const copy: RemoteBmp = {
+                        ...shared,
+                        ...(expected === undefined ? {} : { chunkCount: expected }),
                         mediaKey: candidate.mediaKey,
                         at: candidate.at,
                         sha1: candidate.sha1
