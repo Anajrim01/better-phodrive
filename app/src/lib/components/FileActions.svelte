@@ -50,7 +50,7 @@
         shortDelete || item.complete ? 'Delete' : 'Delete remaining chunks'
     );
     const restoreLabel = $derived(`Restore ${item.name}`);
-    const deleteForeverLabel = $derived(`Delete forever: ${item.name}`);
+    const deleteForeverLabel = $derived(`Delete ${item.name} forever`);
 </script>
 
 <div class="file-actions flex shrink-0 items-center">

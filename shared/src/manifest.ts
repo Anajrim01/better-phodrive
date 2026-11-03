@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { viewerFailure, type ViewerFailure } from './errors';
 import { MAX_MANIFEST_CHUNKS, MAX_MANIFEST_FILES, MAX_MANIFEST_FRAGMENT_LENGTH } from './limits';
 
+const INVALID_LINK_MESSAGE =
+    'The link is damaged or incomplete. Copy it again, including the part after #.';
 const FILE_ID = /^[0-9a-f]{64}$/;
 const ALBUM_PATH = /^\/share\/[A-Za-z0-9_-]{10,200}$/;
 const CAPABILITY_KEY = /^[A-Za-z0-9_-]{8,500}$/;
@@ -70,7 +72,7 @@ function toBase64Url(value: string): string {
 
 function fromBase64Url(value: string): Result<string, ViewerFailure> {
     if (!/^[A-Za-z0-9_-]+$/.test(value))
-        return Err(viewerFailure('manifest_invalid', 'Share link is not valid.'));
+        return Err(viewerFailure('manifest_invalid', INVALID_LINK_MESSAGE));
 
     const padded = value.replace(/-/g, '+').replace(/_/g, '/');
     const padding = padded.length % 4 === 0 ? '' : '='.repeat(4 - (padded.length % 4));
@@ -81,13 +83,13 @@ function fromBase64Url(value: string): Result<string, ViewerFailure> {
 
         return Ok(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
     } catch {
-        return Err(viewerFailure('manifest_invalid', 'Share link is not valid.'));
+        return Err(viewerFailure('manifest_invalid', INVALID_LINK_MESSAGE));
     }
 }
 
 export function encodeManifest(manifest: unknown): Result<string, ViewerFailure> {
     const parsed = ManifestSchema.safeParse(manifest);
-    if (!parsed.success) return Err(viewerFailure('manifest_invalid', 'Share link is not valid.'));
+    if (!parsed.success) return Err(viewerFailure('manifest_invalid', INVALID_LINK_MESSAGE));
 
     return Ok(`#share=${toBase64Url(JSON.stringify(parsed.data))}`);
 }
@@ -97,11 +99,11 @@ export function decodeManifest(hash: string): Result<Manifest, ViewerFailure> {
 
     const fragment = hash.startsWith('#') ? hash.slice(1) : hash;
     if (!fragment.startsWith('share='))
-        return Err(viewerFailure('manifest_invalid', 'Share link is not valid.'));
+        return Err(viewerFailure('manifest_invalid', INVALID_LINK_MESSAGE));
 
     const encoded = fragment.slice('share='.length);
     if (!encoded || encoded.length > MAX_MANIFEST_FRAGMENT_LENGTH)
-        return Err(viewerFailure('manifest_invalid', 'Share link is not valid.'));
+        return Err(viewerFailure('manifest_invalid', INVALID_LINK_MESSAGE));
 
     return fromBase64Url(encoded).andThen((text) => {
         let value: unknown;
@@ -109,12 +111,11 @@ export function decodeManifest(hash: string): Result<Manifest, ViewerFailure> {
         try {
             value = JSON.parse(text);
         } catch {
-            return Err(viewerFailure('manifest_invalid', 'Share link is not valid.'));
+            return Err(viewerFailure('manifest_invalid', INVALID_LINK_MESSAGE));
         }
 
         const parsed = ManifestSchema.safeParse(value);
-        if (!parsed.success)
-            return Err(viewerFailure('manifest_invalid', 'Share link is not valid.'));
+        if (!parsed.success) return Err(viewerFailure('manifest_invalid', INVALID_LINK_MESSAGE));
 
         return Ok(parsed.data);
     });

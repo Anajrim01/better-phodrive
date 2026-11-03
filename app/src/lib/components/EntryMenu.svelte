@@ -17,7 +17,7 @@
     import IconRestore from '~icons/material-symbols/restore-from-trash';
     import IconDelete from '~icons/material-symbols/delete-outline';
     import IconDeleteForever from '~icons/material-symbols/delete-forever-outline';
-    import IconDetails from '~icons/material-symbols/info';
+    import IconDetails from '~icons/material-symbols/info-outline';
     import IconOpen from '~icons/material-symbols/folder-open-outline';
 
     const MENU_ICONS: Partial<Record<MenuAction, Component>> = {
