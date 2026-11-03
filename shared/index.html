@@ -9,19 +9,25 @@
             name="description"
             content="Open a Phodrive share link, rebuild the original file, and check its SHA-256 before saving."
         />
-        <meta name="theme-color" content="#f6f2e9" media="(prefers-color-scheme: light)" />
-        <meta name="theme-color" content="#171512" media="(prefers-color-scheme: dark)" />
+        <meta name="theme-color" content="#100d12" />
         <link rel="icon" href="/mark.svg" type="image/svg+xml" />
+        <link
+            rel="preload"
+            href="/fonts/google-sans-flex-latin-opsz.woff2"
+            as="font"
+            type="font/woff2"
+            crossorigin
+        />
         <link rel="stylesheet" href="/src/styles.css" />
     </head>
     <body>
         <div class="page">
             <header class="masthead">
                 <a class="brand" href="./" aria-label="Phodrive shared files">
-                    <span class="brand-mark" aria-hidden="true"></span>
-                    <span class="brand-name">phodrive</span>
+                    <img class="brand-mark" src="/mark.svg" alt="" width="26" height="26" />
+                    <span class="brand-name">Phodrive</span>
                     <span class="brand-sep">/</span>
-                    <span class="brand-part">shared</span>
+                    <span class="brand-part">Shared</span>
                 </a>
                 <a class="masthead-link" href="https://phodrive.dev" rel="noreferrer"
                     >About Phodrive</a

@@ -10,6 +10,7 @@ import { MemorySink, openSink, saveBlob } from './sink';
 import {
     clearMessage,
     finishBusy,
+    setButtonLabel,
     setProgress,
     showMessage,
     showVerified,
@@ -67,7 +68,7 @@ export async function previewPlan(plan: PlannedFile, ui: FileUi): Promise<void> 
         ui.previewBox.hidden = true;
         ui.previewBox.replaceChildren();
         replacePreviewUrl();
-        previewButton.textContent = 'Preview';
+        setButtonLabel(previewButton, 'Preview');
         return;
     }
 
@@ -124,7 +125,7 @@ export async function previewPlan(plan: PlannedFile, ui: FileUi): Promise<void> 
             ui.previewBox.replaceChildren(preview.node);
             ui.previewBox.hidden = false;
             ui.progress.hidden = true;
-            previewButton.textContent = 'Hide preview';
+            setButtonLabel(previewButton, 'Hide preview');
             finishBusy(ui);
         }
     });

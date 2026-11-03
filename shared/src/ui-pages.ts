@@ -1,10 +1,10 @@
 import type { AlbumResponse } from './api';
 import type { PlannedFile } from './discover';
-import { failureDetail, failureTitle, type ViewerFailure } from './errors';
+import { failureDetail, type ViewerFailure } from './errors';
 import { formatBytes, formatCount } from './format';
 import { MAX_MANIFEST_FRAGMENT_LENGTH } from './limits';
 import { clearPreviewUrl } from './preview-url';
-import { button, element, fileUi, root, type FileUi } from './ui-dom';
+import { button, element, fileUi, icon, root, type FileUi } from './ui-dom';
 
 export interface ShareHandlers {
     save: (plan: PlannedFile, ui: FileUi) => void;
@@ -22,13 +22,12 @@ export function renderLanding(onOpen: () => void, note?: string): void {
     document.title = 'Phodrive shared files';
 
     const section = element('section', 'intro');
-    section.append(element('p', 'eyebrow', 'Shared file'));
     section.append(element('h1', '', 'Open a share link'));
 
     const lede = element(
         'p',
         'lede',
-        'Phodrive share links carry the album in the part after the hash. Paste one here, or open the original link.'
+        'The file list is in the part of the link after the #. Paste the whole link to open it.'
     );
     section.append(lede);
 
@@ -52,7 +51,7 @@ export function renderLanding(onOpen: () => void, note?: string): void {
     const hint = element(
         'p',
         'field-hint',
-        note ?? 'The link is read in your browser. Only the public album URL is sent to the proxy.'
+        note ?? 'Your browser reads the link. It sends only the public album address to the server.'
     );
     hint.setAttribute('role', 'status');
 
@@ -68,7 +67,7 @@ export function renderLanding(onOpen: () => void, note?: string): void {
         }
 
         hint.classList.remove('field-error');
-        hint.textContent = 'Opening the share.';
+        hint.textContent = 'Opening the share';
 
         if (location.hash === fragment) onOpen();
         else location.hash = fragment;
@@ -96,16 +95,20 @@ export function renderReading(): void {
     root.setAttribute('aria-busy', 'true');
 
     const section = element('section', 'status-panel');
-    section.append(element('p', 'eyebrow', 'Share'));
     section.append(element('h1', '', 'Reading the album'));
     section.append(
         element(
             'p',
             'lede',
-            'The public item list is coming from Google Photos. Nothing is saved until every file checks out.'
+            'The album list comes from Google Photos. Nothing is saved until every file passes its hash check.'
         )
     );
-    section.append(element('p', 'status-line', 'Checking the public album first'));
+
+    const line = element('p', 'status-line');
+    const spinner = element('span', 'spinner');
+    spinner.setAttribute('aria-hidden', 'true');
+    line.append(spinner, element('span', '', 'Checking the public album'));
+    section.append(line);
     root.append(section);
 }
 
@@ -119,7 +122,7 @@ export function renderError(
 
     const section = element('section', 'error-panel');
     section.dataset.code = failure.code;
-    section.append(element('p', 'eyebrow', 'Share'));
+    section.append(icon('alert', 24, 'panel-icon'));
     section.append(element('h1', '', title));
     section.append(element('p', 'error-detail', failureDetail(failure)));
 
@@ -149,7 +152,6 @@ export function renderShare(
     const total = plans.reduce((sum, plan) => sum + plan.size, 0);
     const section = element('section', 'share');
     const head = element('header', 'share-head');
-    head.append(element('p', 'eyebrow', plans.length === 1 ? 'Shared file' : 'Shared files'));
     head.append(element('h1', '', title));
     head.append(
         element(
@@ -161,8 +163,8 @@ export function renderShare(
     section.append(head);
 
     const list = element('ul', 'file-list');
-    for (const [index, plan] of plans.entries()) {
-        const ui = fileUi(plan, index);
+    for (const plan of plans) {
+        const ui = fileUi(plan);
         ui.save.addEventListener('click', () => handlers.save(plan, ui));
         ui.preview?.addEventListener('click', () => handlers.preview(plan, ui));
         list.append(ui.row);
@@ -173,7 +175,7 @@ export function renderShare(
         element(
             'p',
             'verify-note',
-            'This browser rebuilds every file from its chunks and checks its hash before offering it. Anyone with this link can download the files. The owner can stop new downloads but cannot recall copies already saved.'
+            'This browser rebuilds every file from its chunks and checks its SHA-256 before offering it. Anyone with this link can download the files. The owner can stop new downloads but cannot recall copies already saved.'
         )
     );
     root.append(section);
