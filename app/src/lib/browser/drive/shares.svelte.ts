@@ -20,7 +20,7 @@ import { checkShareViewer } from '#browser/share-viewer';
 import { ShareStore } from '#browser/shares';
 import {
     shareCandidateFiles,
-    shareFileCount,
+    shareFileCounts,
     shareNameError,
     shareSelectionInputs,
     type ShareCandidate
@@ -66,6 +66,7 @@ export class DriveShares {
 
     private inputs = $state<ShareFileInput[]>([]);
     private readonly store: ShareStore;
+    private requestId = 0;
 
     constructor(private readonly deps: ShareDeps) {
         this.store = deps.store ?? new ShareStore();
@@ -76,13 +77,7 @@ export class DriveShares {
     }
 
     get fileCounts(): ReadonlyMap<string, number> {
-        const counts = new Map<string, number>();
-        for (const record of this.records) {
-            const count = shareFileCount(record.shareUrl);
-            if (count !== null) counts.set(record.envelopeKey, count);
-        }
-
-        return counts;
+        return shareFileCounts(this.records);
     }
 
     get overlayOpen(): boolean {
@@ -159,19 +154,22 @@ export class DriveShares {
         }
 
         this.createBusy = true;
-        this.createError = '';
-        this.createErrorCode = '';
-        this.createRecovery = null;
         this.copyState = 'idle';
         this.copyError = '';
+        const requestId = ++this.requestId;
 
         const outcome = await (this.deps.create ?? requestShareCreate)(
             shareCreateRequest(account, name.trim(), this.inputs)
         );
 
+        if (requestId !== this.requestId) return;
+
         outcome.match({
             Ok: (response) => {
                 this.created = response.record;
+                this.createError = '';
+                this.createErrorCode = '';
+                this.createRecovery = null;
                 this.copyState = 'idle';
                 this.copyError = '';
 
@@ -181,14 +179,14 @@ export class DriveShares {
                     },
                     Err: () => {
                         this.storageNotice =
-                            'This share was created, but it cannot be listed in this browser.';
+                            'This share was created, but it was not saved in this browser.';
                     }
                 });
             },
             Err: (failure) => {
                 this.createError = failure.message;
                 this.createErrorCode = failure.code;
-                this.createRecovery = failure.recovery ?? null;
+                if (failure.recovery !== undefined) this.createRecovery = failure.recovery;
             }
         });
 
@@ -247,10 +245,13 @@ export class DriveShares {
         this.revokeError = '';
         this.revokeErrorCode = '';
         this.revokeRecovery = null;
+        const requestId = ++this.requestId;
 
         const outcome = await (this.deps.revoke ?? requestShareRevoke)(
             shareRevokeRequest(account, record)
         );
+
+        if (requestId !== this.requestId) return;
 
         outcome.match({
             Ok: () => {
@@ -276,6 +277,7 @@ export class DriveShares {
     }
 
     reset(): void {
+        this.requestId++;
         this.resetCreate();
         this.revokeOpen = false;
         this.revokeTarget = null;

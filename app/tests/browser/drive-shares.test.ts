@@ -177,7 +177,7 @@ test('storage failure keeps the created link visible and explains the missing li
     expect(shares.created?.envelopeKey).toBe(RECORD.envelopeKey);
     expect(shares.created?.albumKey).toBe(RECORD.albumKey);
     expect(shares.storageNotice).toBe(
-        'This share was created, but it cannot be listed in this browser.'
+        'This share was created, but it was not saved in this browser.'
     );
 });
 
@@ -262,6 +262,41 @@ test('SHARE_LINK_UNCERTAIN keeps recovery keys and explains the live link risk',
     expect(shares.createErrorCode).toBe('SHARE_LINK_UNCERTAIN');
     expect(shares.createRecovery).toEqual(recovery);
     expect(shares.createError).toContain('may still be public');
+});
+
+test('a later share failure does not discard earlier uncertain recovery keys', async () => {
+    const recovery = { envelopeKey: 'AF1QipEnvelope', albumKey: 'AF1QipAlbum' };
+    let attempt = 0;
+    const shares = new DriveShares(
+        deps({
+            create: vi.fn(() => {
+                attempt++;
+
+                return attempt === 1
+                    ? err(
+                          failure(
+                              'SHARE_LINK_UNCERTAIN',
+                              'The share link may still be public.',
+                              recovery
+                          )
+                      )
+                    : err(
+                          failure(
+                              'SHARE_LINK_NOT_LIVE',
+                              'The share link is not serving yet. Check again before retrying.'
+                          )
+                      );
+            })
+        })
+    );
+    await shares.checkAvailability();
+    shares.open([file()]);
+
+    await shares.create('notes');
+    await shares.create('notes');
+
+    expect(shares.createErrorCode).toBe('SHARE_LINK_NOT_LIVE');
+    expect(shares.createRecovery).toEqual(recovery);
 });
 
 test('SHARE_URL_TOO_LONG surfaces the size limit without dropping the files', async () => {

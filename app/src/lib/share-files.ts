@@ -6,7 +6,8 @@ import {
     SHARE_BASE_URL,
     ShareManifestSchema,
     ShareFileInputSchema,
-    type ShareFileInput
+    type ShareFileInput,
+    type ShareRecord
 } from '@madkarmaa/phodrive-core/share-models';
 import { Err, Ok, type Result } from 'results-ts';
 
@@ -142,4 +143,15 @@ export function shareFileCount(shareUrl: string): number | null {
     } catch {
         return null;
     }
+}
+
+export function shareFileCounts(records: readonly ShareRecord[]): ReadonlyMap<string, number> {
+    const counts = new Map<string, number>();
+
+    for (const record of records) {
+        const count = shareFileCount(record.shareUrl);
+        if (count !== null) counts.set(record.envelopeKey, count);
+    }
+
+    return counts;
 }

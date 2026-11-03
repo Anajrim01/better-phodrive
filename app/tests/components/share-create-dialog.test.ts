@@ -175,10 +175,10 @@ test('SHARE_LINK_NOT_LIVE offers a retry action and keeps the selection', async 
     expect(oncreate).toHaveBeenCalledWith('Holiday');
 });
 
-test('SHARE_LINK_UNCERTAIN explains the live risk, shows keys, and retries', async () => {
-    const oncreate = vi.fn();
+test('SHARE_LINK_UNCERTAIN explains the live risk and never offers a second create', async () => {
+    const onclose = vi.fn();
     renderCreate({
-        oncreate,
+        onclose,
         errorCode: 'SHARE_LINK_UNCERTAIN',
         error: 'The share link may still be public.',
         recovery: { envelopeKey: 'AF1QipEnvelope', albumKey: 'AF1QipAlbum' }
@@ -189,8 +189,11 @@ test('SHARE_LINK_UNCERTAIN explains the live risk, shows keys, and retries', asy
     const photos = screen.getByRole('link', { name: 'Open Google Photos' });
     expect(photos.getAttribute('href')).toBe('https://photos.google.com/');
     expect(photos.getAttribute('target')).toBe('_blank');
-    await fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
-    expect(oncreate).toHaveBeenCalledWith('Holiday');
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Create link' })).toBeNull();
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(onclose).toHaveBeenCalledTimes(1);
 });
 
 test('SHARE_URL_TOO_LONG offers a smaller selection instead of a retry', async () => {
@@ -238,7 +241,7 @@ test('the success state shows the URL, copies the record, and opens a new tab', 
 });
 
 test('a storage notice is visible in the success state', () => {
-    const notice = 'This share was created, but it cannot be listed in this browser.';
+    const notice = 'This share was created, but it was not saved in this browser.';
     render(ShareCreateDialog, {
         props: {
             open: true,

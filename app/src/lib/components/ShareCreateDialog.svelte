@@ -56,9 +56,7 @@
     const canCreate = $derived(
         files.length > 0 && invalidReason === '' && !busy && nameError === null
     );
-    const retryable = $derived(
-        errorCode === 'SHARE_LINK_NOT_LIVE' || errorCode === 'SHARE_LINK_UNCERTAIN'
-    );
+    const retryable = $derived(errorCode === 'SHARE_LINK_NOT_LIVE');
     const tooLarge = $derived(errorCode === 'SHARE_URL_TOO_LONG');
 
     $effect(() => {
@@ -139,30 +137,35 @@
 
     {#snippet actions()}
         {#if record === null}
-            <Button variant="text" disabled={busy} onclick={() => (open = false)}>Cancel</Button>
-            {#if tooLarge}
-                <Button variant="text" onclick={() => (open = false)}>Choose fewer files</Button>
-            {:else}
-                {#if errorCode === 'SHARE_LINK_UNCERTAIN'}
-                    <Button
-                        variant="text"
-                        href="https://photos.google.com/"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                    >
-                        Open Google Photos
-                    </Button>
-                {/if}
+            {#if errorCode === 'SHARE_LINK_UNCERTAIN'}
                 <Button
                     variant="text"
-                    type="button"
-                    loading={busy}
-                    loadingAriaLabel="Creating the share link"
-                    disabled={!canCreate}
-                    onclick={submit}
+                    href="https://photos.google.com/"
+                    target="_blank"
+                    rel="noopener noreferrer"
                 >
-                    {retryable ? 'Try again' : 'Create link'}
+                    Open Google Photos
                 </Button>
+                <Button variant="text" onclick={() => (open = false)}>Close</Button>
+            {:else}
+                <Button variant="text" disabled={busy} onclick={() => (open = false)}>
+                    Cancel
+                </Button>
+                {#if tooLarge}
+                    <Button variant="text" onclick={() => (open = false)}>Choose fewer files</Button
+                    >
+                {:else}
+                    <Button
+                        variant="text"
+                        type="button"
+                        loading={busy}
+                        loadingAriaLabel="Creating the share link"
+                        disabled={!canCreate}
+                        onclick={submit}
+                    >
+                        {retryable ? 'Try again' : 'Create link'}
+                    </Button>
+                {/if}
             {/if}
         {:else}
             <Button variant="text" onclick={() => oncopy(record)}>
