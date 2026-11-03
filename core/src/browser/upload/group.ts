@@ -16,6 +16,7 @@ import type { UploadOptions } from './index';
 import { uploadSource } from './file';
 import { createUploadEventHandler, createUploadJobs, type UploadJob } from './jobs';
 import { httpChunkTransport, type ChunkTransport } from './request';
+import { createThrottleCoordinator, type ThrottleCoordinator } from './throttle';
 
 export type GroupUploadMember = GroupMember & { token: string };
 
@@ -104,6 +105,8 @@ export function transferGroupFiles(
             else byAccount.set(owner, [source]);
         }
 
+        const throttle: ThrottleCoordinator = options.throttle ?? createThrottleCoordinator();
+
         await Promise.all(
             [...byAccount.entries()].map(async ([owner, accountSources]) => {
                 const member = members.find(
@@ -138,7 +141,7 @@ export function transferGroupFiles(
                         transport,
                         chunkLimit,
                         handle,
-                        options
+                        { ...options, throttle }
                     );
                 });
             })

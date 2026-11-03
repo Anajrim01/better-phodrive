@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { IconButton, List, Sheet } from 'noph-ui';
+    import { Button, IconButton, List, Sheet } from 'noph-ui';
     import { formatDuration, remainingSeconds } from '@madkarmaa/phodrive-core/browser/upload/eta';
     import { UploadJobStatus, UploadPhase } from '@madkarmaa/phodrive-core/models';
 
@@ -17,9 +17,10 @@
         jobs: readonly UploadJob[];
         retryDisabled: boolean;
         onretry: (id: number) => void;
+        oncancel?: () => void;
     }
 
-    let { open = $bindable(false), busy, jobs, retryDisabled, onretry }: Props = $props();
+    let { open = $bindable(false), busy, jobs, retryDisabled, onretry, oncancel }: Props = $props();
 
     let collapsed = $state(false);
     const orderedJobs = $derived(
@@ -101,6 +102,11 @@
                 <p class="text-xs text-muted">Google Photos is limiting requests</p>
             {/if}
         </div>
+        {#if busy && oncancel}
+            <Button variant="text" size="s" aria-label="Cancel uploads" onclick={oncancel}
+                >Cancel</Button
+            >
+        {/if}
         <IconButton
             size="s"
             class="shrink-0"

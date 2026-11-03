@@ -8,6 +8,7 @@ import type { ChunkTransport } from './request';
 import { uploadChunk } from './chunk';
 import { hashFile, uploadIdentity } from './hash';
 import type { UploadEventHandler } from './jobs';
+import { createThrottleCoordinator, type ThrottleCoordinator } from './throttle';
 
 const PROGRESS_INTERVAL_MS = 100;
 
@@ -18,6 +19,8 @@ export type UploadSourceOptions = {
     folders?: ReadonlyMap<File, string>;
     compress?: boolean;
     existing?: (query: { email: string; fileId: string }) => ExistingUpload | null;
+    throttle?: ThrottleCoordinator;
+    signal?: AbortSignal;
 };
 
 export function uploadSource(
@@ -30,6 +33,14 @@ export function uploadSource(
 ): AsyncResult<void, ApplicationError> {
     return Ok(undefined).andThenAsync(async () => {
         const folder = options.folders?.get(file) ?? folderFromFile(file, options.folder);
+        const throttle = options.throttle ?? createThrottleCoordinator();
+        const cancelled = () => {
+            handle({ type: UploadEventType.FileError, id, error: 'Upload cancelled.' });
+
+            return Ok(undefined);
+        };
+        if (options.signal?.aborted) return cancelled();
+
         let lastProgress = 0;
         const hashed = await hashFile(file, (completed) => {
             const now = performance.now();
@@ -50,6 +61,8 @@ export function uploadSource(
             return Ok(undefined);
         }
 
+        if (options.signal?.aborted) return cancelled();
+
         const fileHash = hashed.unwrap();
         const prepared = await uploadIdentity(file.name, fileHash, folder).map((fileId) => ({
             fileHash,
@@ -62,6 +75,8 @@ export function uploadSource(
 
             return Ok(undefined);
         }
+
+        if (options.signal?.aborted) return cancelled();
 
         const { fileId } = prepared.unwrap();
         const existing = options.existing?.({ email: account.email, fileId });
@@ -101,7 +116,9 @@ export function uploadSource(
                 chunkLimit,
                 handle,
                 options.compress === true,
-                folder
+                folder,
+                throttle,
+                options.signal
             )
         );
     });
@@ -115,7 +132,9 @@ export function uploadPlannedFile(
     chunkLimit: ReturnType<typeof pLimit>,
     handle: (event: UploadEvent) => Result<void, ApplicationError>,
     compress = false,
-    folder = ''
+    folder = '',
+    throttle?: ThrottleCoordinator,
+    signal?: AbortSignal
 ): AsyncResult<void, ApplicationError> {
     return Ok(undefined).andThenAsync(async () => {
         const total = sizes.reduce((sum, size) => sum + size, 0);
@@ -154,7 +173,9 @@ export function uploadPlannedFile(
                 },
                 (event) => handle({ ...event, id }),
                 compress,
-                folder
+                folder,
+                throttle,
+                signal
             );
 
             result.match({

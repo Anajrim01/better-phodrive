@@ -109,6 +109,10 @@
             "@madkarmaa/phodrive-core": "./src/browser/upload/request.ts",
             "default": "./dist/browser/upload/request.js"
         },
+        "./browser/upload/throttle": {
+            "@madkarmaa/phodrive-core": "./src/browser/upload/throttle.ts",
+            "default": "./dist/browser/upload/throttle.js"
+        },
         "./bulk-delete": {
             "@madkarmaa/phodrive-core": "./src/bulk-delete.ts",
             "default": "./dist/bulk-delete.js"
@@ -557,6 +561,7 @@
             "./browser/upload/hash": "./dist/browser/upload/hash.js",
             "./browser/upload/jobs": "./dist/browser/upload/jobs.js",
             "./browser/upload/request": "./dist/browser/upload/request.js",
+            "./browser/upload/throttle": "./dist/browser/upload/throttle.js",
             "./bulk-delete": "./dist/bulk-delete.js",
             "./errors": "./dist/errors.js",
             "./files": "./dist/files.js",

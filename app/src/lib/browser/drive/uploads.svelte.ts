@@ -1,6 +1,7 @@
 import { UploadJobStatus } from '@madkarmaa/phodrive-core/models';
 import type { FileGroup, UploadedChunk } from '@madkarmaa/phodrive-core/files';
 import {
+    createThrottleCoordinator,
     uploadGroupFiles,
     type ExistingUpload,
     type GroupUploadMember
@@ -44,6 +45,8 @@ export class DriveUploads {
     private folders = new Map<number, string>();
     private recent = new Map<string, ExistingUpload>();
     private pending = new Set<string>();
+    private readonly throttle = createThrottleCoordinator();
+    private controller: AbortController | null = null;
 
     constructor(private readonly deps: UploadDeps) {}
 
@@ -52,6 +55,8 @@ export class DriveUploads {
     }
 
     reset(): void {
+        this.controller?.abort();
+        this.controller = null;
         this.jobs = [];
         this.sources = [];
         this.folders.clear();
@@ -78,6 +83,10 @@ export class DriveUploads {
         this.jobs = createUploadJobs(files);
         this.folders = new Map(files.map((_, index) => [index, this.deps.folder()]));
         await this.run(files);
+    }
+
+    cancel(): void {
+        this.controller?.abort();
     }
 
     async retry(id: number): Promise<void> {
@@ -148,6 +157,8 @@ export class DriveUploads {
         if (!group && !token) return;
 
         const uploadedChunks: UploadedChunk[] = [];
+        const controller = new AbortController();
+        this.controller = controller;
         const preferences = this.deps.preferences();
         const jobIds = files.map((_, index) => retryId ?? index);
         let failure: string | null = null;
@@ -164,7 +175,9 @@ export class DriveUploads {
         const transferOptions = {
             folder,
             compress: preferences?.compression ?? false,
-            existing: findExisting
+            existing: findExisting,
+            throttle: this.throttle,
+            signal: controller.signal
         };
         const onJob = (job: UploadJob) => {
             const id = plan.jobIds[job.id] ?? retryId ?? job.id;
@@ -255,6 +268,7 @@ export class DriveUploads {
         this.deps.afterUpload();
 
         this.busy = false;
+        if (this.controller === controller) this.controller = null;
         if (!group) this.deps.reload(email, token!);
     }
 }

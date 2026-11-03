@@ -270,6 +270,7 @@
     onretry={(id) => {
         void drive.retryUpload(id);
     }}
+    oncancel={() => drive.cancelUploads()}
 />
 
 <style>

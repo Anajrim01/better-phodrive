@@ -13,8 +13,15 @@ import { schemaResult } from '../../validation';
 import { httpChunkTransport, type ChunkTransport } from './request';
 import { createUploadJobs, createUploadEventHandler, type UploadJob } from './jobs';
 import { uploadSource, type UploadSourceOptions } from './file';
+import { createThrottleCoordinator } from './throttle';
 
 export type { ExistingUpload, UploadSourceOptions } from './file';
+export {
+    createThrottleCoordinator,
+    THROTTLE_MAX_WAIT_SECONDS,
+    THROTTLE_RESUME_JITTER_MS,
+    type ThrottleCoordinator
+} from './throttle';
 export type UploadOptions = UploadSourceOptions;
 
 export function uploadFiles(
@@ -68,19 +75,16 @@ export function transferFiles(
         if (!sources.length) return Ok(undefined);
 
         const handle = createUploadEventHandler(sources, jobs, email, onJob, onChunk);
+        const throttle = options.throttle ?? createThrottleCoordinator();
         const chunkLimit = pLimit(concurrency);
         const fileLimit = pLimit(concurrency);
         await fileLimit.map(sources, async ({ file }, id) => {
             handle({ type: UploadEventType.Queued, id });
 
-            await uploadSource(
-                { file, id },
-                { email, token },
-                transport,
-                chunkLimit,
-                handle,
-                options
-            );
+            await uploadSource({ file, id }, { email, token }, transport, chunkLimit, handle, {
+                ...options,
+                throttle
+            });
         });
 
         return handle({ type: UploadEventType.Complete });
