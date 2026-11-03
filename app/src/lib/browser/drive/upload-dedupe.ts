@@ -10,8 +10,8 @@ export type SelectionPlan = {
     duplicates: Map<number, number>;
 };
 
-export function uploadKey(email: string, name: string, fileHash: string): string {
-    return `${email.toLowerCase()}\u0000${name}\u0000${fileHash}`;
+export function uploadKey(email: string, fileId: string): string {
+    return `${email.toLowerCase()}\u0000${fileId}`;
 }
 
 function contentKey(email: string, fileId: string): string {
@@ -82,7 +82,7 @@ export function existingLookup(
         const chunk = file.chunks.at(-1);
         if (!chunk) continue;
 
-        lookup.set(uploadKey(file.email, file.name, file.fileHash), {
+        lookup.set(uploadKey(file.email, file.fileId), {
             mediaKey: chunk.mediaKey,
             sha1: chunk.sha1
         });
@@ -103,13 +103,18 @@ export function pruneRecent(
             .flatMap((file) =>
                 file.chunks.map(
                     (chunk) =>
-                        `${chunk.email.toLowerCase()}\u0000${chunk.mediaKey}\u0000${chunk.sha1}`
+                        `${chunk.email.toLowerCase()}\u0000${file.fileId}\u0000${chunk.mediaKey}\u0000${chunk.sha1}`
                 )
             )
     );
     for (const [key, existing] of recent) {
-        const identity = `${key.split('\u0000')[0]}\u0000${existing.mediaKey}\u0000${existing.sha1}`;
-        if (!available.has(identity)) recent.delete(key);
+        const [owner, fileId] = key.split('\u0000');
+        if (
+            !available.has(
+                `${owner}\u0000${fileId}\u0000${existing.mediaKey}\u0000${existing.sha1}`
+            )
+        )
+            recent.delete(key);
     }
 }
 
@@ -160,17 +165,7 @@ export function rememberUploads(
         );
         if (!matching) continue;
 
-        const name =
-            matching.originalName ??
-            chunks.find(
-                (chunk) =>
-                    chunk.email.toLowerCase() === owner &&
-                    chunk.fileHash === matching.fileHash &&
-                    chunk.originalName
-            )?.originalName;
-        if (!name) continue;
-
-        recent.set(uploadKey(owner, name, matching.fileHash), {
+        recent.set(uploadKey(owner, matching.fileId), {
             mediaKey: result.mediaKey,
             sha1: result.sha1
         });

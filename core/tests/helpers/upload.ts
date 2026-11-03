@@ -81,11 +81,17 @@ export async function browserUploadResponse(
     const count = Math.max(1, Math.ceil(metadata.file.size / MAX_CHUNK_PAYLOAD_BYTES));
     const header = {
         fileHash: metadata.file.fileHash,
-        fileId: fileIdentity(metadata.file.name, metadata.file.fileHash),
+        fileId: fileIdentity(
+            metadata.file.name,
+            metadata.file.fileHash,
+            undefined,
+            metadata.file.folder ?? ''
+        ),
         chunkIndex: metadata.chunkIndex,
         flags: metadata.chunkIndex === count - 1 ? (1 as const) : (0 as const),
         payloadSize: payload.size,
-        fileName: metadata.chunkIndex === 0 ? metadata.file.name : undefined
+        fileName: metadata.chunkIndex === 0 ? metadata.file.name : undefined,
+        folder: metadata.file.folder
     };
     const bytes = await payload.arrayBuffer();
     const bmp = encodeSplitBmp(new Uint8Array(bytes), header).unwrap();
@@ -116,6 +122,7 @@ export async function browserUploadResponse(
                 chunkIndex: header.chunkIndex,
                 isLast: Boolean(header.flags),
                 originalName: header.fileName,
+                folder: metadata.file.folder,
                 size: payload.size,
                 at: 1,
                 mediaKey: result.mediaKey,

@@ -159,8 +159,8 @@ export class DriveUploads {
 
         const plan = await selectionPlan(files, jobIds, folder);
         const existing = existingLookup(this.deps.files(), this.recent, this.pending);
-        const findExisting = (query: { email: string; name: string; fileHash: string }) =>
-            existing.get(uploadKey(query.email, query.name, query.fileHash)) ?? null;
+        const findExisting = (query: { email: string; fileId: string }) =>
+            existing.get(uploadKey(query.email, query.fileId)) ?? null;
         const transferOptions = {
             folder,
             compress: preferences?.compression ?? false,

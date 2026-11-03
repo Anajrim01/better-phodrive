@@ -27,7 +27,11 @@ function confirmingTransport(attempts: string[]): ChunkTransport {
             attempts.push(`${metadata.email}:${metadata.file.name}`);
 
             const identity = (
-                await uploadIdentity(metadata.file.name, metadata.file.fileHash)
+                await uploadIdentity(
+                    metadata.file.name,
+                    metadata.file.fileHash,
+                    metadata.file.folder ?? ''
+                )
             ).unwrap();
             const plan = planChunks(
                 {
@@ -85,11 +89,12 @@ async function hashOf(file: File): Promise<string> {
 test('a loaded library duplicate completes without touching the transport', async () => {
     const file = new File(['same bytes'], 'proof.bin');
     const fileHash = await hashOf(file);
-    const queries: { email: string; name: string; fileHash: string }[] = [];
+    const queries: { email: string; fileId: string }[] = [];
     const attempts: string[] = [];
     const jobs: UploadJob[] = [];
     const chunks: UploadedChunk[] = [];
     const existing: ExistingUpload = { mediaKey: 'existing-key', sha1: SHA1 };
+    const fileId = (await uploadIdentity('proof.bin', fileHash)).unwrap();
 
     await transferFiles(
         [file],
@@ -103,27 +108,24 @@ test('a loaded library duplicate completes without touching the transport', asyn
             existing: (query) => {
                 queries.push(query);
 
-                return query.email === EMAIL &&
-                    query.name === 'proof.bin' &&
-                    query.fileHash === fileHash
-                    ? existing
-                    : null;
+                return query.email === EMAIL && query.fileId === fileId ? existing : null;
             }
         }
     );
 
     expect(attempts).toEqual([]);
     expect(chunks).toEqual([]);
-    expect(queries).toEqual([{ email: EMAIL, name: 'proof.bin', fileHash }]);
+    expect(queries).toEqual([{ email: EMAIL, fileId }]);
     expect(jobs.at(-1)).toMatchObject({
         status: UploadJobStatus.Complete,
         result: { status: UploadStatus.AlreadyExists, ...existing }
     });
 });
 
-test('same name and content in another folder is still a duplicate', async () => {
+test('a different folder identity is not a duplicate', async () => {
     const file = new File(['folder bytes'], 'proof.bin');
     const fileHash = await hashOf(file);
+    const otherId = (await uploadIdentity('proof.bin', fileHash, 'other')).unwrap();
     const attempts: string[] = [];
     const jobs: UploadJob[] = [];
 
@@ -138,15 +140,13 @@ test('same name and content in another folder is still a duplicate', async () =>
         {
             folder: 'current',
             existing: (query) =>
-                query.name === 'proof.bin' && query.fileHash === fileHash
-                    ? { mediaKey: 'other-folder-key', sha1: SHA1 }
-                    : null
+                query.fileId === otherId ? { mediaKey: 'other-folder-key', sha1: SHA1 } : null
         }
     );
 
-    expect(attempts).toEqual([]);
+    expect(attempts).toEqual([`${EMAIL}:proof.bin`]);
     expect(jobs.at(-1)?.status).toBe(UploadJobStatus.Complete);
-    expect(jobs.at(-1)?.result?.mediaKey).toBe('other-folder-key');
+    expect(jobs.at(-1)?.result?.status).toBe(UploadStatus.Uploaded);
 });
 
 test('identical content under a different name still uploads', async () => {
@@ -154,6 +154,7 @@ test('identical content under a different name still uploads', async () => {
     const first = new File([payload], 'first.bin');
     const second = new File([payload], 'second.bin');
     const firstHash = await hashOf(first);
+    const firstId = (await uploadIdentity('first.bin', firstHash)).unwrap();
     const attempts: string[] = [];
     const jobs = new Map<number, UploadJob>();
 
@@ -167,9 +168,7 @@ test('identical content under a different name still uploads', async () => {
         confirmingTransport(attempts),
         {
             existing: (query) =>
-                query.name === 'first.bin' && query.fileHash === firstHash
-                    ? { mediaKey: 'first-key', sha1: SHA1 }
-                    : null
+                query.fileId === firstId ? { mediaKey: 'first-key', sha1: SHA1 } : null
         }
     );
 
@@ -181,6 +180,7 @@ test('identical content under a different name still uploads', async () => {
 test('a group duplicate lookup receives the owning account', async () => {
     const file = new File(['group bytes'], 'group.bin');
     const fileHash = await hashOf(file);
+    const fileId = (await uploadIdentity('group.bin', fileHash)).unwrap();
     const attempts: string[] = [];
     const queries: string[] = [];
     const members: GroupUploadMember[] = [{ email: EMAIL, token: 'aas_et/first', paused: false }];
@@ -196,7 +196,7 @@ test('a group duplicate lookup receives the owning account', async () => {
             existing: (query) => {
                 queries.push(query.email);
 
-                return query.email === EMAIL && query.fileHash === fileHash
+                return query.email === EMAIL && query.fileId === fileId
                     ? { mediaKey: 'group-key', sha1: SHA1 }
                     : null;
             }
