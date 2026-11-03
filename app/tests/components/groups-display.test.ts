@@ -65,7 +65,7 @@ test('the upload target lists the current account and groups', () => {
     expect(screen.getByRole('combobox', { name: 'Upload to' })).toBeTruthy();
     expect(screen.getAllByText(`Current account (${FIRST})`).length).toBeGreaterThan(0);
     expect(screen.getAllByText('Family').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Small (needs 2 accounts)').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Small (needs at least two accounts)').length).toBeGreaterThan(0);
     expect(container.querySelector('select')).toBeTruthy();
 });
 
@@ -98,7 +98,7 @@ test('a saved group that cannot shard explains the fallback', () => {
     });
 
     expect(
-        screen.getByText('Small needs at least two connected accounts. Using the current account.')
+        screen.getByText('Small needs at least two accounts. Using the current account.')
     ).toBeTruthy();
 });
 

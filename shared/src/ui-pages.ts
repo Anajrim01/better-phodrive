@@ -118,10 +118,10 @@ export function renderError(
     document.title = `${title} · Phodrive`;
 
     const section = element('section', 'error-panel');
+    section.dataset.code = failure.code;
     section.append(element('p', 'eyebrow', 'Share'));
     section.append(element('h1', '', title));
     section.append(element('p', 'error-detail', failureDetail(failure)));
-    section.append(element('p', 'error-code', failure.code));
 
     const actions = element('div', 'error-actions');
     if (retry) {

@@ -17,10 +17,7 @@ async function loadShare(manifest: Manifest, token: number): Promise<void> {
         Err: async (error) => renderError(failureTitle(error), error, () => boot()),
         Ok: async (value) => {
             if (value.items.length === 0) {
-                const failure = viewerFailure(
-                    'share_incomplete',
-                    'Share incomplete. The album has no items.'
-                );
+                const failure = viewerFailure('share_incomplete', 'The album has no items.');
                 renderError('Share incomplete', failure, () => boot());
 
                 return;

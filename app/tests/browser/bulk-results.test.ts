@@ -125,3 +125,10 @@ test('a mixed stale and access failure keeps both outcomes visible', () => {
         'This selection no longer matches your library. Refresh and try again.'
     );
 });
+
+test('a single selected file uses the singular noun', () => {
+    const failure = { email: 'a@example.com', name: 'a.txt', message: 'The server said no.' };
+
+    expect(bulkFailureMessage([failure], 1, 'move')).toContain('Could not move the file.');
+    expect(bulkFailureMessage([failure], 2, 'move')).toContain('Moved 1 of 2 files.');
+});

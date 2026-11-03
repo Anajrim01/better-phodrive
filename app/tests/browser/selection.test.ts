@@ -230,5 +230,5 @@ test('a fully failed bulk action says nothing changed', () => {
             1,
             'move'
         )
-    ).toContain('Could not move any files.');
+    ).toContain('Could not move the file.');
 });

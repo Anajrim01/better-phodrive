@@ -96,9 +96,9 @@
                         variant="filled"
                         size="s"
                         loading={connecting}
-                        loadingAriaLabel="Connecting account"
+                        loadingAriaLabel="Connecting to Google Photos"
                     >
-                        Save account
+                        Connect
                     </Button>
                     {#if canCancel}
                         <Button

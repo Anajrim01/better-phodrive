@@ -1,6 +1,6 @@
 <script lang="ts">
     import { Button, Dialog } from 'noph-ui';
-    import prettyBytes from 'pretty-bytes';
+    import { formatBytes } from '#lib/format-bytes';
     import type { FileGroup } from '@madkarmaa/phodrive-core/files';
     import {
         MAX_IMAGE_PREVIEW_BYTES,
@@ -47,7 +47,7 @@
             ? null
             : file.chunks.reduce((sum, chunk) => sum + chunk.size, 0)
     );
-    const sizeLabel = $derived(size === null ? 'Size unknown' : prettyBytes(size));
+    const sizeLabel = $derived(size === null ? 'Size unknown' : formatBytes(size));
     const meta = $derived(
         file === null ? '' : showOwner ? `${file.email} · ${sizeLabel}` : sizeLabel
     );
