@@ -16,6 +16,9 @@ import {
     type LibraryState
 } from '#browser/drive/library-state';
 
+// A full sync snapshot has no page cursor, so the loaded page count is not the library depth.
+const WHOLE_LIBRARY_PAGES = Number.POSITIVE_INFINITY;
+
 type GroupSelection = {
     members: readonly { email: string; token: string; pausedUntil?: number }[];
     missing: readonly string[];
@@ -92,7 +95,9 @@ export async function refreshLibrary(
         if (applied) return true;
     }
 
-    const refreshed = await readLibrarySnapshot(email, token, state.loadedPages);
+    const pageCount = state.nextPageToken ? state.loadedPages : WHOLE_LIBRARY_PAGES;
+
+    const refreshed = await readLibrarySnapshot(email, token, pageCount);
     if (!isCurrent()) return false;
 
     return refreshed.match({

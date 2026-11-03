@@ -134,7 +134,7 @@ test('manual refresh uses a full snapshot when no cursor exists', async () => {
     await library.refresh(true);
 
     expect(readLibrarySync).not.toHaveBeenCalled();
-    expect(readLibrarySnapshot).toHaveBeenCalledWith(EMAIL, TOKEN, 0);
+    expect(readLibrarySnapshot).toHaveBeenCalledWith(EMAIL, TOKEN, Number.POSITIVE_INFINITY);
     expect(library.chunks.map((item) => item.mediaKey)).toEqual(['snapshot']);
 });
 
@@ -162,7 +162,7 @@ test.each(syncFailures)(
         await library.refresh(true);
 
         expect(readLibrarySync).toHaveBeenCalledWith(EMAIL, TOKEN, false, 4);
-        expect(readLibrarySnapshot).toHaveBeenCalledWith(EMAIL, TOKEN, 0);
+        expect(readLibrarySnapshot).toHaveBeenCalledWith(EMAIL, TOKEN, Number.POSITIVE_INFINITY);
         expect(library.chunks.map((item) => item.mediaKey)).toEqual(['snapshot']);
         expect(library.loading).toBe(false);
     }
