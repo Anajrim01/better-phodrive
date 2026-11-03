@@ -1,12 +1,14 @@
 import {
     readGroupLibrary,
     readGroupLibraryUpdates,
+    readLibraryPage,
     readLibrarySnapshot,
     readLibrarySync
 } from '@madkarmaa/phodrive-core/browser/library';
 import type { GroupAccountState } from '@madkarmaa/phodrive-core/groups';
 import {
     applyGroupSnapshot,
+    applyLibraryPage,
     applyLibrarySnapshot,
     applyLibrarySync,
     reportLoadFailure,
@@ -19,26 +21,49 @@ type GroupSelection = {
     missing: readonly string[];
 };
 
-export async function loadLibrarySyncSnapshot(
+export async function loadLibrary(
     state: LibraryState,
     email: string,
     token: string,
+    reset: boolean,
     pageTokens: Set<string>,
     hasFolder: (path: string) => boolean,
+    feedback: (message: string) => void,
     isCurrent: () => boolean
 ): Promise<boolean> {
-    const synced = await readLibrarySync(email, token, false, 0);
+    const pageToken = reset ? '' : state.nextPageToken;
+
+    if (reset || pageToken === '') {
+        const synced = await readLibrarySync(email, token, false, 0);
+        if (!isCurrent()) return false;
+
+        const applied = synced.match({
+            Ok: (update) => {
+                if (!update.full) return false;
+
+                applyLibrarySync(state, email, update, pageTokens, hasFolder);
+
+                return true;
+            },
+            Err: () => false
+        });
+        if (applied) return true;
+    }
+
+    const loaded = await readLibraryPage(email, token, pageToken);
     if (!isCurrent()) return false;
 
-    return synced.match({
-        Ok: (update) => {
-            if (!update.full) return false;
-
-            applyLibrarySync(state, email, update, pageTokens, hasFolder);
+    return loaded.match({
+        Ok: (page) => {
+            applyLibraryPage(state, email, page, reset, pageTokens, feedback);
 
             return true;
         },
-        Err: () => false
+        Err: (error) => {
+            reportLoadFailure(state, error, feedback);
+
+            return false;
+        }
     });
 }
 
