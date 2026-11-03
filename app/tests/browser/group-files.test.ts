@@ -74,6 +74,33 @@ function driveFiles(feedback: string[]) {
     });
 }
 
+function driveFilesWithReloadSpies(groupMode: boolean) {
+    const reload = vi.fn();
+    const reloadGroup = vi.fn();
+    const files = new DriveFiles({
+        account: () => ({ email: SELECTED, token: 'aas_et/selected' }),
+        busy: () => false,
+        loading: () => false,
+        files: () => [],
+        workers: () => 1,
+        feedback: () => {},
+        onTrashed: vi.fn(),
+        onRestored: vi.fn(),
+        onRemoved: vi.fn(),
+        closeUploads: vi.fn(),
+        reload,
+        reloadGroup,
+        removeAccount: vi.fn(),
+        groupMode: () => groupMode,
+        routeMembers: () => [
+            { email: OWNER, token: 'aas_et/owner', paused: false },
+            { email: PAUSED, token: 'aas_et/paused', paused: true }
+        ]
+    });
+
+    return { files, reload, reloadGroup };
+}
+
 afterEach(() => vi.clearAllMocks());
 
 test('a group download uses the owner token', async () => {
@@ -91,6 +118,34 @@ test('a group download uses the owner token', async () => {
         'aas_et/owner'
     );
     expect(feedback).not.toContain('The account for this file is not connected.');
+});
+
+test('a group download does not reload the library', async () => {
+    vi.mocked(downloadFile).mockImplementation(() =>
+        Ok(new Blob(['proof'])).andThenAsync(async () => Ok(new Blob(['proof'])))
+    );
+    vi.mocked(saveDownloadedFile).mockReturnValue(Ok(undefined));
+    const { files, reload, reloadGroup } = driveFilesWithReloadSpies(true);
+
+    await files.act(file(OWNER), FileActionKind.Download);
+
+    expect(downloadFile).toHaveBeenCalledOnce();
+    expect(reload).not.toHaveBeenCalled();
+    expect(reloadGroup).not.toHaveBeenCalled();
+});
+
+test('a single-account download does not reload the library', async () => {
+    vi.mocked(downloadFile).mockImplementation(() =>
+        Ok(new Blob(['proof'])).andThenAsync(async () => Ok(new Blob(['proof'])))
+    );
+    vi.mocked(saveDownloadedFile).mockReturnValue(Ok(undefined));
+    const { files, reload, reloadGroup } = driveFilesWithReloadSpies(false);
+
+    await files.act(file(SELECTED), FileActionKind.Download);
+
+    expect(downloadFile).toHaveBeenCalledOnce();
+    expect(reload).not.toHaveBeenCalled();
+    expect(reloadGroup).not.toHaveBeenCalled();
 });
 
 test('a group delete uses the owner token', async () => {
