@@ -64,7 +64,13 @@ test('the library uses the stored account and ignores credentials sent by the cl
 
     expect(response.status).toBe(200);
     expect(vi.mocked(readGoogleAccount).mock.calls[0][1]).toBe(USER.id);
-    expect(listBmps).toHaveBeenCalledWith(ACCOUNT.email, ACCOUNT.token, 'next');
+    expect(listBmps).toHaveBeenCalledWith(
+        ACCOUNT.email,
+        ACCOUNT.token,
+        'next',
+        undefined,
+        expect.anything()
+    );
 });
 
 test('in browser mode, uploads relay finished BMPs with the stored account', async () => {

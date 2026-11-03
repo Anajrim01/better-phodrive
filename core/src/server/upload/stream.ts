@@ -1,6 +1,7 @@
 import type { AsyncResult } from 'results-ts';
 import { UploadEventType, type UploadEvent } from '../../models';
 import type { ServerError } from '../errors';
+import type { ChunkMetadataStore } from '../photos/library/metadata-store';
 import type { ReceivedUpload } from './input';
 import { uploadFiles } from './index';
 
@@ -80,6 +81,9 @@ export function uploadEventStream({ run, cancel }: UploadTask): Response {
 }
 
 /** Encode or relay one received chunk while reporting its upload events. */
-export function uploadStream(input: ReceivedUpload): Response {
-    return uploadEventStream({ run: (emit) => uploadFiles(input, emit), cancel: input.cancel });
+export function uploadStream(input: ReceivedUpload, metadata?: ChunkMetadataStore): Response {
+    return uploadEventStream({
+        run: (emit) => uploadFiles(input, emit, undefined, metadata),
+        cancel: input.cancel
+    });
 }

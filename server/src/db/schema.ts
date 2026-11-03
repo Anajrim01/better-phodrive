@@ -1,5 +1,5 @@
 import { relations } from 'drizzle-orm';
-import { boolean, index, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { boolean, index, integer, pgTable, primaryKey, text, timestamp } from 'drizzle-orm/pg-core';
 
 // Better Auth tables, generated with `auth generate` for the Drizzle PostgreSQL adapter.
 export const user = pgTable('user', {
@@ -100,3 +100,38 @@ export const googleAccount = pgTable('google_account', {
         .$onUpdate(() => new Date())
         .notNull()
 });
+
+/**
+ * Resolved BMP metadata for one Google media item.
+ * Google remains authoritative for existence and stored bytes; this table only avoids re-probing
+ * rows whose current listing fingerprint and stored size still match.
+ */
+export const chunkMetadata = pgTable(
+    'chunk_metadata',
+    {
+        userId: text('user_id')
+            .notNull()
+            .references(() => user.id, { onDelete: 'cascade' }),
+        googleEmail: text('google_email').notNull(),
+        mediaKey: text('media_key').notNull(),
+        sha1: text('sha1').notNull(),
+        storedBmpSize: integer('stored_bmp_size').notNull(),
+        fileHash: text('file_hash').notNull(),
+        fileId: text('file_id').notNull(),
+        chunkIndex: integer('chunk_index').notNull(),
+        isLast: boolean('is_last').notNull(),
+        originalName: text('original_name'),
+        size: integer('size').notNull(),
+        createdAt: timestamp('created_at').defaultNow().notNull(),
+        updatedAt: timestamp('updated_at')
+            .defaultNow()
+            .$onUpdate(() => new Date())
+            .notNull()
+    },
+    (table) => [
+        primaryKey({
+            name: 'chunk_metadata_scope_pk',
+            columns: [table.userId, table.googleEmail, table.mediaKey]
+        })
+    ]
+);

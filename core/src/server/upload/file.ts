@@ -20,6 +20,11 @@ import type { Fetcher } from '../fetcher';
 import { SERVER_ERRORS, type ServerError } from '../errors';
 import { limitWorkers } from '../workers';
 import { receiveMultipartFile, type ReceivedMultipartFile } from './multipart';
+import {
+    uploadedChunkMetadata,
+    type ChunkMetadataRecord,
+    type ChunkMetadataStore
+} from '../photos/library/metadata-store';
 import { createSpoolDirectory, openSpool, writeSpool } from './spool';
 import { uploadEventStream } from './stream';
 
@@ -61,7 +66,8 @@ function uploadSpooledFile(
     account: Account,
     emit: (event: UploadEvent) => void,
     signal: AbortSignal,
-    fetcher?: Fetcher
+    fetcher?: Fetcher,
+    metadata?: ChunkMetadataStore
 ): AsyncResult<void, SpoolError> {
     return Ok(undefined).andThenAsync(async (): Promise<Result<void, SpoolError>> => {
         let file: File;
@@ -73,7 +79,8 @@ function uploadSpooledFile(
             return Err(SERVER_ERRORS.UPLOAD_SPOOL_FAILED);
         }
 
-        return await uploadLocalFiles(
+        const records: ChunkMetadataRecord[] = [];
+        const uploaded = await uploadLocalFiles(
             [file],
             account.email,
             account.token,
@@ -82,9 +89,17 @@ function uploadSpooledFile(
                 const event = jobEvent(job);
                 if (event) emit(event);
             },
-            (chunk) => emit(chunkEvent(chunk)),
+            (chunk) => {
+                const record = uploadedChunkMetadata(chunk);
+                if (record) records.push(record);
+                emit(chunkEvent(chunk));
+            },
             { signal, fetcher }
         );
+
+        if (metadata && records.length) await metadata.save(records);
+
+        return uploaded;
     });
 }
 
@@ -93,7 +108,8 @@ function spoolAndUpload(
     received: ReceivedFile,
     account: Account,
     emit: (event: UploadEvent) => void,
-    fetcher?: Fetcher
+    fetcher?: Fetcher,
+    metadata?: ChunkMetadataStore
 ): AsyncResult<void, SpoolError> {
     return createSpoolDirectory().andThenAsync(async (directory) => {
         const path = join(directory, 'file');
@@ -114,7 +130,8 @@ function spoolAndUpload(
                 account,
                 emit,
                 received.signal,
-                fetcher
+                fetcher,
+                metadata
             );
         } finally {
             await rm(directory, { recursive: true, force: true }).catch(() => {});
@@ -126,10 +143,11 @@ function spoolAndUpload(
 export function fileUploadStream(
     received: ReceivedFile,
     account: Account,
-    fetcher?: Fetcher
+    fetcher?: Fetcher,
+    metadata?: ChunkMetadataStore
 ): Response {
     return uploadEventStream({
-        run: (emit) => spoolAndUpload(received, account, emit, fetcher),
+        run: (emit) => spoolAndUpload(received, account, emit, fetcher, metadata),
         cancel: received.cancel
     });
 }

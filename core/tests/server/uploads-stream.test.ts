@@ -1,8 +1,10 @@
 import { afterEach, expect, test, vi } from 'vitest';
+import { Ok } from 'results-ts';
 import { UploadEventType, type UploadEvent } from '@madkarmaa/phodrive-core/models';
 import { receiveUpload } from '@madkarmaa/phodrive-core/server/upload/input';
 import { encodeUploadBmp } from '@madkarmaa/phodrive-core/server/upload/bmp';
 import { uploadFiles } from '@madkarmaa/phodrive-core/server/upload';
+import type { ChunkMetadataRecord } from '@madkarmaa/phodrive-core/server/photos';
 import { decodeSplitBmp } from '@madkarmaa/phodrive-core/server/bmp';
 import { uploadForm, TEST_ACCOUNT } from '../helpers/upload';
 import { photosUploadHarness } from '../helpers/photos-harness';
@@ -69,4 +71,40 @@ test('request cancellation closes unfinished multipart ingress and produces no c
     const verified = await source.verified;
     expect(verified.isErr()).toBe(true);
     await received.unwrap().cancel();
+});
+
+test('resolved metadata is saved only after Google confirms the upload', async () => {
+    const fixture = uploadForm();
+    const received = await receiveUpload(fixture.request(), TEST_ACCOUNT);
+    const input = received.unwrap();
+    const harness = photosUploadHarness({ failCommit: true });
+    const save = vi.fn((_records: readonly ChunkMetadataRecord[]) =>
+        Ok(undefined).andThenAsync(async () => Ok(undefined))
+    );
+    const metadata = {
+        load: () => Ok(new Map()).andThenAsync(async (value) => Ok(value)),
+        save,
+        remove: () => Ok(undefined).andThenAsync(async () => Ok(undefined))
+    };
+
+    const failed = await uploadFiles(input, () => {}, harness.fetcher, metadata);
+    expect(failed.isErr()).toBe(true);
+    expect(save).not.toHaveBeenCalled();
+    await input.cancel();
+
+    const retry = await receiveUpload(fixture.request(), TEST_ACCOUNT);
+    const harnessRetry = photosUploadHarness();
+    const saved = await uploadFiles(retry.unwrap(), () => {}, harnessRetry.fetcher, metadata);
+
+    expect(saved.isOk()).toBe(true);
+    expect(save).toHaveBeenCalledOnce();
+    expect(save.mock.calls[0]?.[0]).toEqual([
+        expect.objectContaining({
+            mediaKey: 'media-key',
+            sha1: fixture.metadata.sha1,
+            storedBmpSize: expect.any(Number),
+            originalName: 'proof.bin'
+        })
+    ]);
+    await retry.unwrap().cancel();
 });

@@ -7,6 +7,7 @@ import { send, readBody } from '../transport';
 import { bodyBytes } from '../../protobuf';
 import { pageRequest, parseLibraryPage } from './metadata';
 import { scanLibraryPage } from './probe';
+import type { ChunkMetadataStore } from './metadata-store';
 import { LIBRARY_STATE_REQUEST } from './requests';
 
 const LIBRARY_URL = 'https://photosdata-pa.googleapis.com/6439526531001121323/18047484249733410717';
@@ -17,7 +18,8 @@ export function listBmps(
     email: string,
     token: string,
     pageToken = '',
-    fetcher: Fetcher = photosFetch
+    fetcher: Fetcher = photosFetch,
+    metadata?: ChunkMetadataStore
 ): AsyncResult<{ items: RemoteBmp[]; nextPageToken: string }, ServerError> {
     const validated =
         pageToken.length > MAX_PAGE_TOKEN_LENGTH ||
@@ -30,18 +32,24 @@ export function listBmps(
         .andThenAsync((headers) => {
             const visited = new Set<string>();
 
-            return findFilePage(pageToken, headers, fetcher, visited).andThenAsync(async (page) => {
-                if (!page.nextPageToken) return Ok({ items: page.items, nextPageToken: '' });
+            return findFilePage(pageToken, headers, fetcher, visited, metadata).andThenAsync(
+                async (page) => {
+                    if (!page.nextPageToken) return Ok({ items: page.items, nextPageToken: '' });
 
-                // Google Photos can return a resume token followed only by an empty sync page.
-                // Look ahead so the UI offers Load more only for confirmed Phodrive files.
-                return await findFilePage(page.nextPageToken, headers, fetcher, visited).map(
-                    (next) => ({
+                    // Google Photos can return a resume token followed only by an empty sync page.
+                    // Look ahead so the UI offers Load more only for confirmed Phodrive files.
+                    return await findFilePage(
+                        page.nextPageToken,
+                        headers,
+                        fetcher,
+                        visited,
+                        metadata
+                    ).map((next) => ({
                         items: page.items,
                         nextPageToken: next.items.length ? next.requestToken : ''
-                    })
-                );
-            });
+                    }));
+                }
+            );
         });
 }
 
@@ -49,7 +57,8 @@ export function listBmps(
 function readLibraryPage(
     requestToken: string,
     headers: PhotosHeaders,
-    fetcher: Fetcher
+    fetcher: Fetcher,
+    metadata?: ChunkMetadataStore
 ): AsyncResult<{ items: RemoteBmp[]; nextPageToken: string }, ServerError> {
     const request = requestToken
         ? pageRequest(Buffer.from(requestToken, 'base64url'))
@@ -69,7 +78,7 @@ function readLibraryPage(
         )
             .andThenAsync((response) => readBody(response, 'Library list'))
             .andThen(parseLibraryPage)
-            .andThenAsync((page) => scanLibraryPage(page, headers, fetcher))
+            .andThenAsync((page) => scanLibraryPage(page, headers, fetcher, metadata))
     );
 }
 
@@ -77,7 +86,8 @@ function findFilePage(
     pageToken: string,
     headers: PhotosHeaders,
     fetcher: Fetcher,
-    visited: Set<string>
+    visited: Set<string>,
+    metadata?: ChunkMetadataStore
 ): AsyncResult<{ items: RemoteBmp[]; nextPageToken: string; requestToken: string }, ServerError> {
     return Ok(undefined).andThenAsync(async () => {
         let nextPageToken = pageToken;
@@ -88,11 +98,13 @@ function findFilePage(
 
             visited.add(requestToken);
 
-            const received = await readLibraryPage(requestToken, headers, fetcher).map((page) => {
-                nextPageToken = page.nextPageToken;
+            const received = await readLibraryPage(requestToken, headers, fetcher, metadata).map(
+                (page) => {
+                    nextPageToken = page.nextPageToken;
 
-                return { ...page, requestToken };
-            });
+                    return { ...page, requestToken };
+                }
+            );
 
             const finished = received.match({
                 Ok: (page) => page.items.length > 0 || !page.nextPageToken,
@@ -102,3 +114,11 @@ function findFilePage(
         }
     });
 }
+
+export type { ChunkMetadataRecord, ChunkMetadataStore } from './metadata-store';
+export {
+    chunkMetadataRecord,
+    metadataItem,
+    metadataMatches,
+    uploadedChunkMetadata
+} from './metadata-store';

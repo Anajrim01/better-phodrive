@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm';
 import { Err, Ok, type AsyncResult } from 'results-ts';
 import type { SessionUser } from './auth';
 import type { ServerContext } from './context';
-import { googleAccount } from './db/schema';
+import { chunkMetadata, googleAccount } from './db/schema';
 import { AUTH_ERRORS, type AuthError } from './errors';
 
 type Store = Pick<ServerContext, 'db' | 'env'>;
@@ -83,19 +83,30 @@ export function saveGoogleAccount(
     userId: string,
     account: Account
 ): AsyncResult<void, AuthError> {
-    return encryptToken(store, account.token).andThenAsync(async (encryptedToken) => {
-        try {
-            await store.db
-                .insert(googleAccount)
-                .values({ userId, email: account.email, encryptedToken })
-                .onConflictDoUpdate({
-                    target: googleAccount.userId,
-                    set: { email: account.email, encryptedToken, updatedAt: new Date() }
-                });
-
-            return Ok(undefined);
-        } catch {
-            return Err(AUTH_ERRORS.DATABASE_UNAVAILABLE);
+    return findStoredAccount(store, userId).andThenAsync(async (stored) => {
+        if (stored && stored.email !== account.email) {
+            try {
+                // A different Google account must not inherit another account's cached media.
+                await store.db.delete(chunkMetadata).where(eq(chunkMetadata.userId, userId));
+            } catch {
+                return Err(AUTH_ERRORS.DATABASE_UNAVAILABLE);
+            }
         }
+
+        return await encryptToken(store, account.token).andThenAsync(async (encryptedToken) => {
+            try {
+                await store.db
+                    .insert(googleAccount)
+                    .values({ userId, email: account.email, encryptedToken })
+                    .onConflictDoUpdate({
+                        target: googleAccount.userId,
+                        set: { email: account.email, encryptedToken, updatedAt: new Date() }
+                    });
+
+                return Ok(undefined);
+            } catch {
+                return Err(AUTH_ERRORS.DATABASE_UNAVAILABLE);
+            }
+        });
     });
 }
