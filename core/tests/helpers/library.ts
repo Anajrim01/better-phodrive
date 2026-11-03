@@ -10,7 +10,8 @@ export const DOWNLOAD_HOST = 'https://lh3.googleusercontent.com';
 export type ProbeCounts = { prepare: number; range: number };
 
 export function libraryPage(
-    items: { mediaKey: string; sha1: string; size: number; at: number; fileName?: string }[]
+    items: { mediaKey: string; sha1: string; size: number; at: number; fileName?: string }[],
+    nextPageToken = ''
 ): Buffer {
     const entries = items.map((item) => {
         const details = message(
@@ -23,7 +24,10 @@ export function libraryPage(
         return bytesField(2, message(bytesField(1, item.mediaKey), bytesField(2, details)));
     });
 
-    return bytesField(1, message(...entries));
+    return bytesField(
+        1,
+        message(...(nextPageToken ? [bytesField(1, Buffer.from(nextPageToken))] : []), ...entries)
+    );
 }
 
 export function preparedDownload(mediaKey: string, sha1: string, url: string): Buffer {

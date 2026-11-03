@@ -16,11 +16,24 @@ const CachedProbeSchema = z.object({
     at: z.number(),
     item: RemoteBmpSchema.nullable()
 });
+export const ProbeContentSchema = RemoteBmpSchema.omit({
+    mediaKey: true,
+    at: true,
+    sha1: true,
+    chunkCount: true
+});
+export type ProbeContent = z.infer<typeof ProbeContentSchema>;
+const CachedContentSchema = z.object({
+    key: z.string().min(1),
+    content: ProbeContentSchema
+});
 const ProbeCacheSchema = z.object({
-    entries: z.array(CachedProbeSchema)
+    entries: z.array(CachedProbeSchema),
+    content: z.array(CachedContentSchema).optional()
 });
 
 const PROBE_CACHE = new Map<string, CachedProbe>();
+const CONTENT_CACHE = new Map<string, ProbeContent>();
 let cacheFile: string | null = null;
 let loaded = false;
 let dirty = false;
@@ -37,6 +50,7 @@ export function configureProbeCache(path: string | null): void {
     loaded = false;
     dirty = false;
     lastFlushAt = 0;
+    CONTENT_CACHE.clear();
 }
 
 function probeKey(email: string, candidate: LibraryCandidate): string {
@@ -55,6 +69,9 @@ function load(): void {
 
         for (const entry of parsed.data.entries) {
             PROBE_CACHE.set(entry.key, { item: entry.item, at: entry.at });
+        }
+        for (const entry of parsed.data.content ?? []) {
+            CONTENT_CACHE.set(entry.key, entry.content);
         }
 
         while (PROBE_CACHE.size > PROBE_CACHE_LIMIT) {
@@ -75,10 +92,15 @@ export function flushProbeCache(): void {
         const entries = [...PROBE_CACHE]
             .slice(-PROBE_CACHE_LIMIT)
             .map(([key, value]) => ({ key, at: value.at, item: value.item }));
+        const content = [...CONTENT_CACHE]
+            .slice(-PROBE_CACHE_LIMIT)
+            .map(([key, value]) => ({ key, content: value }));
         const temp = `${cacheFile}.tmp`;
 
         mkdirSync(dirname(cacheFile), { recursive: true, mode: 0o700 });
-        writeFileSync(temp, JSON.stringify({ entries }), { mode: 0o600 });
+        writeFileSync(temp, JSON.stringify(content.length ? { entries, content } : { entries }), {
+            mode: 0o600
+        });
         renameSync(temp, cacheFile);
         dirty = false;
         lastFlushAt = Date.now();
@@ -144,6 +166,45 @@ export function writeProbe(
     }
 }
 
+function contentKey(email: string, candidate: LibraryCandidate): string {
+    return [email.toLowerCase(), candidate.sha1, candidate.size].join('|');
+}
+
+/** Reuse bytes-derived probe fields across media keys and pages. */
+export function readContentProbe(
+    email: string,
+    candidate: LibraryCandidate
+): ProbeContent | undefined {
+    load();
+
+    return CONTENT_CACHE.get(contentKey(email, candidate));
+}
+
+export function writeContentProbe(
+    email: string,
+    candidate: LibraryCandidate,
+    item: RemoteBmp
+): void {
+    load();
+
+    const { mediaKey: _mediaKey, at: _at, sha1: _sha1, chunkCount: _chunkCount, ...content } = item;
+    const parsed = ProbeContentSchema.safeParse(content);
+    if (!parsed.success) return;
+
+    const key = contentKey(email, candidate);
+    CONTENT_CACHE.delete(key);
+    CONTENT_CACHE.set(key, parsed.data);
+    dirty = true;
+    scheduleFlush();
+
+    while (CONTENT_CACHE.size > PROBE_CACHE_LIMIT) {
+        const oldest = CONTENT_CACHE.keys().next().value;
+        if (oldest === undefined) break;
+
+        CONTENT_CACHE.delete(oldest);
+    }
+}
+
 export function clearProbeCache(): void {
     if (flushTimer) {
         clearTimeout(flushTimer);
@@ -151,6 +212,7 @@ export function clearProbeCache(): void {
     }
 
     PROBE_CACHE.clear();
+    CONTENT_CACHE.clear();
     loaded = false;
     dirty = false;
     lastFlushAt = 0;

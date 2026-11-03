@@ -16,7 +16,13 @@ import { BMP_HEADER_BYTES, MAX_CHUNK_PAYLOAD_BYTES, SPLIT_MAGIC_PREFIX } from '.
 import { fileIdentity } from '../../chunks';
 import { splitHeaderIsCompressed, splitHeaderIsLast } from '../../../models';
 import { preparedDownloadUrl } from '../download';
-import { readProbe, writeProbe } from './probe-cache';
+import {
+    readContentProbe,
+    readProbe,
+    writeContentProbe,
+    writeProbe,
+    type ProbeContent
+} from './probe-cache';
 import type { LibraryCandidate } from './metadata';
 
 const HEADER_PROBE_BYTES = MAX_SPLIT_HEADER_BYTES;
@@ -197,6 +203,18 @@ export function trashedChunkItem(
     };
 }
 
+function contentItem(content: ProbeContent, candidate: LibraryCandidate): RemoteBmp {
+    const expected = expectedChunkCount(candidate.fileName);
+
+    return {
+        ...content,
+        ...(expected === undefined ? {} : { chunkCount: expected }),
+        mediaKey: candidate.mediaKey,
+        at: candidate.at,
+        sha1: candidate.sha1
+    };
+}
+
 export function probeLibraryItem(
     email: string,
     candidate: LibraryCandidate,
@@ -220,6 +238,12 @@ export function probeLibraryItem(
                     ? cached
                     : { ...cached, chunkCount: expected }
             )
+        );
+
+    const content = readContentProbe(email, candidate);
+    if (content !== undefined)
+        return Ok(undefined).andThenAsync<RemoteBmp | null, ServerError>(async () =>
+            Ok(contentItem(content, candidate))
         );
 
     return preparedDownloadUrl(email, candidate.mediaKey, candidate.sha1, rpcHeaders, fetcher)
@@ -251,6 +275,7 @@ export function probeLibraryItem(
             });
             if (item !== null) {
                 writeProbe(email, candidate, item);
+                writeContentProbe(email, candidate, item);
 
                 return item;
             }
