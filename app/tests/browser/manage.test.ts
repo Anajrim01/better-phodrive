@@ -310,7 +310,8 @@ test('a folder delete response with failed files keeps the dialog and explains w
                     {
                         fileId: 'a'.repeat(64),
                         name: 'proof.bin',
-                        message: 'Google Photos refused the request'
+                        message:
+                            'A copy of this file is already in Trash. Empty it or restore it, then retry.'
                     }
                 ]
             })
@@ -324,7 +325,9 @@ test('a folder delete response with failed files keeps the dialog and explains w
     expect(manageApi.deleteFolder).toHaveBeenCalledWith('first@example.com', 'token-first', 'A', 2);
     expect(applyItems).toHaveBeenCalled();
     expect(manage.dialog).toBe('delete-folder');
-    expect(manage.dialogError).toContain('proof.bin: Google Photos refused the request');
+    expect(manage.dialogError).toContain(
+        'proof.bin: A copy of this file is already in Trash. Empty it or restore it, then retry.'
+    );
 });
 
 test('moving folder contents reports partial failures without a dialog', async () => {

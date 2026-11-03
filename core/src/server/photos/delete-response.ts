@@ -61,8 +61,8 @@ export function validateDeleteResponse(
     options: DeleteResponseOptions = {}
 ): Result<void, ServerError> {
     return parse(body)
-        .mapErr(() => SERVER_ERRORS.INVALID_DELETE_RESPONSE)
-        .andThen((fields) => {
+        .mapErr((): ServerError => SERVER_ERRORS.INVALID_DELETE_RESPONSE)
+        .andThen<void, ServerError>((fields) => {
             const keys: string[] = [];
             for (const field of fields) {
                 if (field.number === RESULT_KEY_FIELD && nonEmptyBytes(field))
@@ -77,13 +77,22 @@ export function validateDeleteResponse(
                 ? uniqueKeys.size === keys.length && knownKeys && uniqueKeys.size <= expected.size
                 : uniqueKeys.size === keys.length && uniqueKeys.size === expected.size && knownKeys;
             const itemsMatch = items.length > 0 && identities.every((key) => key !== null);
-            // Without field 1 keys, field 2 identifies the item already in trash. It must be
-            // one we asked about, or a duplicate sha1 would report an active copy as deleted.
+            // Without field 1 keys, field 2 identifies the item already in trash. An identity
+            // outside the request means another sha1 copy is in trash, so report a duplicate
+            // instead of treating the active copy as deleted.
             const identitiesMatch =
                 keys.length > 0 || identities.every((key) => key !== null && expected.has(key));
 
-            if (!keysMatch || !itemsMatch || !identitiesMatch)
-                return Err(SERVER_ERRORS.INVALID_DELETE_RESPONSE);
+            if (!keysMatch || !itemsMatch) return Err(SERVER_ERRORS.INVALID_DELETE_RESPONSE);
+
+            const duplicateInTrash =
+                options.allowAlreadyApplied === true &&
+                keys.length === 0 &&
+                identities.some((key) => key !== null && !expected.has(key));
+
+            if (duplicateInTrash) return Err(SERVER_ERRORS.DUPLICATE_IN_TRASH);
+
+            if (!identitiesMatch) return Err(SERVER_ERRORS.INVALID_DELETE_RESPONSE);
 
             return Ok(undefined);
         });
