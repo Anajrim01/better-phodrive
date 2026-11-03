@@ -1,4 +1,4 @@
-import type { FileGroup } from '@madkarmaa/phodrive-core/files';
+import type { FileGroup, FolderEntry } from '@madkarmaa/phodrive-core/files';
 import {
     MAX_SHARE_CHUNKS,
     MAX_SHARE_FILES,
@@ -10,11 +10,38 @@ import {
 } from '@madkarmaa/phodrive-core/share-models';
 import { Err, Ok, type Result } from 'results-ts';
 
+export type ShareCandidate = FileGroup | FolderEntry;
+
 export type ShareFilesError = {
     readonly code:
-        'NO_FILES' | 'INCOMPLETE_FILES' | 'INVALID_FILE' | 'TOO_MANY_FILES' | 'TOO_MANY_CHUNKS';
+        | 'NO_FILES'
+        | 'INCOMPLETE_FILES'
+        | 'INVALID_FILE'
+        | 'FOLDERS_UNSUPPORTED'
+        | 'TOO_MANY_FILES'
+        | 'TOO_MANY_CHUNKS';
     readonly message: string;
 };
+
+function isFileGroup(candidate: ShareCandidate): candidate is FileGroup {
+    return 'chunks' in candidate;
+}
+
+export function shareCandidateFiles(candidates: readonly ShareCandidate[]): FileGroup[] {
+    return candidates.filter(isFileGroup);
+}
+
+export function shareSelectionInputs(
+    candidates: readonly ShareCandidate[]
+): Result<ShareFileInput[], ShareFilesError> {
+    if (candidates.some((candidate) => !isFileGroup(candidate)))
+        return Err({
+            code: 'FOLDERS_UNSUPPORTED',
+            message: 'Sharing folders is not available. Select files only.'
+        });
+
+    return shareFileInputs(shareCandidateFiles(candidates));
+}
 
 function shareFileInput(file: FileGroup): ShareFileInput | null {
     if (!file.complete || file.trashed || file.chunks.length === 0) return null;

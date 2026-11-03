@@ -18,7 +18,13 @@ import type { AsyncResult } from 'results-ts';
 import { copyText, type CopyOutcome } from '#browser/clipboard';
 import { checkShareViewer } from '#browser/share-viewer';
 import { ShareStore } from '#browser/shares';
-import { shareFileCount, shareFileInputs, shareNameError } from '#lib/share-files';
+import {
+    shareCandidateFiles,
+    shareFileCount,
+    shareNameError,
+    shareSelectionInputs,
+    type ShareCandidate
+} from '#lib/share-files';
 
 export type ShareCopyState = 'idle' | 'copied' | 'manual' | 'failed';
 export type ShareAvailability = 'checking' | 'available' | 'unavailable';
@@ -97,17 +103,17 @@ export class DriveShares {
         });
     }
 
-    open(files: readonly FileGroup[]): void {
+    open(files: readonly ShareCandidate[]): void {
         if (!this.shareAvailable || this.deps.busy() || this.deps.loading()) return;
 
         this.resetCreate();
         this.revokeNotice = '';
-        this.createFiles = [...files];
+        this.createFiles = shareCandidateFiles(files);
 
         if (!this.deps.account().email) {
             this.createInvalid = 'Connect an account before creating a share.';
         } else {
-            shareFileInputs(files).match({
+            shareSelectionInputs(files).match({
                 Ok: (inputs) => {
                     this.inputs = inputs;
                     this.createInvalid = '';
@@ -129,6 +135,7 @@ export class DriveShares {
     }
 
     async create(name: string): Promise<void> {
+        if (!this.shareAvailable || !this.createOpen) return;
         if (this.createBusy || this.created !== null) return;
         if (this.createInvalid) {
             this.createError = this.createInvalid;

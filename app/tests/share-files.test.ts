@@ -2,9 +2,11 @@ import { expect, test } from 'vitest';
 import { MAX_SHARE_FILES, SHARE_BASE_URL } from '@madkarmaa/phodrive-core/share-models';
 import {
     defaultShareName,
+    shareCandidateFiles,
     shareFileCount,
     shareFileInputs,
-    shareNameError
+    shareNameError,
+    shareSelectionInputs
 } from '#lib/share-files';
 import { chunk, file } from './components/file-fixtures';
 
@@ -55,6 +57,20 @@ test('a share is limited to the manifest file count', () => {
 
     expect(error.code).toBe('TOO_MANY_FILES');
     expect(error.message).toBe(`A share can include up to ${MAX_SHARE_FILES} files.`);
+});
+
+test('a mixed folder and file selection is rejected instead of dropping the folder', () => {
+    const folder = { path: 'Reports', name: 'Reports', files: 1, subfolders: 0 };
+    const result = shareSelectionInputs([file(), folder]);
+
+    expect(result.isErr()).toBe(true);
+    if (result.isErr()) {
+        expect(result.unwrapErr().code).toBe('FOLDERS_UNSUPPORTED');
+        expect(result.unwrapErr().message).toBe(
+            'Sharing folders is not available. Select files only.'
+        );
+    }
+    expect(shareCandidateFiles([file(), folder])).toHaveLength(1);
 });
 
 test('default names drop a single file extension and count multiple files', () => {

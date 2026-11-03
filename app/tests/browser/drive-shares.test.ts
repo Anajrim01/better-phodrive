@@ -99,16 +99,17 @@ beforeEach(() => storage.clear());
 afterEach(() => vi.restoreAllMocks());
 afterAll(() => vi.unstubAllGlobals());
 
-test('create stays hidden until the viewer answers and then opens with the selection', async () => {
-    const unavailable = new DriveShares(
-        deps({ checkViewer: vi.fn(() => ok(false)), create: vi.fn() })
-    );
+test('create stays gated while the viewer is unavailable and produces no link', async () => {
+    const create = vi.fn(() => ok(CREATE_RESPONSE));
+    const gated = new DriveShares(deps({ checkViewer: vi.fn(() => ok(false)), create }));
+    await gated.checkAvailability();
 
-    await unavailable.checkAvailability();
-
-    expect(unavailable.shareAvailable).toBe(false);
-    unavailable.open([file()]);
-    expect(unavailable.createOpen).toBe(false);
+    expect(gated.shareAvailable).toBe(false);
+    gated.open([file()]);
+    await gated.create('notes');
+    expect(gated.createOpen).toBe(false);
+    expect(gated.created).toBeNull();
+    expect(create).not.toHaveBeenCalled();
 
     const available = new DriveShares(deps());
     await available.checkAvailability();
@@ -172,9 +173,30 @@ test('storage failure keeps the created link visible and explains the missing li
     await shares.create('notes');
 
     expect(shares.created).toEqual(RECORD);
+    expect(shares.created?.shareUrl).toBe(RECORD.shareUrl);
+    expect(shares.created?.envelopeKey).toBe(RECORD.envelopeKey);
+    expect(shares.created?.albumKey).toBe(RECORD.albumKey);
     expect(shares.storageNotice).toBe(
         'This share was created, but it cannot be listed in this browser.'
     );
+});
+
+test('a folder in a share selection disables create instead of dropping the folder', async () => {
+    const create = vi.fn(() => ok(CREATE_RESPONSE));
+    const shares = new DriveShares(deps({ create }));
+    await shares.checkAvailability();
+    const folder = { path: 'Reports', name: 'Reports', files: 1, subfolders: 0 };
+
+    shares.open([file(), folder]);
+
+    expect(shares.createOpen).toBe(true);
+    expect(shares.createInvalid).toBe('Sharing folders is not available. Select files only.');
+    expect(shares.createFiles).toHaveLength(1);
+
+    await shares.create('notes');
+
+    expect(create).not.toHaveBeenCalled();
+    expect(shares.created).toBeNull();
 });
 
 test('a generic create failure keeps the dialog open with the server message', async () => {
