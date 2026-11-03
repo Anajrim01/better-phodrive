@@ -134,19 +134,19 @@ afterEach(() => {
 test('a file menu opens with each action once', async () => {
     mount({ kind: 'file', item: file() });
 
-    await waitFor(() => expect(screen.getAllByRole('menuitem', { hidden: true })).toHaveLength(5));
+    await waitFor(() => expect(screen.getAllByRole('menuitem', { hidden: true })).toHaveLength(6));
     expect(
         screen.getAllByRole('menuitem', { hidden: true }).map((item) => item.textContent?.trim())
-    ).toEqual(['Download', 'Rename', 'Move to folder', 'Delete', 'Details']);
+    ).toEqual(['Download', 'Share', 'Rename', 'Move to folder', 'Delete', 'Details']);
 });
 
 test('a previewable file menu starts with Preview', async () => {
     mount({ kind: 'file', item: file({ name: 'photo.png' }) });
 
-    await waitFor(() => expect(screen.getAllByRole('menuitem', { hidden: true })).toHaveLength(6));
+    await waitFor(() => expect(screen.getAllByRole('menuitem', { hidden: true })).toHaveLength(7));
     expect(
         screen.getAllByRole('menuitem', { hidden: true }).map((item) => item.textContent?.trim())
-    ).toEqual(['Preview', 'Download', 'Rename', 'Move to folder', 'Delete', 'Details']);
+    ).toEqual(['Preview', 'Download', 'Share', 'Rename', 'Move to folder', 'Delete', 'Details']);
 });
 
 test('choosing an action closes the menu and reports the action', async () => {
@@ -184,10 +184,10 @@ test('the trash and folder menus show their own actions', async () => {
 
 test('the bulk menu has no rename and swaps to trash actions in Trash', async () => {
     mount({ kind: 'selection', files: [file()], trash: false });
-    await waitFor(() => expect(screen.getAllByRole('menuitem', { hidden: true })).toHaveLength(4));
+    await waitFor(() => expect(screen.getAllByRole('menuitem', { hidden: true })).toHaveLength(5));
     expect(
         screen.getAllByRole('menuitem', { hidden: true }).map((item) => item.textContent?.trim())
-    ).toEqual(['Download', 'Move to folder', 'Delete', 'Details']);
+    ).toEqual(['Download', 'Share', 'Move to folder', 'Delete', 'Details']);
 
     cleanup();
     mount({ kind: 'selection', files: [file({ trashed: true })], trash: true });
@@ -204,7 +204,7 @@ test('arrow keys move focus between menu items', async () => {
     items[0]!.focus();
     expect(document.activeElement).toBe(items[0]);
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
-    expect(document.activeElement?.textContent?.trim()).toBe('Rename');
+    expect(document.activeElement?.textContent?.trim()).toBe('Share');
 
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'End' }));
     expect(document.activeElement?.textContent?.trim()).toBe('Details');

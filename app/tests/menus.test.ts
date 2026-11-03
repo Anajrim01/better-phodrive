@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import type { FileGroup, UploadedChunk } from '@madkarmaa/phodrive-core/files';
-import { canRestoreFile, fileMenu, folderMenu } from '#lib/menus';
+import { canRestoreFile, fileMenu, folderMenu, selectionMenu } from '#lib/menus';
 
 function chunk(overrides: Partial<UploadedChunk> = {}): UploadedChunk {
     return {
@@ -44,7 +44,14 @@ function labels(entries: ReturnType<typeof fileMenu>): string[] {
 test('a complete file menu offers download, rename, move, delete, and details once', () => {
     const entries = fileMenu(file(), false);
 
-    expect(labels(entries)).toEqual(['Download', 'Rename', 'Move to folder', 'Delete', 'Details']);
+    expect(labels(entries)).toEqual([
+        'Download',
+        'Share',
+        'Rename',
+        'Move to folder',
+        'Delete',
+        'Details'
+    ]);
     expect(new Set(entries.map((entry) => entry.action)).size).toBe(entries.length);
 });
 
@@ -52,6 +59,7 @@ test('a complete image or text file gets Preview before Download', () => {
     expect(labels(fileMenu(file({ name: 'photo.png' }), false))).toEqual([
         'Preview',
         'Download',
+        'Share',
         'Rename',
         'Move to folder',
         'Delete',
@@ -60,6 +68,7 @@ test('a complete image or text file gets Preview before Download', () => {
     expect(labels(fileMenu(file({ name: 'notes.txt' }), false))).toEqual([
         'Preview',
         'Download',
+        'Share',
         'Rename',
         'Move to folder',
         'Delete',
@@ -86,6 +95,7 @@ test('an incomplete file hides download and names the remaining chunks', () => {
     );
 
     expect(labels(entries)).toEqual([
+        'Share',
         'Rename',
         'Move to folder',
         'Restore',
@@ -101,6 +111,15 @@ test('the trash menu only offers restore, delete forever, and details', () => {
     const entries = fileMenu(file({ trashed: true }), true);
 
     expect(labels(entries)).toEqual(['Restore', 'Delete forever', 'Details']);
+});
+
+test('share stays hidden until the viewer is available and folders never offer it', () => {
+    expect(labels(fileMenu(file(), false, false))).not.toContain('Share');
+    expect(labels(selectionMenu(false, false))).not.toContain('Share');
+    expect(labels(selectionMenu(false))).toContain('Share');
+    expect(labels(folderMenu({ path: 'A', name: 'A', files: 1, subfolders: 0 }))).not.toContain(
+        'Share'
+    );
 });
 
 test('a folder menu offers open, rename, flatten, delete, and details once', () => {

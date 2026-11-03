@@ -4,16 +4,15 @@
 
     import { onMount, untrack } from 'svelte';
     import type { PageData } from './$types';
-    import { fade } from 'svelte/transition';
-    import { prefersReducedMotion } from 'svelte/motion';
     import { DriveController } from '#browser/drive/index.svelte';
     import { createDriveManage } from '#browser/drive/manage-factory';
+    import { createDriveShares } from '#browser/drive/shares-factory';
     import { createSelectionView } from '#browser/drive/selection-view.svelte';
     import { createDriveDrag } from '#browser/drive/drag-move.svelte';
     import { actionsUnavailable } from '#browser/drive/actions';
     import AppHeader from '#components/AppHeader.svelte';
     import AccountMenu from '#components/AccountMenu.svelte';
-    import AccountSetup from '#components/AccountSetup.svelte';
+    import AccountSetupScreen from '#components/AccountSetupScreen.svelte';
     import ConfirmDialog from '#components/ConfirmDialog.svelte';
     import ManageLayer from '#components/ManageLayer.svelte';
     import BulkLayer from '#components/BulkLayer.svelte';
@@ -22,6 +21,8 @@
     import UploadPanel from '#components/UploadPanel.svelte';
     import FilesView from '#components/FilesView.svelte';
     import SettingsView from '#components/SettingsView.svelte';
+    import ShareDialogs from '#components/ShareDialogs.svelte';
+    import SharesScreen from '#components/SharesScreen.svelte';
     import TrashView from '#components/TrashView.svelte';
     import ErrorFeedback from '#components/ErrorFeedback.svelte';
     import FileDrop from '#components/FileDrop.svelte';
@@ -35,8 +36,14 @@
 
     const drive = new DriveController(untrack(() => data.preferencesDefaults));
     const manage = createDriveManage(drive);
+    const shares = createDriveShares(drive);
     let view = $state<AppView>(AppView.Files);
-    const selection = createSelectionView(drive, manage, () => view);
+    const selection = createSelectionView(
+        drive,
+        manage,
+        () => view,
+        () => shares.overlayOpen
+    );
     const actionsDisabled = $derived(actionsUnavailable(drive, manage));
     const browseDisabled = $derived(drive.library.initialLoading);
     const stats = $derived(libraryStats(drive.library.files));
@@ -84,6 +91,8 @@
         view = nextView;
         selection.clear();
         manage.closeMenu();
+        shares.closeCreate();
+        shares.closeRevoke();
     }
 </script>
 
@@ -100,6 +109,8 @@
         onconfirm={() => drive.confirmAction()}
     />
 
+    <ShareDialogs {shares} />
+
     <ManageLayer
         {manage}
         {actionsDisabled}
@@ -109,6 +120,8 @@
         ondeleteforever={confirmPermanentDelete}
         onopenfolder={(path) => drive.library.openFolder(path)}
         onbulk={selection.run}
+        onshare={(files) => shares.open(files)}
+        shareAvailable={shares.shareAvailable}
     />
 
     <BulkLayer bulk={drive.bulk} />
@@ -173,6 +186,8 @@
     >
         {#if drive.ready && view === AppView.Settings}
             <SettingsView {drive} defaults={data.preferencesDefaults} />
+        {:else if drive.ready && view === AppView.Shares && drive.selectedEmail}
+            <SharesScreen {shares} />
         {:else if drive.ready && view === AppView.Trash && drive.selectedEmail}
             <TrashView
                 files={drive.library.trashFiles}
@@ -202,24 +217,7 @@
                 }}
             />
         {:else if drive.ready && (!drive.selectedEmail || drive.accountEditor.adding)}
-            <div in:fade={{ duration: prefersReducedMotion.current ? 0 : 160 }}>
-                <div class="workspace-heading">
-                    <h1>Connect to Google Photos</h1>
-                </div>
-                <AccountSetup
-                    bind:email={drive.accountEditor.newEmail}
-                    bind:token={drive.accountEditor.newToken}
-                    connecting={drive.accountEditor.connecting}
-                    canCancel={!!drive.selectedEmail}
-                    onsave={() => {
-                        void drive.saveAccount();
-                    }}
-                    oncancel={() => {
-                        drive.accountEditor.adding = false;
-                        drive.feedbackMessage = '';
-                    }}
-                />
-            </div>
+            <AccountSetupScreen {drive} />
         {:else if drive.ready}
             <FilesView
                 {drive}
@@ -250,7 +248,14 @@
 
 <svelte:window onclick={(event) => selection.backgroundClick(event, browseDisabled)} />
 
-<SelectionLayer {drive} {selection} {actionsDisabled} {browseDisabled} />
+<SelectionLayer
+    {drive}
+    {selection}
+    {actionsDisabled}
+    {browseDisabled}
+    showShare={shares.shareAvailable}
+    onshare={() => shares.open(selection.selected)}
+/>
 
 <UploadPanel
     bind:open={drive.uploadPanelOpen}

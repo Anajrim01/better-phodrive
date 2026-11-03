@@ -18,6 +18,8 @@
         ondeleteforever: (item: FileGroup) => void;
         onopenfolder: (path: string) => void;
         onbulk: (action: MenuAction, files: readonly FileGroup[]) => void;
+        onshare: (files: readonly FileGroup[]) => void;
+        shareAvailable?: boolean;
     }
 
     let {
@@ -28,7 +30,9 @@
         ondelete,
         ondeleteforever,
         onopenfolder,
-        onbulk
+        onbulk,
+        onshare,
+        shareAvailable = true
     }: Props = $props();
 
     const dialogTarget = $derived(manage.dialogTarget);
@@ -38,7 +42,9 @@
         const target = manage.menuTarget;
         manage.closeMenu();
         if (!target) return;
-        if (target.kind === 'selection') onbulk(action, target.files);
+        if (action === 'share' && target.kind === 'file') onshare([target.item]);
+        else if (action === 'share' && target.kind === 'selection') onshare(target.files);
+        else if (target.kind === 'selection') onbulk(action, target.files);
         else if (action === 'preview' && target.kind === 'file')
             manage.openPreview(target, manage.menuTrigger);
         else if (action === 'download' && target.kind === 'file') ondownload(target.item);
@@ -62,6 +68,7 @@
     target={manage.menuTarget}
     anchor={manage.menuAnchor}
     disabled={actionsDisabled}
+    {shareAvailable}
     onclose={() => manage.closeMenu()}
     onaction={run}
 />

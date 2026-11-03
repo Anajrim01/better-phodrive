@@ -4,6 +4,7 @@ import { previewModeFor } from '@madkarmaa/phodrive-core/preview';
 export type MenuAction =
     | 'preview'
     | 'download'
+    | 'share'
     | 'rename'
     | 'move'
     | 'restore'
@@ -29,7 +30,7 @@ export function canRestoreFile(item: FileGroup): boolean {
     );
 }
 
-export function fileMenu(item: FileGroup, trash: boolean): MenuEntry[] {
+export function fileMenu(item: FileGroup, trash: boolean, shareAvailable = true): MenuEntry[] {
     if (trash)
         return [
             { action: 'restore', label: 'Restore' },
@@ -41,6 +42,7 @@ export function fileMenu(item: FileGroup, trash: boolean): MenuEntry[] {
     if (item.complete && previewModeFor(item.name) !== null)
         entries.push({ action: 'preview', label: 'Preview' });
     if (item.complete) entries.push({ action: 'download', label: 'Download' });
+    if (shareAvailable) entries.push({ action: 'share', label: 'Share' });
     entries.push({ action: 'rename', label: 'Rename' });
     entries.push({ action: 'move', label: 'Move to folder' });
     if (canRestoreFile(item)) entries.push({ action: 'restore', label: 'Restore' });
@@ -64,7 +66,7 @@ export function folderMenu(entry: FolderEntry): MenuEntry[] {
     ];
 }
 
-export function selectionMenu(trash: boolean): MenuEntry[] {
+export function selectionMenu(trash: boolean, shareAvailable = true): MenuEntry[] {
     if (trash)
         return [
             { action: 'restore', label: 'Restore' },
@@ -72,10 +74,13 @@ export function selectionMenu(trash: boolean): MenuEntry[] {
             { action: 'details', label: 'Details', divider: true }
         ];
 
-    return [
+    const entries: MenuEntry[] = [
         { action: 'download', label: 'Download' },
         { action: 'move', label: 'Move to folder' },
         { action: 'delete', label: 'Delete' },
         { action: 'details', label: 'Details', divider: true }
     ];
+    if (shareAvailable) entries.splice(1, 0, { action: 'share', label: 'Share' });
+
+    return entries;
 }
