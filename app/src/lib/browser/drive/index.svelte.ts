@@ -224,4 +224,8 @@ export class DriveController extends DriveView {
     async retryUpload(id: number) {
         await this.uploads.retry(id);
     }
+
+    cancelUploads() {
+        this.uploads.cancel();
+    }
 }
