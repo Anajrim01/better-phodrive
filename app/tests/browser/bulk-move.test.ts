@@ -113,7 +113,7 @@ test('a move that fails for every file keeps the destination dialog open', async
     await bulk.move('Shared');
 
     expect(bulk.moveOpen).toBe(true);
-    expect(bulk.moveError).toContain('Could not move any files.');
+    expect(bulk.moveError).toContain('Could not move the file.');
     expect([...selection.selectedKeys]).toEqual([fileKey(first)]);
 });
 

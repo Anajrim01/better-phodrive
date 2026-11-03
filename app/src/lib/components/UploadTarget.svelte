@@ -30,7 +30,10 @@
         },
         ...groups.map((group) => ({
             value: group.id,
-            label: group.accounts.length < 2 ? `${group.name} (needs 2 accounts)` : group.name,
+            label:
+                group.accounts.length < 2
+                    ? `${group.name} (needs at least two accounts)`
+                    : group.name,
             disabled: group.accounts.length < 2
         }))
     ]);
@@ -55,7 +58,7 @@
         />
         {#if unavailable}
             <p class="mt-1 text-xs leading-relaxed text-muted">
-                {unavailable} needs at least two connected accounts. Using the current account.
+                {unavailable} needs at least two accounts. Using the current account.
             </p>
         {/if}
     </div>

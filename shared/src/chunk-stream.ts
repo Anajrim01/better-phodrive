@@ -95,9 +95,7 @@ async function readSegment(
     }
 
     if (received !== length)
-        return Err(
-            viewerFailure('share_incomplete', 'Share incomplete. A chunk range ended early.')
-        );
+        return Err(viewerFailure('share_incomplete', 'A chunk range ended early.'));
 
     return Ok(undefined);
 }

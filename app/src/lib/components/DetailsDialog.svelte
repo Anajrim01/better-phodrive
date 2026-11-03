@@ -1,6 +1,6 @@
 <script lang="ts">
     import { Button, Dialog } from 'noph-ui';
-    import prettyBytes from 'pretty-bytes';
+    import { formatBytes } from '#lib/format-bytes';
     import type { FileGroup } from '@madkarmaa/phodrive-core/files';
     import LocalizedDate from '#components/LocalizedDate.svelte';
     import type { EntryTarget } from '#browser/drive/menu-types';
@@ -42,7 +42,7 @@
             ? ''
             : summary.incomplete === summary.count
               ? 'Unknown'
-              : `${prettyBytes(summary.size)}${summary.incomplete > 0 ? ' known' : ''}`
+              : `${formatBytes(summary.size)}${summary.incomplete > 0 ? ' known' : ''}`
     );
 </script>
 
@@ -62,7 +62,7 @@
             <dt>Owner</dt>
             <dd>{owners.join(', ') || file.email}</dd>
             <dt>Size</dt>
-            <dd>{size === null ? 'Unknown' : prettyBytes(size)}</dd>
+            <dd>{size === null ? 'Unknown' : formatBytes(size)}</dd>
             <dt>Modified</dt>
             <dd><LocalizedDate timestamp={file.at} /></dd>
             <dt>Chunks</dt>

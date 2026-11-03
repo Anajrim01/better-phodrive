@@ -86,8 +86,8 @@ export function bulkFailureMessage(
     const changed = total - failures.length;
     const summary =
         changed === 0
-            ? `Could not ${action} any files.`
-            : `${PAST_TENSE[action]} ${formatCount(changed)} of ${formatCount(total)} files. ${formatCount(failures.length)} failed.`;
+            ? `Could not ${action} ${total === 1 ? 'the file' : 'any files'}.`
+            : `${PAST_TENSE[action]} ${formatCount(changed)} of ${formatCount(total)} ${total === 1 ? 'file' : 'files'}. ${formatCount(failures.length)} failed.`;
     const groups = groupFailures(failures);
     const details = groups.slice(0, GROUP_LIMIT).map(formatGroup);
     const hiddenFailures = groups

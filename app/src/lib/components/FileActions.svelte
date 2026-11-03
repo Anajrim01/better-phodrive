@@ -4,8 +4,8 @@
     import type { FileGroup } from '@madkarmaa/phodrive-core/files';
     import IconDownload from '~icons/material-symbols/download';
     import IconDelete from '~icons/material-symbols/delete-outline';
-    import IconDeleteForever from '~icons/material-symbols/delete-forever';
-    import IconRestore from '~icons/material-symbols/restore-from-trash';
+    import IconDeleteForever from '~icons/material-symbols/delete-forever-outline';
+    import IconRestore from '~icons/material-symbols/restore-from-trash-outline';
 
     interface Props {
         item: FileGroup;

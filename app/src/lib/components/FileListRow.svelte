@@ -1,6 +1,6 @@
 <script lang="ts">
     import { Checkbox } from 'noph-ui';
-    import prettyBytes from 'pretty-bytes';
+    import { formatBytes } from '#lib/format-bytes';
     import { fileKey, type FileGroup } from '@madkarmaa/phodrive-core/files';
     import type { FileActionKind } from '@madkarmaa/phodrive-core/models';
     import { handleFileItemKeydown } from '#lib/file-item-keys';
@@ -205,7 +205,7 @@
     <td class="date-column"><LocalizedDate timestamp={item.at} /></td>
     <td class="size-column">
         {#if item.complete}
-            {prettyBytes(item.chunks.reduce((sum, chunk) => sum + chunk.size, 0))}
+            {formatBytes(item.chunks.reduce((sum, chunk) => sum + chunk.size, 0))}
         {:else}<span title="Size is unknown while not all chunks are available">Unknown</span>{/if}
     </td>
     <td class="actions-column">

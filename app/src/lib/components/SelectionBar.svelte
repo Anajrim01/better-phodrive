@@ -6,8 +6,8 @@
     import IconDownload from '~icons/material-symbols/download';
     import IconMove from '~icons/material-symbols/drive-file-move-outline';
     import IconDelete from '~icons/material-symbols/delete-outline';
-    import IconDeleteForever from '~icons/material-symbols/delete-forever';
-    import IconRestore from '~icons/material-symbols/restore-from-trash';
+    import IconDeleteForever from '~icons/material-symbols/delete-forever-outline';
+    import IconRestore from '~icons/material-symbols/restore-from-trash-outline';
     import IconDetails from '~icons/material-symbols/info-outline';
     import IconClose from '~icons/material-symbols/close';
 

@@ -41,3 +41,11 @@ test('the scroll rules keep the long label inside the capped snackbar', () => {
     expect(styles).toMatch(/\.np-snackbar-label-container[^{]*\{[^}]*max-height:\s*inherit/s);
     expect(styles).toMatch(/overflow-y:\s*(auto|scroll)/);
 });
+
+test('on narrow screens the snackbar rises above the selection bar', () => {
+    const styles = ERROR_FEEDBACK_SOURCE.slice(ERROR_FEEDBACK_SOURCE.indexOf('<style>'));
+
+    expect(styles).toMatch(
+        /:root:has\(\.selection-bar\)[^{]*\{[^}]*inset-block-end:\s*calc\(160px/s
+    );
+});

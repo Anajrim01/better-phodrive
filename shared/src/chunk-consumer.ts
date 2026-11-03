@@ -177,9 +177,7 @@ export class ChunkConsumer {
                 this.payloadRemaining !== 0 ||
                 this.paddingRemaining !== 0
             )
-                return Err(
-                    viewerFailure('share_incomplete', 'Share incomplete. A chunk ended early.')
-                );
+                return Err(viewerFailure('share_incomplete', 'A chunk ended early.'));
 
             if (!this.payloadBuffer) return Ok(this.written);
 

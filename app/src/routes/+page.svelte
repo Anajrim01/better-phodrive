@@ -204,11 +204,7 @@
         {:else if drive.ready && (!drive.selectedEmail || drive.accountEditor.adding)}
             <div in:fade={{ duration: prefersReducedMotion.current ? 0 : 160 }}>
                 <div class="workspace-heading">
-                    <h1>
-                        {drive.accountEditor.adding && drive.selectedEmail
-                            ? 'Add account'
-                            : 'Connect your account'}
-                    </h1>
+                    <h1>Connect to Google Photos</h1>
                 </div>
                 <AccountSetup
                     bind:email={drive.accountEditor.newEmail}

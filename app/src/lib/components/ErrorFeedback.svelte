@@ -53,5 +53,9 @@
         :global(:root .error-feedback.np-snackbar[popover]) {
             inset: auto 16px calc(88px + env(safe-area-inset-bottom, 0px));
         }
+
+        :global(:root:has(.selection-bar) .error-feedback.np-snackbar[popover]) {
+            inset-block-end: calc(160px + env(safe-area-inset-bottom, 0px));
+        }
     }
 </style>

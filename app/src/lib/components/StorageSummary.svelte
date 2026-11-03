@@ -1,6 +1,6 @@
 <script lang="ts">
     import { LoadingIndicator } from 'noph-ui';
-    import prettyBytes from 'pretty-bytes';
+    import { formatBytes } from '#lib/format-bytes';
     import type { LibraryStats } from '@madkarmaa/phodrive-core/stats';
 
     interface Props {
@@ -54,7 +54,7 @@
     <h2 id="storage-heading" class="storage-heading">Storage</h2>
 
     {#if stats}
-        <p class="storage-total">{prettyBytes(stats.bytes)}</p>
+        <p class="storage-total">{formatBytes(stats.bytes)}</p>
         <p class="storage-count">{filesLabel} · {foldersLabel}</p>
 
         {#if stats.incompleteFiles > 0}
@@ -89,7 +89,7 @@
                         ></span>
                         <span class="legend-name">{segment.type}</span>
                         <span class="legend-meta">
-                            {prettyBytes(segment.bytes)} · {segment.files}
+                            {formatBytes(segment.bytes)} · {segment.files}
                             {segment.files === 1 ? 'file' : 'files'}
                         </span>
                     </li>

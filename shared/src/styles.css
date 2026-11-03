@@ -11,7 +11,7 @@
     --serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
     --sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
     --mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
-    --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+    --ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -193,7 +193,7 @@ h2 {
 .field-hint {
     margin: 12px 0 0;
     color: var(--muted);
-    font-size: 12.5px;
+    font-size: 13px;
 }
 
 .button {
@@ -208,6 +208,7 @@ h2 {
     font-size: 14px;
     font-weight: 500;
     line-height: 1;
+    text-decoration: none;
     cursor: pointer;
     transition:
         color 120ms var(--ease),
@@ -266,7 +267,7 @@ h2 {
     margin: 16px 0 0;
     color: var(--muted);
     font-family: var(--mono);
-    font-size: 12.5px;
+    font-size: 13px;
 }
 
 .file-list {
@@ -342,7 +343,7 @@ h2 {
     margin: 8px 0 0;
     color: var(--muted);
     font-family: var(--mono);
-    font-size: 11.5px;
+    font-size: 12px;
 }
 
 .row-message {
@@ -376,7 +377,7 @@ h2 {
 
 .verified-title {
     margin: 0;
-    font-size: 13.5px;
+    font-size: 14px;
     font-weight: 500;
 }
 
@@ -384,7 +385,7 @@ h2 {
     margin: 2px 0 0;
     color: var(--muted);
     font-family: var(--mono);
-    font-size: 11.5px;
+    font-size: 12px;
     overflow-wrap: anywhere;
 }
 
@@ -453,13 +454,6 @@ h2 {
     font-size: 14px;
 }
 
-.error-code {
-    margin: 12px 0 0;
-    color: var(--muted);
-    font-family: var(--mono);
-    font-size: 11.5px;
-}
-
 .error-actions {
     display: flex;
     flex-wrap: wrap;
@@ -471,7 +465,7 @@ h2 {
     max-width: 62ch;
     margin: 28px 0 0;
     color: var(--muted);
-    font-size: 12.5px;
+    font-size: 13px;
     line-height: 1.6;
 }
 
@@ -487,14 +481,14 @@ h2 {
     margin: 0 0 8px;
     color: var(--muted);
     font-family: var(--mono);
-    font-size: 11.5px;
+    font-size: 12px;
 }
 
 .colophon p:not(.colophon-title) {
     max-width: 44ch;
     margin: 0;
     color: var(--muted);
-    font-size: 12.5px;
+    font-size: 13px;
     line-height: 1.6;
 }
 

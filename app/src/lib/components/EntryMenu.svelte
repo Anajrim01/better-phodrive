@@ -14,7 +14,7 @@
     import IconDownload from '~icons/material-symbols/download';
     import IconRename from '~icons/material-symbols/drive-file-rename-outline';
     import IconMove from '~icons/material-symbols/drive-file-move-outline';
-    import IconRestore from '~icons/material-symbols/restore-from-trash';
+    import IconRestore from '~icons/material-symbols/restore-from-trash-outline';
     import IconDelete from '~icons/material-symbols/delete-outline';
     import IconDeleteForever from '~icons/material-symbols/delete-forever-outline';
     import IconDetails from '~icons/material-symbols/info-outline';

@@ -51,15 +51,13 @@ function candidatesFor(
     group: ChunkCandidate[] | undefined
 ): Result<PlannedFile, ViewerFailure> {
     if (!group || group.length === 0)
-        return Err(
-            viewerFailure('share_incomplete', 'Share incomplete. A file is missing from the album.')
-        );
+        return Err(viewerFailure('share_incomplete', 'A file is missing from the album.'));
 
     if (group.length !== file.chunks)
         return Err(
             viewerFailure(
                 'share_incomplete',
-                `Share incomplete. Expected ${file.chunks} chunks, found ${group.length}.`
+                `Expected ${file.chunks} chunks, found ${group.length}.`
             )
         );
 
@@ -70,20 +68,13 @@ function candidatesFor(
 
     for (const [index, chunk] of chunks.entries()) {
         if (chunk.header.chunkIndex !== index)
-            return Err(
-                viewerFailure('share_incomplete', 'Share incomplete. Chunk order has a gap.')
-            );
+            return Err(viewerFailure('share_incomplete', 'Chunk order has a gap.'));
         if (chunk.header.fileHash !== first.header.fileHash)
             return Err(viewerFailure('chunk_invalid', 'Chunks do not belong to the same file.'));
 
         const isLast = index === chunks.length - 1;
         if (chunk.header.last !== isLast)
-            return Err(
-                viewerFailure(
-                    'share_incomplete',
-                    'Share incomplete. The final chunk marker is missing.'
-                )
-            );
+            return Err(viewerFailure('share_incomplete', 'The final chunk marker is missing.'));
     }
 
     if (!first.header.fileName || first.header.chunkIndex !== 0)
