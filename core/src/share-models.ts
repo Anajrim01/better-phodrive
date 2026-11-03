@@ -163,6 +163,22 @@ export const ShareRecordSchema = z
     })
     .strict();
 
+export const ShareRecoverySchema = z
+    .object({
+        envelopeKey: AlbumKeySchema.optional(),
+        albumKey: AlbumKeySchema
+    })
+    .strict();
+
+export const ShareErrorResponseSchema = z
+    .object({
+        code: z.string().optional(),
+        error: z.string(),
+        retryAfterSeconds: z.int().nonnegative().optional(),
+        recovery: ShareRecoverySchema.optional()
+    })
+    .strict();
+
 export const StoredSharesSchema = z.record(
     EmailSchema,
     z.array(ShareRecordSchema).max(MAX_STORED_SHARES)
@@ -195,6 +211,8 @@ export type ShareRequest = z.infer<typeof ShareRequestSchema>;
 export type ShareManifestFile = z.infer<typeof ShareManifestFileSchema>;
 export type ShareManifest = z.infer<typeof ShareManifestSchema>;
 export type ShareRecord = z.infer<typeof ShareRecordSchema>;
+export type ShareRecovery = z.infer<typeof ShareRecoverySchema>;
+export type ShareErrorResponse = z.infer<typeof ShareErrorResponseSchema>;
 export type StoredShares = z.infer<typeof StoredSharesSchema>;
 export type ShareCreateResponse = z.infer<typeof ShareCreateResponseSchema>;
 export type ShareRevokeResponse = z.infer<typeof ShareRevokeResponseSchema>;

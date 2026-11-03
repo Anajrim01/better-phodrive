@@ -118,5 +118,6 @@ test('a cleanup failure returns recovery keys to the owner', async () => {
     const body = await response.json();
 
     expect(response.status).toBe(400);
+    expect(body.code).toBe('SHARE_LINK_UNCERTAIN');
     expect(body.recovery).toEqual({ envelopeKey: 'envelope', albumKey: 'album' });
 });

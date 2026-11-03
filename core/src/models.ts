@@ -64,6 +64,7 @@ export enum FileActionKind {
 export enum AppView {
     Files = 'files',
     Trash = 'trash',
+    Shares = 'shares',
     Settings = 'settings'
 }
 

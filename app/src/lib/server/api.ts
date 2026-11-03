@@ -19,13 +19,17 @@ export function jsonResponse(body: unknown): Response {
     return Response.json(body, { headers: NO_STORE_HEADERS });
 }
 
-export function errorResponse(error: {
-    code?: string;
-    message: string;
-    retryAfterSeconds?: number;
-    recovery?: unknown;
-}): Response {
+export function errorResponse(
+    error: {
+        code?: string;
+        message: string;
+        retryAfterSeconds?: number;
+        recovery?: unknown;
+    },
+    includeCode = false
+): Response {
     const body = {
+        ...(includeCode && error.code !== undefined ? { code: error.code } : {}),
         error: error.message,
         ...(error.retryAfterSeconds === undefined
             ? {}

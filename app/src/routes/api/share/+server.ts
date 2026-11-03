@@ -13,4 +13,4 @@ function handle(input: ShareRequest): AsyncResult<unknown, ApplicationError | Se
 export const POST: RequestHandler = ({ request }) =>
     readJsonRequest(request, ShareRequestSchema, 'Invalid share request')
         .andThenAsync(handle)
-        .match({ Ok: jsonResponse, Err: errorResponse });
+        .match({ Ok: jsonResponse, Err: (error) => errorResponse(error, true) });
