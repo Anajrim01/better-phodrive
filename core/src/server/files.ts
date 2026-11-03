@@ -6,14 +6,13 @@ import {
     type ThrottleMode
 } from './errors';
 import { FileActionKind, FileNameSchema, type FileRequest, type RemoteBmp } from '../models';
-import pLimit from 'p-limit';
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import { expectedChunks, incompleteChunkMessage, missingChunks } from '../files';
-import { deletePermanently, moveToTrash, restoreFromTrash } from './photos/index';
+import { deletePermanently, moveToTrashBatch, restoreFromTrash } from './photos/index';
 import { markChunksRestored, markChunksTrashed, removeChunks } from './photos/library/state';
 import { streamDownload } from './download';
 import { validateTrashedFileState } from './files-state-validation';
-import { limitWorkers } from './workers';
+import { BULK_TRASH_BATCH_SIZE } from './files-bulk';
 
 export {
     BULK_TRASH_BATCH_SIZE,
@@ -90,25 +89,27 @@ export function deleteFile(
     return validateChunks(input).andThenAsync(async (chunks) => {
         const deleted: RemoteBmp[] = [];
         const failures: ServerError[] = [];
-        const limit = pLimit(limitWorkers(input.workers));
-        await limit.map(chunks, async (chunk) => {
-            const removed = await moveToTrash(
+
+        for (let offset = 0; offset < chunks.length; offset += BULK_TRASH_BATCH_SIZE) {
+            const batch = chunks.slice(offset, offset + BULK_TRASH_BATCH_SIZE);
+            const removed = await moveToTrashBatch(
                 input.email,
                 input.token,
-                chunk.sha1,
+                batch.map((chunk) => chunk.sha1),
                 undefined,
-                chunk.mediaKey
+                batch.map((chunk) => chunk.mediaKey)
             );
 
             removed.match({
                 Ok: () => {
-                    deleted.push(chunk);
+                    deleted.push(...batch);
                 },
                 Err: (error) => {
                     failures.push(error);
                 }
             });
-        });
+            if (failures.some(isThrottleError)) break;
+        }
 
         const now = Date.now();
         if (deleted.length > 0) markChunksTrashed(input.email, deleted, now);
@@ -142,32 +143,55 @@ function untrashed(chunk: RemoteBmp): RemoteBmp {
 export function restoreFile(
     input: FileRequest,
     mode: ThrottleMode = 'auto'
-): AsyncResult<{ restored: RemoteBmp[] }, ServerError> {
+): AsyncResult<{ restored: RemoteBmp[]; error?: string; retryAfterSeconds?: number }, ServerError> {
     return validateChunks(input)
         .andThen((chunks) => requireTrashed(chunks))
         .andThenAsync((chunks) => validateTrashedFileState(input, chunks).map(() => chunks))
         .andThenAsync(async (chunks) => {
-            const sha1s = [...new Set(chunks.map((chunk) => chunk.sha1))];
-            const mediaKeys = chunks.map((chunk) => chunk.mediaKey);
-            const restored = await restoreFromTrash(
-                input.email,
-                input.token,
-                sha1s,
-                undefined,
-                mediaKeys
-            );
+            const restored: RemoteBmp[] = [];
+            const failures: ServerError[] = [];
 
-            return restored
-                .mapErr((error) =>
-                    error.code === 'THROTTLED'
-                        ? throttleError(error.retryAfterSeconds, mode)
-                        : error
-                )
-                .map(() => {
-                    markChunksRestored(input.email, chunks);
+            for (let offset = 0; offset < chunks.length; offset += BULK_TRASH_BATCH_SIZE) {
+                const batch = chunks.slice(offset, offset + BULK_TRASH_BATCH_SIZE);
+                const sha1s = [...new Set(batch.map((chunk) => chunk.sha1))];
+                const applied = await restoreFromTrash(
+                    input.email,
+                    input.token,
+                    sha1s,
+                    undefined,
+                    batch.map((chunk) => chunk.mediaKey)
+                );
 
-                    return { restored: chunks.map(untrashed) };
+                applied.match({
+                    Ok: () => {
+                        restored.push(...batch);
+                    },
+                    Err: (error) => {
+                        failures.push(error);
+                    }
                 });
+                if (failures.some(isThrottleError)) break;
+            }
+
+            if (restored.length > 0) markChunksRestored(input.email, restored);
+            const failure = failures.find(isThrottleError) ?? failures[0];
+            if (failure && restored.length === 0)
+                return Err(
+                    isThrottleError(failure)
+                        ? throttleError(failure.retryAfterSeconds, mode)
+                        : failure
+                );
+
+            return Ok({
+                restored: restored.map(untrashed),
+                ...(failure && !isThrottleError(failure) ? { error: failure.message } : {}),
+                ...(failure && isThrottleError(failure)
+                    ? {
+                          error: throttleError(failure.retryAfterSeconds, mode).message,
+                          retryAfterSeconds: failure.retryAfterSeconds
+                      }
+                    : {})
+            });
         });
 }
 
@@ -175,31 +199,54 @@ export function restoreFile(
 export function deleteForeverFile(
     input: FileRequest,
     mode: ThrottleMode = 'auto'
-): AsyncResult<{ deleted: RemoteBmp[] }, ServerError> {
+): AsyncResult<{ deleted: RemoteBmp[]; error?: string; retryAfterSeconds?: number }, ServerError> {
     return validateChunks(input)
         .andThen((chunks) => requireTrashed(chunks))
         .andThenAsync((chunks) => validateTrashedFileState(input, chunks).map(() => chunks))
         .andThenAsync(async (chunks) => {
-            const sha1s = [...new Set(chunks.map((chunk) => chunk.sha1))];
-            const mediaKeys = chunks.map((chunk) => chunk.mediaKey);
-            const removed = await deletePermanently(
-                input.email,
-                input.token,
-                sha1s,
-                undefined,
-                mediaKeys
-            );
+            const deleted: RemoteBmp[] = [];
+            const failures: ServerError[] = [];
 
-            return removed
-                .mapErr((error) =>
-                    error.code === 'THROTTLED'
-                        ? throttleError(error.retryAfterSeconds, mode)
-                        : error
-                )
-                .map(() => {
-                    removeChunks(input.email, chunks);
+            for (let offset = 0; offset < chunks.length; offset += BULK_TRASH_BATCH_SIZE) {
+                const batch = chunks.slice(offset, offset + BULK_TRASH_BATCH_SIZE);
+                const sha1s = [...new Set(batch.map((chunk) => chunk.sha1))];
+                const applied = await deletePermanently(
+                    input.email,
+                    input.token,
+                    sha1s,
+                    undefined,
+                    batch.map((chunk) => chunk.mediaKey)
+                );
 
-                    return { deleted: chunks };
+                applied.match({
+                    Ok: () => {
+                        deleted.push(...batch);
+                    },
+                    Err: (error) => {
+                        failures.push(error);
+                    }
                 });
+                if (failures.some(isThrottleError)) break;
+            }
+
+            if (deleted.length > 0) removeChunks(input.email, deleted);
+            const failure = failures.find(isThrottleError) ?? failures[0];
+            if (failure && deleted.length === 0)
+                return Err(
+                    isThrottleError(failure)
+                        ? throttleError(failure.retryAfterSeconds, mode)
+                        : failure
+                );
+
+            return Ok({
+                deleted,
+                ...(failure && !isThrottleError(failure) ? { error: failure.message } : {}),
+                ...(failure && isThrottleError(failure)
+                    ? {
+                          error: throttleError(failure.retryAfterSeconds, mode).message,
+                          retryAfterSeconds: failure.retryAfterSeconds
+                      }
+                    : {})
+            });
         });
 }

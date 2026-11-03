@@ -90,7 +90,7 @@ export function restoreFile(
         'Restore failed'
     )
         .andThen((data) => schemaResult(FileRestoreResponseSchema, data, 'Restore failed'))
-        .andThen(({ restored }): Result<void, ApplicationError> => {
+        .andThen(({ restored, error, retryAfterSeconds }): Result<void, ApplicationError> => {
             for (const chunk of restored) {
                 const known = item.trashedChunks.find(
                     (current) => current.mediaKey === chunk.mediaKey && current.sha1 === chunk.sha1
@@ -104,7 +104,14 @@ export function restoreFile(
                 onRestored({ ...known, trashedAt: undefined });
             }
 
-            return Ok(undefined);
+            if (retryAfterSeconds !== undefined)
+                return Err({
+                    code: 'THROTTLED',
+                    message: `Restored ${restored.length} of ${item.trashedChunks.length} chunks. ${throttleMessage(retryAfterSeconds, 'try again')}`,
+                    retryAfterSeconds
+                });
+
+            return error ? Err({ code: 'RESTORE_FAILED', message: error } as const) : Ok(undefined);
         });
 }
 
@@ -123,7 +130,7 @@ export function deleteForeverFile(
             )
         )
         .andThen((data) => schemaResult(FileDeleteResponseSchema, data, 'Permanent delete failed'))
-        .andThen(({ deleted }): Result<void, ApplicationError> => {
+        .andThen(({ deleted, error, retryAfterSeconds }): Result<void, ApplicationError> => {
             for (const chunk of deleted) {
                 const known = item.trashedChunks.find(
                     (current) => current.mediaKey === chunk.mediaKey && current.sha1 === chunk.sha1
@@ -133,7 +140,14 @@ export function deleteForeverFile(
                 onDeleted(known);
             }
 
-            return Ok(undefined);
+            if (retryAfterSeconds !== undefined)
+                return Err({
+                    code: 'THROTTLED',
+                    message: `Deleted ${deleted.length} of ${item.trashedChunks.length} chunks forever. ${throttleMessage(retryAfterSeconds, 'try again')}`,
+                    retryAfterSeconds
+                });
+
+            return error ? Err({ code: 'DELETE_FAILED', message: error } as const) : Ok(undefined);
         });
 }
 

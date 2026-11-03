@@ -313,7 +313,9 @@ export const FileDeleteResponseSchema = z.object({
     retryAfterSeconds: z.int().positive().optional()
 });
 export const FileRestoreResponseSchema = z.object({
-    restored: z.array(RemoteBmpSchema)
+    restored: z.array(RemoteBmpSchema),
+    error: z.string().optional(),
+    retryAfterSeconds: z.int().positive().optional()
 });
 export const UploadFileSchema = z.object({
     name: FileNameSchema,
