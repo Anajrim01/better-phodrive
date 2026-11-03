@@ -201,6 +201,28 @@ test('ordinary photos cost one page request and no probes, hot or cold', async (
     expect(counts).toEqual({ auth: 0, page: 1, prepare: 0, range: 0 });
 }, 60_000);
 
+test('5,000 identical copies across pages cost one probe', async () => {
+    const base = chunkItem(0);
+    const items = Array.from({ length: ITEM_COUNT }, (_, index) => ({
+        ...base,
+        mediaKey: `copy-${index}`,
+        at: index
+    }));
+    const pages = pagesOf(items);
+    const counts = emptyCounts();
+    const fetcher = fetcherFor(items, pages, counts);
+
+    const library = await readLibrary(EMAIL, TOKEN, fetcher);
+
+    expect(library.unwrap()).toHaveLength(1);
+    expect(counts).toEqual({
+        auth: 1,
+        page: PAGE_COUNT,
+        prepare: 1,
+        range: 1
+    });
+}, 60_000);
+
 test('a warm refresh reuses permanent chunk probes', async () => {
     const items = Array.from({ length: ITEM_COUNT }, (_, index) => chunkItem(index));
     const pages = pagesOf(items);
