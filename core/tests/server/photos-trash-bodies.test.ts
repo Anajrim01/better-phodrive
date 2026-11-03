@@ -8,7 +8,7 @@ import {
 import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
 import { parse } from '@madkarmaa/phodrive-core/server/protobuf';
 import { authResponse, deleteResponse } from '../helpers/photos';
-import { CAPTURED_ALREADY_TRASHED } from '../helpers/delete-response';
+import { CAPTURED_ALREADY_TRASHED, CAPTURED_ALREADY_TRASHED_KEY } from '../helpers/delete-response';
 
 const SHA1 = createHash('sha1').update('transfer body').digest('hex');
 const SHA1_B = createHash('sha1').update('second body').digest('hex');
@@ -72,7 +72,7 @@ test('trash accepts an already-trashed response without a requested key', async 
     };
 
     const result = await moveToTrashBatch('test@example.com', 'aas_et/test', [SHA1], fetcher, [
-        'already-trashed'
+        CAPTURED_ALREADY_TRASHED_KEY
     ]);
 
     expect(result.isOk()).toBe(true);

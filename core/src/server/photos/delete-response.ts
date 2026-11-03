@@ -31,8 +31,8 @@ function identityMatches(field: Field, key: Buffer, id: Buffer): boolean {
     });
 }
 
-function validItem(field: Field): boolean {
-    if (!Buffer.isBuffer(field.value)) return false;
+function itemIdentityKey(field: Field): string | null {
+    if (!Buffer.isBuffer(field.value)) return null;
 
     return parse(field.value).match({
         Ok: (fields) => {
@@ -40,16 +40,13 @@ function validItem(field: Field): boolean {
             const id = fields.find((entry) => entry.number === RESULT_ITEM_FIELD);
             const identity = fields.find((entry) => entry.number === RESULT_ITEM_ID_FIELD);
 
-            return (
-                key !== undefined &&
-                id !== undefined &&
-                identity !== undefined &&
-                nonEmptyBytes(key) &&
-                nonEmptyBytes(id) &&
-                identityMatches(identity, key.value, id.value)
-            );
+            if (key === undefined || id === undefined || identity === undefined) return null;
+            if (!nonEmptyBytes(key) || !nonEmptyBytes(id)) return null;
+            if (!identityMatches(identity, key.value, id.value)) return null;
+
+            return key.value.toString('utf8');
         },
-        Err: () => false
+        Err: () => null
     });
 }
 
@@ -74,12 +71,18 @@ export function validateDeleteResponse(
 
             const uniqueKeys = new Set(keys);
             const items = fields.filter((field) => field.number === RESULT_ITEM_FIELD);
+            const identities = items.map(itemIdentityKey);
             const knownKeys = [...uniqueKeys].every((key) => expected.has(key));
             const keysMatch = options.allowAlreadyApplied
                 ? uniqueKeys.size === keys.length && knownKeys && uniqueKeys.size <= expected.size
                 : uniqueKeys.size === keys.length && uniqueKeys.size === expected.size && knownKeys;
+            const itemsMatch = items.length > 0 && identities.every((key) => key !== null);
+            // Without field 1 keys, field 2 identifies the item already in trash. It must be
+            // one we asked about, or a duplicate sha1 would report an active copy as deleted.
+            const identitiesMatch =
+                keys.length > 0 || identities.every((key) => key !== null && expected.has(key));
 
-            if (!keysMatch || items.length === 0 || !items.every(validItem))
+            if (!keysMatch || !itemsMatch || !identitiesMatch)
                 return Err(SERVER_ERRORS.INVALID_DELETE_RESPONSE);
 
             return Ok(undefined);

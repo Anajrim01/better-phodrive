@@ -3,6 +3,7 @@ import { bytesField, message } from '@madkarmaa/phodrive-core/server/protobuf';
 import { validateDeleteResponse } from '../../src/server/photos/delete-response';
 import {
     CAPTURED_ALREADY_TRASHED,
+    CAPTURED_ALREADY_TRASHED_KEY,
     CAPTURED_DELETE_KEY,
     CAPTURED_DELETE_SUCCESS
 } from '../helpers/delete-response';
@@ -24,11 +25,49 @@ test('the captured successful delete response validates', () => {
 
 test('the captured already-trashed response validates for trash only', () => {
     expect(
-        validateDeleteResponse(CAPTURED_ALREADY_TRASHED, new Set(['already-trashed']), TRASH).isOk()
+        validateDeleteResponse(
+            CAPTURED_ALREADY_TRASHED,
+            new Set([CAPTURED_ALREADY_TRASHED_KEY]),
+            TRASH
+        ).isOk()
     ).toBe(true);
     expect(
-        validateDeleteResponse(CAPTURED_ALREADY_TRASHED, new Set(['already-trashed'])).isErr()
+        validateDeleteResponse(
+            CAPTURED_ALREADY_TRASHED,
+            new Set([CAPTURED_ALREADY_TRASHED_KEY])
+        ).isErr()
     ).toBe(true);
+});
+
+test('an already-trashed response for a different media key is rejected', () => {
+    expect(
+        validateDeleteResponse(
+            CAPTURED_ALREADY_TRASHED,
+            new Set(['other-media-key']),
+            TRASH
+        ).isErr()
+    ).toBe(true);
+    expect(
+        validateDeleteResponse(
+            CAPTURED_ALREADY_TRASHED,
+            new Set([CAPTURED_ALREADY_TRASHED_KEY, 'other-media-key']),
+            TRASH
+        ).isOk()
+    ).toBe(true);
+});
+
+test('an already-applied response must echo one of the expected media keys', () => {
+    const mediaKey = 'requested-media-key';
+    const itemId = '2';
+    const item = message(
+        bytesField(1, mediaKey),
+        bytesField(2, itemId),
+        bytesField(6, message(bytesField(1, mediaKey), bytesField(2, itemId)))
+    );
+    const alreadyApplied = message(bytesField(2, item));
+
+    expect(validateDeleteResponse(alreadyApplied, new Set([mediaKey]), TRASH).isOk()).toBe(true);
+    expect(validateDeleteResponse(alreadyApplied, new Set(['other']), TRASH).isErr()).toBe(true);
 });
 
 test('trash accepts a subset of requested keys but rejects unknown keys', () => {

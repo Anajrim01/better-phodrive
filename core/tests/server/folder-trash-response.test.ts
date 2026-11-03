@@ -11,6 +11,7 @@ import {
 } from '@madkarmaa/phodrive-core/server/photos/library/state';
 import {
     CAPTURED_ALREADY_TRASHED,
+    CAPTURED_ALREADY_TRASHED_KEY,
     CAPTURED_DELETE_KEY,
     CAPTURED_DELETE_SUCCESS
 } from '../helpers/delete-response';
@@ -54,7 +55,7 @@ test('a multi-chunk folder delete accepts an already-trashed chunk', async () =>
             index: 0,
             last: false
         }),
-        chunk(file, 'second-chunk-key', { name: 'target.h', folder: FOLDER, index: 1 })
+        chunk(file, CAPTURED_ALREADY_TRASHED_KEY, { name: 'target.h', folder: FOLDER, index: 1 })
     ]);
     let trashCalls = 0;
     const fetcher: Fetcher = async () => {
@@ -71,6 +72,44 @@ test('a multi-chunk folder delete accepts an already-trashed chunk', async () =>
     expect(value.failed).toEqual([]);
     expect(value.items).toHaveLength(2);
     expect(savedItems().every((item) => item.trashedAt !== undefined)).toBe(true);
+});
+
+test('a duplicate-sha1 folder delete rejects an already-trashed response for another media key', async () => {
+    const file = id('duplicate.h');
+    const first = chunk(file, CAPTURED_DELETE_KEY, {
+        name: 'duplicate.h',
+        folder: FOLDER,
+        index: 0,
+        last: false
+    });
+    const second = chunk(file, 'second-chunk-key', {
+        name: 'duplicate.h',
+        folder: FOLDER,
+        index: 1
+    });
+    saveItems([first, { ...second, sha1: first.sha1 }]);
+    let trashCalls = 0;
+    const fetcher: Fetcher = async () => {
+        trashCalls++;
+
+        return new Response(trashCalls === 1 ? CAPTURED_DELETE_SUCCESS : CAPTURED_ALREADY_TRASHED);
+    };
+
+    const result = await deleteFolder(fetcher);
+
+    const value = result.unwrap();
+    expect(trashCalls).toBe(2);
+    expect(value.fileCount).toBe(1);
+    expect(value.failed).toHaveLength(1);
+    expect(value.failed[0]?.fileId).toBe(file);
+    expect(value.failed[0]?.message).toBe('Invalid delete response.');
+    expect(value.items).toHaveLength(1);
+
+    const items = savedItems();
+    expect(items.find((item) => item.mediaKey === CAPTURED_DELETE_KEY)?.trashedAt).toBeTypeOf(
+        'number'
+    );
+    expect(items.find((item) => item.mediaKey === 'second-chunk-key')?.trashedAt).toBeUndefined();
 });
 
 test('a malformed folder delete response still fails and keeps the file active', async () => {
