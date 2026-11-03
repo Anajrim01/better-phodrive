@@ -8,7 +8,7 @@
     import IconDelete from '~icons/material-symbols/delete-outline';
     import IconDeleteForever from '~icons/material-symbols/delete-forever';
     import IconRestore from '~icons/material-symbols/restore-from-trash';
-    import IconDetails from '~icons/material-symbols/info';
+    import IconDetails from '~icons/material-symbols/info-outline';
     import IconClose from '~icons/material-symbols/close';
 
     interface Props {

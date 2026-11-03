@@ -28,7 +28,7 @@ export function renderLanding(onOpen: () => void, note?: string): void {
     const lede = element(
         'p',
         'lede',
-        'Phodrive share links carry the album in the part after the hash. Paste one here, or open the original link. The hash is not sent; only the public album URL goes to the proxy.'
+        'Phodrive share links carry the album in the part after the hash. Paste one here, or open the original link.'
     );
     section.append(lede);
 
@@ -173,7 +173,7 @@ export function renderShare(
         element(
             'p',
             'verify-note',
-            'Every file is rebuilt from its chunks and hashed here before it is offered. Anyone with this link can download it. The owner can stop new downloads, but a saved copy stays saved.'
+            'This browser rebuilds every file from its chunks and checks its hash before offering it. Anyone with this link can download the files. The owner can stop new downloads but cannot recall copies already saved.'
         )
     );
     root.append(section);

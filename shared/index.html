@@ -34,16 +34,17 @@
                 <div class="colophon-block">
                     <p class="colophon-title">How this works</p>
                     <p>
-                        The manifest is read from the part of the link after <code>#</code>. The
-                        decoded public album URL is sent to this site's proxy to read the listing.
-                        Capability URLs are not logged.
+                        This page reads the share details from the part of the link after
+                        <code>#</code>. It sends only the public album URL to this site's proxy to
+                        read the listing. The proxy does not log that URL.
                     </p>
                 </div>
                 <div class="colophon-block">
                     <p class="colophon-title">Limits</p>
                     <p>
-                        Free tier: about 100,000 proxy requests per day, four byte streams at once,
-                        and an 8 MiB cap on range requests. Large files download in 8 MiB ranges.
+                        The free hosting tier allows about 100,000 proxy requests per day. The proxy
+                        runs four byte streams at once and caps each range request at 8 MiB. Large
+                        files download in 8 MiB ranges.
                     </p>
                 </div>
             </footer>
