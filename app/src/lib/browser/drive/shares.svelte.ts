@@ -16,7 +16,11 @@ import type {
 } from '@madkarmaa/phodrive-core/share-models';
 import type { AsyncResult } from 'results-ts';
 import { copyText, type CopyOutcome } from '#browser/clipboard';
-import { checkShareViewer } from '#browser/share-viewer';
+import {
+    checkShareViewer,
+    readShareAvailability,
+    type ShareAvailability
+} from '#browser/share-viewer';
 import { ShareStore } from '#browser/shares';
 import {
     shareCandidateFiles,
@@ -28,8 +32,6 @@ import {
 import { shareCreateRequest, shareRevokeRequest } from '#lib/share-requests';
 
 export type ShareCopyState = 'idle' | 'copied' | 'manual' | 'failed';
-export type ShareAvailability = 'checking' | 'available' | 'unavailable';
-
 export type ShareDeps = {
     account: () => { email: string; token: string };
     busy: () => boolean;
@@ -93,10 +95,7 @@ export class DriveShares {
 
         const outcome = await (this.deps.checkViewer ?? checkShareViewer)();
 
-        this.availability = outcome.match({
-            Ok: (available) => (available ? 'available' : 'unavailable'),
-            Err: () => 'unavailable'
-        });
+        this.availability = readShareAvailability(outcome);
     }
 
     open(files: readonly ShareCandidate[]): void {
@@ -133,6 +132,7 @@ export class DriveShares {
     async create(name: string): Promise<void> {
         if (!this.shareAvailable || !this.createOpen) return;
         if (this.createBusy || this.created !== null) return;
+        if (this.createErrorCode === 'SHARE_LINK_UNCERTAIN') return;
         if (this.createInvalid) {
             this.createError = this.createInvalid;
 

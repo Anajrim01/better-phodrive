@@ -54,7 +54,11 @@
     const nameError = $derived(shareNameError(name));
     const showNameError = $derived((touched || submitted) && nameError !== null);
     const canCreate = $derived(
-        files.length > 0 && invalidReason === '' && !busy && nameError === null
+        files.length > 0 &&
+            invalidReason === '' &&
+            !busy &&
+            errorCode !== 'SHARE_LINK_UNCERTAIN' &&
+            nameError === null
     );
     const retryable = $derived(errorCode === 'SHARE_LINK_NOT_LIVE');
     const tooLarge = $derived(errorCode === 'SHARE_URL_TOO_LONG');
@@ -112,7 +116,7 @@
                 bind:value={name}
                 bind:inputElement={input}
                 issues={showNameError && nameError !== null ? [{ message: nameError }] : undefined}
-                disabled={busy}
+                disabled={busy || errorCode === 'SHARE_LINK_UNCERTAIN'}
                 autocomplete="off"
                 spellcheck={false}
                 onblur={() => (touched = true)}

@@ -177,8 +177,10 @@ test('SHARE_LINK_NOT_LIVE offers a retry action and keeps the selection', async 
 
 test('SHARE_LINK_UNCERTAIN explains the live risk and never offers a second create', async () => {
     const onclose = vi.fn();
+    const oncreate = vi.fn();
     renderCreate({
         onclose,
+        oncreate,
         errorCode: 'SHARE_LINK_UNCERTAIN',
         error: 'The share link may still be public.',
         recovery: { envelopeKey: 'AF1QipEnvelope', albumKey: 'AF1QipAlbum' }
@@ -191,6 +193,13 @@ test('SHARE_LINK_UNCERTAIN explains the live risk and never offers a second crea
     expect(photos.getAttribute('target')).toBe('_blank');
     expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Create link' })).toBeNull();
+
+    const name = screen.getByRole('textbox', { name: 'Name' }) as HTMLInputElement;
+    expect(name.disabled).toBe(true);
+    const form = name.closest('form');
+    if (!(form instanceof HTMLFormElement)) throw new Error('The name field is not in a form.');
+    await fireEvent.submit(form);
+    expect(oncreate).not.toHaveBeenCalled();
 
     await fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     expect(onclose).toHaveBeenCalledTimes(1);

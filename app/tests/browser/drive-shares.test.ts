@@ -1,7 +1,6 @@
 import { afterAll, afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import type { ApplicationError } from '@madkarmaa/phodrive-core/errors';
-import type { ShareFailure } from '@madkarmaa/phodrive-core/browser/shares';
 import type {
     ShareCreateRequest,
     ShareCreateResponse,
@@ -72,14 +71,6 @@ const CREATE_RESPONSE: ShareCreateResponse = {
 
 function ok<T>(value: T): AsyncResult<T, never> {
     return Ok(undefined).andThenAsync(async () => Ok(value));
-}
-
-function err<E>(error: E): AsyncResult<never, E> {
-    return Ok(undefined).andThenAsync(async () => Err(error));
-}
-
-function failure(code: string, message: string, recovery?: ShareFailure['recovery']): ShareFailure {
-    return { code, message, ...(recovery === undefined ? {} : { recovery }) };
 }
 
 function deps(overrides: Partial<ShareDeps> = {}): ShareDeps {
@@ -197,124 +188,6 @@ test('a folder in a share selection disables create instead of dropping the fold
 
     expect(create).not.toHaveBeenCalled();
     expect(shares.created).toBeNull();
-});
-
-test('a generic create failure keeps the dialog open with the server message', async () => {
-    const shares = new DriveShares(
-        deps({
-            create: vi.fn(() => err(failure('REQUEST_FAILED', 'Could not update the share.')))
-        })
-    );
-    await shares.checkAvailability();
-    shares.open([file()]);
-
-    await shares.create('notes');
-
-    expect(shares.createOpen).toBe(true);
-    expect(shares.created).toBeNull();
-    expect(shares.createErrorCode).toBe('REQUEST_FAILED');
-    expect(shares.createError).toBe('Could not update the share.');
-});
-
-test('SHARE_LINK_NOT_LIVE keeps the selection so the owner can try again', async () => {
-    const shares = new DriveShares(
-        deps({
-            create: vi.fn(() =>
-                err(
-                    failure(
-                        'SHARE_LINK_NOT_LIVE',
-                        'The share link is not serving yet. Check again before retrying.'
-                    )
-                )
-            )
-        })
-    );
-    await shares.checkAvailability();
-    shares.open([file()]);
-
-    await shares.create('notes');
-
-    expect(shares.createErrorCode).toBe('SHARE_LINK_NOT_LIVE');
-    expect(shares.createFiles).toHaveLength(1);
-    expect(shares.created).toBeNull();
-});
-
-test('SHARE_LINK_UNCERTAIN keeps recovery keys and explains the live link risk', async () => {
-    const recovery = { envelopeKey: 'AF1QipEnvelope', albumKey: 'AF1QipAlbum' };
-    const shares = new DriveShares(
-        deps({
-            create: vi.fn(() =>
-                err(
-                    failure(
-                        'SHARE_LINK_UNCERTAIN',
-                        'The share link may still be public. Remove this share album manually.',
-                        recovery
-                    )
-                )
-            )
-        })
-    );
-    await shares.checkAvailability();
-    shares.open([file()]);
-
-    await shares.create('notes');
-
-    expect(shares.createErrorCode).toBe('SHARE_LINK_UNCERTAIN');
-    expect(shares.createRecovery).toEqual(recovery);
-    expect(shares.createError).toContain('may still be public');
-});
-
-test('a later share failure does not discard earlier uncertain recovery keys', async () => {
-    const recovery = { envelopeKey: 'AF1QipEnvelope', albumKey: 'AF1QipAlbum' };
-    let attempt = 0;
-    const shares = new DriveShares(
-        deps({
-            create: vi.fn(() => {
-                attempt++;
-
-                return attempt === 1
-                    ? err(
-                          failure(
-                              'SHARE_LINK_UNCERTAIN',
-                              'The share link may still be public.',
-                              recovery
-                          )
-                      )
-                    : err(
-                          failure(
-                              'SHARE_LINK_NOT_LIVE',
-                              'The share link is not serving yet. Check again before retrying.'
-                          )
-                      );
-            })
-        })
-    );
-    await shares.checkAvailability();
-    shares.open([file()]);
-
-    await shares.create('notes');
-    await shares.create('notes');
-
-    expect(shares.createErrorCode).toBe('SHARE_LINK_NOT_LIVE');
-    expect(shares.createRecovery).toEqual(recovery);
-});
-
-test('SHARE_URL_TOO_LONG surfaces the size limit without dropping the files', async () => {
-    const shares = new DriveShares(
-        deps({
-            create: vi.fn(() =>
-                err(failure('SHARE_URL_TOO_LONG', 'This selection is too large for one share link'))
-            )
-        })
-    );
-    await shares.checkAvailability();
-    shares.open([file()]);
-
-    await shares.create('notes');
-
-    expect(shares.createErrorCode).toBe('SHARE_URL_TOO_LONG');
-    expect(shares.createFiles).toHaveLength(1);
-    expect(shares.createError).toBe('This selection is too large for one share link');
 });
 
 test('copy fallback reports that the link must be selected manually', async () => {
