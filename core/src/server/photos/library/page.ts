@@ -6,9 +6,21 @@ import { authenticatedHeaders, type PhotosHeaders } from '../auth';
 import { photosFetch, type Fetcher } from '../../fetcher';
 import { guardedSend, readBody } from '../transport';
 import { bodyBytes } from '../../protobuf';
-import { pageRequest, parseLibraryPage, stateRequest, type ParsedLibraryPage } from './metadata';
+import {
+    pageRequest,
+    parseLibraryPage,
+    stateRequest,
+    type LibraryCandidate,
+    type ParsedLibraryPage
+} from './metadata';
 import { LIBRARY_STATE_REQUEST } from './requests';
-import { namedAsNonPhodrive, parseChunkName, probeLibraryItem, trashedChunkItem } from './probe';
+import {
+    expectedChunkCount,
+    namedAsNonPhodrive,
+    parseChunkName,
+    probeLibraryItem,
+    trashedChunkItem
+} from './probe';
 
 const LIBRARY_URL = 'https://photosdata-pa.googleapis.com/6439526531001121323/18047484249733410717';
 const LIBRARY_PROBE_CONCURRENCY = 2;
@@ -96,23 +108,49 @@ function scanLibraryPage(
         const candidates = page.items.filter((candidate) => !namedAsNonPhodrive(candidate));
         const visible = candidates.filter((candidate) => !candidate.trashed);
         const hidden = candidates.filter((candidate) => candidate.trashed);
+        const groups = new Map<string, LibraryCandidate[]>();
+        for (const candidate of visible) {
+            const key = `${candidate.sha1}|${candidate.size}`;
+            const group = groups.get(key);
+            if (group) group.push(candidate);
+            else groups.set(key, [candidate]);
+        }
+
         const limit = pLimit(LIBRARY_PROBE_CONCURRENCY);
-        const scanned = await limit.map(visible, (candidate) =>
-            probeLibraryItem(email, candidate, headers.commonHeaders, headers.rpcHeaders, fetcher)
-        );
+        const scanned = await limit.map([...groups.values()], async (group) => ({
+            group,
+            result: await probeLibraryItem(
+                email,
+                group[0]!,
+                headers.commonHeaders,
+                headers.rpcHeaders,
+                fetcher
+            )
+        }));
 
         const itemsByKey = new Map<string, RemoteBmp>();
         const folders = new Map<string, string>();
 
-        for (const result of scanned) {
+        for (const { group, result } of scanned) {
             if (result.isErr()) return result;
 
             result.inspect((item) => {
                 if (item === null) return;
 
-                itemsByKey.set(item.mediaKey, item);
-                const key = chunkKey(item.fileHash, item.originalName);
-                if (item.folder && key) folders.set(key, item.folder);
+                const { chunkCount: _sharedChunkCount, ...shared } = item;
+                for (const candidate of group) {
+                    const expected = expectedChunkCount(candidate.fileName);
+                    const copy: RemoteBmp = {
+                        ...shared,
+                        ...(expected === undefined ? {} : { chunkCount: expected }),
+                        mediaKey: candidate.mediaKey,
+                        at: candidate.at,
+                        sha1: candidate.sha1
+                    };
+                    itemsByKey.set(copy.mediaKey, copy);
+                    const key = chunkKey(copy.fileHash, copy.originalName);
+                    if (copy.folder && key) folders.set(key, copy.folder);
+                }
             });
         }
 
