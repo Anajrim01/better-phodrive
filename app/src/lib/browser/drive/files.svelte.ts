@@ -80,8 +80,6 @@ export class DriveFiles {
 
         if (action === FileActionKind.Download) {
             this.action = null;
-            if (this.deps.groupMode()) this.deps.reloadGroup();
-            else this.deps.reload(item.email, token);
 
             return;
         }
