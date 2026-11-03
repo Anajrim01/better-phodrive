@@ -186,9 +186,7 @@
         class:has-selection={selection.barSpaceVisible}
     >
         {#if !drive.ready}
-            <div
-                class="grid min-h-90 flex-1 place-items-center px-6 py-12 text-center text-sm text-muted"
-            >
+            <div class="grid min-h-90 flex-1 place-items-center">
                 <LoadingIndicator aria-label="Loading your files" />
             </div>
         {:else if view === AppView.Settings}

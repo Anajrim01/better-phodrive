@@ -36,7 +36,7 @@ export async function loadLibrary(
 ): Promise<boolean> {
     const pageToken = reset ? '' : state.nextPageToken;
 
-    if (reset || pageToken === '') {
+    if (reset) {
         const synced = await readLibrarySync(email, token, false, 0);
         if (!isCurrent()) return false;
 
