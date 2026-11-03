@@ -231,6 +231,10 @@ export const SERVER_ERRORS = {
         code: 'INVALID_DELETE_RESPONSE',
         message: 'Invalid delete response.'
     },
+    DUPLICATE_IN_TRASH: {
+        code: 'DUPLICATE_IN_TRASH',
+        message: 'A copy of this file is already in Trash. Empty it or restore it, then retry.'
+    },
     DOWNLOAD_CHUNK_MISMATCH: {
         code: 'DOWNLOAD_CHUNK_MISMATCH',
         message: 'Downloaded chunks do not match this file.'

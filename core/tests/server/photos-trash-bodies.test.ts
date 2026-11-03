@@ -78,6 +78,34 @@ test('trash accepts an already-trashed response without a requested key', async 
     expect(result.isOk()).toBe(true);
 });
 
+test('permanent delete rejects an already-trashed response as invalid', async () => {
+    const fetcher: Fetcher = async (input) => {
+        if (String(input).includes('android.googleapis.com/auth')) return authResponse();
+
+        return new Response(CAPTURED_ALREADY_TRASHED);
+    };
+
+    const result = await deletePermanently('test@example.com', 'aas_et/test', [SHA1], fetcher, [
+        'other-media-key'
+    ]);
+
+    expect(result.unwrapErr().code).toBe('INVALID_DELETE_RESPONSE');
+});
+
+test('restore rejects an already-trashed response as invalid', async () => {
+    const fetcher: Fetcher = async (input) => {
+        if (String(input).includes('android.googleapis.com/auth')) return authResponse();
+
+        return new Response(CAPTURED_ALREADY_TRASHED);
+    };
+
+    const result = await restoreFromTrash('test@example.com', 'aas_et/test', [SHA1], fetcher, [
+        'other-media-key'
+    ]);
+
+    expect(result.unwrapErr().code).toBe('INVALID_DELETE_RESPONSE');
+});
+
 test('an empty trash batch sends no request', async () => {
     let calls = 0;
     const fetcher: Fetcher = async () => {

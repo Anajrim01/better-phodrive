@@ -102,7 +102,9 @@ test('a duplicate-sha1 folder delete rejects an already-trashed response for ano
     expect(value.fileCount).toBe(1);
     expect(value.failed).toHaveLength(1);
     expect(value.failed[0]?.fileId).toBe(file);
-    expect(value.failed[0]?.message).toBe('Invalid delete response.');
+    expect(value.failed[0]?.message).toBe(
+        'A copy of this file is already in Trash. Empty it or restore it, then retry.'
+    );
     expect(value.items).toHaveLength(1);
 
     const items = savedItems();
