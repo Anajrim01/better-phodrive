@@ -62,6 +62,8 @@ export function uploadChunk(
             } catch {
                 return Err({ code: 'UPLOAD_CANCELLED', message: 'Upload cancelled.' } as const);
             }
+            if (signal?.aborted)
+                return Err({ code: 'UPLOAD_CANCELLED', message: 'Upload cancelled.' } as const);
 
             let sent = 0;
             let reused = 0;
@@ -138,10 +140,10 @@ export function uploadChunk(
             if (signal?.aborted)
                 return Err({ code: 'UPLOAD_CANCELLED', message: 'Upload cancelled.' } as const);
             if (!failure) return result ? Ok(result) : invalidResponse();
-
-            if (failure.code !== 'THROTTLED' || attempt === CHUNK_RETRY_LIMIT) return Err(failure);
+            if (failure.code !== 'THROTTLED') return Err(failure);
 
             const wait = throttle.pause(email, failure.retryAfterSeconds);
+            if (attempt === CHUNK_RETRY_LIMIT) return Err(failure);
             onProgress(sent, reused, wait);
         }
 

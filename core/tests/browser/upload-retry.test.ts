@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { Err, Ok } from 'results-ts';
-import { transferFiles } from '@madkarmaa/phodrive-core/browser/upload';
+import { createThrottleCoordinator, transferFiles } from '@madkarmaa/phodrive-core/browser/upload';
 import { uploadIdentity } from '@madkarmaa/phodrive-core/browser/upload/hash';
 import type { ChunkTransport } from '@madkarmaa/phodrive-core/browser/upload/request';
 import {
@@ -128,6 +128,7 @@ test('a chunk that stays throttled fails the file after the retry limit', async 
     };
 
     let failure = '';
+    const throttle = createThrottleCoordinator();
     await transferFiles(
         [file],
         'retry@example.com',
@@ -137,11 +138,13 @@ test('a chunk that stays throttled fails the file after the retry limit', async 
             if (job.status === UploadJobStatus.Error) failure = job.message;
         },
         () => {},
-        transport
+        transport,
+        { throttle }
     );
 
     expect(attempts).toBe(4);
     expect(failure).toContain('retrying');
+    expect(throttle.remaining('retry@example.com')).toBeGreaterThan(0);
 });
 
 test('aborting a waiting upload stops before another attempt', async () => {
