@@ -6,11 +6,17 @@ import {
     UploadRequestSchema,
     UploadStatus
 } from '@madkarmaa/phodrive-core/models';
-import { groupChunks, type FileGroup, type UploadedChunk } from '@madkarmaa/phodrive-core/files';
+import {
+    groupChunks,
+    identityInput,
+    type FileGroup,
+    type UploadedChunk
+} from '@madkarmaa/phodrive-core/files';
 import type { GroupUploadMember } from '@madkarmaa/phodrive-core/browser/upload';
 import type { BrowserPreferences } from '#browser/storage';
 import { DriveUploads, type UploadDeps } from '#browser/drive/uploads.svelte';
 import { pruneRecent, uploadKey } from '#browser/drive/upload-dedupe';
+import { MAX_CHUNK_PAYLOAD_BYTES } from '@madkarmaa/phodrive-core/bmp/format';
 import { browserUploadResponse } from '../../../core/tests/helpers/upload';
 
 const EMAIL = 'first@example.com';
@@ -22,10 +28,13 @@ afterEach(() => vi.restoreAllMocks());
 
 function existingFile(name: string, email = EMAIL, folder = '', compressed = false): FileGroup {
     const fileHash = createHash('sha256').update(PAYLOAD).digest('hex');
+    const fileId = createHash('sha256')
+        .update(identityInput(name, fileHash, MAX_CHUNK_PAYLOAD_BYTES, folder))
+        .digest('hex');
     const chunk: UploadedChunk = {
         email,
         fileHash,
-        fileId: fileHash,
+        fileId,
         chunkIndex: 0,
         isLast: true,
         originalName: name,
@@ -97,8 +106,8 @@ test('a duplicate against the loaded library skips the transport', async () => {
     });
 });
 
-test('same name and content in another folder is skipped', async () => {
-    const fetch = vi.spyOn(globalThis, 'fetch');
+test('same name and content in another folder uploads independently', async () => {
+    const fetch = mockUpload();
     const uploads = driveUploads({
         files: [existingFile('proof.bin', EMAIL, 'other')],
         folder: 'current'
@@ -106,8 +115,19 @@ test('same name and content in another folder is skipped', async () => {
 
     await uploads.upload([new File([PAYLOAD], 'proof.bin')]);
 
-    expect(fetch).not.toHaveBeenCalled();
-    expect(uploads.jobs[0]?.result?.status).toBe(UploadStatus.AlreadyExists);
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(uploads.jobs[0]?.result?.status).toBe(UploadStatus.Uploaded);
+});
+
+test('a listing-only rename does not reuse the old file identity', async () => {
+    const fetch = mockUpload();
+    const original = existingFile('a.txt');
+    const uploads = driveUploads({ files: [{ ...original, name: 'b.txt' }] });
+
+    await uploads.upload([new File([PAYLOAD], 'b.txt')]);
+
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(uploads.jobs[0]?.result?.status).toBe(UploadStatus.Uploaded);
 });
 
 test('identical content under a different name still uploads', async () => {
@@ -178,13 +198,13 @@ test('duplicate jobs keep their own rows when another file follows them', async 
 test('a recent entry only survives while its exact uploaded copy exists', () => {
     const file = existingFile('proof.bin');
     const recent = new Map([
-        [uploadKey(EMAIL, file.name, file.fileHash), { mediaKey: 'deleted-key', sha1: SHA1 }]
+        [uploadKey(EMAIL, file.fileId), { mediaKey: 'deleted-key', sha1: SHA1 }]
     ]);
 
     pruneRecent(recent, [file], new Set());
     expect(recent.size).toBe(0);
 
-    recent.set(uploadKey(EMAIL, file.name, file.fileHash), {
+    recent.set(uploadKey(EMAIL, file.fileId), {
         mediaKey: file.chunks[0]!.mediaKey,
         sha1: SHA1
     });

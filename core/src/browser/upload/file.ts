@@ -17,7 +17,7 @@ export type UploadSourceOptions = {
     folder?: string;
     folders?: ReadonlyMap<File, string>;
     compress?: boolean;
-    existing?: (query: { email: string; name: string; fileHash: string }) => ExistingUpload | null;
+    existing?: (query: { email: string; fileId: string }) => ExistingUpload | null;
 };
 
 export function uploadSource(
@@ -51,17 +51,6 @@ export function uploadSource(
         }
 
         const fileHash = hashed.unwrap();
-        const existing = options.existing?.({ email: account.email, name: file.name, fileHash });
-        if (existing) {
-            handle.completeExisting(id, {
-                status: UploadStatus.AlreadyExists,
-                mediaKey: existing.mediaKey,
-                sha1: existing.sha1
-            });
-
-            return Ok(undefined);
-        }
-
         const prepared = await uploadIdentity(file.name, fileHash, folder).map((fileId) => ({
             fileHash,
             fileId
@@ -74,16 +63,26 @@ export function uploadSource(
             return Ok(undefined);
         }
 
-        const planned = prepared.andThen(({ fileHash, fileId }) =>
-            planChunks(
-                {
-                    name: file.name,
-                    folder: folder || undefined,
-                    size: file.size,
-                    fileHash
-                },
-                fileId
-            )
+        const { fileId } = prepared.unwrap();
+        const existing = options.existing?.({ email: account.email, fileId });
+        if (existing) {
+            handle.completeExisting(id, {
+                status: UploadStatus.AlreadyExists,
+                mediaKey: existing.mediaKey,
+                sha1: existing.sha1
+            });
+
+            return Ok(undefined);
+        }
+
+        const planned = planChunks(
+            {
+                name: file.name,
+                folder: folder || undefined,
+                size: file.size,
+                fileHash
+            },
+            fileId
         );
         if (planned.isErr()) {
             planned.inspectErr((error) =>
