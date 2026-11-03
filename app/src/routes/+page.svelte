@@ -3,6 +3,7 @@
     import type { FileGroup } from '@madkarmaa/phodrive-core/files';
 
     import { onMount, untrack } from 'svelte';
+    import { LoadingIndicator } from 'noph-ui';
     import type { PageData } from './$types';
     import { DriveController } from '#browser/drive/index.svelte';
     import { createDriveManage } from '#browser/drive/manage-factory';
@@ -184,11 +185,15 @@
         class="mr-4 mb-4 flex min-w-0 flex-col rounded-[20px] bg-panel px-6 pt-6 pb-12 text-text max-[800px]:mx-2 max-[800px]:mb-2 max-[800px]:px-4 max-[800px]:pt-4 max-[800px]:pb-[calc(96px+env(safe-area-inset-bottom,0px))]"
         class:has-selection={selection.barSpaceVisible}
     >
-        {#if drive.ready && view === AppView.Settings}
+        {#if !drive.ready}
+            <div class="grid min-h-90 flex-1 place-items-center">
+                <LoadingIndicator aria-label="Loading your files" />
+            </div>
+        {:else if view === AppView.Settings}
             <SettingsView {drive} defaults={data.preferencesDefaults} />
-        {:else if drive.ready && view === AppView.Shares && drive.selectedEmail}
+        {:else if view === AppView.Shares && drive.selectedEmail}
             <SharesScreen {shares} />
-        {:else if drive.ready && view === AppView.Trash && drive.selectedEmail}
+        {:else if view === AppView.Trash && drive.selectedEmail}
             <TrashView
                 files={drive.library.trashFiles}
                 bind:sort={drive.settings.fileSort}
@@ -216,9 +221,9 @@
                     void drive.library.load(false);
                 }}
             />
-        {:else if drive.ready && (!drive.selectedEmail || drive.accountEditor.adding)}
+        {:else if !drive.selectedEmail || drive.accountEditor.adding}
             <AccountSetupScreen {drive} />
-        {:else if drive.ready}
+        {:else}
             <FilesView
                 {drive}
                 {actionsDisabled}

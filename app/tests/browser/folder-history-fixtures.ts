@@ -1,8 +1,15 @@
 import { FileSort, type RemoteBmp } from '@madkarmaa/phodrive-core/models';
-import { Ok } from 'results-ts';
+import { Err, Ok } from 'results-ts';
+import type { ApplicationError } from '@madkarmaa/phodrive-core/errors';
+import type { LibrarySyncResponse } from '@madkarmaa/phodrive-core/library-sync';
 import { vi } from 'vitest';
 import * as libraryApi from '@madkarmaa/phodrive-core/browser/library';
 import { DriveLibrary } from '#browser/drive/library.svelte';
+
+const SYNC_MISS: ApplicationError = {
+    code: 'REQUEST_FAILED',
+    message: 'Could not sync files.'
+};
 
 export function remoteBmp(folder: string, index: number): RemoteBmp {
     const hash = index.toString(16).padStart(64, '0');
@@ -59,6 +66,11 @@ export function resetLibraryMocks(): void {
     vi.mocked(libraryApi.readLibraryPage).mockReset();
     vi.mocked(libraryApi.readLibrarySnapshot).mockReset();
     vi.mocked(libraryApi.readLibrarySync).mockReset();
+    vi.mocked(libraryApi.readLibrarySync).mockReturnValue(
+        Ok(undefined).andThenAsync<LibrarySyncResponse, ApplicationError>(async () =>
+            Err(SYNC_MISS)
+        )
+    );
     vi.mocked(libraryApi.readGroupLibrary).mockReset();
     vi.mocked(libraryApi.readGroupLibraryUpdates).mockReset();
 }

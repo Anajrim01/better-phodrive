@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, expect, test, vi } from 'vitest';
-import { Ok } from 'results-ts';
+import { Err, Ok } from 'results-ts';
 import { DriveController } from '#browser/drive/index.svelte';
 import * as filesApi from '#browser/files';
 import * as libraryApi from '@madkarmaa/phodrive-core/browser/library';
@@ -122,6 +122,11 @@ test('large queue stays single-flight, takes current worker preference on retry,
         .mockReturnValue(
             Ok({ items: [], nextPageToken: '', revision: 1 }).andThenAsync(async (page) => Ok(page))
         );
+    vi.spyOn(libraryApi, 'readLibrarySync').mockReturnValue(
+        Err({ code: 'REQUEST_FAILED', message: 'Could not sync files.' } as const).andThenAsync(
+            async () => Ok({ items: [], deleted: [], full: true, revision: 1 })
+        )
+    );
     const drive = new DriveController();
     drive.initialize();
     drive.library.chunks = [uploadedChunk('old-account.bin')];
@@ -165,5 +170,5 @@ test('large queue stays single-flight, takes current worker preference on retry,
     expect(drive.uploadJobs).toHaveLength(0);
     expect(deletion).not.toHaveBeenCalled();
     expect(download).not.toHaveBeenCalled();
-    expect(library).toHaveBeenCalledWith(OTHER, 'aas_et/other-token', '');
+    await vi.waitFor(() => expect(library).toHaveBeenCalledWith(OTHER, 'aas_et/other-token', ''));
 });

@@ -8,7 +8,7 @@ import {
 } from '@madkarmaa/phodrive-core/files';
 import { partitionFileGroups } from '@madkarmaa/phodrive-core/trash';
 import { FileSort } from '@madkarmaa/phodrive-core/models';
-import { readLibraryPage, readLibrarySync } from '@madkarmaa/phodrive-core/browser/library';
+import { readLibrarySync } from '@madkarmaa/phodrive-core/browser/library';
 import type { GroupAccountState } from '@madkarmaa/phodrive-core/groups';
 import {
     applyLibrarySync,
@@ -17,6 +17,7 @@ import {
 } from '#browser/drive/library-state';
 import {
     loadGroupLibrary,
+    loadLibrary,
     refreshGroupLibrary,
     refreshLibrary
 } from '#browser/drive/library-refresh';
@@ -112,8 +113,6 @@ export class DriveLibrary {
         if (this.actionsDisabled() || (!reset && (this.loading || !this.nextPageToken))) return;
 
         const { email, token } = this.account();
-        const pageToken = reset ? '' : this.nextPageToken;
-        const firstPage = pageToken === '';
         const request = ++this.libraryRequest;
         if (reset) {
             this.chunks = [];
@@ -129,38 +128,19 @@ export class DriveLibrary {
         this.loading = true;
         this.feedback('');
 
-        const loaded = await readLibraryPage(email, token, pageToken);
-
+        const applied = await loadLibrary(
+            this,
+            email,
+            token,
+            reset,
+            this.libraryPageTokens,
+            this.navigation.hasOrPending,
+            this.feedback,
+            () => request === this.libraryRequest && email === this.account().email
+        );
         if (request !== this.libraryRequest || email !== this.account().email) return;
 
-        loaded.match({
-            Ok: (data) => {
-                this.loadFailed = false;
-
-                const found: UploadedChunk[] = data.items.map((item) => ({
-                    ...item,
-                    email
-                }));
-                const chunks = reset ? found : [...this.chunks, ...found];
-                this.chunks = [
-                    ...new Map(
-                        chunks.map((item) => [`${item.email}:${item.mediaKey}`, item])
-                    ).values()
-                ];
-                this.nextPageToken = data.nextPageToken;
-                if (data.nextPageToken && this.libraryPageTokens.has(data.nextPageToken)) {
-                    this.nextPageToken = '';
-                    this.loadFailed = true;
-                    this.feedback('Google Photos repeated a library page. Refresh to try again.');
-                }
-                if (this.nextPageToken) this.libraryPageTokens.add(this.nextPageToken);
-                if (firstPage) this.revisions.set(email.toLowerCase(), data.revision);
-
-                this.loadedPages++;
-                this.navigation.settle(!!this.nextPageToken);
-            },
-            Err: (error) => reportLoadFailure(this, error, this.feedback)
-        });
+        if (applied) this.navigation.settle(!!this.nextPageToken);
         this.loading = false;
     }
 

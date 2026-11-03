@@ -72,6 +72,19 @@ bun run start:bun
 
 Open `http://127.0.0.1:3000` for the production build.
 
+### Access from a phone
+
+Use the production build when you open the app from a phone or through a tunnel. The development server sends every module as a separate request, and a phone loads hundreds of them before the app starts.
+
+```sh
+bun run build
+bun run start
+```
+
+Point the tunnel at port 3000, for example `ngrok http 3000`, then open the tunnel URL. The server reads the upload origin from the request host, so uploads work through the tunnel.
+
+To use the development server through a tunnel, add the tunnel host to `server.allowedHosts` in `app/vite.config.ts`.
+
 ### Docker
 
 ```sh

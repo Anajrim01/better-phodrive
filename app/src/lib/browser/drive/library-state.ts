@@ -5,7 +5,7 @@ import {
 import type { ApplicationError } from '@madkarmaa/phodrive-core/errors';
 import type { GroupAccountState } from '@madkarmaa/phodrive-core/groups';
 import type { UploadedChunk } from '@madkarmaa/phodrive-core/files';
-import type { RemoteBmp } from '@madkarmaa/phodrive-core/models';
+import type { LibraryResponse, RemoteBmp } from '@madkarmaa/phodrive-core/models';
 import { nextRetryAt } from '#browser/drive/group-target';
 
 export type LibraryState = {
@@ -99,6 +99,37 @@ export function applyLibrarySnapshot(
     if (snapshot.nextPageToken) pageTokens.add(snapshot.nextPageToken);
     state.revisions.set(email.toLowerCase(), snapshot.revision);
     if (state.folder && !hasFolder(state.folder)) state.folder = '';
+}
+
+export function applyLibraryPage(
+    state: Pick<
+        LibraryState,
+        'chunks' | 'nextPageToken' | 'loadedPages' | 'revisions' | 'loadFailed'
+    >,
+    email: string,
+    page: LibraryResponse,
+    reset: boolean,
+    pageTokens: Set<string>,
+    feedback: (message: string) => void
+): void {
+    state.loadFailed = false;
+
+    const found: UploadedChunk[] = page.items.map((item) => ({ ...item, email }));
+    const chunks = reset ? found : [...state.chunks, ...found];
+    state.chunks = [
+        ...new Map(chunks.map((item) => [`${item.email}:${item.mediaKey}`, item])).values()
+    ];
+
+    state.nextPageToken = page.nextPageToken;
+    if (page.nextPageToken && pageTokens.has(page.nextPageToken)) {
+        state.nextPageToken = '';
+        state.loadFailed = true;
+        feedback('Google Photos repeated a library page. Refresh to try again.');
+    }
+    if (state.nextPageToken) pageTokens.add(state.nextPageToken);
+    if (reset) state.revisions.set(email.toLowerCase(), page.revision);
+
+    state.loadedPages++;
 }
 
 export function reportLoadFailure(

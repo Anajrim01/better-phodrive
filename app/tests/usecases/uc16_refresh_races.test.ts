@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, expect, test, vi } from 'vitest';
-import { Ok } from 'results-ts';
+import { Err, Ok } from 'results-ts';
 import { ThemeMode } from '@madkarmaa/phodrive-core/models';
 import { DriveController } from '#browser/drive/index.svelte';
 import {
@@ -46,6 +46,11 @@ vi.mock('#browser/drive/refresh.svelte', () => ({ useAutomaticRefresh: vi.fn() }
 beforeEach(() => {
     storage.clear();
     vi.restoreAllMocks();
+    vi.mocked(readLibrarySync).mockReturnValue(
+        Err({ code: 'REQUEST_FAILED', message: 'Could not sync files.' } as const).andThenAsync(
+            async () => Ok({ items: [], deleted: [], full: true, revision: 1 })
+        )
+    );
     storage.setItem(
         'accounts',
         JSON.stringify({
@@ -97,6 +102,7 @@ test('switching accounts during pending library requests ignores stale responses
 
     const firstLoad = drive.library.load();
     expect(drive.library.loading).toBe(true);
+    await vi.waitFor(() => expect(readLibraryPage).toHaveBeenCalledTimes(1));
     drive.selectAccount('second@example.com');
     const secondLoad = drive.library.load();
     await vi.waitFor(() => expect(readLibraryPage).toHaveBeenCalledTimes(2));
@@ -126,9 +132,13 @@ test('manual refresh applies a sync result and clears the loading state', async 
     vi.mocked(readLibraryPage).mockReturnValueOnce(
         Ok(undefined).andThenAsync(() => initialPage.promise)
     );
-    vi.mocked(readLibrarySync).mockReturnValueOnce(
-        Ok(undefined).andThenAsync(() => firstRefresh.promise)
-    );
+    vi.mocked(readLibrarySync)
+        .mockReturnValueOnce(
+            Err({ code: 'REQUEST_FAILED', message: 'Could not sync files.' } as const).andThenAsync(
+                async () => Ok({ items: [], deleted: [], full: true, revision: 1 })
+            )
+        )
+        .mockReturnValueOnce(Ok(undefined).andThenAsync(() => firstRefresh.promise));
 
     const drive = new DriveController();
     drive.initialize();

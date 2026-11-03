@@ -134,7 +134,7 @@ test('manual refresh uses a full snapshot when no cursor exists', async () => {
     await library.refresh(true);
 
     expect(readLibrarySync).not.toHaveBeenCalled();
-    expect(readLibrarySnapshot).toHaveBeenCalledWith(EMAIL, TOKEN, 0);
+    expect(readLibrarySnapshot).toHaveBeenCalledWith(EMAIL, TOKEN, Number.POSITIVE_INFINITY);
     expect(library.chunks.map((item) => item.mediaKey)).toEqual(['snapshot']);
 });
 
@@ -162,7 +162,7 @@ test.each(syncFailures)(
         await library.refresh(true);
 
         expect(readLibrarySync).toHaveBeenCalledWith(EMAIL, TOKEN, false, 4);
-        expect(readLibrarySnapshot).toHaveBeenCalledWith(EMAIL, TOKEN, 0);
+        expect(readLibrarySnapshot).toHaveBeenCalledWith(EMAIL, TOKEN, Number.POSITIVE_INFINITY);
         expect(library.chunks.map((item) => item.mediaKey)).toEqual(['snapshot']);
         expect(library.loading).toBe(false);
     }
@@ -222,6 +222,9 @@ test('a stale group load cannot overwrite a reset library', async () => {
 test('initial loading stays blocked until the first page arrives', async () => {
     const library = makeLibrary();
     const pending = deferred<Awaited<ReturnType<typeof readLibraryPage>>>();
+    vi.mocked(readLibrarySync).mockReturnValueOnce(
+        failure<LibrarySyncResponse>({ code: 'REQUEST_FAILED', message: 'Could not sync files.' })
+    );
     vi.mocked(readLibraryPage).mockReturnValueOnce(
         Ok(undefined).andThenAsync(() => pending.promise)
     );

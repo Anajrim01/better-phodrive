@@ -1,8 +1,8 @@
 import type { ApplicationError } from '@madkarmaa/phodrive-core/errors';
 import { afterAll, afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { Ok } from 'results-ts';
+import { Err, Ok } from 'results-ts';
 import type { AsyncResult } from 'results-ts';
-import { readLibrarySnapshot } from '@madkarmaa/phodrive-core/browser/library';
+import * as libraryApi from '@madkarmaa/phodrive-core/browser/library';
 import * as api from '@madkarmaa/phodrive-core/browser/api';
 import { DriveController } from '#browser/drive/index.svelte';
 import {
@@ -73,7 +73,7 @@ test('snapshot returns an error when Google Photos repeats a page token', async 
         apiResult(page([remoteFile('part-1', 1), remoteFile('part-2', 2)], 'repeat-token'))
     );
 
-    const snapshot = await readLibrarySnapshot('test@example.com', 'aas_et/test', 12);
+    const snapshot = await libraryApi.readLibrarySnapshot('test@example.com', 'aas_et/test', 12);
 
     expect(snapshot.isErr()).toBe(true);
     expect(snapshot.unwrapErr().message).toContain('repeated a library page');
@@ -89,7 +89,7 @@ test('snapshot deduplicates media keys across pages while retaining chunk order'
         apiResult(page([remoteFile('part-1', 1), remoteFile('part-2', 2)], ''))
     );
 
-    const snapshot = await readLibrarySnapshot('test@example.com', 'aas_et/test', 10);
+    const snapshot = await libraryApi.readLibrarySnapshot('test@example.com', 'aas_et/test', 10);
 
     if (snapshot.isErr()) throw snapshot.unwrapErr();
     expect(snapshot.unwrap().items.map(({ mediaKey }) => mediaKey)).toEqual([
@@ -106,7 +106,7 @@ test('empty pages with new page tokens are followed until the library ends', asy
     apiJson.mockReturnValueOnce(apiResult(page([], 'empty-page-two')));
     apiJson.mockReturnValueOnce(apiResult(page([remoteFile('last-item')], '')));
 
-    const snapshot = await readLibrarySnapshot('test@example.com', 'aas_et/test', 10);
+    const snapshot = await libraryApi.readLibrarySnapshot('test@example.com', 'aas_et/test', 10);
 
     if (snapshot.isErr()) throw snapshot.unwrapErr();
     expect(snapshot.unwrap().items.map(({ mediaKey }) => mediaKey)).toEqual(['last-item']);
@@ -116,6 +116,11 @@ test('empty pages with new page tokens are followed until the library ends', asy
 
 test('load more deduplicates chunks and disables further loading after a cyclic token', async () => {
     const apiJson = vi.spyOn(api, 'apiJson').mockImplementation(() => apiResult(page([], '')));
+    vi.spyOn(libraryApi, 'readLibrarySync').mockReturnValue(
+        Err({ code: 'REQUEST_FAILED', message: 'Could not sync files.' } as const).andThenAsync(
+            async () => Ok({ items: [], deleted: [], full: true, revision: 1 })
+        )
+    );
     const drive = new DriveController();
     drive.initialize();
     await new Promise((resolve) => setTimeout(resolve, 0));

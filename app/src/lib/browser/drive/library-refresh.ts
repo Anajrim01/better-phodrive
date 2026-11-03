@@ -1,12 +1,14 @@
 import {
     readGroupLibrary,
     readGroupLibraryUpdates,
+    readLibraryPage,
     readLibrarySnapshot,
     readLibrarySync
 } from '@madkarmaa/phodrive-core/browser/library';
 import type { GroupAccountState } from '@madkarmaa/phodrive-core/groups';
 import {
     applyGroupSnapshot,
+    applyLibraryPage,
     applyLibrarySnapshot,
     applyLibrarySync,
     reportLoadFailure,
@@ -14,10 +16,59 @@ import {
     type LibraryState
 } from '#browser/drive/library-state';
 
+// A full sync snapshot has no page cursor, so the loaded page count is not the library depth.
+const WHOLE_LIBRARY_PAGES = Number.POSITIVE_INFINITY;
+
 type GroupSelection = {
     members: readonly { email: string; token: string; pausedUntil?: number }[];
     missing: readonly string[];
 };
+
+export async function loadLibrary(
+    state: LibraryState,
+    email: string,
+    token: string,
+    reset: boolean,
+    pageTokens: Set<string>,
+    hasFolder: (path: string) => boolean,
+    feedback: (message: string) => void,
+    isCurrent: () => boolean
+): Promise<boolean> {
+    const pageToken = reset ? '' : state.nextPageToken;
+
+    if (reset) {
+        const synced = await readLibrarySync(email, token, false, 0);
+        if (!isCurrent()) return false;
+
+        const applied = synced.match({
+            Ok: (update) => {
+                if (!update.full) return false;
+
+                applyLibrarySync(state, email, update, pageTokens, hasFolder);
+
+                return true;
+            },
+            Err: () => false
+        });
+        if (applied) return true;
+    }
+
+    const loaded = await readLibraryPage(email, token, pageToken);
+    if (!isCurrent()) return false;
+
+    return loaded.match({
+        Ok: (page) => {
+            applyLibraryPage(state, email, page, reset, pageTokens, feedback);
+
+            return true;
+        },
+        Err: (error) => {
+            reportLoadFailure(state, error, feedback);
+
+            return false;
+        }
+    });
+}
 
 export async function refreshLibrary(
     state: LibraryState,
@@ -44,7 +95,9 @@ export async function refreshLibrary(
         if (applied) return true;
     }
 
-    const refreshed = await readLibrarySnapshot(email, token, state.loadedPages);
+    const pageCount = state.nextPageToken ? state.loadedPages : WHOLE_LIBRARY_PAGES;
+
+    const refreshed = await readLibrarySnapshot(email, token, pageCount);
     if (!isCurrent()) return false;
 
     return refreshed.match({

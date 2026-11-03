@@ -5,6 +5,8 @@ import {
     UploadStatus,
     type RemoteBmp
 } from '@madkarmaa/phodrive-core/models';
+import type { ApplicationError } from '@madkarmaa/phodrive-core/errors';
+import type { LibrarySyncResponse } from '@madkarmaa/phodrive-core/library-sync';
 import { afterAll, beforeEach, expect, test, vi } from 'vitest';
 import { flushSync } from 'svelte';
 import { Err, Ok } from 'results-ts';
@@ -63,6 +65,20 @@ function remoteBmp(index: number, originalName: string): RemoteBmp {
         size: 4,
         at: index
     };
+}
+
+function syncFailure(error: ApplicationError) {
+    return Ok(undefined).andThenAsync<LibrarySyncResponse, ApplicationError>(async () =>
+        Err(error)
+    );
+}
+
+function page(items: RemoteBmp[], nextPageToken = '', revision = 1) {
+    return Ok(undefined).andThenAsync(async () => Ok({ items, nextPageToken, revision }));
+}
+
+function syncUpdate(items: RemoteBmp[], full: boolean, revision: number) {
+    return Ok(undefined).andThenAsync(async () => Ok({ items, deleted: [], full, revision }));
 }
 
 test('selection survives sorting and clears when the account changes', () => {
@@ -168,12 +184,9 @@ test('dismissing a library error preserves failed-load state and repeated errors
         Ok(undefined).andThenAsync(async () => Err(failure))
     );
     vi.spyOn(libraryApi, 'readLibrarySync')
-        .mockImplementationOnce(() => Ok(undefined).andThenAsync(async () => Err(failure)))
-        .mockImplementationOnce(() =>
-            Ok(undefined).andThenAsync(async () =>
-                Ok({ items: [], deleted: [], full: true, revision: 1 })
-            )
-        );
+        .mockImplementationOnce(() => syncFailure(failure))
+        .mockImplementationOnce(() => syncFailure(failure))
+        .mockImplementationOnce(() => syncUpdate([], true, 1));
 
     const drive = new DriveController();
     drive.initialize();
@@ -201,21 +214,14 @@ test('a failed reset load discards the cursor so the next sync recovers', async 
         code: 'REQUEST_FAILED',
         message: 'Library list failed (HTTP 503)'
     } as const;
-    const page = (items: RemoteBmp[], revision: number) =>
-        Ok(undefined).andThenAsync(async () => Ok({ items, nextPageToken: '', revision }));
     vi.spyOn(libraryApi, 'readLibraryPage')
-        .mockImplementationOnce(() => page([remoteBmp(1, 'first.bin')], 5))
+        .mockImplementationOnce(() => page([remoteBmp(1, 'first.bin')], '', 5))
         .mockImplementationOnce(() => Ok(undefined).andThenAsync(async () => Err(failure)));
-    const sync = vi.spyOn(libraryApi, 'readLibrarySync').mockImplementationOnce(() =>
-        Ok(undefined).andThenAsync(async () =>
-            Ok({
-                items: [remoteBmp(1, 'first.bin')],
-                deleted: [],
-                full: true,
-                revision: 6
-            })
-        )
-    );
+    const sync = vi
+        .spyOn(libraryApi, 'readLibrarySync')
+        .mockImplementationOnce(() => syncFailure(failure))
+        .mockImplementationOnce(() => syncFailure(failure))
+        .mockImplementationOnce(() => syncUpdate([remoteBmp(1, 'first.bin')], true, 6));
     const drive = new DriveController();
     drive.initialize();
 
@@ -233,22 +239,20 @@ test('a failed reset load discards the cursor so the next sync recovers', async 
 });
 
 test('automatic refresh merges the newest page and manual refresh reloads the depth', async () => {
-    const page = (items: RemoteBmp[], nextPageToken: string, revision = 1) =>
-        Ok(undefined).andThenAsync(async () => Ok({ items, nextPageToken, revision }));
+    const failure = {
+        code: 'REQUEST_FAILED',
+        message: 'Could not sync files.'
+    } as const;
     const readPage = vi
         .spyOn(libraryApi, 'readLibraryPage')
         .mockImplementationOnce(() => page([remoteBmp(1, 'first.bin')], 'page-two'))
         .mockImplementationOnce(() => page([remoteBmp(2, 'second.bin')], '', 2));
-    const updates = vi.spyOn(libraryApi, 'readLibrarySync').mockImplementationOnce(() =>
-        Ok(undefined).andThenAsync(async () =>
-            Ok({
-                items: [remoteBmp(1, 'renamed.bin'), remoteBmp(3, 'third.bin')],
-                deleted: [],
-                full: false,
-                revision: 2
-            })
-        )
-    );
+    const updates = vi
+        .spyOn(libraryApi, 'readLibrarySync')
+        .mockImplementationOnce(() => syncFailure(failure))
+        .mockImplementationOnce(() =>
+            syncUpdate([remoteBmp(1, 'renamed.bin'), remoteBmp(3, 'third.bin')], false, 2)
+        );
     const snapshot = vi.spyOn(libraryApi, 'readLibrarySnapshot').mockImplementationOnce(() =>
         Ok(undefined).andThenAsync(async () =>
             Ok({
@@ -273,8 +277,8 @@ test('automatic refresh merges the newest page and manual refresh reloads the de
     await drive.library.refresh();
 
     expect(readPage).toHaveBeenCalledTimes(2);
-    expect(updates).toHaveBeenCalledTimes(1);
-    expect(updates).toHaveBeenCalledWith('test@example.com', 'aas_et/test', false, 1);
+    expect(updates).toHaveBeenCalledTimes(2);
+    expect(updates).toHaveBeenLastCalledWith('test@example.com', 'aas_et/test', false, 1);
     expect(snapshot).not.toHaveBeenCalled();
     expect(drive.library.chunks.map((chunk) => chunk.originalName).toSorted()).toEqual([
         'renamed.bin',
