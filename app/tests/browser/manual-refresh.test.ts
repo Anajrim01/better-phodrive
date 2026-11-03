@@ -222,6 +222,9 @@ test('a stale group load cannot overwrite a reset library', async () => {
 test('initial loading stays blocked until the first page arrives', async () => {
     const library = makeLibrary();
     const pending = deferred<Awaited<ReturnType<typeof readLibraryPage>>>();
+    vi.mocked(readLibrarySync).mockReturnValueOnce(
+        failure<LibrarySyncResponse>({ code: 'REQUEST_FAILED', message: 'Could not sync files.' })
+    );
     vi.mocked(readLibraryPage).mockReturnValueOnce(
         Ok(undefined).andThenAsync(() => pending.promise)
     );

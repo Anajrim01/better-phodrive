@@ -19,6 +19,29 @@ type GroupSelection = {
     missing: readonly string[];
 };
 
+export async function loadLibrarySyncSnapshot(
+    state: LibraryState,
+    email: string,
+    token: string,
+    pageTokens: Set<string>,
+    hasFolder: (path: string) => boolean,
+    isCurrent: () => boolean
+): Promise<boolean> {
+    const synced = await readLibrarySync(email, token, false, 0);
+    if (!isCurrent()) return false;
+
+    return synced.match({
+        Ok: (update) => {
+            if (!update.full) return false;
+
+            applyLibrarySync(state, email, update, pageTokens, hasFolder);
+
+            return true;
+        },
+        Err: () => false
+    });
+}
+
 export async function refreshLibrary(
     state: LibraryState,
     email: string,

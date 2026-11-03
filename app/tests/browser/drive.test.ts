@@ -169,6 +169,7 @@ test('dismissing a library error preserves failed-load state and repeated errors
     );
     vi.spyOn(libraryApi, 'readLibrarySync')
         .mockImplementationOnce(() => Ok(undefined).andThenAsync(async () => Err(failure)))
+        .mockImplementationOnce(() => Ok(undefined).andThenAsync(async () => Err(failure)))
         .mockImplementationOnce(() =>
             Ok(undefined).andThenAsync(async () =>
                 Ok({ items: [], deleted: [], full: true, revision: 1 })
@@ -206,16 +207,20 @@ test('a failed reset load discards the cursor so the next sync recovers', async 
     vi.spyOn(libraryApi, 'readLibraryPage')
         .mockImplementationOnce(() => page([remoteBmp(1, 'first.bin')], 5))
         .mockImplementationOnce(() => Ok(undefined).andThenAsync(async () => Err(failure)));
-    const sync = vi.spyOn(libraryApi, 'readLibrarySync').mockImplementationOnce(() =>
-        Ok(undefined).andThenAsync(async () =>
-            Ok({
-                items: [remoteBmp(1, 'first.bin')],
-                deleted: [],
-                full: true,
-                revision: 6
-            })
-        )
-    );
+    const sync = vi
+        .spyOn(libraryApi, 'readLibrarySync')
+        .mockImplementationOnce(() => Ok(undefined).andThenAsync(async () => Err(failure)))
+        .mockImplementationOnce(() => Ok(undefined).andThenAsync(async () => Err(failure)))
+        .mockImplementationOnce(() =>
+            Ok(undefined).andThenAsync(async () =>
+                Ok({
+                    items: [remoteBmp(1, 'first.bin')],
+                    deleted: [],
+                    full: true,
+                    revision: 6
+                })
+            )
+        );
     const drive = new DriveController();
     drive.initialize();
 
@@ -233,22 +238,29 @@ test('a failed reset load discards the cursor so the next sync recovers', async 
 });
 
 test('automatic refresh merges the newest page and manual refresh reloads the depth', async () => {
+    const failure = {
+        code: 'REQUEST_FAILED',
+        message: 'Could not sync files.'
+    } as const;
     const page = (items: RemoteBmp[], nextPageToken: string, revision = 1) =>
         Ok(undefined).andThenAsync(async () => Ok({ items, nextPageToken, revision }));
     const readPage = vi
         .spyOn(libraryApi, 'readLibraryPage')
         .mockImplementationOnce(() => page([remoteBmp(1, 'first.bin')], 'page-two'))
         .mockImplementationOnce(() => page([remoteBmp(2, 'second.bin')], '', 2));
-    const updates = vi.spyOn(libraryApi, 'readLibrarySync').mockImplementationOnce(() =>
-        Ok(undefined).andThenAsync(async () =>
-            Ok({
-                items: [remoteBmp(1, 'renamed.bin'), remoteBmp(3, 'third.bin')],
-                deleted: [],
-                full: false,
-                revision: 2
-            })
-        )
-    );
+    const updates = vi
+        .spyOn(libraryApi, 'readLibrarySync')
+        .mockImplementationOnce(() => Ok(undefined).andThenAsync(async () => Err(failure)))
+        .mockImplementationOnce(() =>
+            Ok(undefined).andThenAsync(async () =>
+                Ok({
+                    items: [remoteBmp(1, 'renamed.bin'), remoteBmp(3, 'third.bin')],
+                    deleted: [],
+                    full: false,
+                    revision: 2
+                })
+            )
+        );
     const snapshot = vi.spyOn(libraryApi, 'readLibrarySnapshot').mockImplementationOnce(() =>
         Ok(undefined).andThenAsync(async () =>
             Ok({
@@ -273,8 +285,8 @@ test('automatic refresh merges the newest page and manual refresh reloads the de
     await drive.library.refresh();
 
     expect(readPage).toHaveBeenCalledTimes(2);
-    expect(updates).toHaveBeenCalledTimes(1);
-    expect(updates).toHaveBeenCalledWith('test@example.com', 'aas_et/test', false, 1);
+    expect(updates).toHaveBeenCalledTimes(2);
+    expect(updates).toHaveBeenLastCalledWith('test@example.com', 'aas_et/test', false, 1);
     expect(snapshot).not.toHaveBeenCalled();
     expect(drive.library.chunks.map((chunk) => chunk.originalName).toSorted()).toEqual([
         'renamed.bin',

@@ -17,6 +17,7 @@ import {
 } from '#browser/drive/library-state';
 import {
     loadGroupLibrary,
+    loadLibrarySyncSnapshot,
     refreshGroupLibrary,
     refreshLibrary
 } from '#browser/drive/library-refresh';
@@ -128,6 +129,25 @@ export class DriveLibrary {
 
         this.loading = true;
         this.feedback('');
+
+        if (firstPage) {
+            const synced = await loadLibrarySyncSnapshot(
+                this,
+                email,
+                token,
+                this.libraryPageTokens,
+                this.navigation.hasOrPending,
+                () => request === this.libraryRequest && email === this.account().email
+            );
+            if (request !== this.libraryRequest || email !== this.account().email) return;
+
+            if (synced) {
+                this.navigation.settle(!!this.nextPageToken);
+                this.loading = false;
+
+                return;
+            }
+        }
 
         const loaded = await readLibraryPage(email, token, pageToken);
 
