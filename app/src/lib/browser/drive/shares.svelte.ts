@@ -25,6 +25,7 @@ import {
     shareSelectionInputs,
     type ShareCandidate
 } from '#lib/share-files';
+import { shareCreateRequest, shareRevokeRequest } from '#lib/share-requests';
 
 export type ShareCopyState = 'idle' | 'copied' | 'manual' | 'failed';
 export type ShareAvailability = 'checking' | 'available' | 'unavailable';
@@ -164,13 +165,9 @@ export class DriveShares {
         this.copyState = 'idle';
         this.copyError = '';
 
-        const outcome = await (this.deps.create ?? requestShareCreate)({
-            action: 'create',
-            email: account.email,
-            token: account.token,
-            name: name.trim(),
-            files: this.inputs
-        });
+        const outcome = await (this.deps.create ?? requestShareCreate)(
+            shareCreateRequest(account, name.trim(), this.inputs)
+        );
 
         outcome.match({
             Ok: (response) => {
@@ -251,15 +248,9 @@ export class DriveShares {
         this.revokeErrorCode = '';
         this.revokeRecovery = null;
 
-        const outcome = await (this.deps.revoke ?? requestShareRevoke)({
-            action: 'revoke',
-            email: account.email,
-            token: account.token,
-            envelopeKey: record.envelopeKey,
-            albumKey: record.albumKey,
-            shortUrl: record.shortUrl,
-            albumUrl: record.albumUrl
-        });
+        const outcome = await (this.deps.revoke ?? requestShareRevoke)(
+            shareRevokeRequest(account, record)
+        );
 
         outcome.match({
             Ok: () => {
