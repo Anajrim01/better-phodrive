@@ -23,7 +23,8 @@ export function selectionBarVisible(
 export function createSelectionView(
     drive: DriveController,
     manage: DriveManage,
-    view: () => AppView
+    view: () => AppView,
+    extraOverlay: () => boolean = () => false
 ) {
     const available = $derived(
         selectionFiles(
@@ -42,7 +43,8 @@ export function createSelectionView(
             drive.confirmOpen ||
             drive.accountMenuOpen ||
             drive.bulk.moveOpen ||
-            drive.bulk.detailsOpen
+            drive.bulk.detailsOpen ||
+            extraOverlay()
     );
     const barSpaceVisible = $derived(selectionBarSpace(count, drive.bulk.running));
     const barVisible = $derived(barSpaceVisible && !overlayOpen);
@@ -69,7 +71,7 @@ export function createSelectionView(
     }
 
     function backgroundClick(event: MouseEvent, disabled: boolean): void {
-        if (view() === AppView.Settings || disabled) return;
+        if (view() === AppView.Settings || view() === AppView.Shares || disabled) return;
         if (isSelectionBackground(event.target)) drive.selection.clear();
     }
 
@@ -117,7 +119,11 @@ export function createSelectionView(
             return barSpaceVisible;
         },
         get canSelectAll() {
-            return view() !== AppView.Settings && available.length > 0 && !overlayOpen;
+            return (
+                (view() === AppView.Files || view() === AppView.Trash) &&
+                available.length > 0 &&
+                !overlayOpen
+            );
         },
         get keys() {
             return drive.selection.selectedKeys;

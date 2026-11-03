@@ -48,6 +48,7 @@ function props(overrides: Partial<BarProps> = {}): BarProps {
         disabled: false,
         running: null,
         ondownload: vi.fn(),
+        onshare: vi.fn(),
         onmove: vi.fn(),
         ondelete: vi.fn(),
         onrestore: vi.fn(),
@@ -67,11 +68,30 @@ test('the floating bar names the count and offers the main list bulk actions', (
     expect(screen.getByRole('toolbar', { name: 'Selection actions' })).toBeTruthy();
     expect(screen.getByText('3 selected')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Download selected files' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Share selected files' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Move selected files' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Delete selected files' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Details of selected files' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Clear selection' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: /rename/i })).toBeNull();
+});
+
+test('the share action hides until the viewer is available and disables with a reason', () => {
+    const view = render(SelectionBar, { props: props({ showShare: false }) });
+    expect(screen.queryByRole('button', { name: /share selected files/i })).toBeNull();
+    view.unmount();
+
+    render(SelectionBar, {
+        props: props({
+            shareDisabled: true,
+            shareHint: 'Share needs complete files. Remove incomplete files to continue.'
+        })
+    });
+
+    const share = screen.getByRole('button', {
+        name: 'Share needs complete files. Remove incomplete files to continue.'
+    }) as HTMLButtonElement;
+    expect(share.disabled).toBe(true);
 });
 
 test('Trash swaps in restore and delete forever without a bulk rename', () => {

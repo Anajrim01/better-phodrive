@@ -12,6 +12,7 @@
     } from '#browser/drive/menu-types';
     import IconPreview from '~icons/material-symbols/visibility';
     import IconDownload from '~icons/material-symbols/download';
+    import IconShare from '~icons/material-symbols/share';
     import IconRename from '~icons/material-symbols/drive-file-rename-outline';
     import IconMove from '~icons/material-symbols/drive-file-move-outline';
     import IconRestore from '~icons/material-symbols/restore-from-trash-outline';
@@ -23,6 +24,7 @@
     const MENU_ICONS: Partial<Record<MenuAction, Component>> = {
         preview: IconPreview,
         download: IconDownload,
+        share: IconShare,
         rename: IconRename,
         move: IconMove,
         'move-contents': IconMove,
@@ -38,11 +40,20 @@
         target: MenuTarget | null;
         anchor: MenuAnchor | null;
         disabled?: boolean;
+        shareAvailable?: boolean;
         onclose: () => void;
         onaction: (action: MenuAction) => void;
     }
 
-    let { open, target, anchor, disabled = false, onclose, onaction }: Props = $props();
+    let {
+        open,
+        target,
+        anchor,
+        disabled = false,
+        shareAvailable = true,
+        onclose,
+        onaction
+    }: Props = $props();
 
     let menu = $state<ReturnType<typeof Menu>>();
     let menuElement = $state<HTMLDivElement>();
@@ -55,9 +66,9 @@
         target === null
             ? []
             : target.kind === 'selection'
-              ? selectionMenu(target.trash)
+              ? selectionMenu(target.trash, shareAvailable)
               : target.kind === 'file'
-                ? fileMenu(target.item, target.item.trashed)
+                ? fileMenu(target.item, target.item.trashed, shareAvailable)
                 : folderMenu(target.entry)
     );
 

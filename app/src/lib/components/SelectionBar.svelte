@@ -4,6 +4,7 @@
     import { prefersReducedMotion } from 'svelte/motion';
     import { FileActionKind } from '@madkarmaa/phodrive-core/models';
     import IconDownload from '~icons/material-symbols/download';
+    import IconShare from '~icons/material-symbols/share';
     import IconMove from '~icons/material-symbols/drive-file-move-outline';
     import IconDelete from '~icons/material-symbols/delete-outline';
     import IconDeleteForever from '~icons/material-symbols/delete-forever-outline';
@@ -19,7 +20,11 @@
         running: FileActionKind | null;
         progressDone?: number;
         progressTotal?: number;
+        showShare?: boolean;
+        shareDisabled?: boolean;
+        shareHint?: string;
         ondownload: () => void;
+        onshare: () => void;
         onmove: () => void;
         ondelete: () => void;
         onrestore: () => void;
@@ -36,7 +41,11 @@
         running,
         progressDone = 0,
         progressTotal = 0,
+        showShare = true,
+        shareDisabled = false,
+        shareHint = '',
         ondownload,
+        onshare,
         onmove,
         ondelete,
         onrestore,
@@ -107,6 +116,23 @@
                 {#snippet start()}<IconDownload aria-hidden="true" />{/snippet}
                 <span class="action-label">Download</span>
             </Button>
+            {#if showShare}
+                <Button
+                    variant="text"
+                    size="s"
+                    aria-label={shareDisabled
+                        ? shareHint || 'Share unavailable for this selection'
+                        : 'Share selected files'}
+                    title={shareDisabled
+                        ? shareHint || 'Share unavailable for this selection'
+                        : 'Share selected files'}
+                    disabled={disabled || shareDisabled}
+                    onclick={onshare}
+                >
+                    {#snippet start()}<IconShare aria-hidden="true" />{/snippet}
+                    <span class="action-label">Share</span>
+                </Button>
+            {/if}
             <Button
                 variant="text"
                 size="s"

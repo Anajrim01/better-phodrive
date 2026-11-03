@@ -1,6 +1,7 @@
 <script lang="ts">
     import type { DriveController } from '#browser/drive/index.svelte';
     import type { DriveSelectionView } from '#browser/drive/selection-view.svelte';
+    import { shareFileInputs } from '#lib/share-files';
     import SelectionBar from '#components/SelectionBar.svelte';
     import SelectionKeys from '#components/SelectionKeys.svelte';
     import SelectionScope from '#components/SelectionScope.svelte';
@@ -10,9 +11,22 @@
         selection: DriveSelectionView;
         actionsDisabled: boolean;
         browseDisabled: boolean;
+        showShare?: boolean;
+        onshare: () => void;
     }
 
-    let { drive, selection, actionsDisabled, browseDisabled }: Props = $props();
+    let {
+        drive,
+        selection,
+        actionsDisabled,
+        browseDisabled,
+        showShare = true,
+        onshare
+    }: Props = $props();
+
+    const shareInputs = $derived(shareFileInputs(selection.selected));
+    const shareHint = $derived(shareInputs.match({ Ok: () => '', Err: (error) => error.message }));
+    const shareDisabled = $derived(shareInputs.isErr());
 </script>
 
 <SelectionScope scope={selection.scope} onreset={selection.clear} />
@@ -33,7 +47,11 @@
         running={drive.bulk.runningAction}
         progressDone={drive.bulk.progressDone}
         progressTotal={drive.bulk.progressTotal}
+        {showShare}
+        {shareDisabled}
+        {shareHint}
         ondownload={() => void drive.bulk.download(selection.selected)}
+        {onshare}
         onmove={() => drive.bulk.openMove(selection.selected)}
         ondelete={() => selection.confirm(selection.selected, false)}
         onrestore={() => void drive.bulk.restore(selection.selected)}
