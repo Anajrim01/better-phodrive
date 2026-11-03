@@ -12,16 +12,12 @@ import type { UploadedChunk } from '../../files';
 import { MAX_CHUNK_PAYLOAD_BYTES } from '../../bmp/format';
 import { INVALID_UPLOAD_PROGRESS, type ChunkTransport } from './request';
 import { hashUploadChunk } from './hash';
+import { createThrottleCoordinator, type ThrottleCoordinator } from './throttle';
 
 const CHUNK_RETRY_LIMIT = 4;
-const RETRY_WAIT_CAP_SECONDS = 300;
 
 function invalidResponse(): Result<never, ApplicationError> {
     return Err(INVALID_UPLOAD_PROGRESS);
-}
-
-function pause(seconds: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, seconds * 1_000));
 }
 
 export function uploadChunk(
@@ -34,7 +30,9 @@ export function uploadChunk(
         chunk: UploadEvent & { type: UploadEventType.Chunk }
     ) => Result<void, ApplicationError>,
     compress = false,
-    folder = ''
+    folder = '',
+    throttle: ThrottleCoordinator = createThrottleCoordinator(),
+    signal?: AbortSignal
 ): AsyncResult<UploadResponse, ApplicationError> {
     const start = header.chunkIndex * MAX_CHUNK_PAYLOAD_BYTES;
     const payload = file.slice(start, start + header.payloadSize);
@@ -56,6 +54,15 @@ export function uploadChunk(
         let emitted = 0;
 
         for (let attempt = 1; attempt <= CHUNK_RETRY_LIMIT; attempt++) {
+            if (signal?.aborted)
+                return Err({ code: 'UPLOAD_CANCELLED', message: 'Upload cancelled.' } as const);
+
+            try {
+                await throttle.wait(email, signal);
+            } catch {
+                return Err({ code: 'UPLOAD_CANCELLED', message: 'Upload cancelled.' } as const);
+            }
+
             let sent = 0;
             let reused = 0;
             let saved: UploadedChunk | null = null;
@@ -128,13 +135,14 @@ export function uploadChunk(
                 Ok: () => null,
                 Err: (error) => error
             });
+            if (signal?.aborted)
+                return Err({ code: 'UPLOAD_CANCELLED', message: 'Upload cancelled.' } as const);
             if (!failure) return result ? Ok(result) : invalidResponse();
 
             if (failure.code !== 'THROTTLED' || attempt === CHUNK_RETRY_LIMIT) return Err(failure);
 
-            const wait = Math.min(failure.retryAfterSeconds, RETRY_WAIT_CAP_SECONDS);
+            const wait = throttle.pause(email, failure.retryAfterSeconds);
             onProgress(sent, reused, wait);
-            await pause(wait);
         }
 
         return invalidResponse();

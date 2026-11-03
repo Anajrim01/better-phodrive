@@ -1,6 +1,7 @@
-import { expect, test } from 'vitest';
+import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { Err, Ok } from 'results-ts';
 import type { UploadedChunk } from '@madkarmaa/phodrive-core/files';
+
 import type { ChunkUploadRequest, UploadEvent } from '@madkarmaa/phodrive-core/models';
 import {
     UploadEventType,
@@ -17,6 +18,14 @@ import type { ChunkTransport } from '@madkarmaa/phodrive-core/browser/upload/req
 import { uploadFiles, uploadGroupFiles, type UploadJob } from '@madkarmaa/phodrive-core/node';
 import { planChunks } from '@madkarmaa/phodrive-core/upload';
 import { photosUploadHarness } from '../helpers/upload';
+
+beforeEach(() => {
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+});
+
+afterEach(() => {
+    vi.restoreAllMocks();
+});
 
 const FIRST = 'first@example.com';
 const SECOND = 'second@example.com';

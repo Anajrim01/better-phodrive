@@ -1,6 +1,7 @@
 import { UploadJobStatus } from '@madkarmaa/phodrive-core/models';
 import type { FileGroup, UploadedChunk } from '@madkarmaa/phodrive-core/files';
 import {
+    createThrottleCoordinator,
     uploadGroupFiles,
     type ExistingUpload,
     type GroupUploadMember
@@ -44,6 +45,7 @@ export class DriveUploads {
     private folders = new Map<number, string>();
     private recent = new Map<string, ExistingUpload>();
     private pending = new Set<string>();
+    private readonly throttle = createThrottleCoordinator();
 
     constructor(private readonly deps: UploadDeps) {}
 
@@ -164,7 +166,8 @@ export class DriveUploads {
         const transferOptions = {
             folder,
             compress: preferences?.compression ?? false,
-            existing: findExisting
+            existing: findExisting,
+            throttle: this.throttle
         };
         const onJob = (job: UploadJob) => {
             const id = plan.jobIds[job.id] ?? retryId ?? job.id;

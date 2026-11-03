@@ -25,6 +25,7 @@ export type ApplicationError =
               | 'RESTORE_FAILED'
               | 'REQUEST_FAILED'
               | 'STORAGE_UNAVAILABLE'
+              | 'UPLOAD_CANCELLED'
               | 'UPLOAD_FAILED'
               | 'UPLOAD_STREAM_INTERRUPTED'
               | 'HASH_INITIALIZATION_FAILED'

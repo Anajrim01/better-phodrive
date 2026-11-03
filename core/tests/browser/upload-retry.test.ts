@@ -1,4 +1,4 @@
-import { expect, test } from 'vitest';
+import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { Err, Ok } from 'results-ts';
 import { transferFiles } from '@madkarmaa/phodrive-core/browser/upload';
 import { uploadIdentity } from '@madkarmaa/phodrive-core/browser/upload/hash';
@@ -11,6 +11,14 @@ import {
 } from '@madkarmaa/phodrive-core/models';
 import { planChunks } from '@madkarmaa/phodrive-core/upload';
 import type { UploadedChunk } from '@madkarmaa/phodrive-core/files';
+
+beforeEach(() => {
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+});
+
+afterEach(() => {
+    vi.restoreAllMocks();
+});
 
 test('a throttled chunk waits and retries without committing twice', async () => {
     const file = new File(['retry me'], 'retry.bin');
@@ -134,4 +142,40 @@ test('a chunk that stays throttled fails the file after the retry limit', async 
 
     expect(attempts).toBe(4);
     expect(failure).toContain('retrying');
+});
+
+test('aborting a waiting upload stops before another attempt', async () => {
+    const file = new File(['retry me'], 'retry.bin');
+    const controller = new AbortController();
+    let attempts = 0;
+    let failure = '';
+
+    const transport: ChunkTransport = () => {
+        attempts++;
+
+        return Err({
+            code: 'THROTTLED',
+            message: 'Google Photos is limiting requests',
+            retryAfterSeconds: 60
+        } as const).andThenAsync(async () => Ok(undefined));
+    };
+
+    const finished = transferFiles(
+        [file],
+        'retry@example.com',
+        'aas_et/retry',
+        1,
+        (job) => {
+            if (job.status === UploadJobStatus.Error) failure = job.message;
+        },
+        () => {},
+        transport,
+        { signal: controller.signal }
+    );
+
+    setTimeout(() => controller.abort(), 10);
+    await finished;
+
+    expect(attempts).toBe(1);
+    expect(failure).toBe('Upload cancelled.');
 });
