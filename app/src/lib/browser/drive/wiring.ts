@@ -10,10 +10,9 @@ export function groupLibraryAccess(mode: DriveGroupMode, groups: DriveGroups) {
     };
 }
 
-export function groupUploadAccess(mode: DriveGroupMode, groups: DriveGroups, reload: () => void) {
+export function groupUploadAccess(mode: DriveGroupMode, groups: DriveGroups) {
     return {
         group: () => (mode.target ? { members: mode.target.members } : null),
-        reloadGroup: reload,
         markPaused: (email: string, retryAt: number) => groups.markPaused(email, retryAt),
         observe: (email: string) => groups.observe(email)
     };

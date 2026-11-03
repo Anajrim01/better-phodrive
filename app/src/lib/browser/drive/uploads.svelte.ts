@@ -32,7 +32,6 @@ export type UploadDeps = {
     onChunk: (chunk: UploadedChunk) => void;
     afterUpload: () => void;
     reload: (email: string, token: string) => void;
-    reloadGroup: () => void;
     markPaused: (email: string, retryAt: number) => void;
     observe: (email: string) => void;
 };
@@ -256,7 +255,6 @@ export class DriveUploads {
         this.deps.afterUpload();
 
         this.busy = false;
-        if (group) this.deps.reloadGroup();
-        else this.deps.reload(email, token!);
+        if (!group) this.deps.reload(email, token!);
     }
 }

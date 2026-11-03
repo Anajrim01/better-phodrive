@@ -73,11 +73,7 @@ export class DriveController extends DriveView {
             libraryGroup.members,
             libraryGroup.onAccounts
         );
-        const uploadGroup = groupUploadAccess(
-            this.groupMode,
-            this.groupSettings,
-            () => void this.library.load()
-        );
+        const uploadGroup = groupUploadAccess(this.groupMode, this.groupSettings);
         this.uploads = new DriveUploads({
             account: () => this.account(),
             folder: () => this.library.folder,

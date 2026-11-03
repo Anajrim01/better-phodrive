@@ -54,7 +54,7 @@ test('listing state reaches member status through the wiring', () => {
 
 test('an upload retry reaches the pause and excludes that member', () => {
     const { store, mode } = setup();
-    const access = groupUploadAccess(mode, store, () => {});
+    const access = groupUploadAccess(mode, store);
     const until = Date.now() + 30_000;
 
     access.markPaused(FIRST, until);
@@ -65,7 +65,7 @@ test('an upload retry reaches the pause and excludes that member', () => {
 
 test('a successful upload observes the account without clearing a pause', () => {
     const { store, mode } = setup();
-    const access = groupUploadAccess(mode, store, () => {});
+    const access = groupUploadAccess(mode, store);
     const until = Date.now() + 30_000;
 
     store.markPaused(FIRST, until);
