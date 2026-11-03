@@ -24,10 +24,18 @@ import {
 } from '@madkarmaa/phodrive-core/server/photos/library/ensure';
 import { downloadFixture } from '../helpers/download';
 
-vi.mock('@madkarmaa/phodrive-core/server/photos', () => ({
-    downloadBmp: vi.fn(),
+// Mock the leaf modules rather than the photos barrel: the built core imports them
+// directly, while source imports the barrel that re-exports these same functions.
+vi.mock('@madkarmaa/phodrive-core/server/photos/trash', () => ({
     moveToTrash: vi.fn(),
-    restoreFromTrash: vi.fn(),
+    moveToTrashBatch: vi.fn()
+}));
+
+vi.mock('@madkarmaa/phodrive-core/server/photos/restore', () => ({
+    restoreFromTrash: vi.fn()
+}));
+
+vi.mock('@madkarmaa/phodrive-core/server/photos/permanent-delete', () => ({
     deletePermanently: vi.fn()
 }));
 
