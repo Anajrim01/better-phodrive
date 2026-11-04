@@ -129,7 +129,7 @@ function parseSignedDownloadUrl(text: string): Result<URL, ServerError> {
 }
 
 /** Videos have a separate download variant and cannot contain a Phodrive BMP. */
-export function parsePhotoDownloadUrl(
+function parsePhotoDownloadUrl(
     metadata: Buffer,
     mediaKey: string,
     sha1: string
