@@ -1,4 +1,5 @@
 import {
+    AddGoogleAccountRequestSchema,
     GoogleTokenRequestSchema,
     GoogleTokenSchema,
     SignUpRequestSchema,
@@ -11,7 +12,13 @@ import { errorResponse, jsonResponse, readJsonRequest } from '../api';
 import { handleAuthRequest, readSessionUser } from '../auth';
 import type { ServerContext } from '../context';
 import { AUTH_ERRORS } from '../errors';
-import { readGoogleEmail, saveGoogleAccount } from '../google';
+import {
+    listGoogleAccounts,
+    readGoogleEmail,
+    removeGoogleAccount,
+    saveGoogleAccount,
+    updateGoogleAccountToken
+} from '../google';
 import { requireUser, type ApiEnv } from '../middleware';
 import { signUp } from '../signup';
 import { decryptToken, publicTokenKey } from '../token-key';
@@ -61,6 +68,8 @@ export function authRoutes({ auth }: ServerContext) {
 }
 
 export function accountRoutes(context: ServerContext) {
+    const signedIn = requireUser(context);
+
     return new Hono<ApiEnv>()
         .get('/key', () =>
             publicTokenKey().match({ Ok: (key) => jsonResponse({ key }), Err: errorResponse })
@@ -84,18 +93,63 @@ export function accountRoutes(context: ServerContext) {
                     Err: errorResponse
                 })
         )
-        .put('/google', requireUser(context), (c) => {
+        .get('/google', signedIn, async (c) => {
+            const accounts = await listGoogleAccounts(context, c.get('user').id);
+
+            return accounts.match({
+                Ok: (items) => jsonResponse({ accounts: items }),
+                Err: errorResponse
+            });
+        })
+        .post('/google', signedIn, (c) =>
+            readJsonRequest(
+                c.req.raw,
+                AddGoogleAccountRequestSchema,
+                'Enter the Google account email and token.'
+            )
+                .andThenAsync(({ email, encryptedToken }) =>
+                    readEncryptedToken(encryptedToken).map((token) => ({ email, token }))
+                )
+                .andThenAsync(({ email, token }) =>
+                    connectGoogleAccount(email, token).andThenAsync((aasToken) =>
+                        saveGoogleAccount(context, c.get('user').id, {
+                            email,
+                            token: aasToken
+                        })
+                    )
+                )
+                .match({
+                    Ok: (account) => jsonResponse({ account }),
+                    Err: errorResponse
+                })
+        )
+        .put('/google/:id', signedIn, (c) => {
             const user = c.get('user');
+            const accountId = c.req.param('id');
 
             return readJsonRequest(c.req.raw, GoogleTokenRequestSchema, TOKEN_FORMAT_ERROR)
                 .andThenAsync(({ encryptedToken }) => readEncryptedToken(encryptedToken))
                 .andThenAsync((token) =>
-                    readGoogleEmail(context, user).andThenAsync((email) =>
+                    readGoogleEmail(context, user.id, accountId).andThenAsync((email) =>
                         connectGoogleAccount(email, token).andThenAsync((aasToken) =>
-                            saveGoogleAccount(context, user.id, { email, token: aasToken })
+                            updateGoogleAccountToken(context, user.id, accountId, aasToken)
                         )
                     )
                 )
-                .match({ Ok: () => jsonResponse({ connected: true }), Err: errorResponse });
+                .match({
+                    Ok: (account) => jsonResponse({ account }),
+                    Err: errorResponse
+                });
+        })
+        .delete('/google/:id', signedIn, async (c) => {
+            const removed = await removeGoogleAccount(context, c.get('user').id, c.req.param('id'));
+
+            return removed.match({
+                Ok: (deleted) =>
+                    deleted
+                        ? jsonResponse({ removed: true })
+                        : errorResponse(AUTH_ERRORS.GOOGLE_ACCOUNT_NOT_FOUND),
+                Err: errorResponse
+            });
         });
 }

@@ -40,7 +40,7 @@ beforeEach(() => {
 test('drive routes refuse signed-out requests before contacting Google', async () => {
     vi.mocked(requireSessionUser).mockReturnValue(rejected(AUTH_ERRORS.SIGNED_OUT));
 
-    for (const path of ['/api/library', '/api/files', '/api/upload']) {
+    for (const path of ['/api/library', '/api/files', '/api/upload', '/api/chunk']) {
         const response = await postJson(path, {});
         const body: unknown = await response.json();
 
@@ -64,6 +64,7 @@ test('the library uses the stored account and ignores credentials sent by the cl
 
     expect(response.status).toBe(200);
     expect(vi.mocked(readGoogleAccount).mock.calls[0][1]).toBe(USER.id);
+    expect(vi.mocked(readGoogleAccount).mock.calls[0][2]).toBeUndefined();
     expect(listBmps).toHaveBeenCalledWith(
         ACCOUNT.email,
         ACCOUNT.token,
@@ -71,6 +72,49 @@ test('the library uses the stored account and ignores credentials sent by the cl
         undefined,
         expect.anything()
     );
+});
+
+test('a drive request selects a Google account by its stable id', async () => {
+    vi.mocked(listBmps).mockReturnValue(resolved({ items: [], nextPageToken: '' }));
+
+    const response = await call('/api/library', {
+        method: 'POST',
+        headers: {
+            'content-type': 'application/json',
+            'x-phodrive-account-id': 'other-account'
+        },
+        body: JSON.stringify({ pageToken: '' })
+    });
+
+    expect(response.status).toBe(200);
+    expect(vi.mocked(readGoogleAccount).mock.calls[0][2]).toBe('other-account');
+});
+
+test('library items carry the stable account id', async () => {
+    vi.mocked(listBmps).mockReturnValue(
+        resolved({
+            items: [
+                {
+                    fileHash: 'a'.repeat(64),
+                    fileId: 'b'.repeat(64),
+                    chunkIndex: 0,
+                    isLast: true,
+                    originalName: 'proof.bin',
+                    size: 4,
+                    at: 1,
+                    mediaKey: 'media-key',
+                    sha1: 'c'.repeat(40)
+                }
+            ],
+            nextPageToken: ''
+        })
+    );
+
+    const response = await postJson('/api/library', { pageToken: '' });
+    const body = (await response.json()) as { items: Array<{ accountId?: string }> };
+
+    expect(response.status).toBe(200);
+    expect(body.items[0]?.accountId).toBe(ACCOUNT.id);
 });
 
 test('in browser mode, uploads relay finished BMPs with the stored account', async () => {

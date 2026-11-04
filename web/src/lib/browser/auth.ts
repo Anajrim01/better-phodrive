@@ -16,7 +16,6 @@ import {
 const SESSION_URL = '/api/session';
 const SESSION_FAILED = 'Could not reach the Phodrive server. Try again.';
 const SIGN_UP_URL = '/api/account';
-const GOOGLE_TOKEN_URL = '/api/account/google';
 const TOKEN_KEY_URL = '/api/account/key';
 const ENCRYPTION_FAILED = {
     code: 'REQUEST_FAILED',
@@ -73,7 +72,7 @@ function encodeBase64(bytes: Uint8Array): string {
 }
 
 /** Encrypt a pasted token with the server's current public key; only the server can read it. */
-function encryptToken(token: string): AsyncResult<string, ApplicationError> {
+export function encryptToken(token: string): AsyncResult<string, ApplicationError> {
     return apiJson(TOKEN_KEY_URL, { method: 'GET' }, ENCRYPTION_FAILED.message)
         .andThen((body) => schemaResult(TokenKeySchema, body, ENCRYPTION_FAILED.message))
         .andThenAsync(async ({ key }): Promise<Result<string, ApplicationError>> => {
@@ -123,15 +122,4 @@ export function signUp({
 
         return postJson(SIGN_UP_URL, 'POST', body, 'Could not create your account. Try again.');
     });
-}
-
-export function replaceGoogleToken(token: string): AsyncResult<void, ApplicationError> {
-    return encryptToken(token).andThenAsync((encryptedToken) =>
-        postJson(
-            GOOGLE_TOKEN_URL,
-            'PUT',
-            { encryptedToken },
-            'Google could not validate this token. Try again.'
-        )
-    );
 }

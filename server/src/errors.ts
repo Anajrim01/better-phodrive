@@ -11,6 +11,10 @@ export type AuthError = {
         | 'DATABASE_UNAVAILABLE'
         | 'GOOGLE_ACCOUNT_MISSING'
         | 'GOOGLE_ACCOUNT_UNREADABLE'
+        | 'GOOGLE_ACCOUNT_NOT_FOUND'
+        | 'GROUP_NOT_FOUND'
+        | 'GROUP_MEMBER_INVALID'
+        | 'GROUP_NAME_INVALID'
         | 'TOKEN_DECRYPTION_FAILED'
         | 'NOT_FOUND';
     readonly message: string;
@@ -53,6 +57,26 @@ export const AUTH_ERRORS = {
         code: 'GOOGLE_ACCOUNT_UNREADABLE',
         message: 'Your saved Google token could not be read. Replace it in Settings.',
         status: 409
+    },
+    GOOGLE_ACCOUNT_NOT_FOUND: {
+        code: 'GOOGLE_ACCOUNT_NOT_FOUND',
+        message: 'Google account not found.',
+        status: 404
+    },
+    GROUP_NOT_FOUND: {
+        code: 'GROUP_NOT_FOUND',
+        message: 'Group not found.',
+        status: 404
+    },
+    GROUP_MEMBER_INVALID: {
+        code: 'GROUP_MEMBER_INVALID',
+        message: 'The group or Google account does not belong to this user.',
+        status: 404
+    },
+    GROUP_NAME_INVALID: {
+        code: 'GROUP_NAME_INVALID',
+        message: 'Enter a group name between 1 and 80 characters.',
+        status: 400
     },
     TOKEN_DECRYPTION_FAILED: {
         code: 'TOKEN_DECRYPTION_FAILED',

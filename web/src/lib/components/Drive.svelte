@@ -99,10 +99,13 @@
     >
         {#if drive.ready && view === AppView.Settings}
             <SettingsPanel
-                email={drive.email}
                 processing={drive.processing}
                 replacingToken={drive.account.replacingToken}
-                onreplacetoken={(token) => drive.account.replaceToken(token)}
+                onreplacetoken={(accountId, token) => drive.account.replaceToken(accountId, token)}
+                onaccountschange={() => {
+                    drive.library.reset();
+                    void drive.library.load();
+                }}
                 defaults={preferencesDefaults}
                 refreshIntervalSeconds={drive.settings.refreshIntervalSeconds}
                 concurrentWorkers={drive.settings.concurrentWorkers}

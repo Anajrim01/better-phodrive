@@ -131,7 +131,7 @@ For Docker, pass the same variables with `-e`, for example `-e PHODRIVE_DEFAULT_
 
 ## Create an account
 
-Each Phodrive account belongs to one Google account.
+Each Phodrive account can connect one or more Google accounts.
 
 1. Open the app at the address shown above for your setup and choose **Create account**.
 2. Sign in at [Google Embedded Setup](https://accounts.google.com/EmbeddedSetup).
@@ -140,7 +140,7 @@ Each Phodrive account belongs to one Google account.
 
 ![How to get the token](./docs/screenshots/token.png)
 
-Afterwards, sign in with the email and password. To use another Google account, sign out and sign in with, or create, its Phodrive account. If Google stops accepting the token, replace it in Settings.
+Afterwards, sign in with the email and password. In Settings you can connect more Google accounts and organize them into named groups. Until group libraries arrive, the drive reads from the first connected account. If Google stops accepting a token, replace it for that account in Settings.
 
 > [!NOTE]
 > The page encrypts the token with a key only the server holds, so no request carries it. The server exchanges it, stores it encrypted in the database, and makes every Google Photos request itself; the browser never receives it.

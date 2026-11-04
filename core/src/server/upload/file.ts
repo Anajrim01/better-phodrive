@@ -55,8 +55,12 @@ function jobEvent(job: UploadJob): UploadEvent | null {
     return { type: UploadEventType.Progress, id: 0, progress: job.progress };
 }
 
-function chunkEvent({ email: _email, ...chunk }: UploadedChunk): UploadEvent {
-    return { type: UploadEventType.Chunk, id: 0, chunk };
+function chunkEvent({ email: _email, ...chunk }: UploadedChunk, accountId?: string): UploadEvent {
+    return {
+        type: UploadEventType.Chunk,
+        id: 0,
+        chunk: { ...chunk, ...(accountId ? { accountId } : {}) }
+    };
 }
 
 /** The spooled file is read lazily from disk while it is hashed, split, encoded, and uploaded. */
@@ -67,7 +71,8 @@ function uploadSpooledFile(
     emit: (event: UploadEvent) => void,
     signal: AbortSignal,
     fetcher?: Fetcher,
-    metadata?: ChunkMetadataStore
+    metadata?: ChunkMetadataStore,
+    accountId?: string
 ): AsyncResult<void, SpoolError> {
     return Ok(undefined).andThenAsync(async (): Promise<Result<void, SpoolError>> => {
         let file: File;
@@ -92,7 +97,7 @@ function uploadSpooledFile(
             (chunk) => {
                 const record = uploadedChunkMetadata(chunk);
                 if (record) records.push(record);
-                emit(chunkEvent(chunk));
+                emit(chunkEvent(chunk, accountId));
             },
             { signal, fetcher }
         );
@@ -109,7 +114,8 @@ function spoolAndUpload(
     account: Account,
     emit: (event: UploadEvent) => void,
     fetcher?: Fetcher,
-    metadata?: ChunkMetadataStore
+    metadata?: ChunkMetadataStore,
+    accountId?: string
 ): AsyncResult<void, SpoolError> {
     return createSpoolDirectory().andThenAsync(async (directory) => {
         const path = join(directory, 'file');
@@ -131,7 +137,8 @@ function spoolAndUpload(
                 emit,
                 received.signal,
                 fetcher,
-                metadata
+                metadata,
+                accountId
             );
         } finally {
             await rm(directory, { recursive: true, force: true }).catch(() => {});
@@ -144,10 +151,11 @@ export function fileUploadStream(
     received: ReceivedFile,
     account: Account,
     fetcher?: Fetcher,
-    metadata?: ChunkMetadataStore
+    metadata?: ChunkMetadataStore,
+    accountId?: string
 ): Response {
     return uploadEventStream({
-        run: (emit) => spoolAndUpload(received, account, emit, fetcher, metadata),
+        run: (emit) => spoolAndUpload(received, account, emit, fetcher, metadata, accountId),
         cancel: received.cancel
     });
 }

@@ -1,8 +1,9 @@
 import { invalidateAll } from '$app/navigation';
-import { replaceGoogleToken, signOut } from '#browser/auth';
+import { replaceGoogleAccountToken } from '#browser/accounts';
+import { signOut } from '#browser/auth';
 import type { DriveLibrary } from '#browser/drive/library.svelte';
 
-/** Replacing the Google token and signing out, allowed only while no file work is running. */
+/** Token replacement and sign out, allowed only while no file work is running. */
 export class DriveAccount {
     replacingToken = $state(false);
     signingOut = $state(false);
@@ -13,14 +14,14 @@ export class DriveAccount {
         private readonly feedback: (message: string) => void
     ) {}
 
-    /** Validate a new Google token on the server, then reload files with it. */
-    async replaceToken(token: string): Promise<boolean> {
+    /** Validate a new token for one account on the server, then reload files with it. */
+    async replaceToken(accountId: string, token: string): Promise<boolean> {
         if (this.replacingToken || !this.idle()) return false;
 
         this.replacingToken = true;
         this.feedback('');
 
-        const replaced = await replaceGoogleToken(token);
+        const replaced = await replaceGoogleAccountToken(accountId, token);
 
         this.replacingToken = false;
 

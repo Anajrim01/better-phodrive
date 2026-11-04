@@ -70,7 +70,9 @@ test('Better Auth rejections keep their message and spend no Google token', asyn
 test('the user is created without the Google token and with the server client address', async () => {
     vi.mocked(auth.handler).mockResolvedValue(createdResponse());
     vi.mocked(connectGoogleAccount).mockReturnValue(resolved('aas_et/exchanged'));
-    vi.mocked(saveGoogleAccount).mockReturnValue(resolved(undefined));
+    vi.mocked(saveGoogleAccount).mockReturnValue(
+        resolved({ id: 'account-id', email: INPUT.email })
+    );
 
     const result = await signUp(testContext(), browserRequest(), CLIENT_ADDRESS, INPUT);
 

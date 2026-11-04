@@ -7,7 +7,11 @@ import type { ApiEnv } from '../../src/middleware';
 import { testContext } from './context';
 
 export const USER = { id: 'user-id', email: 'test@example.com' };
-export const ACCOUNT = { email: 'test@example.com', token: 'aas_et/stored' };
+export const ACCOUNT = {
+    id: 'account-id',
+    email: 'test@example.com',
+    token: 'aas_et/stored'
+};
 export const CLIENT_ADDRESS = '203.0.113.7';
 
 /** Where this server processes files; tests may switch it and reset it before each test. */
