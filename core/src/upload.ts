@@ -20,7 +20,8 @@ export function chunkHeader(file: UploadFile, fileId: string, chunkIndex: number
             MAX_CHUNK_PAYLOAD_BYTES,
             file.size - chunkIndex * MAX_CHUNK_PAYLOAD_BYTES
         ),
-        fileName: chunkIndex === 0 ? file.name : undefined
+        fileName: chunkIndex === 0 ? file.name : undefined,
+        folder: chunkIndex === 0 ? file.folder || undefined : undefined
     };
 }
 

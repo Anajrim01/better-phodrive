@@ -16,6 +16,7 @@ CREATE TABLE "chunk_metadata" (
 	"chunk_index" integer NOT NULL,
 	"is_last" boolean NOT NULL,
 	"original_name" text,
+	"folder" text,
 	"size" integer NOT NULL,
 	CONSTRAINT "chunk_metadata_scope_pk" PRIMARY KEY("user_id","google_account_id","media_key")
 );

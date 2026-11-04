@@ -15,6 +15,7 @@ export type ChunkMetadataRecord = {
     chunkIndex: number;
     isLast: boolean;
     originalName?: string;
+    folder?: string;
     size: number;
 };
 
@@ -37,6 +38,7 @@ export function chunkMetadataRecord(item: RemoteBmp, storedBmpSize: number): Chu
         chunkIndex: item.chunkIndex,
         isLast: item.isLast,
         ...(item.originalName ? { originalName: item.originalName } : {}),
+        ...(item.chunkIndex === 0 && item.folder ? { folder: item.folder } : {}),
         size: item.size
     };
 }
@@ -49,7 +51,8 @@ export function uploadedChunkMetadata(chunk: UploadedChunk): ChunkMetadataRecord
         chunkIndex: chunk.chunkIndex,
         flags: chunk.isLast ? 1 : 0,
         payloadSize: chunk.size,
-        ...(chunk.chunkIndex === 0 && chunk.originalName ? { fileName: chunk.originalName } : {})
+        ...(chunk.chunkIndex === 0 && chunk.originalName ? { fileName: chunk.originalName } : {}),
+        ...(chunk.chunkIndex === 0 && chunk.folder ? { folder: chunk.folder } : {})
     } as const;
     const size = splitBmpByteLength(header);
 
@@ -67,6 +70,7 @@ export function metadataItem(record: ChunkMetadataRecord, candidate: LibraryCand
         chunkIndex: record.chunkIndex,
         isLast: record.isLast,
         ...(record.originalName ? { originalName: record.originalName } : {}),
+        ...(record.chunkIndex === 0 && record.folder ? { folder: record.folder } : {}),
         size: record.size,
         at: candidate.at,
         mediaKey: candidate.mediaKey,

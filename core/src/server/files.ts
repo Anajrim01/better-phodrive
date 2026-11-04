@@ -21,7 +21,8 @@ function validateChunks(input: FileRequest): Result<RemoteBmp[], ServerError> {
             (chunk, index) =>
                 chunk.chunkIndex !== index ||
                 chunk.isLast !== (index === chunks.length - 1) ||
-                (index === 0 && chunk.originalName !== input.name)
+                (index === 0 && chunk.originalName !== input.name) ||
+                (index !== 0 && chunk.folder !== undefined)
         )
     )
         return Err(SERVER_ERRORS.INCOMPLETE_DOWNLOAD_CHUNKS);

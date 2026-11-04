@@ -33,6 +33,7 @@ export class DriveController {
     uploadJobs = $state<UploadJob[]>([]);
     private uploadSources: readonly File[] = [];
     private readonly uploadOwners = new Map<number, GoogleAccountSummary>();
+    private readonly uploadFolders = new Map<number, string>();
     private uploadAbort: AbortController | null = null;
 
     feedbackMessage = $state('');
@@ -184,10 +185,12 @@ export class DriveController {
         }
 
         this.uploadSources = [...files];
-        const plan = planUploads(files, context);
+        const plan = planUploads(files, context, this.library.folder);
         this.uploadJobs = plan.jobs;
         this.uploadOwners.clear();
+        this.uploadFolders.clear();
         for (const [jobId, account] of plan.owners) this.uploadOwners.set(jobId, account);
+        for (const [jobId, folder] of plan.folders) this.uploadFolders.set(jobId, folder);
 
         if (!plan.queues.length) {
             this.uploadPanelOpen = true;
@@ -212,6 +215,12 @@ export class DriveController {
 
             return;
         }
+        if (!this.uploadFolders.has(id)) {
+            this.feedbackMessage = 'This upload has no recorded folder.';
+
+            return;
+        }
+        const folder = this.uploadFolders.get(id)!;
 
         const owner = this.context.accounts.find((account) => account.id === recorded.id);
         if (!owner) {
@@ -222,7 +231,10 @@ export class DriveController {
 
         this.uploadJobs = replaceJob(this.uploadJobs, id, createUploadJobs([file])[0]);
 
-        await this.runUploads([{ account: owner, files: [file], jobIds: [id] }], id);
+        await this.runUploads(
+            [{ account: owner, files: [file], jobIds: [id], folders: [folder] }],
+            id
+        );
     }
 
     private async runUploads(queues: readonly UploadQueue[], retryId?: number) {
@@ -243,6 +255,7 @@ export class DriveController {
                         processing: this.processing,
                         library: this.library,
                         jobIds: queue.jobIds,
+                        folders: queue.folders,
                         retryId,
                         signal: controller.signal,
                         onJob: (job, id) => {

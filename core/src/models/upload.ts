@@ -3,6 +3,7 @@ import { AccountSchema } from './accounts';
 import {
     FileNameSchema,
     FileSizeSchema,
+    FolderPathSchema,
     RemoteBmpSchema,
     Sha1HexSchema,
     Sha256HexSchema
@@ -111,7 +112,8 @@ export const UploadEventSchema = z.discriminatedUnion('type', [
 export const UploadFileSchema = z.object({
     name: FileNameSchema,
     size: FileSizeSchema,
-    fileHash: Sha256HexSchema
+    fileHash: Sha256HexSchema,
+    folder: FolderPathSchema.optional()
 });
 
 export const UploadChunkSchema = z.object({
@@ -126,7 +128,8 @@ export const UploadRequestSchema = AccountSchema.extend(UploadChunkSchema.shape)
 export const FileUploadRequestSchema = z.object({
     name: FileNameSchema,
     size: FileSizeSchema,
-    workers: WorkerCountSchema
+    workers: WorkerCountSchema,
+    folder: FolderPathSchema.optional()
 });
 
 export type UploadFile = z.infer<typeof UploadFileSchema>;

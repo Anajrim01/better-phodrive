@@ -67,7 +67,7 @@ function chunkEvent({ email: _email, ...chunk }: UploadedChunk, accountId?: stri
 /** The spooled file is read lazily from disk while it is hashed, split, encoded, and uploaded. */
 function uploadSpooledFile(
     path: string,
-    { name, workers }: FileUploadRequest,
+    { name, workers, folder }: FileUploadRequest,
     account: Account,
     emit: (event: UploadEvent) => void,
     signal: AbortSignal,
@@ -101,7 +101,7 @@ function uploadSpooledFile(
                 if (record) records.push(record);
                 emit(chunkEvent(chunk, accountId));
             },
-            { signal, fetcher, accountId, coordinator }
+            { signal, fetcher, accountId, coordinator, folder }
         );
 
         if (metadata && records.length) await metadata.save(records);

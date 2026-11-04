@@ -190,6 +190,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "folder": {
+          "name": "folder",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "size": {
           "name": "size",
           "type": "integer",

@@ -24,6 +24,7 @@ function file(accountId: string, email: string): FileGroup {
         accountId,
         fileHash: 'a'.repeat(64),
         fileId: 'b'.repeat(64),
+        folder: '',
         name: 'proof.bin',
         at: 1,
         chunkCount: 1,

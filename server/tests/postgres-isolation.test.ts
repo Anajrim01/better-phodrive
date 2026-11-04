@@ -122,7 +122,7 @@ describeDatabase('authenticated Google accounts and groups', () => {
             userId: secondUser,
             googleAccountId: third.id
         });
-        const record = (fileId: string) => ({
+        const record = (fileId: string, folder?: string) => ({
             mediaKey: 'shared-media',
             sha1: '1'.repeat(40),
             storedBmpSize: 120,
@@ -131,23 +131,28 @@ describeDatabase('authenticated Google accounts and groups', () => {
             chunkIndex: 0,
             isLast: true,
             originalName: 'photo.jpg',
+            ...(folder ? { folder } : {}),
             size: 60
         });
 
         await firstStore.save([record('first-file')]);
-        await secondStore.save([record('second-file')]);
+        await secondStore.save([record('second-file', 'Projects/2026')]);
         await thirdStore.save([record('third-file')]);
 
         const candidate = { mediaKey: 'shared-media', sha1: '1'.repeat(40), size: 120, at: 1 };
-        expect((await firstStore.load([candidate])).unwrap().get('shared-media')?.fileId).toBe(
-            'first-file'
+        expect((await firstStore.load([candidate])).unwrap().get('shared-media')).toMatchObject({
+            fileId: 'first-file'
+        });
+        expect((await firstStore.load([candidate])).unwrap().get('shared-media')?.folder).toBe(
+            undefined
         );
-        expect((await secondStore.load([candidate])).unwrap().get('shared-media')?.fileId).toBe(
-            'second-file'
-        );
-        expect((await thirdStore.load([candidate])).unwrap().get('shared-media')?.fileId).toBe(
-            'third-file'
-        );
+        expect((await secondStore.load([candidate])).unwrap().get('shared-media')).toMatchObject({
+            fileId: 'second-file',
+            folder: 'Projects/2026'
+        });
+        expect((await thirdStore.load([candidate])).unwrap().get('shared-media')).toMatchObject({
+            fileId: 'third-file'
+        });
 
         const reconnected = (
             await saveGoogleAccount(context, firstUser, {

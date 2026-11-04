@@ -1,35 +1,29 @@
 import {
+    folderTrail,
     groupChunks,
-    sortFiles,
-    filterFiles,
     fileType,
     ownerKey,
     type FileGroup,
     type UploadedChunk
 } from '@madkarmaa/phodrive-core/files';
-import { FileSort, type GoogleAccountSummary } from '@madkarmaa/phodrive-core/models';
+import { FileSort } from '@madkarmaa/phodrive-core/models';
 import { readLibraryPage, readLibrarySnapshot } from '@madkarmaa/phodrive-core/browser/library';
 import { withoutChunk, withChunks } from '#browser/drive/chunks';
 import type { DriveContext } from '#browser/drive/context.svelte';
-
-type AccountCursor = {
-    account: GoogleAccountSummary;
-    pageToken: string;
-    loadedPages: number;
-    pageTokens: Set<string>;
-};
-
-type MemberFailure = { account: GoogleAccountSummary; message: string };
-
-function mergeAccountChunks(
-    existing: readonly UploadedChunk[],
-    found: readonly UploadedChunk[]
-): UploadedChunk[] {
-    const chunks = new Map(existing.map((chunk) => [chunk.mediaKey, chunk]));
-    for (const chunk of found) chunks.set(chunk.mediaKey, chunk);
-
-    return [...chunks.values()];
-}
+import { FolderNavigation } from '#browser/drive/folder-navigation';
+import type { FolderOpenMode } from '#browser/drive/folder-history';
+import { foldersFor, visibleFilesFor } from '#browser/drive/library-folders';
+import {
+    cursorFor,
+    failureMessage,
+    flattenChunks,
+    hasMore as libraryHasMore,
+    libraryMembers,
+    mergeAccountChunks,
+    pruneCursors,
+    type AccountCursor,
+    type MemberFailure
+} from '#browser/drive/library-state';
 
 /** Library pagination, filtering, and stale-request protection for one account or a group. */
 export class DriveLibrary {
@@ -40,17 +34,27 @@ export class DriveLibrary {
     searchTerm = $state('');
     typeFilter = $state('');
     modifiedDays = $state('');
+    folder = $state('');
     loadFailed = $state(false);
 
     private libraryRequest = 0;
     private readonly cursors = new Map<string, AccountCursor>();
     private readonly chunksByAccount = new Map<string, UploadedChunk[]>();
+    private readonly navigation: FolderNavigation;
 
     files = $derived(groupChunks(this.chunks));
     availableTypes = $derived([...new Set(this.files.map((item) => fileType(item.name)))].sort());
+    filtering = $derived(!!(this.searchTerm || this.typeFilter || this.modifiedDays));
+    folders = $derived(foldersFor(this.files, this.folder, this.filtering));
+    trail = $derived(folderTrail(this.folder));
     visibleFiles = $derived.by(() =>
-        sortFiles(
-            filterFiles(this.files, this.searchTerm, this.typeFilter, this.modifiedDays),
+        visibleFilesFor(
+            this.files,
+            this.folder,
+            this.filtering,
+            this.searchTerm,
+            this.typeFilter,
+            this.modifiedDays,
             this.sortOrder()
         )
     );
@@ -60,12 +64,25 @@ export class DriveLibrary {
         private readonly actionsDisabled: () => boolean,
         private readonly sortOrder: () => FileSort,
         private readonly feedback: (message: string) => void
-    ) {}
+    ) {
+        this.navigation = new FolderNavigation(
+            () => this.folder,
+            (folder) => {
+                this.folder = folder;
+            },
+            () => this.files
+        );
+    }
+
+    openFolder(path: string, mode: FolderOpenMode = 'push') {
+        this.navigation.open(path, mode);
+    }
 
     reset() {
         this.searchTerm = '';
         this.typeFilter = '';
         this.modifiedDays = '';
+        this.navigation.reset();
         this.chunks = [];
         this.hasMore = false;
         this.cursors.clear();
@@ -78,7 +95,7 @@ export class DriveLibrary {
     async load(reset = true) {
         if (this.actionsDisabled() || (!reset && (this.loading || !this.hasMore))) return;
 
-        const members = this.members();
+        const members = libraryMembers(this.context());
         const request = ++this.libraryRequest;
 
         if (reset) {
@@ -88,7 +105,7 @@ export class DriveLibrary {
             this.hasMore = false;
             this.loadFailed = false;
         } else {
-            this.prune(members);
+            pruneCursors(this.cursors, this.chunksByAccount, members);
         }
 
         this.loading = true;
@@ -104,7 +121,7 @@ export class DriveLibrary {
         let successes = 0;
 
         for (const account of members) {
-            const cursor = this.cursor(account);
+            const cursor = cursorFor(this.cursors, account);
             const pageToken = reset ? '' : cursor.pageToken;
             if (!reset && !pageToken) continue;
 
@@ -139,15 +156,16 @@ export class DriveLibrary {
             }
         }
 
-        this.finish(request, failures, successes);
+        const applied = this.finish(request, failures, successes);
+        if (applied) this.navigation.settle(this.hasMore);
     }
 
     async refresh() {
         if (this.actionsDisabled() || this.loading || document.hidden) return;
 
-        const members = this.members();
+        const members = libraryMembers(this.context());
         const request = ++this.libraryRequest;
-        this.prune(members);
+        pruneCursors(this.cursors, this.chunksByAccount, members);
         this.loading = true;
 
         if (!members.length) {
@@ -164,7 +182,7 @@ export class DriveLibrary {
         let successes = 0;
 
         for (const account of members) {
-            const cursor = this.cursor(account);
+            const cursor = cursorFor(this.cursors, account);
             const refreshed = await readLibrarySnapshot(
                 Math.max(1, cursor.loadedPages),
                 account.id
@@ -188,7 +206,8 @@ export class DriveLibrary {
             successes++;
         }
 
-        this.finish(request, failures, successes);
+        const applied = this.finish(request, failures, successes);
+        if (applied) this.navigation.settle(this.hasMore);
     }
 
     appendChunks(saved: readonly UploadedChunk[]) {
@@ -216,53 +235,21 @@ export class DriveLibrary {
         this.chunks = withoutChunk(this.chunks, file, removed);
     }
 
-    private members(): GoogleAccountSummary[] {
-        const context = this.context();
-        if (!context) return [];
+    private finish(
+        request: number,
+        failures: readonly MemberFailure[],
+        successes: number
+    ): boolean {
+        if (request !== this.libraryRequest) return false;
 
-        return context.kind === 'account' ? [context.account] : context.group.members;
-    }
-
-    private cursor(account: GoogleAccountSummary): AccountCursor {
-        const current = this.cursors.get(account.id);
-        if (current) return current;
-
-        const created: AccountCursor = {
-            account,
-            pageToken: '',
-            loadedPages: 0,
-            pageTokens: new Set()
-        };
-        this.cursors.set(account.id, created);
-
-        return created;
-    }
-
-    private prune(members: readonly GoogleAccountSummary[]) {
-        const ids = new Set(members.map((account) => account.id));
-
-        for (const id of this.cursors.keys())
-            if (!ids.has(id)) {
-                this.cursors.delete(id);
-                this.chunksByAccount.delete(id);
-            }
-    }
-
-    private finish(request: number, failures: readonly MemberFailure[], successes: number) {
-        if (request !== this.libraryRequest) return;
-
-        this.chunks = [...this.chunksByAccount.values()].flat();
-        this.hasMore = [...this.cursors.values()].some((cursor) => cursor.pageToken !== '');
+        this.chunks = flattenChunks(this.chunksByAccount);
+        this.hasMore = libraryHasMore(this.cursors);
         this.loadFailed = failures.length > 0 && successes === 0;
         this.loading = false;
 
-        if (failures.length) {
-            const [first] = failures;
-            this.feedback(
-                this.members().length > 1
-                    ? `Could not load ${first.account.email}: ${first.message}`
-                    : first.message
-            );
-        }
+        const message = failureMessage(libraryMembers(this.context()), failures);
+        if (message) this.feedback(message);
+
+        return successes > 0;
     }
 }

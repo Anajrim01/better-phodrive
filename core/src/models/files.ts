@@ -13,6 +13,27 @@ export const FileNameSchema = z
     .min(1)
     .refine((name) => !/[\\/\r\n\0]/.test(name));
 
+export const MAX_FOLDER_PATH_LENGTH = 512;
+export const MAX_FOLDER_SEGMENT_LENGTH = 255;
+
+/** A relative slash-separated folder path. Root is the empty string and is stored by omission. */
+export const FolderPathSchema = z
+    .string()
+    .min(1)
+    .max(MAX_FOLDER_PATH_LENGTH)
+    .refine((path) =>
+        path
+            .split('/')
+            .every(
+                (segment) =>
+                    segment.length > 0 &&
+                    segment.length <= MAX_FOLDER_SEGMENT_LENGTH &&
+                    segment !== '.' &&
+                    segment !== '..' &&
+                    !/[\\\r\n\0]/.test(segment)
+            )
+    );
+
 export const FileSizeSchema = z.int().nonnegative();
 
 export const Sha1HexSchema = z.string().regex(/^[a-f0-9]{40}$/);
@@ -26,22 +47,29 @@ export const SplitHeaderSchema = z
         chunkIndex: z.int().nonnegative(),
         flags: z.union([z.literal(0), z.literal(1)]),
         payloadSize: z.int().nonnegative(),
-        fileName: z.string().min(1).optional()
+        fileName: z.string().min(1).optional(),
+        folder: FolderPathSchema.optional()
     })
-    .refine((header) => header.chunkIndex !== 0 || header.fileName !== undefined);
+    .refine((header) => header.chunkIndex !== 0 || header.fileName !== undefined)
+    .refine((header) => header.chunkIndex === 0 || header.folder === undefined);
 
-export const RemoteBmpSchema = z.object({
+const RemoteBmpObjectSchema = z.object({
     fileHash: Sha256HexSchema,
     fileId: Sha256HexSchema,
     chunkIndex: z.int().nonnegative(),
     isLast: z.boolean(),
     originalName: z.string().min(1).optional(),
+    folder: FolderPathSchema.optional(),
     size: z.number().nonnegative(),
     at: z.int().nonnegative(),
     mediaKey: z.string().min(1),
     sha1: Sha1HexSchema,
     accountId: z.string().min(1).optional()
 });
+
+export const RemoteBmpSchema = RemoteBmpObjectSchema.refine(
+    (chunk) => chunk.chunkIndex === 0 || chunk.folder === undefined
+);
 
 export const LibraryResponseSchema = z.object({
     items: z.array(RemoteBmpSchema),
@@ -72,7 +100,7 @@ export const FileDeleteResponseSchema = z.object({
 });
 
 /** Identifies one stored chunk for a raw download. */
-export const ChunkReferenceSchema = RemoteBmpSchema.pick({ mediaKey: true, sha1: true });
+export const ChunkReferenceSchema = RemoteBmpObjectSchema.pick({ mediaKey: true, sha1: true });
 
 export type RemoteBmp = z.infer<typeof RemoteBmpSchema>;
 

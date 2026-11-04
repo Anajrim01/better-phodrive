@@ -16,6 +16,7 @@ export type TransferOptions = {
     fetcher?: Fetcher;
     accountId?: string;
     coordinator?: ThrottleCoordinator;
+    folder?: string;
 };
 
 /** Forward chunks to Google Photos in this process, reporting the same events as the HTTP API. */
@@ -102,7 +103,8 @@ export function uploadFiles(
             onJob,
             onChunk,
             localChunkTransport({ email, token }, options),
-            options.signal
+            options.signal,
+            options.folder === undefined ? undefined : files.map(() => options.folder!)
         )
     );
 }

@@ -1,11 +1,19 @@
 <script lang="ts">
-    import { ExtendedFab, Fab, IconButton, NavigationDrawer, NavigationDrawerItem } from 'noph-ui';
+    import {
+        Button,
+        ExtendedFab,
+        Fab,
+        IconButton,
+        NavigationDrawer,
+        NavigationDrawerItem
+    } from 'noph-ui';
     import { MediaQuery } from 'svelte/reactivity';
     import { AppView } from '@madkarmaa/phodrive-core/models';
     import type { DriveContextState } from '#browser/drive/context.svelte';
     import type { DriveContextSelection } from '#browser/storage';
     import DriveContextSelect from '#components/DriveContextSelect.svelte';
     import IconAdd from '~icons/material-symbols/add';
+    import IconFolder from '~icons/material-symbols/folder-outline';
     import IconHome from '~icons/material-symbols/home-outline';
     import IconSettings from '~icons/material-symbols/settings-outline';
     import IconClose from '~icons/material-symbols/close';
@@ -33,6 +41,7 @@
     }: Props = $props();
 
     let picker: HTMLInputElement;
+    let folderPicker: HTMLInputElement;
     const mobile = new MediaQuery('(width < 800px)');
 
     $effect(() => {
@@ -73,6 +82,31 @@
             onupload(files);
         }}
     />
+
+    <input
+        bind:this={folderPicker}
+        type="file"
+        multiple
+        webkitdirectory
+        class="sr-only"
+        aria-label="Upload folder"
+        {disabled}
+        onchange={(event) => {
+            const files = Array.from(event.currentTarget.files ?? []);
+            event.currentTarget.value = '';
+
+            if (!files.length) return;
+
+            onupload(files);
+        }}
+    />
+
+    <div class="folder-upload">
+        <Button variant="text" {disabled} onclick={() => folderPicker.click()}>
+            <IconFolder aria-hidden="true" class="size-5" />
+            Upload folder
+        </Button>
+    </div>
 
     <NavigationDrawer
         id="main-navigation"
@@ -134,6 +168,18 @@
 <style>
     .mobile-upload {
         display: none;
+    }
+
+    .folder-upload {
+        display: flex;
+        justify-content: center;
+        margin: -12px 0 20px;
+    }
+
+    @media (width < 800px), (hover: none), (pointer: coarse) {
+        .folder-upload {
+            display: none;
+        }
     }
 
     :global(.mobile-navigation) {

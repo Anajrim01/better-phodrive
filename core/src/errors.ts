@@ -26,6 +26,7 @@ type BaseApplicationError = {
         | 'FILE_READ_FAILED'
         | 'INVALID_CHUNK_SIZE'
         | 'INVALID_CHUNK_METADATA'
+        | 'INVALID_FOLDER_PATH'
         | 'CHUNK_TOO_LARGE'
         | 'FILE_EXISTS';
     readonly message: string;

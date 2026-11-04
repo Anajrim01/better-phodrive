@@ -173,7 +173,8 @@ test('the server spools a whole file, uploads its chunks, and removes the spool'
 
     const [stored] = [...harness.stored.values()];
     expect(Buffer.from(decodeSplitBmp(stored).unwrap().payload).equals(PAYLOAD)).toBe(true);
-    expect(await spoolDirectories()).toBe(before);
+    // Other test files may be spooling concurrently, so wait for their temporary directories too.
+    await vi.waitFor(async () => expect(await spoolDirectories()).toBeLessThanOrEqual(before));
 });
 
 test('a server-processed whole file saves its confirmed metadata row', async () => {
