@@ -9,12 +9,18 @@ import {
 import { fileKey, type FileAction, type FileGroup } from '@madkarmaa/phodrive-core/files';
 import { useAutomaticRefresh } from '#browser/drive/refresh.svelte';
 import { DriveAccount } from '#browser/drive/account.svelte';
-import { createBrowserPreferences, type BrowserPreferences } from '#browser/storage';
+import { DriveContextState } from '#browser/drive/context.svelte';
+import {
+    createBrowserPreferences,
+    type BrowserPreferences,
+    type DriveContextSelection
+} from '#browser/storage';
 import { createUploadJobs, type UploadJob } from '#browser/files';
 import { downloadAndSave, trashFile, uploadBatch } from '#browser/drive/actions';
 import { DriveLibrary } from '#browser/drive/library.svelte';
 import { DriveSettings } from '#browser/drive/settings.svelte';
 import { failUnfinishedJobs, replaceJob, unchangedFile } from '#browser/drive/chunks';
+import type { GoogleAccountSummary } from '@madkarmaa/phodrive-core/models';
 
 /** The signed-in user's drive; their Google account and token stay on the server. */
 export class DriveController {
@@ -25,6 +31,7 @@ export class DriveController {
     uploadPanelOpen = $state(false);
     uploadJobs = $state<UploadJob[]>([]);
     private uploadSources: readonly File[] = [];
+    private readonly uploadOwners = new Map<number, GoogleAccountSummary>();
 
     feedbackMessage = $state('');
     fileAction = $state<FileAction | null>(null);
@@ -32,6 +39,7 @@ export class DriveController {
     confirmOpen = $state(false);
     confirmTarget = $state<FileGroup | null>(null);
 
+    readonly context: DriveContextState;
     readonly library: DriveLibrary;
     readonly settings: DriveSettings;
     readonly account: DriveAccount;
@@ -46,8 +54,9 @@ export class DriveController {
         };
 
         this.settings = new DriveSettings(() => this.preferences, defaults, feedback);
+        this.context = new DriveContextState(() => this.preferences, feedback);
         this.library = new DriveLibrary(
-            email,
+            () => this.context.current,
             () => this.working,
             () => this.settings.fileSort,
             feedback
@@ -57,13 +66,13 @@ export class DriveController {
 
         useAutomaticRefresh(
             () => this.settings.refreshIntervalSeconds,
-            () => this.ready && !this.working && !this.library.loading,
+            () => this.ready && !this.working && !this.library.loading && !this.context.loading,
             () => this.library.refresh()
         );
     }
 
     /** An upload or a file action is running. */
-    private get working(): boolean {
+    get working(): boolean {
         return this.busy || this.fileAction !== null;
     }
 
@@ -81,6 +90,34 @@ export class DriveController {
         });
 
         this.ready = true;
+    }
+
+    /** Resolve the saved account or group, then load its library. */
+    async loadDrive() {
+        await this.context.load();
+        await this.library.load();
+    }
+
+    async selectContext(selection: DriveContextSelection) {
+        if (this.working) return;
+
+        if (!this.context.select(selection)) {
+            this.feedbackMessage = 'The selected library is no longer available.';
+
+            return;
+        }
+
+        this.library.reset();
+        await this.library.load();
+    }
+
+    /** Reload accounts, groups, and the library after Settings changes; skipped during file work. */
+    async reloadContext() {
+        if (this.working) return;
+
+        await this.context.load();
+        this.library.reset();
+        await this.library.load();
     }
 
     confirmAction() {
@@ -119,6 +156,13 @@ export class DriveController {
     }
 
     async upload(files: readonly File[]) {
+        const context = this.context.current;
+        if (!context || context.kind !== 'account') {
+            this.feedbackMessage = 'Select an individual account to upload.';
+
+            return;
+        }
+
         if (this.working || files.length === 0) return;
 
         if (this.library.loading) {
@@ -130,7 +174,9 @@ export class DriveController {
 
         this.uploadSources = [...files];
         this.uploadJobs = createUploadJobs(files);
-        await this.runUploads(files);
+        this.uploadOwners.clear();
+        for (let id = 0; id < files.length; id++) this.uploadOwners.set(id, context.account);
+        await this.runUploads(files, context.account);
     }
 
     async retryUpload(id: number) {
@@ -138,21 +184,33 @@ export class DriveController {
 
         const job = this.uploadJobs.find((current) => current.id === id);
         const file = this.uploadSources[id];
+        const ownerId = this.uploadOwners.get(id)?.id;
+        const owner = this.context.accounts.find((account) => account.id === ownerId);
         if (!job || job.status !== UploadJobStatus.Error || !file) return;
+
+        if (!owner) {
+            this.feedbackMessage = 'The Google account for this upload is no longer connected.';
+
+            return;
+        }
 
         this.uploadJobs = replaceJob(this.uploadJobs, id, createUploadJobs([file])[0]);
 
-        await this.runUploads([file], id);
+        await this.runUploads([file], owner, id);
     }
 
-    private async runUploads(files: readonly File[], retryId?: number) {
+    private async runUploads(
+        files: readonly File[],
+        account: GoogleAccountSummary,
+        retryId?: number
+    ) {
         this.uploadPanelOpen = true;
         this.feedbackMessage = '';
         this.busy = true;
 
         const uploaded = await uploadBatch({
             files,
-            email: this.email,
+            account,
             workers: this.settings.concurrentWorkers,
             processing: this.processing,
             library: this.library,

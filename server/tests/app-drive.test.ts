@@ -1,5 +1,9 @@
 import { beforeEach, expect, test, vi } from 'vitest';
-import { ChunkFormat, ProcessingMode } from '@madkarmaa/phodrive-core/models';
+import {
+    ChunkFormat,
+    GOOGLE_ACCOUNT_HEADER,
+    ProcessingMode
+} from '@madkarmaa/phodrive-core/models';
 import { downloadBmp, listBmps } from '@madkarmaa/phodrive-core/server/photos';
 import { SERVER_ERRORS } from '@madkarmaa/phodrive-core/server/errors';
 import { receiveFileUpload } from '@madkarmaa/phodrive-core/server/upload/file';
@@ -81,13 +85,29 @@ test('a drive request selects a Google account by its stable id', async () => {
         method: 'POST',
         headers: {
             'content-type': 'application/json',
-            'x-phodrive-account-id': 'other-account'
+            [GOOGLE_ACCOUNT_HEADER]: 'other-account'
         },
         body: JSON.stringify({ pageToken: '' })
     });
 
     expect(response.status).toBe(200);
     expect(vi.mocked(readGoogleAccount).mock.calls[0][2]).toBe('other-account');
+});
+
+test('an unknown account header fails closed instead of using the default account', async () => {
+    vi.mocked(readGoogleAccount).mockReturnValue(rejected(AUTH_ERRORS.GOOGLE_ACCOUNT_NOT_FOUND));
+
+    const response = await call('/api/library', {
+        method: 'POST',
+        headers: {
+            'content-type': 'application/json',
+            [GOOGLE_ACCOUNT_HEADER]: 'foreign-account'
+        },
+        body: JSON.stringify({ pageToken: '' })
+    });
+
+    expect(response.status).toBe(404);
+    expect(listBmps).not.toHaveBeenCalled();
 });
 
 test('library items carry the stable account id', async () => {
@@ -153,6 +173,24 @@ test('raw chunks are relayed unchanged with the stored account', async () => {
         'key',
         '0'.repeat(40)
     ]);
+});
+
+test('raw chunks use the account selected by the request header', async () => {
+    vi.mocked(downloadBmp).mockReturnValue(
+        resolved(new Response(Uint8Array.of(66, 77), { headers: { 'content-type': 'image/bmp' } }))
+    );
+
+    const response = await call('/api/chunk', {
+        method: 'POST',
+        headers: {
+            'content-type': 'application/json',
+            [GOOGLE_ACCOUNT_HEADER]: 'other-account'
+        },
+        body: JSON.stringify({ mediaKey: 'key', sha1: '0'.repeat(40) })
+    });
+
+    expect(response.status).toBe(200);
+    expect(vi.mocked(readGoogleAccount).mock.calls[0][2]).toBe('other-account');
 });
 
 test('an unreadable or missing Google account is reported without a token', async () => {

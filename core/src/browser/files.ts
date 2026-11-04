@@ -1,6 +1,7 @@
 import type { ApplicationError } from '../errors';
 import {
     FileActionKind,
+    GOOGLE_ACCOUNT_HEADER,
     ConcurrentWorkersSchema,
     FileDeleteResponseSchema,
     ProcessingMode
@@ -21,14 +22,17 @@ const FILES_API_URL = '/api/files';
 function fileRequest(item: FileGroup, action: FileActionKind, workers: number): RequestInit {
     return {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: {
+            'content-type': 'application/json',
+            ...(item.accountId ? { [GOOGLE_ACCOUNT_HEADER]: item.accountId } : {})
+        },
         body: JSON.stringify({
             action,
             name: item.name,
             fileHash: item.fileHash,
             fileId: item.fileId,
-            // Chunks carry their owner's email locally; the server selects the Google account.
-            chunks: item.chunks.map(({ email: _email, ...chunk }) => chunk),
+            // Chunks keep their owner locally; the request header selects the account.
+            chunks: item.chunks.map(({ email: _email, accountId: _accountId, ...chunk }) => chunk),
             workers
         })
     };

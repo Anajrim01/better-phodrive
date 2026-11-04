@@ -211,4 +211,59 @@ describeDatabase('authenticated Google accounts and groups', () => {
         ).toHaveLength(1);
         expect((await listGoogleAccountGroups(context, secondUser)).unwrap()).toHaveLength(1);
     });
+
+    test('one user can route across three accounts and two groups without crossing users', async () => {
+        const run = Date.now().toString(36);
+        const userId = `user-${run}`;
+        const foreignUser = `foreign-${run}`;
+
+        await db.insert(user).values([
+            { id: userId, name: 'Owner', email: `owner-${run}@example.com` },
+            { id: foreignUser, name: 'Foreign', email: `foreign-${run}@example.com` }
+        ]);
+
+        const accounts = [];
+        for (const [index, email] of ['one', 'two', 'three'].entries())
+            accounts.push(
+                (
+                    await saveGoogleAccount(context, userId, {
+                        email: `${email}-${run}@example.com`,
+                        token: `aas_et/${email}`
+                    })
+                ).unwrap()
+            );
+
+        const foreign = (
+            await saveGoogleAccount(context, foreignUser, {
+                email: `foreign-account-${run}@example.com`,
+                token: 'aas_et/foreign'
+            })
+        ).unwrap();
+
+        const groupA = (await createGoogleAccountGroup(context, userId, 'A')).unwrap();
+        const groupB = (await createGoogleAccountGroup(context, userId, 'B')).unwrap();
+        for (const [groupId, accountId] of [
+            [groupA.id, accounts[0]!.id],
+            [groupA.id, accounts[1]!.id],
+            [groupB.id, accounts[1]!.id],
+            [groupB.id, accounts[2]!.id]
+        ] as const)
+            expect(
+                (await addGoogleAccountGroupMember(context, userId, groupId, accountId)).isOk()
+            ).toBe(true);
+
+        const groups = (await listGoogleAccountGroups(context, userId)).unwrap();
+        expect(groups.map((group) => group.name).sort()).toEqual(['A', 'B']);
+        expect(groups.find((group) => group.id === groupA.id)?.members).toHaveLength(2);
+        expect(groups.find((group) => group.id === groupB.id)?.members).toHaveLength(2);
+
+        for (const account of accounts) {
+            const selected = (await readGoogleAccount(context, userId, account.id)).unwrap();
+            expect(selected.id).toBe(account.id);
+            expect(selected.email).toBe(account.email);
+        }
+
+        const foreignRead = await readGoogleAccount(context, userId, foreign.id);
+        expect(foreignRead.unwrapErr().code).toBe('GOOGLE_ACCOUNT_NOT_FOUND');
+    });
 });

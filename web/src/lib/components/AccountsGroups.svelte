@@ -5,14 +5,19 @@
     import { AccountsGroupsState } from '#browser/accounts-groups.svelte';
 
     interface Props {
+        disabled: boolean;
         replacingToken: boolean;
         onreplacetoken: (accountId: string, token: string) => Promise<boolean>;
-        onaccountschange: () => void;
+        onresourceschange: () => void;
     }
 
-    let { replacingToken, onreplacetoken, onaccountschange }: Props = $props();
+    let { disabled, replacingToken, onreplacetoken, onresourceschange }: Props = $props();
 
-    const model = new AccountsGroupsState();
+    const blocked = $derived(disabled || replacingToken);
+    const model = new AccountsGroupsState(
+        () => onresourceschange(),
+        () => blocked
+    );
 
     onMount(() => {
         void model.load();
@@ -27,7 +32,7 @@
     {#if model.loading}
         <p class="text-sm text-muted" role="status">Loading accounts and groups</p>
     {:else}
-        <AccountsPanel {model} {replacingToken} {onreplacetoken} {onaccountschange} />
-        <GroupsPanel {model} />
+        <AccountsPanel {model} disabled={blocked} {replacingToken} {onreplacetoken} />
+        <GroupsPanel {model} disabled={blocked} />
     {/if}
 </section>

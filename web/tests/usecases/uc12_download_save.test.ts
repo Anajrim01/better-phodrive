@@ -4,6 +4,7 @@ import { Err, Ok } from 'results-ts';
 import { FileActionKind, type FileRequest, type RemoteBmp } from '@madkarmaa/phodrive-core/models';
 import type { FileGroup } from '@madkarmaa/phodrive-core/files';
 import { DriveController } from '#browser/drive/index.svelte';
+import { useAccount } from '../helpers/drive';
 import * as browserFiles from '#browser/files';
 import { downloadFile as downloadServerFile } from '@madkarmaa/phodrive-core/server/files';
 import { encodeSplitBmp } from '../../../core/tests/helpers/split-bmp';
@@ -126,6 +127,7 @@ test('browser save failures show an error and always clear the active file actio
 
     const drive = new DriveController('test@example.com');
     drive.initialize();
+    useAccount(drive);
     const item: FileGroup = {
         email: EMAIL,
         fileHash: 'a'.repeat(64),
@@ -154,6 +156,7 @@ test('failed download is surfaced and clears the active file action', async () =
 
     const drive = new DriveController('test@example.com');
     drive.initialize();
+    useAccount(drive);
     const item: FileGroup = {
         email: EMAIL,
         fileHash: 'b'.repeat(64),

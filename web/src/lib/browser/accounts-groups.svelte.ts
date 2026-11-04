@@ -12,13 +12,18 @@ import {
     removeGoogleGroupMember
 } from '#browser/accounts';
 
-/** Account and group operations shown in settings; one mutation runs at a time. */
+/** Account and group mutations shown in Settings; one runs at a time and none runs during drive work. */
 export class AccountsGroupsState {
     accounts = $state<GoogleAccountSummary[]>([]);
     groups = $state<GoogleAccountGroup[]>([]);
     loading = $state(true);
     error = $state('');
     busy = $state('');
+
+    constructor(
+        private readonly onchange: () => void = () => {},
+        private readonly unavailable: () => boolean = () => false
+    ) {}
 
     async load(): Promise<void> {
         this.loading = true;
@@ -66,7 +71,7 @@ export class AccountsGroupsState {
         key: string,
         task: () => AsyncResult<T, ApplicationError>
     ): Promise<boolean> {
-        if (this.busy) return false;
+        if (this.loading || this.busy || this.unavailable()) return false;
 
         this.busy = key;
         this.error = '';
@@ -80,6 +85,7 @@ export class AccountsGroupsState {
         }
 
         await this.load();
+        this.onchange();
 
         return true;
     }

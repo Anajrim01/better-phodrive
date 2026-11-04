@@ -26,6 +26,9 @@ export const AccountRequestSchema = z.object({ email: EmailSchema, token: z.stri
 
 export const GroupNameSchema = z.string().trim().min(1).max(80);
 
+/** The authenticated drive selects a Google account by its stable server-side row id. */
+export const GOOGLE_ACCOUNT_HEADER = 'x-phodrive-account-id';
+
 export const GoogleAccountSummarySchema = z.object({
     id: z.string().min(1),
     email: EmailSchema

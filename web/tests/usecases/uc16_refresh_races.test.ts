@@ -1,6 +1,7 @@
 import { afterAll, beforeEach, expect, test, vi } from 'vitest';
 import { Ok } from 'results-ts';
 import { DriveController } from '#browser/drive/index.svelte';
+import { useAccount } from '../helpers/drive';
 import { readLibraryPage, readLibrarySnapshot } from '@madkarmaa/phodrive-core/browser/library';
 import * as filesApi from '#browser/files';
 
@@ -58,6 +59,7 @@ test('a newer library load ignores the stale response and unlocks refresh', asyn
 
     const drive = new DriveController('test@example.com');
     drive.initialize();
+    useAccount(drive);
     drive.ready = false;
 
     const staleLoad = drive.library.load();
@@ -89,6 +91,7 @@ test('manual refresh replaces completed initial data and clears the loading stat
 
     const drive = new DriveController('test@example.com');
     drive.initialize();
+    useAccount(drive);
     drive.ready = false;
 
     drive.ready = true;
@@ -117,6 +120,7 @@ test('file selection during refresh shows feedback and can be submitted again af
         .mockImplementation(() => Ok(undefined).andThenAsync(async () => Ok(undefined)));
     const drive = new DriveController('test@example.com');
     drive.initialize();
+    useAccount(drive);
     drive.ready = false;
 
     const previousJobs = filesApi.createUploadJobs([new File(['existing'], 'existing.txt')]);

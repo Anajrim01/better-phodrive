@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { FileActionKind, type RemoteBmp } from '@madkarmaa/phodrive-core/models';
 import { DriveController } from '#browser/drive/index.svelte';
+import { useAccount } from '../helpers/drive';
 
 const { storage } = await vi.hoisted(async () => {
     const { stubBrowser } = await import('../helpers/browser');
@@ -62,6 +63,7 @@ test('partial delete retains exact confirmations, retries remaining chunks, and 
 
     const drive = new DriveController('owner@example.com');
     drive.initialize();
+    useAccount(drive, { id: 'account-owner', email: 'owner@example.com' });
     drive.library.chunks = [
         { ...first, email: 'owner@example.com' },
         { ...remaining, email: 'owner@example.com' },

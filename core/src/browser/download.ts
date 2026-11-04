@@ -3,6 +3,7 @@ import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import type { ApplicationError } from '../errors';
 import type { FileGroup } from '../files';
 import type { RemoteBmp, SplitHeader } from '../models';
+import { GOOGLE_ACCOUNT_HEADER } from '../models';
 import { encodeSplitPrefix } from '../bmp/format';
 import { request } from './api';
 import { ChunkVerifier, INTEGRITY_FAILED } from './chunk-verifier';
@@ -102,7 +103,10 @@ function readChunk(
                 CHUNK_URL,
                 {
                     method: 'POST',
-                    headers: { 'content-type': 'application/json' },
+                    headers: {
+                        'content-type': 'application/json',
+                        ...(item.accountId ? { [GOOGLE_ACCOUNT_HEADER]: item.accountId } : {})
+                    },
                     body: JSON.stringify({ mediaKey: chunk.mediaKey, sha1: chunk.sha1 })
                 },
                 'Download failed'
