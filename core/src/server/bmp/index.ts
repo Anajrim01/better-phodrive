@@ -2,12 +2,7 @@ import { SERVER_ERRORS, type ServerError } from '../errors';
 import { Err, Ok, type Result } from 'results-ts';
 import { SplitHeaderSchema, type SplitHeader } from '../../models';
 import { hashHex, isSplitBmp, readSplitName, readVarint } from './fields';
-import {
-    encodeSplitPrefix,
-    BMP_HEADER_BYTES,
-    SPLIT_MAGIC,
-    FILE_HASH_BYTES
-} from '../../bmp/format';
+import { BMP_HEADER_BYTES, SPLIT_MAGIC, FILE_HASH_BYTES } from '../../bmp/format';
 export {
     BMP_HEADER_BYTES,
     MAX_PHOTOS_BMP_BYTES,
@@ -16,28 +11,6 @@ export {
     splitHeaderByteLength,
     splitBmpByteLength
 } from '../../bmp/format';
-
-/** Encode a complete BMP for protocol fixtures and compatibility checks. */
-export function encodeSplitBmp(
-    payload: Uint8Array,
-    input: SplitHeader
-): Result<Uint8Array<ArrayBuffer>, ServerError> {
-    if (input.payloadSize !== payload.length) return Err(SERVER_ERRORS.INVALID_CHUNK_METADATA);
-
-    return encodeSplitPrefix(input).andThen(({ prefix, totalSize }) => {
-        let bmp: Uint8Array<ArrayBuffer>;
-
-        try {
-            bmp = new Uint8Array(totalSize);
-        } catch {
-            return Err(SERVER_ERRORS.BMP_ALLOCATION_FAILED);
-        }
-        bmp.set(prefix);
-        bmp.set(payload, prefix.length);
-
-        return Ok(bmp);
-    });
-}
 
 /** Read metadata from the beginning of a BMP without loading its payload. */
 export function decodeSplitHeader(
@@ -89,17 +62,4 @@ export function decodeSplitHeader(
                 return Ok({ header: parsed.data, payloadOffset });
             }
         );
-}
-
-/** Parse a complete chunk and reject damaged payload bounds or nonzero padding. */
-export function decodeSplitBmp(
-    bmp: Uint8Array
-): Result<{ header: SplitHeader; payload: Uint8Array }, ServerError> {
-    return decodeSplitHeader(bmp, bmp.length).andThen(({ header, payloadOffset }) => {
-        const payloadEnd = payloadOffset + header.payloadSize;
-        if (bmp.subarray(payloadEnd).some(Boolean))
-            return Err(SERVER_ERRORS.INVALID_DOWNLOADED_BMP);
-
-        return Ok({ header, payload: bmp.subarray(payloadOffset, payloadEnd) });
-    });
 }

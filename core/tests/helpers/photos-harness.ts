@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { decodeSplitBmp } from '@madkarmaa/phodrive-core/server/bmp';
+import { decodeSplitBmp } from './split-bmp';
 import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
 import { bytesField, message, nested, numberField } from '@madkarmaa/phodrive-core/server/protobuf';
 

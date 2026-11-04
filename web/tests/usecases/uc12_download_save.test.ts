@@ -6,7 +6,7 @@ import type { FileGroup } from '@madkarmaa/phodrive-core/files';
 import { DriveController } from '#browser/drive/index.svelte';
 import * as browserFiles from '#browser/files';
 import { downloadFile as downloadServerFile } from '@madkarmaa/phodrive-core/server/files';
-import { encodeSplitBmp } from '@madkarmaa/phodrive-core/server/bmp';
+import { encodeSplitBmp } from '../../../core/tests/helpers/split-bmp';
 import { downloadBmp } from '@madkarmaa/phodrive-core/server/photos';
 import { bmpResponse } from '../../../core/tests/helpers/download';
 

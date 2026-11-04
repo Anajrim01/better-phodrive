@@ -1,7 +1,7 @@
 import { afterEach, expect, test, vi } from 'vitest';
 import { UploadJobStatus, ProcessingMode } from '@madkarmaa/phodrive-core/models';
 import { uploadFiles, type UploadJob } from '#browser/files';
-import { decodeSplitBmp, encodeSplitBmp } from '@madkarmaa/phodrive-core/server/bmp';
+import { decodeSplitBmp, encodeSplitBmp } from '../../../core/tests/helpers/split-bmp';
 import { receiveUpload } from '@madkarmaa/phodrive-core/server/upload/input';
 import { encodeUploadBmp } from '@madkarmaa/phodrive-core/server/upload/bmp';
 import {

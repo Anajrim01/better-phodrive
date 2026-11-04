@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { SplitHeader } from '@madkarmaa/phodrive-core/models';
-import { encodeSplitBmp } from '@madkarmaa/phodrive-core/server/bmp';
+import { encodeSplitBmp } from './split-bmp';
 import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
 import { nested } from '@madkarmaa/phodrive-core/server/protobuf';
 import { expect } from 'vitest';
