@@ -177,6 +177,30 @@ test('the server spools a whole file, uploads its chunks, and removes the spool'
     expect(await spoolDirectories()).toBe(before);
 });
 
+test('a server-processed whole file saves its confirmed metadata row', async () => {
+    const harness = photosUploadHarness();
+    const store = metadataStore();
+    const received = await receiveFileUpload(fileRequest(PAYLOAD));
+    const response = fileUploadStream(received.unwrap(), TEST_ACCOUNT, harness.fetcher, store);
+    const reported = events(await response.text());
+
+    expect(reported.some((event) => event.type === UploadEventType.FileComplete)).toBe(true);
+    expect(reported.at(-1)?.type).toBe(UploadEventType.Complete);
+    expect(store.save).toHaveBeenCalledOnce();
+    const saved = store.save.mock.calls[0]?.[0] as ChunkMetadataRecord[];
+    expect(saved).toHaveLength(1);
+    expect(saved[0]).toMatchObject({
+        mediaKey: 'media-key',
+        sha1: expect.stringMatching(/^[a-f0-9]{40}$/),
+        fileId: expect.any(String),
+        chunkIndex: 0,
+        isLast: true,
+        originalName: 'whole.bin',
+        size: PAYLOAD.length
+    });
+    expect(saved[0]?.storedBmpSize).toBeGreaterThan(PAYLOAD.length);
+});
+
 test('a whole file shorter than declared fails before anything is uploaded', async () => {
     const harness = photosUploadHarness();
 
