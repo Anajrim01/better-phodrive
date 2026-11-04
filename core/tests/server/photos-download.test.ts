@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { expect, test, vi } from 'vitest';
 import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
 import { downloadBmp, moveToTrash } from '@madkarmaa/phodrive-core/server/photos';
-import { parsePhotoDownloadUrl } from '@madkarmaa/phodrive-core/server/photos/download';
+import { preparedDownloadUrl } from '@madkarmaa/phodrive-core/server/photos/download';
 import { bytesField, message, numberField } from '@madkarmaa/phodrive-core/server/protobuf';
 import { SERVER_ERRORS } from '@madkarmaa/phodrive-core/server/errors';
 import { bmpResponse, downloadFixture } from '../helpers/download';
@@ -23,22 +23,24 @@ function metadata(download: Buffer, key = MEDIA_KEY, sha1 = SHA1): Buffer {
     );
 }
 
-test('image download metadata preserves the validated signed URL', () => {
+function parse(response: Buffer) {
+    const fetcher: Fetcher = async () => new Response(Uint8Array.from(response));
+
+    return preparedDownloadUrl(MEDIA_KEY, SHA1, {}, fetcher);
+}
+
+test('image download metadata preserves the validated signed URL', async () => {
     const response = metadata(message(numberField(1, 1), bytesField(2, bytesField(5, SIGNED_URL))));
-    const parsed = parsePhotoDownloadUrl(response, MEDIA_KEY, SHA1);
+    const parsed = await parse(response);
 
     expect(parsed.unwrap()?.href).toBe(SIGNED_URL);
 });
 
-test('video download metadata is skipped only after verifying its key and fingerprint', () => {
+test('video download metadata is skipped only after verifying its key and fingerprint', async () => {
     const video = message(numberField(1, 2), bytesField(3, bytesField(5, 'video-download')));
-    const parsed = parsePhotoDownloadUrl(metadata(video), MEDIA_KEY, SHA1);
-    const wrongKey = parsePhotoDownloadUrl(metadata(video, 'other-key'), MEDIA_KEY, SHA1);
-    const wrongHash = parsePhotoDownloadUrl(
-        metadata(video, MEDIA_KEY, 'b'.repeat(40)),
-        MEDIA_KEY,
-        SHA1
-    );
+    const parsed = await parse(metadata(video));
+    const wrongKey = await parse(metadata(video, 'other-key'));
+    const wrongHash = await parse(metadata(video, MEDIA_KEY, 'b'.repeat(40)));
 
     expect(parsed.unwrap()).toBeNull();
     expect(wrongKey.unwrapErr()).toEqual(SERVER_ERRORS.DOWNLOAD_MEDIA_MISMATCH);
@@ -51,15 +53,15 @@ test.each([
     message(numberField(1, 2), numberField(1, 2), bytesField(3, '')),
     message(numberField(1, 2), bytesField(3, Uint8Array.of(10, 5, 1))),
     message(numberField(1, 99), bytesField(2, bytesField(5, SIGNED_URL)))
-])('invalid download variants remain failures', (download) => {
-    const parsed = parsePhotoDownloadUrl(metadata(download), MEDIA_KEY, SHA1);
+])('invalid download variants remain failures', async (download) => {
+    const parsed = await parse(metadata(download));
 
     expect(parsed.isErr()).toBe(true);
 });
 
-test('image download metadata rejects untrusted hosts', () => {
+test('image download metadata rejects untrusted hosts', async () => {
     const response = metadata(bytesField(2, bytesField(5, 'https://example.com/fixture')));
-    const parsed = parsePhotoDownloadUrl(response, MEDIA_KEY, SHA1);
+    const parsed = await parse(response);
 
     expect(parsed.unwrapErr()).toEqual(SERVER_ERRORS.INVALID_DOWNLOAD_URL);
 });
