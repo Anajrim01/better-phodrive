@@ -101,6 +101,10 @@
             "@madkarmaa/phodrive-core": "./src/errors.ts",
             "default": "./dist/errors.js"
         },
+        "./file-groups": {
+            "@madkarmaa/phodrive-core": "./src/file-groups.ts",
+            "default": "./dist/file-groups.js"
+        },
         "./files": {
             "@madkarmaa/phodrive-core": "./src/files.ts",
             "default": "./dist/files.js"
@@ -233,6 +237,14 @@
             "@madkarmaa/phodrive-core": "./src/server/photos/library/requests.ts",
             "default": "./dist/server/photos/library/requests.js"
         },
+        "./server/photos/mutation-response": {
+            "@madkarmaa/phodrive-core": "./src/server/photos/mutation-response.ts",
+            "default": "./dist/server/photos/mutation-response.js"
+        },
+        "./server/photos/mutations": {
+            "@madkarmaa/phodrive-core": "./src/server/photos/mutations.ts",
+            "default": "./dist/server/photos/mutations.js"
+        },
         "./server/photos/throttle": {
             "@madkarmaa/phodrive-core": "./src/server/photos/throttle.ts",
             "default": "./dist/server/photos/throttle.js"
@@ -240,10 +252,6 @@
         "./server/photos/transport": {
             "@madkarmaa/phodrive-core": "./src/server/photos/transport.ts",
             "default": "./dist/server/photos/transport.js"
-        },
-        "./server/photos/trash": {
-            "@madkarmaa/phodrive-core": "./src/server/photos/trash.ts",
-            "default": "./dist/server/photos/trash.js"
         },
         "./server/photos/upload": {
             "@madkarmaa/phodrive-core": "./src/server/photos/upload/index.ts",
@@ -363,6 +371,7 @@
             "./browser/upload/planned": "./dist/browser/upload/planned.js",
             "./browser/upload/request": "./dist/browser/upload/request.js",
             "./errors": "./dist/errors.js",
+            "./file-groups": "./dist/file-groups.js",
             "./files": "./dist/files.js",
             "./models": "./dist/models.js",
             "./models/accounts": "./dist/models/accounts.js",
@@ -396,9 +405,10 @@
             "./server/photos/library/metadata": "./dist/server/photos/library/metadata.js",
             "./server/photos/library/probe": "./dist/server/photos/library/probe.js",
             "./server/photos/library/requests": "./dist/server/photos/library/requests.js",
+            "./server/photos/mutation-response": "./dist/server/photos/mutation-response.js",
+            "./server/photos/mutations": "./dist/server/photos/mutations.js",
             "./server/photos/throttle": "./dist/server/photos/throttle.js",
             "./server/photos/transport": "./dist/server/photos/transport.js",
-            "./server/photos/trash": "./dist/server/photos/trash.js",
             "./server/photos/upload": "./dist/server/photos/upload/index.js",
             "./server/photos/upload/requests": "./dist/server/photos/upload/requests.js",
             "./server/photos/upload/responses": "./dist/server/photos/upload/responses.js",

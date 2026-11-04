@@ -67,7 +67,7 @@ test('deleting a group file routes to its owner and does not reload the library'
         expect(String(init?.body)).not.toContain(SECOND_ACCOUNT.id);
         expect(String(init?.body)).not.toContain(SECOND_ACCOUNT.email);
 
-        return Response.json({ deleted: body.chunks });
+        return Response.json({ applied: body.chunks });
     });
 
     await drive.actOnFile(second, FileActionKind.Delete);

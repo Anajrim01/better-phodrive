@@ -11,6 +11,7 @@ import {
     deleteFile as deleteRemoteFile,
     downloadFile as downloadRemoteFile
 } from '../server/files';
+import { defaultThrottle } from '../server/photos';
 import { validateWorkers } from '../server/workers';
 import { ensureAvailable, moveIntoPlace, writeBody } from './save';
 
@@ -19,7 +20,11 @@ export type DownloadOptions = {
     signal?: AbortSignal;
     onProgress?: (written: number) => void;
 };
-export type DeleteResult = { deleted: RemoteBmp[]; error?: string };
+export type DeleteResult = {
+    applied: RemoteBmp[];
+    error?: string;
+    retryAfterSeconds?: number;
+};
 
 type FileError = ApplicationError | ServerError;
 
@@ -89,5 +94,10 @@ export function deleteFile(
 ): AsyncResult<DeleteResult, FileError> {
     return validateWorkers(workers)
         .andThen((concurrency) => fileRequest(item, FileActionKind.Delete, token, concurrency))
-        .andThenAsync((input) => deleteRemoteFile(input));
+        .andThenAsync((input) =>
+            deleteRemoteFile(input, {
+                key: item.accountId ?? item.email,
+                coordinator: defaultThrottle
+            })
+        );
 }

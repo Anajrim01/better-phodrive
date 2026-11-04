@@ -1,5 +1,11 @@
 import { expect, test } from 'vitest';
-import { fileKey, groupChunks, ownerKey, type UploadedChunk } from '../src/files';
+import {
+    fileKey,
+    groupChunks,
+    ownerKey,
+    partitionFileGroups,
+    type UploadedChunk
+} from '../src/files';
 
 function chunk(overrides: Partial<UploadedChunk> = {}): UploadedChunk {
     return {
@@ -72,4 +78,50 @@ test('the same folder across accounts stays separate by owner routing', () => {
     expect(grouped.map((file) => file.folder)).toEqual(['Projects', 'Projects']);
     expect(grouped.map((file) => file.accountId)).toEqual(['account-one', 'account-two']);
     expect(fileKey(grouped[0]!)).not.toBe(fileKey(grouped[1]!));
+});
+
+test('active files stay in Files and fully trashed files move to Trash', () => {
+    const active = chunk();
+    const trashed = chunk({
+        mediaKey: 'media-two',
+        fileId: 'd'.repeat(64),
+        originalName: 'old.bin',
+        folder: 'Projects/2026',
+        trashed: true
+    });
+    const { files, trash } = partitionFileGroups([active, trashed]);
+
+    expect(files.map((file) => file.name)).toEqual(['proof.bin']);
+    expect(trash.map((file) => file.name)).toEqual(['old.bin']);
+    expect(trash[0]?.folder).toBe('Projects/2026');
+    expect(trash[0]?.trashed).toBe(true);
+});
+
+test('partially trashed files stay in Files with their original name and folder', () => {
+    const first = chunk({ chunkIndex: 0, isLast: false, trashed: true });
+    const last = chunk({ chunkIndex: 1, isLast: true, mediaKey: 'media-two' });
+    const { files, trash } = partitionFileGroups([first, last]);
+
+    expect(trash).toHaveLength(0);
+    expect(files).toHaveLength(1);
+    expect(files[0]?.name).toBe('proof.bin');
+    expect(files[0]?.complete).toBe(false);
+    expect(files[0]?.chunks.map((item) => item.mediaKey)).toEqual(['media-two']);
+    expect(files[0]?.trashedChunks?.map((item) => item.mediaKey)).toEqual(['media-one']);
+});
+
+test('the same file id on two accounts partitions by owner', () => {
+    const active = chunk();
+    const trashed = chunk({
+        accountId: 'account-two',
+        email: 'second@example.com',
+        mediaKey: 'media-two',
+        trashed: true
+    });
+    const { files, trash } = partitionFileGroups([active, trashed]);
+
+    expect(files).toHaveLength(1);
+    expect(trash).toHaveLength(1);
+    expect(files[0]?.accountId).toBe('account-one');
+    expect(trash[0]?.accountId).toBe('account-two');
 });

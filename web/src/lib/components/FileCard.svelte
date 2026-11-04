@@ -42,7 +42,11 @@
         <FileActions {item} {disabled} {working} {ondownload} {ondelete} />
     </div>
 
-    {#if !item.complete}
+    {#if item.trashedChunks?.length}
+        <p class="m-0 px-3 pb-2 text-xs text-muted">
+            {item.trashedChunks.length} of {item.chunkCount ?? '?'} chunks in Trash
+        </p>
+    {:else if !item.complete}
         <p class="m-0 px-3 pb-2 text-xs text-muted">
             {item.chunks.length}/{item.chunkCount ?? '?'} chunks
         </p>

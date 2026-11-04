@@ -1,19 +1,38 @@
 import { SERVER_ERRORS } from '@madkarmaa/phodrive-core/server/errors';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { Err, Ok } from 'results-ts';
-import { downloadFile, deleteFile } from '@madkarmaa/phodrive-core/server/files';
-import { downloadBmp, moveToTrash } from '@madkarmaa/phodrive-core/server/photos';
-import { FileActionKind } from '@madkarmaa/phodrive-core/models';
+import { Ok } from 'results-ts';
+import {
+    downloadFile,
+    deleteFile,
+    deleteForeverFile,
+    restoreFile
+} from '@madkarmaa/phodrive-core/server/files';
+import {
+    createThrottleCoordinator,
+    downloadBmp,
+    mutatePhotos
+} from '@madkarmaa/phodrive-core/server/photos';
+import { FileActionKind, type RemoteBmp } from '@madkarmaa/phodrive-core/models';
+import type { ChunkMetadataStore } from '@madkarmaa/phodrive-core/server/photos';
 import { bmpResponse, downloadFixture } from '../helpers/download';
 import { asyncOk, serveBmps } from '../helpers/photos-mock';
 
-vi.mock('@madkarmaa/phodrive-core/server/photos', () => ({
-    downloadBmp: vi.fn(),
-    moveToTrash: vi.fn()
-}));
+vi.mock('@madkarmaa/phodrive-core/server/photos', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('@madkarmaa/phodrive-core/server/photos')>();
+
+    return {
+        ...actual,
+        downloadBmp: vi.fn(),
+        mutatePhotos: vi.fn()
+    };
+});
+
+const scope = { key: 'account-a', coordinator: createThrottleCoordinator() };
 
 beforeEach(() => {
-    vi.mocked(moveToTrash).mockImplementation(() => asyncOk(undefined));
+    vi.mocked(mutatePhotos).mockImplementation((_kind, _account, targets) =>
+        asyncOk({ applied: [...targets] })
+    );
 });
 
 afterEach(() => {
@@ -107,32 +126,106 @@ test('incomplete and empty groups fail before contacting Photos; incorrect first
     expect(cancelled).toHaveBeenCalledOnce();
 });
 
-test('server deletion bounds workers, attempts all known chunks and preserves partial confirmation', async () => {
+test('server deletion returns confirmed chunks and preserves a partial failure', async () => {
     const { input } = fixture();
-    let active = 0;
-    let peak = 0;
-    let attempted = 0;
-    vi.mocked(moveToTrash).mockImplementation((_email, _token, sha1) =>
-        Ok(undefined).andThenAsync(async () => {
-            active++;
-            attempted++;
-            peak = Math.max(peak, active);
-            await new Promise<void>((resolve) => setTimeout(resolve, 5));
-            active--;
-            return sha1 === input.chunks[0].sha1
-                ? Err({ code: 'REQUEST_FAILED', message: 'Delete failed' } as const)
-                : Ok(undefined);
-        })
-    );
-    const chunks = Array.from({ length: 5 }, (_, index) => ({
+    const chunks: RemoteBmp[] = Array.from({ length: 5 }, (_, index) => ({
         ...input.chunks[index % 2],
         chunkIndex: index,
         mediaKey: `chunk-${index}`
     }));
-    const result = await deleteFile({ ...input, action: FileActionKind.Delete, chunks });
-    expect(result.unwrap().deleted).toHaveLength(2);
+    vi.mocked(mutatePhotos).mockImplementation((_kind, _account, targets) =>
+        asyncOk({
+            applied: targets.slice(0, 2),
+            failure: { code: 'REQUEST_FAILED', message: 'Delete failed' } as const
+        })
+    );
+
+    const result = await deleteFile({ ...input, action: FileActionKind.Delete, chunks }, scope);
+
+    expect(result.unwrap().applied).toHaveLength(2);
     expect(result.unwrap().error).toBe('Delete failed');
-    expect(attempted).toBe(chunks.length);
-    expect(peak).toBe(input.workers);
-    expect(active).toBe(0);
+    expect(mutatePhotos).toHaveBeenCalledWith(
+        'trash',
+        { email: input.email, token: input.token },
+        chunks,
+        scope,
+        expect.any(Function),
+        undefined
+    );
+});
+
+test('restore requires trashed chunks and returns confirmed progress', async () => {
+    const { input } = fixture();
+    const chunks = input.chunks.map((chunk) => ({ ...chunk, trashed: true }));
+    const result = await restoreFile({ ...input, action: FileActionKind.Restore, chunks }, scope);
+
+    expect(result.unwrap().applied).toHaveLength(chunks.length);
+    expect(mutatePhotos).toHaveBeenCalledWith(
+        'restore',
+        { email: input.email, token: input.token },
+        chunks,
+        scope,
+        expect.any(Function),
+        undefined
+    );
+
+    const active = await restoreFile(
+        { ...input, action: FileActionKind.Restore, chunks: input.chunks },
+        scope
+    );
+    expect(active.unwrapErr()).toEqual(SERVER_ERRORS.NOT_TRASHED);
+});
+
+test('permanent delete removes metadata only after confirmed progress', async () => {
+    const { input } = fixture();
+    const chunks = input.chunks.map((chunk) => ({ ...chunk, trashed: true }));
+    const removed: string[][] = [];
+    const metadata: ChunkMetadataStore = {
+        load: vi.fn(),
+        save: vi.fn(),
+        remove: async (mediaKeys) => {
+            removed.push([...mediaKeys]);
+        }
+    };
+    vi.mocked(mutatePhotos).mockImplementation((_kind, _account, targets) =>
+        asyncOk({
+            applied: [...targets],
+            failure: { code: 'REQUEST_FAILED', message: 'Late failure' } as const
+        })
+    );
+
+    const failed = await deleteForeverFile(
+        { ...input, action: FileActionKind.DeleteForever, chunks },
+        scope,
+        metadata
+    );
+    expect(failed.unwrap().applied).toHaveLength(chunks.length);
+    expect(failed.unwrap().error).toBe('Late failure');
+    const onApplied = vi.mocked(mutatePhotos).mock.calls[0]?.[5];
+    await onApplied?.(chunks);
+    expect(removed).toEqual([chunks.map((chunk) => chunk.mediaKey)]);
+
+    removed.length = 0;
+    vi.mocked(mutatePhotos).mockImplementation(() =>
+        asyncOk({ applied: [], failure: { code: 'REQUEST_FAILED', message: 'Failed' } as const })
+    );
+    const rejected = await deleteForeverFile(
+        { ...input, action: FileActionKind.DeleteForever, chunks },
+        scope,
+        metadata
+    );
+    expect(rejected.unwrap().applied).toHaveLength(0);
+    expect(removed).toEqual([]);
+});
+
+test('download rejects a file with a trashed chunk', async () => {
+    const { input } = fixture();
+    const trashed = {
+        ...input,
+        chunks: input.chunks.map((chunk, index) =>
+            index === 0 ? { ...chunk, trashed: true } : chunk
+        )
+    };
+    const result = await downloadFile(trashed);
+    expect(result.unwrapErr()).toEqual(SERVER_ERRORS.INCOMPLETE_DOWNLOAD_CHUNKS);
 });

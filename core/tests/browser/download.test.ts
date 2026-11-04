@@ -53,6 +53,22 @@ test('browser mode fetches raw chunks and rebuilds the original bytes', async ()
     );
 });
 
+test('download refuses a file with trashed chunks in both processing modes', async () => {
+    const base = group();
+    if (!base) throw new Error('Expected a file group');
+    const trashed = {
+        ...base,
+        chunks: base.chunks.map((chunk) => ({ ...chunk, trashed: true }))
+    };
+    const fetch = vi.spyOn(globalThis, 'fetch');
+
+    for (const mode of [ProcessingMode.Browser, ProcessingMode.Server]) {
+        const result = await downloadFile(trashed, mode);
+        expect(result.unwrapErr()).toMatchObject({ code: 'INCOMPLETE_DOWNLOAD_CHUNKS' });
+    }
+    expect(fetch).not.toHaveBeenCalled();
+});
+
 test('a damaged chunk fails the integrity check instead of returning bytes', async () => {
     const damaged = Uint8Array.from(BMP);
     damaged[BMP.length - PAYLOAD.length - 1] ^= 1;

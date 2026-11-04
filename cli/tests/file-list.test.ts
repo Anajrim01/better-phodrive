@@ -82,7 +82,7 @@ test('deletes need confirmation and report partially deleted files', async () =>
     const report = remoteFile('report.pdf');
     library([report]);
     vi.mocked(deleteFile).mockImplementation(() =>
-        Ok(undefined).andThenAsync(async () => Ok({ deleted: [], error: 'Request failed' }))
+        Ok(undefined).andThenAsync(async () => Ok({ applied: [], error: 'Request failed' }))
     );
 
     const unconfirmed = await runCli(['file', 'delete', 'report.pdf'], { folder: folder.path });

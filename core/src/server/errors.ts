@@ -124,6 +124,22 @@ export const SERVER_ERRORS = {
         message: 'Invalid UTF-8 in response'
     },
     INVALID_FILE_METADATA: { code: 'INVALID_FILE_METADATA', message: 'Invalid file metadata.' },
+    NOT_TRASHED: {
+        code: 'NOT_TRASHED',
+        message: 'Only files in Trash can be restored or deleted forever.'
+    },
+    INVALID_MUTATION_RESPONSE: {
+        code: 'INVALID_MUTATION_RESPONSE',
+        message: 'Google Photos returned an unexpected result.'
+    },
+    DUPLICATE_IN_TRASH: {
+        code: 'DUPLICATE_IN_TRASH',
+        message: 'A copy of this file is already in Trash. Restore or delete that copy, then retry.'
+    },
+    MUTATION_PARTIAL: {
+        code: 'MUTATION_PARTIAL',
+        message: 'Google Photos confirmed only some files.'
+    },
     INCOMPLETE_DOWNLOAD_CHUNKS: {
         code: 'INCOMPLETE_DOWNLOAD_CHUNKS',
         message: 'Load the remaining chunks before downloading.'

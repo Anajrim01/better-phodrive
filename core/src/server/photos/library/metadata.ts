@@ -34,22 +34,25 @@ export function pageRequest(resume: Buffer): Result<Buffer, ServerError> {
     });
 }
 
-export type LibraryCandidate = { size: number; at: number; mediaKey: string; sha1: string };
+export type LibraryCandidate = {
+    size: number;
+    at: number;
+    mediaKey: string;
+    sha1: string;
+    trashed?: boolean;
+};
 
 function libraryItem(value: Buffer): Result<LibraryCandidate | null, ServerError> {
     const parsed = parse(value).andThen((item) =>
         bytes(item, 2)
             .andThen(parse)
-            .map((details) => ({ item, details }))
-    );
-    const visibility = parsed.andThen(({ item, details }) =>
-        visibleInLibrary(details).map((visible) => ({ item, details, visible }))
+            .andThen((details) =>
+                visibleInLibrary(details).map((visible) => ({ item, details, visible }))
+            )
     );
 
-    return visibility.andThen(({ item, details, visible }) => {
-        if (!visible) return Ok(null);
-
-        return libraryMetadata(item, details).map(({ fingerprint, size, at, mediaKey }) => {
+    return parsed.andThen(({ item, details, visible }) =>
+        libraryMetadata(item, details).map(({ fingerprint, size, at, mediaKey }) => {
             const sha1 = fingerprint.toString('hex');
             if (
                 !Sha1HexSchema.safeParse(sha1).success ||
@@ -60,9 +63,15 @@ function libraryItem(value: Buffer): Result<LibraryCandidate | null, ServerError
             )
                 return null;
 
-            return { size, at, mediaKey, sha1 };
-        });
-    });
+            return {
+                size,
+                at,
+                mediaKey,
+                sha1,
+                ...(visible ? {} : { trashed: true })
+            };
+        })
+    );
 }
 
 function visibleInLibrary(details: Field[]): Result<boolean, ServerError> {

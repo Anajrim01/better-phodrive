@@ -85,10 +85,7 @@
             ondownload={(item) => {
                 void drive.actOnFile(item, FileActionKind.Download);
             }}
-            ondelete={(item) => {
-                drive.confirmTarget = item;
-                drive.confirmOpen = true;
-            }}
+            ondelete={(item) => drive.requestDelete(item)}
             onmore={() => {
                 void library.load(false);
             }}

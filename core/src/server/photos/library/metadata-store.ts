@@ -26,6 +26,8 @@ export type ChunkMetadataStore = {
     ) => AsyncResult<Map<string, ChunkMetadataRecord>, ServerError>;
     /** Persist confirmed rows. Callers must not write before Google confirms the media. */
     save: (records: readonly ChunkMetadataRecord[]) => Promise<void>;
+    /** Remove rows only after Google confirms permanent deletion. */
+    remove: (mediaKeys: readonly string[]) => Promise<void>;
 };
 
 export function chunkMetadataRecord(item: RemoteBmp, storedBmpSize: number): ChunkMetadataRecord {
@@ -74,7 +76,8 @@ export function metadataItem(record: ChunkMetadataRecord, candidate: LibraryCand
         size: record.size,
         at: candidate.at,
         mediaKey: candidate.mediaKey,
-        sha1: candidate.sha1
+        sha1: candidate.sha1,
+        ...(candidate.trashed ? { trashed: true } : {})
     };
 }
 

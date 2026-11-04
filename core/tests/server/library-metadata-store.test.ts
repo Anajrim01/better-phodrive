@@ -57,7 +57,8 @@ function store(rows: readonly ChunkMetadataRecord[] = []): ChunkMetadataStore & 
 
     return {
         load,
-        save
+        save,
+        remove: async () => {}
     };
 }
 
@@ -123,6 +124,41 @@ test('a matching foldered row preserves folder without a Google probe', async ()
 
     expect(fetcher).not.toHaveBeenCalled();
     expect(result.unwrap().items[0]).toMatchObject({ folder: 'Projects/2026' });
+});
+
+test('a matching trashed candidate reconstructs trash state without a probe', async () => {
+    const { candidate, record } = item('trashed-media', 'Projects/2026');
+    const metadata = store([record]);
+    const fetcher = vi.fn<Fetcher>();
+    const result = await scanLibraryPage(
+        { items: [{ ...candidate, trashed: true }], nextPageToken: '' },
+        HEADERS,
+        fetcher,
+        metadata
+    );
+
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(result.unwrap().items[0]).toMatchObject({
+        mediaKey: 'trashed-media',
+        folder: 'Projects/2026',
+        trashed: true
+    });
+});
+
+test('an unindexed trashed candidate is omitted without probing', async () => {
+    const { candidate } = item('cold-trash');
+    const metadata = store();
+    const fetcher = vi.fn<Fetcher>();
+    const result = await scanLibraryPage(
+        { items: [{ ...candidate, trashed: true }], nextPageToken: '' },
+        HEADERS,
+        fetcher,
+        metadata
+    );
+
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(result.unwrap().items).toEqual([]);
+    expect(metadata.save).not.toHaveBeenCalled();
 });
 
 test('a missing row probes once and saves the resolved metadata', async () => {

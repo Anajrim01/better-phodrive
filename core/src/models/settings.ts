@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 export enum AppView {
     Files = 'files',
+    Trash = 'trash',
     Settings = 'settings'
 }
 

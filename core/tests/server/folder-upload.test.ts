@@ -51,7 +51,8 @@ function savedRecord(): {
             load: () => Ok(new Map()).andThenAsync(async (value) => Ok(value)),
             save: async (next) => {
                 records.push(...next);
-            }
+            },
+            remove: async () => {}
         }
     };
 }

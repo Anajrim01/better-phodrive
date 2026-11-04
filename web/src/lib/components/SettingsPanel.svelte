@@ -77,7 +77,7 @@
         <NumberSettingForm
             setting="concurrent workers"
             heading="Concurrent workers"
-            description="Upload or delete up to this many chunks at once per Google account. More workers use more memory. Changes apply to the next operation."
+            description="Upload up to this many chunks at once per Google account. More workers use more memory. Changes apply to the next upload."
             label="Concurrent workers"
             name="workers"
             min={1}

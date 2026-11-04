@@ -82,7 +82,8 @@ test('retry resolves an uncertain commit by hash lookup without a second transfe
     const save = vi.fn(async (_records: readonly ChunkMetadataRecord[]) => {});
     const metadata = {
         load: () => Ok(new Map()).andThenAsync(async (value) => Ok(value)),
-        save
+        save,
+        remove: async () => {}
     };
 
     const failed = await uploadFiles(input, () => {}, harness.fetcher, metadata);

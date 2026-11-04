@@ -12,9 +12,14 @@
         sort: FileSort;
         disabled: boolean;
         action: FileAction | null;
+        headingId?: string;
         showFolder?: boolean;
-        ondownload: (item: FileGroup) => void;
-        ondelete: (item: FileGroup) => void;
+        showOwner?: boolean;
+        trash?: boolean;
+        ondownload?: (item: FileGroup) => void;
+        ondelete?: (item: FileGroup) => void;
+        onrestore?: (item: FileGroup) => void;
+        ondeleteforever?: (item: FileGroup) => void;
     }
 
     let {
@@ -22,9 +27,14 @@
         sort = $bindable(),
         disabled,
         action,
+        headingId = 'files-heading',
         showFolder = false,
+        showOwner = false,
+        trash = false,
         ondownload,
-        ondelete
+        ondelete,
+        onrestore,
+        ondeleteforever
     }: Props = $props();
     const nameSort = $derived(sort === FileSort.NameAscending || sort === FileSort.NameDescending);
     const ascending = $derived(
@@ -47,7 +57,7 @@
     }
 </script>
 
-<table class="file-list" aria-labelledby="files-heading">
+<table class="file-list" aria-labelledby={headingId}>
     <thead>
         <tr>
             <th scope="col" aria-sort={ariaSort(nameSort)}>
@@ -85,7 +95,17 @@
                                     >{item.folder}</span
                                 >
                             {/if}
-                            {#if !item.complete}
+                            {#if showOwner}
+                                <span class="block truncate text-xs text-muted" title={item.email}
+                                    >{item.email}</span
+                                >
+                            {/if}
+                            {#if !trash && item.trashedChunks?.length}
+                                <span class="text-xs text-muted"
+                                    >{item.trashedChunks.length} of {item.chunkCount ?? '?'} chunks in
+                                    Trash</span
+                                >
+                            {:else if !item.complete}
                                 <span class="text-xs text-muted"
                                     >{item.chunks.length}/{item.chunkCount ?? '?'} chunks</span
                                 >
@@ -110,9 +130,12 @@
                         {item}
                         {disabled}
                         compact
+                        {trash}
                         working={action?.fileId === item.fileId ? action.kind : null}
                         {ondownload}
                         {ondelete}
+                        {onrestore}
+                        {ondeleteforever}
                     />
                 </td>
             </tr>

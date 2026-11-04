@@ -41,12 +41,36 @@ export function withoutChunk(
     file: FileGroup,
     removed: { mediaKey: string; sha1: string }
 ): UploadedChunk[] {
-    return chunks.filter(
-        (saved) =>
-            fileKey(saved) !== fileKey(file) ||
-            saved.mediaKey !== removed.mediaKey ||
-            saved.sha1 !== removed.sha1
+    return chunks.filter((saved) => !sameChunk(saved, file, removed));
+}
+
+function sameChunk(
+    saved: UploadedChunk,
+    file: FileGroup,
+    target: { mediaKey: string; sha1: string }
+): boolean {
+    return (
+        fileKey(saved) === fileKey(file) &&
+        saved.mediaKey === target.mediaKey &&
+        saved.sha1 === target.sha1
     );
+}
+
+/** Mark one stored chunk as trashed or active after Google confirms the mutation. */
+export function withTrashState(
+    chunks: readonly UploadedChunk[],
+    file: FileGroup,
+    target: { mediaKey: string; sha1: string },
+    trashed: boolean
+): UploadedChunk[] {
+    return chunks.map((saved) => {
+        if (!sameChunk(saved, file, target)) return saved;
+        if (trashed) return { ...saved, trashed: true };
+
+        const { trashed: _trashed, ...active } = saved;
+
+        return active;
+    });
 }
 
 export function replaceJob(jobs: readonly UploadJob[], id: number, job: UploadJob): UploadJob[] {

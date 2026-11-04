@@ -118,12 +118,12 @@ export function findFiles(
 }
 
 /** A file is deleted only when every known chunk is confirmed in the trash. */
-function deleteFailure(file: FileGroup, { deleted, error }: DeleteResult): string | null {
-    if (!error && deleted.length === file.chunks.length) return null;
+function deleteFailure(file: FileGroup, { applied, error }: DeleteResult): string | null {
+    if (!error && applied.length === file.chunks.length) return null;
 
     const reason = error ? ` ${error}` : '';
 
-    return `${file.name}: deleted ${deleted.length} of ${file.chunks.length} chunks.${reason}`;
+    return `${file.name}: deleted ${applied.length} of ${file.chunks.length} chunks.${reason}`;
 }
 
 export function deleteFiles(

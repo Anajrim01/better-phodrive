@@ -56,7 +56,8 @@ export function authenticatedHeaders(
                 'content-type': 'application/x-www-form-urlencoded',
                 'accept-encoding': 'identity'
             },
-            body: form
+            body: form,
+            ...(throttle?.signal ? { signal: throttle.signal } : {})
         };
 
         const authenticated = throttle

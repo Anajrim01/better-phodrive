@@ -1,7 +1,11 @@
 import { createHash } from 'node:crypto';
 import { expect, test, vi } from 'vitest';
 import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
-import { downloadBmp, moveToTrash } from '@madkarmaa/phodrive-core/server/photos';
+import {
+    downloadBmp,
+    mutatePhotos,
+    createThrottleCoordinator
+} from '@madkarmaa/phodrive-core/server/photos';
 import { preparedDownloadUrl } from '@madkarmaa/phodrive-core/server/photos/download';
 import { bytesField, message, numberField } from '@madkarmaa/phodrive-core/server/protobuf';
 import { SERVER_ERRORS } from '@madkarmaa/phodrive-core/server/errors';
@@ -90,7 +94,15 @@ test('download opens the original response stream and trash targets its dedup ke
         const body = Buffer.from(requestBody);
         expect(body.subarray(0, 2)).toEqual(Buffer.from([16, 1]));
         expect(body.includes(Buffer.from(sha1.toString('base64url')))).toBe(true);
-        return new Response(Uint8Array.from([]));
+
+        return new Response(
+            Uint8Array.from(
+                message(
+                    bytesField(1, 'media-key'),
+                    bytesField(2, message(bytesField(1, 'media-key')))
+                )
+            )
+        );
     };
     const downloaded = await downloadBmp(
         'test@example.com',
@@ -102,13 +114,14 @@ test('download opens the original response stream and trash targets its dedup ke
     const response = downloaded.unwrap();
     const downloadedBytes = await response.arrayBuffer();
     expect(Buffer.from(downloadedBytes)).toEqual(bmp);
-    const deleted = await moveToTrash(
-        'test@example.com',
-        'aas_et/test',
-        sha1.toString('hex'),
+    const deleted = await mutatePhotos(
+        'trash',
+        { email: 'test@example.com', token: 'aas_et/test' },
+        [{ mediaKey: 'media-key', sha1: sha1.toString('hex') }],
+        { key: 'account-a', coordinator: createThrottleCoordinator() },
         fakeFetch
     );
-    expect(deleted.isOk()).toBe(true);
+    expect(deleted.unwrap().applied).toHaveLength(1);
     expect(step).toBe(5);
 });
 

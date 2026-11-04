@@ -4,7 +4,9 @@ import { WorkerCountSchema } from './settings';
 
 export enum FileActionKind {
     Download = 'download',
-    Delete = 'delete'
+    Delete = 'delete',
+    Restore = 'restore',
+    DeleteForever = 'delete-forever'
 }
 
 /** Names become path segments and multipart filenames, so separators and controls are unsafe. */
@@ -64,7 +66,9 @@ const RemoteBmpObjectSchema = z.object({
     at: z.int().nonnegative(),
     mediaKey: z.string().min(1),
     sha1: Sha1HexSchema,
-    accountId: z.string().min(1).optional()
+    accountId: z.string().min(1).optional(),
+    /** Google reports this media item as trashed. Absent means active. */
+    trashed: z.boolean().optional()
 });
 
 export const RemoteBmpSchema = RemoteBmpObjectSchema.refine(
@@ -75,8 +79,6 @@ export const LibraryResponseSchema = z.object({
     items: z.array(RemoteBmpSchema),
     nextPageToken: z.string()
 });
-
-export const DeleteResponseSchema = z.object({ deleted: z.literal(true) });
 
 export const ErrorResponseSchema = z.object({ error: z.string() });
 
@@ -94,9 +96,10 @@ export const FileActionRequestSchema = z.object({
 
 export const FileRequestSchema = AccountRequestSchema.extend(FileActionRequestSchema.shape);
 
-export const FileDeleteResponseSchema = z.object({
-    deleted: z.array(RemoteBmpSchema),
-    error: z.string().optional()
+export const FileMutationResponseSchema = z.object({
+    applied: z.array(RemoteBmpSchema),
+    error: z.string().optional(),
+    retryAfterSeconds: z.int().positive().optional()
 });
 
 /** Identifies one stored chunk for a raw download. */

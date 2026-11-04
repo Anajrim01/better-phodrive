@@ -34,7 +34,7 @@ test('batch deletion reports confirmed chunks even when the server returns parti
         const request = FileActionRequestSchema.parse(JSON.parse(init.body));
         expect(request.action).toBe('delete');
         expect(request.workers).toBe(2);
-        return Response.json({ deleted: [chunk()], error: 'One chunk failed' });
+        return Response.json({ applied: [chunk()], error: 'One chunk failed' });
     });
     const result = await deleteFile(group, (item) => removed.push(item), 2);
     expect(result.unwrapErr().message).toBe('One chunk failed');
