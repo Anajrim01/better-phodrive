@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { Err, Ok, type AsyncResult } from 'results-ts';
-import { FileNameSchema, Sha1HexSchema, UploadStatus, type UploadResponse } from '../../../models';
+import { FileNameSchema, UploadStatus, type UploadResponse } from '../../../models';
 import { SERVER_ERRORS, type ServerError } from '../../errors';
 import { photosFetch, type Fetcher } from '../../fetcher';
 import { bodyBytes } from '../../protobuf';
@@ -131,22 +131,4 @@ function uploadAuthenticatedStream(
                 }));
         }
     );
-}
-
-/** A read-only duplicate check, including after a commit with an uncertain result. */
-export function findBmpBySha1(
-    email: string,
-    token: string,
-    sha1: string,
-    fetcher: Fetcher = photosFetch
-): AsyncResult<string | null, ServerError> {
-    const validHash = Sha1HexSchema.safeParse(sha1).success
-        ? Ok(sha1)
-        : Err(SERVER_ERRORS.INVALID_SHA_1);
-
-    return validHash
-        .andThenAsync(() => authenticatedHeaders(email, token, fetcher))
-        .andThenAsync(({ rpcHeaders }) =>
-            hashLookup(Buffer.from(sha1, 'hex'), rpcHeaders, fetcher)
-        );
 }

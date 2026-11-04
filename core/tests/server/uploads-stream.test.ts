@@ -1,10 +1,11 @@
 import { afterEach, expect, test, vi } from 'vitest';
 import { Ok } from 'results-ts';
-import { UploadEventType, type UploadEvent } from '@madkarmaa/phodrive-core/models';
+import { UploadEventType, UploadStatus, type UploadEvent } from '@madkarmaa/phodrive-core/models';
 import { receiveUpload } from '@madkarmaa/phodrive-core/server/upload/input';
 import { encodeUploadBmp } from '@madkarmaa/phodrive-core/server/upload/bmp';
 import { uploadFiles } from '@madkarmaa/phodrive-core/server/upload';
 import type { ChunkMetadataRecord } from '@madkarmaa/phodrive-core/server/photos';
+import { SERVER_ERRORS } from '@madkarmaa/phodrive-core/server/errors';
 import { decodeSplitBmp } from '@madkarmaa/phodrive-core/server/bmp';
 import { uploadForm, TEST_ACCOUNT } from '../helpers/upload';
 import { photosUploadHarness } from '../helpers/photos-harness';
@@ -73,7 +74,7 @@ test('request cancellation closes unfinished multipart ingress and produces no c
     await received.unwrap().cancel();
 });
 
-test('resolved metadata is saved only after Google confirms the upload', async () => {
+test('retry resolves an uncertain commit by hash lookup without a second transfer', async () => {
     const fixture = uploadForm();
     const received = await receiveUpload(fixture.request(), TEST_ACCOUNT);
     const input = received.unwrap();
@@ -85,19 +86,32 @@ test('resolved metadata is saved only after Google confirms the upload', async (
     };
 
     const failed = await uploadFiles(input, () => {}, harness.fetcher, metadata);
-    expect(failed.isErr()).toBe(true);
+    expect(failed.unwrapErr()).toEqual(SERVER_ERRORS.COMMIT_OUTCOME_UNCERTAIN);
+    expect(harness.counts).toMatchObject({ transfers: 1, commits: 1 });
     expect(save).not.toHaveBeenCalled();
     await input.cancel();
 
     const retry = await receiveUpload(fixture.request(), TEST_ACCOUNT);
-    const harnessRetry = photosUploadHarness();
-    const saved = await uploadFiles(retry.unwrap(), () => {}, harnessRetry.fetcher, metadata);
+    const events: UploadEvent[] = [];
+    const saved = await uploadFiles(
+        retry.unwrap(),
+        (event) => events.push(event),
+        harness.fetcher,
+        metadata
+    );
 
     expect(saved.isOk()).toBe(true);
+    expect(events).toContainEqual(
+        expect.objectContaining({
+            type: UploadEventType.FileComplete,
+            result: expect.objectContaining({ status: UploadStatus.AlreadyExists })
+        })
+    );
+    expect(harness.counts).toMatchObject({ transfers: 1, commits: 1 });
     expect(save).toHaveBeenCalledOnce();
     expect(save.mock.calls[0]?.[0]).toEqual([
         expect.objectContaining({
-            mediaKey: 'media-key',
+            mediaKey: 'existing-key',
             sha1: fixture.metadata.sha1,
             storedBmpSize: expect.any(Number),
             originalName: 'proof.bin'
