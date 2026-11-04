@@ -18,6 +18,7 @@ import { uploadFiles as uploadLocalFiles } from '../../node/upload';
 import { schemaResult } from '../../validation';
 import type { Fetcher } from '../fetcher';
 import { SERVER_ERRORS, type ServerError } from '../errors';
+import type { ThrottleCoordinator } from '../photos/throttle';
 import { limitWorkers } from '../workers';
 import { receiveMultipartFile, type ReceivedMultipartFile } from './multipart';
 import {
@@ -72,7 +73,8 @@ function uploadSpooledFile(
     signal: AbortSignal,
     fetcher?: Fetcher,
     metadata?: ChunkMetadataStore,
-    accountId?: string
+    accountId?: string,
+    coordinator?: ThrottleCoordinator
 ): AsyncResult<void, SpoolError> {
     return Ok(undefined).andThenAsync(async (): Promise<Result<void, SpoolError>> => {
         let file: File;
@@ -99,7 +101,7 @@ function uploadSpooledFile(
                 if (record) records.push(record);
                 emit(chunkEvent(chunk, accountId));
             },
-            { signal, fetcher }
+            { signal, fetcher, accountId, coordinator }
         );
 
         if (metadata && records.length) await metadata.save(records);
@@ -115,7 +117,8 @@ function spoolAndUpload(
     emit: (event: UploadEvent) => void,
     fetcher?: Fetcher,
     metadata?: ChunkMetadataStore,
-    accountId?: string
+    accountId?: string,
+    coordinator?: ThrottleCoordinator
 ): AsyncResult<void, SpoolError> {
     return createSpoolDirectory().andThenAsync(async (directory) => {
         const path = join(directory, 'file');
@@ -138,7 +141,8 @@ function spoolAndUpload(
                 received.signal,
                 fetcher,
                 metadata,
-                accountId
+                accountId,
+                coordinator
             );
         } finally {
             await rm(directory, { recursive: true, force: true }).catch(() => {});
@@ -152,10 +156,12 @@ export function fileUploadStream(
     account: Account,
     fetcher?: Fetcher,
     metadata?: ChunkMetadataStore,
-    accountId?: string
+    accountId?: string,
+    coordinator?: ThrottleCoordinator
 ): Response {
     return uploadEventStream({
-        run: (emit) => spoolAndUpload(received, account, emit, fetcher, metadata, accountId),
+        run: (emit) =>
+            spoolAndUpload(received, account, emit, fetcher, metadata, accountId, coordinator),
         cancel: received.cancel
     });
 }

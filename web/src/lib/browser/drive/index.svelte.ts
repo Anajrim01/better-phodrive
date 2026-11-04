@@ -33,6 +33,7 @@ export class DriveController {
     uploadJobs = $state<UploadJob[]>([]);
     private uploadSources: readonly File[] = [];
     private readonly uploadOwners = new Map<number, GoogleAccountSummary>();
+    private uploadAbort: AbortController | null = null;
 
     feedbackMessage = $state('');
     fileAction = $state<FileAction | null>(null);
@@ -75,6 +76,10 @@ export class DriveController {
     /** An upload or a file action is running. */
     get working(): boolean {
         return this.busy || this.fileAction !== null;
+    }
+
+    cancelUploads() {
+        this.uploadAbort?.abort();
     }
 
     initialize() {
@@ -225,34 +230,48 @@ export class DriveController {
         this.feedbackMessage = '';
         this.busy = true;
 
-        await Promise.all(
-            queues.map(async (queue) => {
-                const uploaded = await uploadBatch({
-                    files: queue.files,
-                    account: queue.account,
-                    workers: this.settings.concurrentWorkers,
-                    processing: this.processing,
-                    library: this.library,
-                    jobIds: queue.jobIds,
-                    retryId,
-                    onJob: (job, id) => {
-                        this.uploadJobs = replaceJob(this.uploadJobs, id, job);
-                        if (job.status === UploadJobStatus.Error)
-                            this.feedbackMessage = job.message;
-                    }
-                });
+        const controller = new AbortController();
+        this.uploadAbort = controller;
 
-                uploaded.inspectErr((error) => {
-                    this.feedbackMessage = error.message;
-                    this.uploadJobs = failUnfinishedJobs(
-                        this.uploadJobs,
-                        error.message,
-                        queue.jobIds
-                    );
-                });
-            })
-        );
+        try {
+            await Promise.all(
+                queues.map(async (queue) => {
+                    const uploaded = await uploadBatch({
+                        files: queue.files,
+                        account: queue.account,
+                        workers: this.settings.concurrentWorkers,
+                        processing: this.processing,
+                        library: this.library,
+                        jobIds: queue.jobIds,
+                        retryId,
+                        signal: controller.signal,
+                        onJob: (job, id) => {
+                            this.uploadJobs = replaceJob(this.uploadJobs, id, job);
+                            if (job.status === UploadJobStatus.Error)
+                                this.feedbackMessage = job.message;
+                        }
+                    });
 
-        this.busy = false;
+                    uploaded.inspectErr((error) => {
+                        this.feedbackMessage = error.message;
+                        this.uploadJobs = failUnfinishedJobs(
+                            this.uploadJobs,
+                            error.message,
+                            queue.jobIds
+                        );
+                    });
+                })
+            );
+
+            if (controller.signal.aborted)
+                this.uploadJobs = failUnfinishedJobs(
+                    this.uploadJobs,
+                    'Upload cancelled.',
+                    queues.flatMap((queue) => queue.jobIds)
+                );
+        } finally {
+            if (this.uploadAbort === controller) this.uploadAbort = null;
+            this.busy = false;
+        }
     }
 }

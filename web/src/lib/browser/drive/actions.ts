@@ -44,6 +44,7 @@ export interface UploadBatch {
     jobIds?: readonly number[];
     /** A retry reports its single file under the job ID it already has. */
     retryId?: number;
+    signal?: AbortSignal;
     onJob: (job: UploadJob, id: number) => void;
 }
 
@@ -56,6 +57,7 @@ export function uploadBatch({
     library,
     jobIds,
     retryId,
+    signal,
     onJob
 }: UploadBatch): AsyncResult<void, ApplicationError> {
     const uploadedChunks = holdUploadedChunks((saved) => {
@@ -72,7 +74,8 @@ export function uploadBatch({
         },
         uploadedChunks.hold,
         processing,
-        account.id
+        account.id,
+        signal
     )
         .inspect(uploadedChunks.releaseAll)
         .inspectErr(uploadedChunks.releaseAll);

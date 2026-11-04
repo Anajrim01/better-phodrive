@@ -3,9 +3,10 @@ import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import { randomBytes } from 'node:crypto';
 import { parseAuthFields } from '../aas';
 import { photosFetch, type Fetcher } from '../fetcher';
-import { send, readBody } from './transport';
+import { guardedSend, send, readBody } from './transport';
 import { utf8 } from '../protobuf';
 import { AccountSchema } from '../../models';
+import type { ThrottleScope } from './throttle';
 
 const AUTH_URL = 'https://android.googleapis.com/auth';
 const APP = 'com.google.android.apps.photos';
@@ -18,7 +19,8 @@ export type PhotosHeaders = {
 export function authenticatedHeaders(
     email: string,
     token: string,
-    fetcher: Fetcher
+    fetcher: Fetcher,
+    throttle?: ThrottleScope
 ): AsyncResult<PhotosHeaders, ServerError> {
     return Ok(undefined).andThenAsync(async () => {
         if (!AccountSchema.safeParse({ email, token }).success)
@@ -44,23 +46,24 @@ export function authenticatedHeaders(
                 'oauth2:openid https://www.googleapis.com/auth/mobileapps.native https://www.googleapis.com/auth/photos.native'
         });
 
-        return send(
-            fetcher,
-            AUTH_URL,
-            {
-                method: 'POST',
-                redirect: 'manual',
-                headers: {
-                    app: APP,
-                    device: androidId,
-                    'user-agent': 'GoogleAuth/1.4 (Pixel XL PQ2A.190205.001); gzip',
-                    'content-type': 'application/x-www-form-urlencoded',
-                    'accept-encoding': 'identity'
-                },
-                body: form
+        const init: RequestInit = {
+            method: 'POST',
+            redirect: 'manual',
+            headers: {
+                app: APP,
+                device: androidId,
+                'user-agent': 'GoogleAuth/1.4 (Pixel XL PQ2A.190205.001); gzip',
+                'content-type': 'application/x-www-form-urlencoded',
+                'accept-encoding': 'identity'
             },
-            'Authentication'
-        ).andThenAsync((response) =>
+            body: form
+        };
+
+        const authenticated = throttle
+            ? guardedSend(throttle, fetcher, AUTH_URL, init, 'Authentication')
+            : send(fetcher, AUTH_URL, init, 'Authentication');
+
+        return authenticated.andThenAsync((response) =>
             readBody(response, 'Authentication').andThen(utf8).andThen(authHeadersFromResponse)
         );
     });

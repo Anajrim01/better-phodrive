@@ -16,6 +16,8 @@ export interface UploadJob {
     progress: UploadProgress;
     message: string;
     result: UploadResponse | null;
+    /** Derived display deadline while the account's shared cooldown is active. */
+    retryAt: number | null;
     /** Validation failures cannot become uploadable by retrying the same file. */
     retryable?: boolean;
 }
@@ -32,7 +34,8 @@ export function createUploadJobs(files: readonly File[]): UploadJob[] {
         status: UploadJobStatus.Queued,
         progress: { phase: UploadPhase.Receiving, completed: 0, total: file.size },
         message: '',
-        result: null
+        result: null,
+        retryAt: null
     }));
 }
 
@@ -68,7 +71,12 @@ export function updateProgress(
     )
         return invalidProgress();
 
-    return Ok({ ...job, status: UploadJobStatus.Active, progress });
+    const retryAt =
+        progress.phase === UploadPhase.Uploading && progress.retryAfterSeconds !== undefined
+            ? Date.now() + progress.retryAfterSeconds * 1_000
+            : null;
+
+    return Ok({ ...job, status: UploadJobStatus.Active, progress, retryAt });
 }
 
 export function completeJob(
@@ -91,7 +99,7 @@ export function completeJob(
     )
         return invalidProgress();
 
-    return Ok({ ...job, status: UploadJobStatus.Complete, result });
+    return Ok({ ...job, status: UploadJobStatus.Complete, result, retryAt: null });
 }
 
 export function finished(job: UploadJob): boolean {

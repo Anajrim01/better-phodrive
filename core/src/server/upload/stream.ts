@@ -1,13 +1,15 @@
 import type { AsyncResult } from 'results-ts';
 import { UploadEventType, type UploadEvent } from '../../models';
+import type { ApplicationError } from '../../errors';
 import type { ServerError } from '../errors';
 import type { ChunkMetadataStore } from '../photos/library/metadata-store';
+import type { ThrottleCoordinator } from '../photos/throttle';
 import type { ReceivedUpload } from './input';
 import { uploadFiles } from './index';
 
 /** Work reported over an upload event stream, and the cleanup that ends its request. */
 export interface UploadTask {
-    run: (emit: (event: UploadEvent) => void) => AsyncResult<void, { message: string }>;
+    run: (emit: (event: UploadEvent) => void) => AsyncResult<void, ServerError | ApplicationError>;
     cancel: () => AsyncResult<void, ServerError>;
 }
 
@@ -52,7 +54,14 @@ export function uploadEventStream({ run, cancel }: UploadTask): Response {
                     .andThen(() => cancelled)
                     .match({
                         Ok: () => emit({ type: UploadEventType.Complete }),
-                        Err: (error) => emit({ type: UploadEventType.Error, error: error.message })
+                        Err: (error) =>
+                            emit({
+                                type: UploadEventType.Error,
+                                error: error.message,
+                                ...(error.code === 'THROTTLED'
+                                    ? { retryAfterSeconds: error.retryAfterSeconds }
+                                    : {})
+                            })
                     });
                 finished = true;
                 flush(controller);
@@ -84,10 +93,11 @@ export function uploadEventStream({ run, cancel }: UploadTask): Response {
 export function uploadStream(
     input: ReceivedUpload,
     metadata?: ChunkMetadataStore,
-    accountId?: string
+    accountId?: string,
+    coordinator?: ThrottleCoordinator
 ): Response {
     return uploadEventStream({
-        run: (emit) => uploadFiles(input, emit, undefined, metadata, accountId),
+        run: (emit) => uploadFiles(input, emit, undefined, metadata, accountId, coordinator),
         cancel: input.cancel
     });
 }

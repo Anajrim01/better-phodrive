@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { IconButton, List, Sheet } from 'noph-ui';
+    import { Button, IconButton, List, Sheet } from 'noph-ui';
     import { UploadJobStatus } from '@madkarmaa/phodrive-core/models';
 
     import { slide } from 'svelte/transition';
@@ -15,9 +15,10 @@
         jobs: readonly UploadJob[];
         retryDisabled: boolean;
         onretry: (id: number) => void;
+        oncancel?: () => void;
     }
 
-    let { open = $bindable(false), busy, jobs, retryDisabled, onretry }: Props = $props();
+    let { open = $bindable(false), busy, jobs, retryDisabled, onretry, oncancel }: Props = $props();
 
     let collapsed = $state(false);
     const orderedJobs = $derived(
@@ -32,9 +33,19 @@
             (job) => job.status === UploadJobStatus.Queued || job.status === UploadJobStatus.Active
         ).length
     );
+    const waiting = $derived(
+        jobs.filter(
+            (job) =>
+                (job.status === UploadJobStatus.Queued || job.status === UploadJobStatus.Active) &&
+                job.retryAt !== null
+        ).length
+    );
     const failures = $derived(jobs.filter((job) => job.status === UploadJobStatus.Error).length);
     const heading = $derived.by(() => {
-        if (busy) return `Uploading ${remaining} ${remaining === 1 ? 'item' : 'items'}`;
+        if (busy)
+            return waiting
+                ? `${remaining} ${remaining === 1 ? 'item' : 'items'} waiting`
+                : `Uploading ${remaining} ${remaining === 1 ? 'item' : 'items'}`;
         if (failures) return `${failures} ${failures === 1 ? 'upload' : 'uploads'} failed`;
 
         return `${jobs.length} ${jobs.length === 1 ? 'upload' : 'uploads'} complete`;
@@ -50,7 +61,17 @@
     class="upload-sheet"
 >
     <header class="flex min-h-14 items-center gap-1 bg-surface py-1 pr-2 pl-4">
-        <h2 class="mr-auto text-base font-medium" aria-live="polite">{heading}</h2>
+        <div class="min-w-0 flex-1">
+            <h2 class="text-base font-medium" aria-live="polite">{heading}</h2>
+            {#if busy && waiting}
+                <p class="text-xs text-muted">Google Photos is limiting requests.</p>
+            {/if}
+        </div>
+        {#if busy && oncancel}
+            <Button variant="text" size="s" aria-label="Cancel uploads" onclick={oncancel}
+                >Cancel</Button
+            >
+        {/if}
         <IconButton
             size="s"
             aria-label={collapsed ? 'Expand upload status' : 'Minimise upload status'}

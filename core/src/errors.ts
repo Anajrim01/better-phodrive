@@ -1,5 +1,5 @@
 /** Recoverable failures carry a stable code and a user-facing message. */
-export type ApplicationError = {
+type BaseApplicationError = {
     readonly code:
         | 'ACCOUNT_CONNECTION_FAILED'
         | 'DELETE_FAILED'
@@ -19,6 +19,7 @@ export type ApplicationError = {
         | 'REPEATED_LIBRARY_PAGE'
         | 'REQUEST_FAILED'
         | 'STORAGE_UNAVAILABLE'
+        | 'UPLOAD_CANCELLED'
         | 'UPLOAD_FAILED'
         | 'UPLOAD_STREAM_INTERRUPTED'
         | 'HASH_INITIALIZATION_FAILED'
@@ -29,3 +30,7 @@ export type ApplicationError = {
         | 'FILE_EXISTS';
     readonly message: string;
 };
+
+export type ApplicationError =
+    | BaseApplicationError
+    | { readonly code: 'THROTTLED'; readonly message: string; readonly retryAfterSeconds: number };
