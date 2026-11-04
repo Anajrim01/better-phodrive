@@ -16,6 +16,7 @@ import { photosFetchWithProgress, type Fetcher } from '../fetcher';
 import { uploadBmpStream } from '../photos/index';
 import { encodeUploadBmp, relayUploadBmp } from './bmp';
 import type { ReceivedUpload } from './input';
+import { chunkMetadataRecord, type ChunkMetadataStore } from '../photos/library/metadata-store';
 
 const PROGRESS_INTERVAL_MS = 100;
 
@@ -31,7 +32,8 @@ export function planUpload(file: UploadFile): Result<UploadPlan, ServerError> {
 export function uploadFiles(
     input: ReceivedUpload,
     emit: (event: UploadEvent) => void,
-    fetcher?: Fetcher
+    fetcher?: Fetcher,
+    metadata?: ChunkMetadataStore
 ): AsyncResult<void, ServerError> {
     return Ok(undefined).andThenAsync(async () => {
         const source =
@@ -68,6 +70,26 @@ export function uploadFiles(
             fetcher ?? photosFetchWithProgress((sent) => report(sent)),
             input.signal
         );
+
+        if (uploaded.isOk() && metadata) {
+            const result = uploaded.unwrap();
+            await metadata.save([
+                chunkMetadataRecord(
+                    {
+                        fileHash: input.header.fileHash,
+                        fileId: input.header.fileId,
+                        chunkIndex: input.header.chunkIndex,
+                        isLast: input.header.flags === 1,
+                        ...(input.header.fileName ? { originalName: input.header.fileName } : {}),
+                        size: input.header.payloadSize,
+                        at: Date.now(),
+                        mediaKey: result.mediaKey,
+                        sha1: result.sha1
+                    },
+                    input.bmp.totalSize
+                )
+            ]);
+        }
 
         return uploaded.map((result) => {
             const reused = result.status === UploadStatus.AlreadyExists ? input.bmp.totalSize : 0;

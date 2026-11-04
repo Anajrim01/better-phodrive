@@ -15,6 +15,7 @@ import { Hono } from 'hono';
 import { errorResponse, jsonResponse, readJsonRequest } from '../api';
 import type { ServerContext } from '../context';
 import { requireGoogleAccount, requireUser, type ApiEnv } from '../middleware';
+import { createChunkMetadataStore } from '../chunk-metadata';
 
 function relayedChunk(response: Response): Response {
     const headers = new Headers({
@@ -35,34 +36,46 @@ export function driveRoutes(context: ServerContext) {
     return new Hono<ApiEnv>()
         .post('/library', signedIn, connected, (c) => {
             const { email, token } = c.get('account');
+            const metadata = createChunkMetadataStore(context.db, {
+                userId: c.get('user').id,
+                googleEmail: email
+            });
 
             return readJsonRequest(c.req.raw, LibraryPageRequestSchema, 'Invalid request')
-                .andThenAsync((input) => listBmps(email, token, input.pageToken ?? ''))
+                .andThenAsync((input) =>
+                    listBmps(email, token, input.pageToken ?? '', undefined, metadata)
+                )
                 .match({ Ok: jsonResponse, Err: errorResponse });
         })
         .post('/files', signedIn, connected, (c) => {
             const account = c.get('account');
 
             return readJsonRequest(c.req.raw, FileActionRequestSchema, 'Invalid request')
-                .andThenAsync((input) =>
-                    input.action === FileActionKind.Download
-                        ? downloadFile({ ...input, ...account }, c.req.raw.signal)
-                        : deleteFile({ ...input, ...account }).map(jsonResponse)
-                )
+                .andThenAsync(async (input) => {
+                    if (input.action === FileActionKind.Download)
+                        return downloadFile({ ...input, ...account }, c.req.raw.signal);
+
+                    // Delete moves media to Google Photos trash, where it can be restored.
+                    return deleteFile({ ...input, ...account }).map(jsonResponse);
+                })
                 .match({ Ok: (response) => response, Err: errorResponse });
         })
         .post('/upload', signedIn, connected, (c) => {
             const account = c.get('account');
+            const metadata = createChunkMetadataStore(context.db, {
+                userId: c.get('user').id,
+                googleEmail: account.email
+            });
 
             // Browsers send finished chunks to relay, or whole files for the server to process.
             if (context.env.PHODRIVE_PROCESSING === ProcessingMode.Browser)
                 return receiveUpload(c.req.raw, account, ChunkFormat.Bmp).match({
-                    Ok: uploadStream,
+                    Ok: (input) => uploadStream(input, metadata),
                     Err: errorResponse
                 });
 
             return receiveFileUpload(c.req.raw).match({
-                Ok: (received) => fileUploadStream(received, account),
+                Ok: (received) => fileUploadStream(received, account, undefined, metadata),
                 Err: errorResponse
             });
         })

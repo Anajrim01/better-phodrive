@@ -7,6 +7,13 @@ import type { Fetcher } from '../../fetcher';
 import type { PhotosHeaders } from '../auth';
 import { preparedDownloadUrl } from '../download';
 import type { LibraryCandidate } from './metadata';
+import {
+    chunkMetadataRecord,
+    metadataItem,
+    metadataMatches,
+    type ChunkMetadataRecord,
+    type ChunkMetadataStore
+} from './metadata-store';
 
 const HEADER_PROBE_BYTES = MAX_SPLIT_HEADER_BYTES;
 const LIBRARY_PROBE_CONCURRENCY = 4;
@@ -15,26 +22,55 @@ const LIBRARY_PROBE_CONCURRENCY = 4;
 export function scanLibraryPage(
     page: { items: LibraryCandidate[]; nextPageToken: string },
     headers: PhotosHeaders,
-    fetcher: Fetcher
+    fetcher: Fetcher,
+    metadata?: ChunkMetadataStore
 ): AsyncResult<{ items: RemoteBmp[]; nextPageToken: string }, ServerError> {
     return Ok(undefined).andThenAsync(async () => {
+        const stored = metadata
+            ? await metadata.load(page.items).match({
+                  Ok: (rows) => rows,
+                  Err: () => new Map<string, ChunkMetadataRecord>()
+              })
+            : new Map<string, ChunkMetadataRecord>();
+        const items = new Map<string, RemoteBmp>();
+        const missing: LibraryCandidate[] = [];
+
+        for (const candidate of page.items) {
+            const record = stored.get(candidate.mediaKey);
+            if (record && metadataMatches(record, candidate)) {
+                items.set(candidate.mediaKey, metadataItem(record, candidate));
+            } else {
+                missing.push(candidate);
+            }
+        }
+
         const limit = pLimit(LIBRARY_PROBE_CONCURRENCY);
-        const scanned = await limit.map(page.items, (candidate) =>
+        const scanned = await limit.map(missing, (candidate) =>
             probeLibraryItem(candidate, headers.commonHeaders, headers.rpcHeaders, fetcher)
         );
-
-        const items: RemoteBmp[] = [];
+        const records: ChunkMetadataRecord[] = [];
+        const missingByKey = new Map(missing.map((candidate) => [candidate.mediaKey, candidate]));
 
         for (const result of scanned) {
             if (result.isErr()) return result;
 
             result.inspect((item) => {
-                if (item !== null) items.push(item);
+                if (item === null) return;
+
+                items.set(item.mediaKey, item);
+                const candidate = missingByKey.get(item.mediaKey);
+                if (candidate) records.push(chunkMetadataRecord(item, candidate.size));
             });
         }
 
+        if (metadata && records.length) await metadata.save(records);
+
         return Ok({
-            items,
+            items: page.items.flatMap((candidate) => {
+                const item = items.get(candidate.mediaKey);
+
+                return item ? [item] : [];
+            }),
             nextPageToken: page.nextPageToken
         });
     });
