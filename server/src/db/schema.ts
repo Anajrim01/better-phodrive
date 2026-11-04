@@ -131,12 +131,7 @@ export const googleAccountGroup = pgTable(
         userId: text('user_id')
             .notNull()
             .references(() => user.id, { onDelete: 'cascade' }),
-        name: text('name').notNull(),
-        createdAt: timestamp('created_at').defaultNow().notNull(),
-        updatedAt: timestamp('updated_at')
-            .defaultNow()
-            .$onUpdate(() => new Date())
-            .notNull()
+        name: text('name').notNull()
     },
     (table) => [unique('google_account_group_user_id_id_unique').on(table.userId, table.id)]
 );

@@ -14,6 +14,7 @@ export type FileGroup = {
     complete: boolean;
 };
 
+/** The direct-token CLI library has no server account id, so email remains its owner key. */
 export function ownerKey(file: { email: string; accountId?: string }): string {
     return file.accountId ?? file.email;
 }

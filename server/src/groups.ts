@@ -131,7 +131,7 @@ export function renameGoogleAccountGroup(
         try {
             const [updated] = await store.db
                 .update(googleAccountGroup)
-                .set({ name: validName, updatedAt: new Date() })
+                .set({ name: validName })
                 .where(
                     and(eq(googleAccountGroup.userId, userId), eq(googleAccountGroup.id, groupId))
                 )

@@ -24,8 +24,6 @@ CREATE TABLE "google_account_group" (
 	"id" text PRIMARY KEY NOT NULL,
 	"user_id" text NOT NULL,
 	"name" text NOT NULL,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL,
 	CONSTRAINT "google_account_group_user_id_id_unique" UNIQUE("user_id","id")
 );
 --> statement-breakpoint
