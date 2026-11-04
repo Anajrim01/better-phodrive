@@ -17,7 +17,7 @@ import type {
     ChunkMetadataRecord,
     ChunkMetadataStore
 } from '@madkarmaa/phodrive-core/server/photos';
-import { decodeSplitBmp, encodeSplitBmp } from '@madkarmaa/phodrive-core/server/bmp';
+import { decodeSplitBmp, encodeSplitBmp } from '../helpers/split-bmp';
 import { fileIdentity } from '@madkarmaa/phodrive-core/server/chunks';
 import { uploadFiles } from '@madkarmaa/phodrive-core/server/upload';
 import { fileUploadStream, receiveFileUpload } from '@madkarmaa/phodrive-core/server/upload/file';

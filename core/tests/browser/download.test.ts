@@ -3,7 +3,7 @@ import { afterEach, expect, test, vi } from 'vitest';
 import { downloadFile } from '@madkarmaa/phodrive-core/browser/files';
 import { groupChunks } from '@madkarmaa/phodrive-core/files';
 import { ProcessingMode } from '@madkarmaa/phodrive-core/models';
-import { encodeSplitBmp } from '@madkarmaa/phodrive-core/server/bmp';
+import { encodeSplitBmp } from '../helpers/split-bmp';
 import { fileIdentity } from '@madkarmaa/phodrive-core/server/chunks';
 
 afterEach(() => vi.restoreAllMocks());

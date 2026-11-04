@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
-import { encodeSplitBmp } from '@madkarmaa/phodrive-core/server/bmp';
+import { encodeSplitBmp } from '../../core/tests/helpers/split-bmp';
 import { SplitBmpReader } from '@madkarmaa/phodrive-core/server/bmp/stream';
 import { encodeUploadBmp } from '@madkarmaa/phodrive-core/server/upload/bmp';
 import { receiveUpload, type ReceivedUpload } from '@madkarmaa/phodrive-core/server/upload/input';

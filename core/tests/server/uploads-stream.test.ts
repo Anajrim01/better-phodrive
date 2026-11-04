@@ -6,7 +6,7 @@ import { encodeUploadBmp } from '@madkarmaa/phodrive-core/server/upload/bmp';
 import { uploadFiles } from '@madkarmaa/phodrive-core/server/upload';
 import type { ChunkMetadataRecord } from '@madkarmaa/phodrive-core/server/photos';
 import { SERVER_ERRORS } from '@madkarmaa/phodrive-core/server/errors';
-import { decodeSplitBmp } from '@madkarmaa/phodrive-core/server/bmp';
+import { decodeSplitBmp } from '../helpers/split-bmp';
 import { uploadForm, TEST_ACCOUNT } from '../helpers/upload';
 import { photosUploadHarness } from '../helpers/photos-harness';
 import * as fs from 'node:fs/promises';

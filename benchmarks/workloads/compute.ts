@@ -6,7 +6,7 @@ import {
     uploadIdentity
 } from '@madkarmaa/phodrive-core/browser/upload/hash';
 import { encodeSplitPrefix } from '@madkarmaa/phodrive-core/bmp/format';
-import { encodeSplitBmp } from '@madkarmaa/phodrive-core/server/bmp';
+import { encodeSplitBmp } from '../../core/tests/helpers/split-bmp';
 import { planChunks } from '@madkarmaa/phodrive-core/upload';
 import { files, freshFiles, header, MIB, sum, type Workload } from '../fixtures';
 
