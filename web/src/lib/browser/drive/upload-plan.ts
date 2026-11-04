@@ -1,11 +1,10 @@
 import {
     FileNameSchema,
     FileSizeSchema,
-    FolderPathSchema,
     UploadJobStatus,
     type GoogleAccountSummary
 } from '@madkarmaa/phodrive-core/models';
-import { folderFromFile } from '@madkarmaa/phodrive-core/files';
+import { resolveUploadFolder } from '@madkarmaa/phodrive-core/files';
 import { assignUploadOwners } from '@madkarmaa/phodrive-core/browser/upload';
 import { createUploadJobs, type UploadJob } from '#browser/files';
 import type { DriveContext } from '#browser/drive/context.svelte';
@@ -48,18 +47,18 @@ export function planUploads(
             continue;
         }
 
-        const folder = folderFromFile(file, rootFolder);
-        if (folder && !FolderPathSchema.safeParse(folder).success) {
+        const resolved = resolveUploadFolder(file, rootFolder);
+        if (resolved.isErr()) {
             jobs = replaceJob(jobs, jobId, {
                 ...jobs[jobId]!,
                 status: UploadJobStatus.Error,
-                message: 'Invalid folder path.',
+                message: resolved.unwrapErr().message,
                 retryable: false
             });
             continue;
         }
 
-        sources.push({ file, jobId, folder });
+        sources.push({ file, jobId, folder: resolved.unwrap() });
     }
 
     const members = context.kind === 'account' ? [context.account] : context.group.members;

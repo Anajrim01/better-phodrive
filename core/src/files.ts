@@ -1,5 +1,7 @@
+import { Err, Ok, type Result } from 'results-ts';
 import { FileSort, FileActionKind, FolderPathSchema, type RemoteBmp } from './models';
 import { MAX_CHUNK_PAYLOAD_BYTES } from './bmp/format';
+import type { ApplicationError } from './errors';
 
 export type UploadedChunk = RemoteBmp & { email: string };
 
@@ -37,22 +39,46 @@ export function identityInput(
     return folder ? `${base}\u0000${folder}` : base;
 }
 
-/** Display and lookup helper. API and storage validation must use FolderPathSchema instead. */
-export function normalizedFolder(folder?: string): string {
-    if (!folder) return '';
-    if (!FolderPathSchema.safeParse(folder).success) return '';
+export const INVALID_FOLDER_PATH = {
+    code: 'INVALID_FOLDER_PATH',
+    message: 'Invalid folder path.'
+} as const satisfies ApplicationError;
 
-    return folder;
+/** Display and lookup helper. API and storage validation must use resolveFolder instead. */
+export function normalizedFolder(folder?: string): string {
+    const resolved = resolveFolder(folder);
+
+    return resolved.isOk() ? resolved.unwrap() : '';
 }
 
-/** Combine the current folder with a directory picker's relative path. Validation happens at upload. */
-export function folderFromFile(file: File, fallback = ''): string {
-    const relative = 'webkitRelativePath' in file ? file.webkitRelativePath : '';
-    const segments = typeof relative === 'string' ? relative.split('/').slice(0, -1) : [];
-    const path = segments.filter(Boolean).join('/');
-    const root = fallback || '';
+/** Validate one folder path. Root is the empty string. */
+export function resolveFolder(folder?: string): Result<string, ApplicationError> {
+    if (!folder) return Ok('');
 
-    return path ? [root, path].filter(Boolean).join('/') : root;
+    return FolderPathSchema.safeParse(folder).success ? Ok(folder) : Err(INVALID_FOLDER_PATH);
+}
+
+/**
+ * Resolve a picker file's folder before identity generation. Empty segments from a relative path
+ * stay in place so validation rejects them instead of silently normalizing the path.
+ */
+export function resolveUploadFolder(file: File, fallback = ''): Result<string, ApplicationError> {
+    const root = resolveFolder(fallback);
+    if (root.isErr()) return root;
+
+    const relative = 'webkitRelativePath' in file ? file.webkitRelativePath : '';
+    if (typeof relative !== 'string' || relative === '') return root;
+
+    const segments = relative.split('/');
+    if (segments.at(-1) === '') return Err(INVALID_FOLDER_PATH);
+    if (segments.length === 1) return root;
+
+    const path = segments.slice(0, -1).join('/');
+    if (!path) return Err(INVALID_FOLDER_PATH);
+
+    const current = root.unwrap();
+
+    return resolveFolder(current ? `${current}/${path}` : path);
 }
 
 /** Parent folder of a filesystem-style path. */

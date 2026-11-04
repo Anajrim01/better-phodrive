@@ -5,13 +5,12 @@ import {
     ProcessingMode,
     FileNameSchema,
     FileSizeSchema,
-    FolderPathSchema,
     UploadEventType,
     UploadJobStatus
 } from '../../models';
 import type { ApplicationError } from '../../errors';
 import type { UploadedChunk } from '../../files';
-import { folderFromFile } from '../../files';
+import { resolveFolder, resolveUploadFolder } from '../../files';
 import { schemaResult } from '../../validation';
 import {
     httpChunkTransport,
@@ -52,18 +51,18 @@ function uploadSources(
             continue;
         }
 
-        const folder = folders?.[id] ?? folderFromFile(file);
-        if (folder && !FolderPathSchema.safeParse(folder).success) {
+        const folder = folders ? resolveFolder(folders[id]) : resolveUploadFolder(file);
+        if (folder.isErr()) {
             jobs[id] = {
                 ...jobs[id],
                 status: UploadJobStatus.Error,
-                message: 'Invalid folder path.'
+                message: folder.unwrapErr().message
             };
             onJob(jobs[id]);
             continue;
         }
 
-        sources.push({ file, jobId: id, folder });
+        sources.push({ file, jobId: id, folder: folder.unwrap() });
     }
 
     return sources;

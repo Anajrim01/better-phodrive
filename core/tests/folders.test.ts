@@ -2,11 +2,11 @@ import { createHash } from 'node:crypto';
 import { expect, test } from 'vitest';
 import {
     childFolders,
-    folderFromFile,
     folderFromPath,
     folderTrail,
     groupChunks,
     identityInput,
+    resolveUploadFolder,
     type UploadedChunk
 } from '@madkarmaa/phodrive-core/files';
 import { uploadIdentity } from '@madkarmaa/phodrive-core/browser/upload/hash';
@@ -58,13 +58,40 @@ test('directory picker paths combine with the current folder', () => {
         return file;
     };
 
-    expect(folderFromFile(directory('Source/src/main.ts'), 'Work')).toBe('Work/Source/src');
-    expect(folderFromFile(directory('Photos/Trips/a.jpg'))).toBe('Photos/Trips');
-    expect(folderFromFile(new File(['x'], 'a.txt'), 'Projects/2026')).toBe('Projects/2026');
-    expect(folderFromFile(directory('a/../b.txt'), 'Work')).toBe('Work/a/..');
-    expect(
-        FolderPathSchema.safeParse(folderFromFile(directory('a/../b.txt'), 'Work')).success
-    ).toBe(false);
+    expect(resolveUploadFolder(directory('Source/a.ts'), 'Work').unwrap()).toBe('Work/Source');
+    expect(resolveUploadFolder(directory('Source/lib/a.ts')).unwrap()).toBe('Source/lib');
+    expect(resolveUploadFolder(directory('Photos/Trips/a.jpg')).unwrap()).toBe('Photos/Trips');
+    expect(resolveUploadFolder(new File(['x'], 'a.txt'), 'Projects/2026').unwrap()).toBe(
+        'Projects/2026'
+    );
+});
+
+test('malformed relative paths stay malformed and fail instead of becoming root', () => {
+    const directory = (path: string) => {
+        const file = new File(['x'], 'x.bin');
+        Object.defineProperty(file, 'webkitRelativePath', { value: path });
+
+        return file;
+    };
+    const paths = [
+        '/a.ts',
+        'Source//a.ts',
+        'Source//nested/a.ts',
+        'Source/./a.ts',
+        'Source/../a.ts',
+        'a/../b.txt'
+    ];
+
+    for (const root of ['', 'Work']) {
+        for (const path of paths) {
+            const resolved = resolveUploadFolder(directory(path), root);
+            expect(resolved.isErr()).toBe(true);
+            expect(resolved.unwrapErr()).toEqual({
+                code: 'INVALID_FOLDER_PATH',
+                message: 'Invalid folder path.'
+            });
+        }
+    }
 });
 
 test('folderFromPath keeps the parent path', () => {

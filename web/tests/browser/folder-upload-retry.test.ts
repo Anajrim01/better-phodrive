@@ -70,21 +70,34 @@ test('retry keeps the resolved folder after the user navigates away', async () =
     expect(drive.uploadJobs[0]?.status).toBe(UploadJobStatus.Complete);
 });
 
-test('invalid combined folders fail validation instead of uploading to root', async () => {
+test('malformed relative folders fail validation in root and non-root folders', async () => {
     const upload = vi.spyOn(filesApi, 'uploadFiles');
-    const drive = new DriveController('test@example.com');
-    drive.initialize();
-    useAccount(drive);
-    drive.library.folder = 'Projects';
-    const file = new File(['bad folder'], 'a.ts');
-    Object.defineProperty(file, 'webkitRelativePath', { value: '../a.ts' });
+    const paths = [
+        '/a.ts',
+        'Source//a.ts',
+        'Source//nested/a.ts',
+        'Source/./a.ts',
+        'Source/../a.ts',
+        '../a.ts'
+    ];
 
-    await drive.upload([file]);
+    for (const root of ['', 'Projects']) {
+        for (const path of paths) {
+            const drive = new DriveController('test@example.com');
+            drive.initialize();
+            useAccount(drive);
+            drive.library.folder = root;
+            const file = new File(['bad folder'], 'a.ts');
+            Object.defineProperty(file, 'webkitRelativePath', { value: path });
 
-    expect(upload).not.toHaveBeenCalled();
-    expect(drive.uploadJobs[0]).toMatchObject({
-        status: UploadJobStatus.Error,
-        message: 'Invalid folder path.',
-        retryable: false
-    });
+            await drive.upload([file]);
+
+            expect(upload).not.toHaveBeenCalled();
+            expect(drive.uploadJobs[0]).toMatchObject({
+                status: UploadJobStatus.Error,
+                message: 'Invalid folder path.',
+                retryable: false
+            });
+        }
+    }
 });
