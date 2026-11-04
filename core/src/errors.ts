@@ -2,6 +2,7 @@
 type BaseApplicationError = {
     readonly code:
         | 'ACCOUNT_CONNECTION_FAILED'
+        | 'COMPRESSED_DOWNLOAD_UNAVAILABLE'
         | 'DELETE_FAILED'
         | 'DOWNLOAD_INTEGRITY_FAILED'
         | 'DOWNLOAD_RECEIVE_FAILED'

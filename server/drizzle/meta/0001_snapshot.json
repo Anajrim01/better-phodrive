@@ -196,6 +196,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "stored_payload_size": {
+          "name": "stored_payload_size",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "size": {
           "name": "size",
           "type": "integer",

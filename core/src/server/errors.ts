@@ -75,6 +75,10 @@ export const SERVER_ERRORS = {
         code: 'DOWNLOAD_INTEGRITY_FAILED',
         message: 'Download integrity failed'
     },
+    DECOMPRESSION_FAILED: {
+        code: 'DECOMPRESSION_FAILED',
+        message: 'Could not decompress the stored file.'
+    },
     MISSING_DOWNLOAD_BODY: { code: 'MISSING_DOWNLOAD_BODY', message: 'Missing download body' },
     COULD_NOT_INSPECT_PHOTO_HEADER: {
         code: 'COULD_NOT_INSPECT_PHOTO_HEADER',

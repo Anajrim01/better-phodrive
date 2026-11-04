@@ -21,6 +21,7 @@ function record(row: typeof chunkMetadata.$inferSelect): ChunkMetadataRecord {
         isLast: row.isLast,
         ...(row.originalName ? { originalName: row.originalName } : {}),
         ...(row.chunkIndex === 0 && row.folder ? { folder: row.folder } : {}),
+        ...(row.storedPayloadSize === null ? {} : { storedSize: row.storedPayloadSize }),
         size: row.size
     };
 }
@@ -71,6 +72,7 @@ export function createChunkMetadataStore(
                             isLast: item.isLast,
                             originalName: item.originalName ?? null,
                             folder: item.folder ?? null,
+                            storedPayloadSize: item.storedSize ?? null,
                             size: item.size
                         }))
                     )
@@ -89,6 +91,7 @@ export function createChunkMetadataStore(
                             isLast: sql`excluded.is_last`,
                             originalName: sql`excluded.original_name`,
                             folder: sql`excluded.folder`,
+                            storedPayloadSize: sql`excluded.stored_payload_size`,
                             size: sql`excluded.size`
                         }
                     });

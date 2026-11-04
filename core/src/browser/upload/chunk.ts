@@ -5,6 +5,7 @@ import { MAX_CHUNK_PAYLOAD_BYTES } from '../../bmp/format';
 import {
     UploadEventType,
     UploadPhase,
+    splitHeaderIsLast,
     type SplitHeader,
     type UploadEvent,
     type UploadProgress,
@@ -54,7 +55,7 @@ function acceptChunk(report: ChunkReport, { chunk }: ChunkEvent, email: string) 
         chunk.fileHash === header.fileHash &&
         chunk.fileId === header.fileId &&
         chunk.chunkIndex === header.chunkIndex &&
-        chunk.isLast === Boolean(header.flags) &&
+        chunk.isLast === splitHeaderIsLast(header.flags) &&
         chunk.size === header.payloadSize &&
         chunk.originalName === header.fileName &&
         chunk.folder === header.folder &&

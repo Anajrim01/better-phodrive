@@ -1,6 +1,7 @@
 import pLimit from 'p-limit';
 import { Err, Ok, type AsyncResult } from 'results-ts';
 import type { RemoteBmp } from '../../../models';
+import { splitHeaderIsCompressed, splitHeaderIsLast } from '../../../models';
 import { decodeSplitHeader, MAX_SPLIT_HEADER_BYTES } from '../../bmp/index';
 import { SERVER_ERRORS, type ServerError } from '../../errors';
 import type { Fetcher } from '../../fetcher';
@@ -156,10 +157,13 @@ function probeLibraryItem(
                     fileHash: header.fileHash,
                     fileId: header.fileId,
                     chunkIndex: header.chunkIndex,
-                    isLast: header.flags === 1,
+                    isLast: splitHeaderIsLast(header.flags),
                     originalName: header.fileName,
                     folder: header.folder,
-                    size: header.payloadSize
+                    size: header.originalSize ?? header.payloadSize,
+                    ...(splitHeaderIsCompressed(header.flags)
+                        ? { storedSize: header.payloadSize }
+                        : {})
                 }),
                 Err: () => null
             });

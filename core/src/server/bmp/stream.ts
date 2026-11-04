@@ -13,12 +13,17 @@ export class SplitBmpReader {
     private offset = 0;
     private totalSize = 0;
     private payloadEnd = 0;
+    private chunkHeader: SplitHeader | null = null;
     private closed = false;
 
     private constructor(
         private readonly reader: ReadableStreamDefaultReader<Uint8Array>,
         private readonly sha1: string
     ) {}
+
+    get header(): SplitHeader | null {
+        return this.chunkHeader;
+    }
 
     static open(
         response: Response,
@@ -74,6 +79,7 @@ export class SplitBmpReader {
             return checkDownloadedPrefix(prefix, expected, this.received).map((layout) => {
                 this.totalSize = layout.totalSize;
                 this.payloadEnd = layout.payloadEnd;
+                this.chunkHeader = layout.header;
             });
         });
     }

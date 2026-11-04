@@ -3,8 +3,9 @@ import type { SplitHeader } from '../../models';
 import { SERVER_ERRORS, type ServerError } from '../errors';
 import { decodeSplitHeader, MAX_PHOTOS_BMP_BYTES } from './index';
 
-/** Where a downloaded BMP ends, and where its payload ends. */
+/** Where a downloaded BMP ends, where its payload ends, and its verified header. */
 export interface BmpLayout {
+    header: SplitHeader;
     totalSize: number;
     payloadEnd: number;
 }
@@ -16,6 +17,7 @@ function sameHeader(header: SplitHeader, expected: SplitHeader): boolean {
         header.chunkIndex === expected.chunkIndex &&
         header.flags === expected.flags &&
         header.payloadSize === expected.payloadSize &&
+        header.originalSize === expected.originalSize &&
         header.fileName === expected.fileName &&
         header.folder === expected.folder
     );
@@ -38,6 +40,6 @@ export function checkDownloadedPrefix(
         if (!sameHeader(header, expected) || payloadOffset !== prefix.length)
             return Err(SERVER_ERRORS.DOWNLOAD_CHUNK_MISMATCH);
 
-        return Ok({ totalSize, payloadEnd: payloadOffset + header.payloadSize });
+        return Ok({ header, totalSize, payloadEnd: payloadOffset + header.payloadSize });
     });
 }

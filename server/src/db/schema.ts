@@ -182,6 +182,7 @@ export const chunkMetadata = pgTable(
         isLast: boolean('is_last').notNull(),
         originalName: text('original_name'),
         folder: text('folder'),
+        storedPayloadSize: integer('stored_payload_size'),
         size: integer('size').notNull()
     },
     (table) => [

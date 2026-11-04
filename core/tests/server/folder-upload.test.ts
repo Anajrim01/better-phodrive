@@ -79,6 +79,8 @@ test('browser mode carries a folder through identity, chunk zero, and metadata',
     const decoded = decodeSplitBmp(Buffer.from(bmp!)).unwrap();
     expect(new TextDecoder().decode(Buffer.from(bmp!).subarray(54, 62))).toBe('BMSPLIT\x02');
     expect(decoded.header.folder).toBe(folder);
+    expect(decoded.header.originalSize).toBeUndefined();
+    expect(decoded.header.flags).toBe(1);
     expect(decoded.header.fileId).toBe(
         fileIdentity('report.pdf', fixture.metadata.file.fileHash, undefined, folder)
     );
@@ -107,6 +109,8 @@ test('server mode carries a folder through the whole-file request and metadata',
     const decoded = decodeSplitBmp(Buffer.from(bmp!)).unwrap();
     expect(new TextDecoder().decode(Buffer.from(bmp!).subarray(54, 62))).toBe('BMSPLIT\x02');
     expect(decoded.header.folder).toBe(folder);
+    expect(decoded.header.originalSize).toBeUndefined();
+    expect(decoded.header.flags).toBe(1);
     expect(decoded.header.fileId).toBe(
         fileIdentity(
             'report.pdf',
@@ -115,6 +119,18 @@ test('server mode carries a folder through the whole-file request and metadata',
             folder
         )
     );
+});
+
+test('server mode root uploads stay uncompressed', async () => {
+    const harness = photosUploadHarness();
+    const received = await receiveFileUpload(fileRequest());
+    const response = fileUploadStream(received.unwrap(), TEST_ACCOUNT, harness.fetcher);
+    await response.text();
+
+    const [bmp] = [...harness.stored.values()];
+    const decoded = decodeSplitBmp(Buffer.from(bmp!)).unwrap();
+    expect(decoded.header.flags).toBe(1);
+    expect(decoded.header.originalSize).toBeUndefined();
 });
 
 test('root uploads still emit v1 and omit folder metadata', async () => {
@@ -133,5 +149,8 @@ test('root uploads still emit v1 and omit folder metadata', async () => {
     expect(metadata.records[0]?.folder).toBeUndefined();
     const [bmp] = [...harness.stored.values()];
     expect(new TextDecoder().decode(Buffer.from(bmp!).subarray(54, 62))).toBe('BMSPLIT\x01');
+    const decoded = decodeSplitBmp(Buffer.from(bmp!)).unwrap();
+    expect(decoded.header.originalSize).toBeUndefined();
+    expect(decoded.header.flags).toBe(1);
     await received.unwrap().cancel();
 });

@@ -6,6 +6,7 @@ import {
     UploadEventType,
     UploadPhase,
     UploadStatus,
+    splitHeaderIsLast,
     type UploadEvent,
     type UploadFile
 } from '../../models';
@@ -104,7 +105,7 @@ export function uploadFiles(
                         fileHash: input.header.fileHash,
                         fileId: input.header.fileId,
                         chunkIndex: input.header.chunkIndex,
-                        isLast: input.header.flags === 1,
+                        isLast: splitHeaderIsLast(input.header.flags),
                         ...(input.header.fileName ? { originalName: input.header.fileName } : {}),
                         size: input.header.payloadSize,
                         at: Date.now(),
@@ -127,7 +128,7 @@ export function uploadFiles(
                     fileHash: input.header.fileHash,
                     fileId: input.header.fileId,
                     chunkIndex: input.header.chunkIndex,
-                    isLast: input.header.flags === 1,
+                    isLast: splitHeaderIsLast(input.header.flags),
                     originalName: input.header.fileName,
                     size: input.header.payloadSize,
                     at: Date.now(),

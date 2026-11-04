@@ -2,10 +2,16 @@ import { BMP_ERRORS } from './errors';
 import type { BmpError } from './errors';
 import { Err, Ok, type Result } from 'results-ts';
 import Varint from 'varint';
-import { SplitHeaderSchema, type SplitHeader } from '../models';
+import {
+    MAX_CHUNK_PAYLOAD_BYTES,
+    SplitHeaderSchema,
+    splitHeaderIsCompressed,
+    type SplitHeader
+} from '../models';
+
+export { MAX_CHUNK_PAYLOAD_BYTES } from '../models';
 
 export const MAX_PHOTOS_BMP_BYTES = 200_000_000;
-export const MAX_CHUNK_PAYLOAD_BYTES = 195_000_000;
 export const MAX_SPLIT_HEADER_BYTES = 65_536;
 
 export const BMP_HEADER_BYTES = 54;
@@ -65,6 +71,7 @@ function splitHeaderLayout(
         Varint.encodingLength(header.chunkIndex) +
         1 +
         Varint.encodingLength(header.payloadSize) +
+        (splitHeaderIsCompressed(header.flags) ? Varint.encodingLength(header.originalSize!) : 0) +
         (header.chunkIndex === 0 ? Varint.encodingLength(nameBytes.length) + nameBytes.length : 0) +
         (folderBytes.length ? Varint.encodingLength(folderBytes.length) + folderBytes.length : 0);
 
@@ -123,6 +130,10 @@ export function encodeSplitPrefix(input: SplitHeader): Result<
                 offset++;
                 Varint.encode(input.payloadSize, prefix, offset);
                 offset += Varint.encodingLength(input.payloadSize);
+                if (splitHeaderIsCompressed(input.flags)) {
+                    Varint.encode(input.originalSize!, prefix, offset);
+                    offset += Varint.encodingLength(input.originalSize!);
+                }
 
                 if (input.chunkIndex === 0) {
                     Varint.encode(nameBytes.length, prefix, offset);

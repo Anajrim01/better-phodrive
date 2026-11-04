@@ -122,7 +122,7 @@ describeDatabase('authenticated Google accounts and groups', () => {
             userId: secondUser,
             googleAccountId: third.id
         });
-        const record = (fileId: string, folder?: string) => ({
+        const record = (fileId: string, folder?: string, storedSize?: number) => ({
             mediaKey: 'shared-media',
             sha1: '1'.repeat(40),
             storedBmpSize: 120,
@@ -132,11 +132,12 @@ describeDatabase('authenticated Google accounts and groups', () => {
             isLast: true,
             originalName: 'photo.jpg',
             ...(folder ? { folder } : {}),
+            ...(storedSize === undefined ? {} : { storedSize }),
             size: 60
         });
 
         await firstStore.save([record('first-file')]);
-        await secondStore.save([record('second-file', 'Projects/2026')]);
+        await secondStore.save([record('second-file', 'Projects/2026', 42)]);
         await thirdStore.save([record('third-file')]);
 
         const candidate = { mediaKey: 'shared-media', sha1: '1'.repeat(40), size: 120, at: 1 };
@@ -148,7 +149,8 @@ describeDatabase('authenticated Google accounts and groups', () => {
         );
         expect((await secondStore.load([candidate])).unwrap().get('shared-media')).toMatchObject({
             fileId: 'second-file',
-            folder: 'Projects/2026'
+            folder: 'Projects/2026',
+            storedSize: 42
         });
         expect((await thirdStore.load([candidate])).unwrap().get('shared-media')).toMatchObject({
             fileId: 'third-file'

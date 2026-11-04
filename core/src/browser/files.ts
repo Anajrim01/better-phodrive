@@ -70,13 +70,8 @@ export function deleteFile(
         });
 }
 
-/** The server's processing mode decides whether chunks are decoded here or on the server. */
-export function downloadFile(
-    item: FileGroup,
-    processing: ProcessingMode
-): AsyncResult<Blob, ApplicationError> {
-    if (processing === ProcessingMode.Browser) return downloadChunks(item);
-
+/** Reconstruct through the authenticated server when Brotli decoding is required. */
+function downloadFromServer(item: FileGroup): AsyncResult<Blob, ApplicationError> {
     return Ok(undefined).andThenAsync(async () => {
         if (!item.complete || item.chunkCount === null)
             return Err({
@@ -101,4 +96,21 @@ export function downloadFile(
             }
         });
     });
+}
+
+/**
+ * Browser mode decodes raw chunks locally. Legacy compressed chunks use the server decoder so the
+ * browser stays free of a second Brotli implementation.
+ */
+export function downloadFile(
+    item: FileGroup,
+    processing: ProcessingMode
+): AsyncResult<Blob, ApplicationError> {
+    if (
+        processing === ProcessingMode.Browser &&
+        !item.chunks.some((chunk) => chunk.storedSize !== undefined)
+    )
+        return downloadChunks(item);
+
+    return downloadFromServer(item);
 }

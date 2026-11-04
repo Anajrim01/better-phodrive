@@ -1,5 +1,13 @@
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
-import type { FileRequest, RemoteBmp, SplitHeader } from '../models';
+import {
+    SPLIT_FLAG_COMPRESSED,
+    SPLIT_FLAG_LAST,
+    splitHeaderIsCompressed,
+    type FileRequest,
+    type RemoteBmp,
+    type SplitHeader
+} from '../models';
+import { BrotliStreamDecoder } from './bmp/decompress';
 import { SplitBmpReader } from './bmp/stream';
 import { SERVER_ERRORS, type ServerError } from './errors';
 import { downloadBmp } from './photos/index';
@@ -10,12 +18,14 @@ export function openChunk(
     chunk: RemoteBmp,
     signal: AbortSignal
 ): AsyncResult<SplitBmpReader, ServerError> {
+    const compressed = chunk.storedSize !== undefined;
     const expected: SplitHeader = {
         fileHash: input.fileHash,
         fileId: input.fileId,
         chunkIndex: chunk.chunkIndex,
-        flags: chunk.isLast ? 1 : 0,
-        payloadSize: chunk.size,
+        flags: (chunk.isLast ? SPLIT_FLAG_LAST : 0) | (compressed ? SPLIT_FLAG_COMPRESSED : 0),
+        payloadSize: compressed ? chunk.storedSize! : chunk.size,
+        originalSize: compressed ? chunk.size : undefined,
         fileName: chunk.chunkIndex === 0 ? input.name : undefined,
         folder: chunk.chunkIndex === 0 ? chunk.folder : undefined
     };
@@ -41,6 +51,9 @@ async function closeLate(opened: Result<SplitBmpReader, ServerError>): Promise<v
 export class ChunkCursor {
     closed = false;
     private active: SplitBmpReader | null = null;
+    private decoder: BrotliStreamDecoder | null = null;
+    private decoded: Uint8Array[] = [];
+    private activeEnded = false;
     private index = 0;
     private readonly abort = new AbortController();
 
@@ -56,12 +69,15 @@ export class ChunkCursor {
     /** Continue from a chunk the caller opened with this cursor's signal. */
     begin(reader: SplitBmpReader): void {
         this.active = reader;
+        this.startDecoder(reader);
     }
 
-    /** The next payload block, or null after the last chunk. */
+    /** The next original payload block, or null after the last chunk. */
     next(): AsyncResult<Uint8Array | null, ServerError> {
         return Ok(undefined).andThenAsync(async () => {
             while (!this.closed) {
+                if (this.decoded.length) return Ok(this.decoded.shift()!);
+
                 const reader = this.active;
                 if (!reader) {
                     if (this.index === this.chunks.length) return Ok(null);
@@ -72,13 +88,33 @@ export class ChunkCursor {
                     continue;
                 }
 
-                const next = await reader.readPayload();
-                if (this.closed || next.isErr()) return next;
+                if (!this.activeEnded) {
+                    const next = await reader.readPayload();
+                    if (this.closed || next.isErr()) return next;
 
-                const payload = next.unwrapOr(null);
-                if (payload) return Ok(payload);
+                    const payload = next.unwrapOr(null);
+                    if (payload) {
+                        if (!this.decoder) return Ok(payload);
+
+                        const pushed = await this.decoder.push(payload);
+                        if (pushed.isErr()) return pushed;
+                        this.decoded.push(...pushed.unwrap());
+                        continue;
+                    }
+
+                    this.activeEnded = true;
+                }
+
+                if (this.decoder) {
+                    const ended = await this.decoder.end();
+                    this.decoder = null;
+                    if (ended.isErr()) return ended;
+                    this.decoded.push(...ended.unwrap());
+                    if (this.decoded.length) continue;
+                }
 
                 this.active = null;
+                this.activeEnded = false;
                 this.index++;
             }
 
@@ -89,6 +125,7 @@ export class ChunkCursor {
     async close(): Promise<void> {
         this.closed = true;
         this.abort.abort();
+        this.destroyDecoder();
         if (!this.active) return;
 
         const cancelled = await this.active.close();
@@ -96,11 +133,28 @@ export class ChunkCursor {
         this.active = null;
     }
 
+    private startDecoder(reader: SplitBmpReader): void {
+        const header = reader.header;
+        if (!header || !splitHeaderIsCompressed(header.flags)) return;
+
+        this.decoder = new BrotliStreamDecoder(header.originalSize!);
+        this.activeEnded = false;
+    }
+
+    private destroyDecoder(): void {
+        this.decoder?.destroy();
+        this.decoder = null;
+        this.decoded.length = 0;
+    }
+
     private openNext(): AsyncResult<void, ServerError> {
         return Ok(undefined).andThenAsync(async () => {
             const opened = await openChunk(this.input, this.chunks[this.index], this.signal);
             opened.inspect((reader) => {
                 this.active = reader;
+                this.activeEnded = false;
+                this.decoded.length = 0;
+                this.startDecoder(reader);
             });
             // Closing already ran, so it could not close a reader opened meanwhile.
             if (this.closed) await closeLate(opened);

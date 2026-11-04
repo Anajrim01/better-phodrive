@@ -1,5 +1,5 @@
 import type { AsyncResult } from 'results-ts';
-import type { RemoteBmp } from '../../../models';
+import { SPLIT_FLAG_LAST, type RemoteBmp } from '../../../models';
 import type { UploadedChunk } from '../../../files';
 import type { ServerError } from '../../errors';
 import { splitBmpByteLength } from '../../bmp';
@@ -16,6 +16,7 @@ export type ChunkMetadataRecord = {
     isLast: boolean;
     originalName?: string;
     folder?: string;
+    storedSize?: number;
     size: number;
 };
 
@@ -39,6 +40,7 @@ export function chunkMetadataRecord(item: RemoteBmp, storedBmpSize: number): Chu
         isLast: item.isLast,
         ...(item.originalName ? { originalName: item.originalName } : {}),
         ...(item.chunkIndex === 0 && item.folder ? { folder: item.folder } : {}),
+        ...(item.storedSize === undefined ? {} : { storedSize: item.storedSize }),
         size: item.size
     };
 }
@@ -49,7 +51,7 @@ export function uploadedChunkMetadata(chunk: UploadedChunk): ChunkMetadataRecord
         fileHash: chunk.fileHash,
         fileId: chunk.fileId,
         chunkIndex: chunk.chunkIndex,
-        flags: chunk.isLast ? 1 : 0,
+        flags: chunk.isLast ? SPLIT_FLAG_LAST : 0,
         payloadSize: chunk.size,
         ...(chunk.chunkIndex === 0 && chunk.originalName ? { fileName: chunk.originalName } : {}),
         ...(chunk.chunkIndex === 0 && chunk.folder ? { folder: chunk.folder } : {})
@@ -71,6 +73,7 @@ export function metadataItem(record: ChunkMetadataRecord, candidate: LibraryCand
         isLast: record.isLast,
         ...(record.originalName ? { originalName: record.originalName } : {}),
         ...(record.chunkIndex === 0 && record.folder ? { folder: record.folder } : {}),
+        ...(record.storedSize === undefined ? {} : { storedSize: record.storedSize }),
         size: record.size,
         at: candidate.at,
         mediaKey: candidate.mediaKey,

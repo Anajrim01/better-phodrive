@@ -15,6 +15,10 @@ const INCOMPLETE_CHUNKS = {
     code: 'INCOMPLETE_DOWNLOAD_CHUNKS',
     message: 'Load the remaining chunks before downloading.'
 } as const satisfies ApplicationError;
+const COMPRESSED_CHUNKS = {
+    code: 'COMPRESSED_DOWNLOAD_UNAVAILABLE',
+    message: 'Compressed chunks require the server download path.'
+} as const satisfies ApplicationError;
 const RECEIVE_FAILED = {
     code: 'DOWNLOAD_RECEIVE_FAILED',
     message: 'Could not receive the downloaded file.'
@@ -22,6 +26,8 @@ const RECEIVE_FAILED = {
 /** Every chunk must be present, in order, and belong to this file before anything is fetched. */
 function orderedChunks(item: FileGroup): Result<RemoteBmp[], ApplicationError> {
     const chunks = item.chunks.toSorted((a, b) => a.chunkIndex - b.chunkIndex);
+    if (chunks.some((chunk) => chunk.storedSize !== undefined)) return Err(COMPRESSED_CHUNKS);
+
     const complete =
         item.complete &&
         chunks.length > 0 &&

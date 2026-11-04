@@ -1,6 +1,11 @@
 import { SERVER_ERRORS, type ServerError } from '../errors';
 import { Err, Ok, type Result } from 'results-ts';
-import { SplitHeaderSchema, type SplitHeader } from '../../models';
+import {
+    SplitHeaderSchema,
+    SPLIT_FLAGS_MAX,
+    splitHeaderIsCompressed,
+    type SplitHeader
+} from '../../models';
 import {
     hashHex,
     isSplitBmp,
@@ -40,15 +45,25 @@ export function decodeSplitHeader(
         if (index.next >= prefix.length) return invalid();
 
         const flags = prefix[index.next];
+        if ((flags & ~SPLIT_FLAGS_MAX) !== 0) return invalid();
 
-        return readVarint(prefix, index.next + 1).map((size) => ({
-            fileHash,
-            fileId,
-            chunkIndex: index.value,
-            flags,
-            payloadSize: size.value,
-            payloadOffset: size.next
-        }));
+        return readVarint(prefix, index.next + 1).andThen((size) => {
+            const header = {
+                fileHash,
+                fileId,
+                chunkIndex: index.value,
+                flags,
+                payloadSize: size.value,
+                payloadOffset: size.next
+            };
+            if (!splitHeaderIsCompressed(flags)) return Ok(header);
+
+            return readVarint(prefix, size.next).map((original) => ({
+                ...header,
+                originalSize: original.value,
+                payloadOffset: original.next
+            }));
+        });
     });
 
     return metadata
