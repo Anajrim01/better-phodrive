@@ -77,7 +77,7 @@ test('resolves a saved account or group by its stable id', async () => {
     );
     await groupState.load();
     expect(groupState.current).toEqual({ kind: 'group', group: GROUP });
-    expect(groupState.canUpload).toBe(false);
+    expect(groupState.canUpload).toBe(true);
 });
 
 test('a stale group id falls back to the first account', async () => {
@@ -122,6 +122,7 @@ test('an empty group remains the selected context', async () => {
     await state.load();
 
     expect(state.current).toEqual({ kind: 'group', group: EMPTY_GROUP });
+    expect(state.canUpload).toBe(false);
 });
 
 test('selection stores only kind and id', () => {

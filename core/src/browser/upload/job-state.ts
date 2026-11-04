@@ -16,6 +16,8 @@ export interface UploadJob {
     progress: UploadProgress;
     message: string;
     result: UploadResponse | null;
+    /** Validation failures cannot become uploadable by retrying the same file. */
+    retryable?: boolean;
 }
 
 export interface UploadSource {

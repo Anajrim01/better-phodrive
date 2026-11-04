@@ -57,14 +57,14 @@ function finished(job: UploadJob): boolean {
     return job.status === UploadJobStatus.Complete || job.status === UploadJobStatus.Error;
 }
 
-/** Mark the batch's unfinished jobs as failed; a retry only touches its own job. */
+/** Mark a queue's unfinished jobs as failed; a retry only touches its own job. */
 export function failUnfinishedJobs(
     jobs: readonly UploadJob[],
     message: string,
-    retryId?: number
+    jobIds?: readonly number[]
 ): UploadJob[] {
     return jobs.map((job) => {
-        const inBatch = retryId === undefined || job.id === retryId;
+        const inBatch = !jobIds || jobIds.includes(job.id);
         if (!inBatch || finished(job)) return job;
 
         return { ...job, status: UploadJobStatus.Error, message };

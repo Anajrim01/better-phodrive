@@ -25,6 +25,8 @@ import {
 } from './jobs';
 import { prepareFile, uploadPlannedFile } from './planned';
 
+export * from './assignment';
+
 /** Reject unusable selections up front; the rest keep their job IDs as upload sources. */
 function uploadSources(
     files: readonly File[],
@@ -102,7 +104,8 @@ function sendFiles(
         if (!sources.length) return Ok(undefined);
 
         const handle = createUploadEventHandler(sources, jobs, email, onJob, onChunk);
-        await pLimit(concurrency).map(sources, async ({ file }, id) => {
+        // One whole file at a time per account queue keeps the server's worker count bounded.
+        await pLimit(1).map(sources, async ({ file }, id) => {
             const sent = await uploadFileRequest(
                 file,
                 concurrency,

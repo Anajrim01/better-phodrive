@@ -69,6 +69,10 @@
             "@madkarmaa/phodrive-core": "./src/browser/upload/index.ts",
             "default": "./dist/browser/upload/index.js"
         },
+        "./browser/upload/assignment": {
+            "@madkarmaa/phodrive-core": "./src/browser/upload/assignment.ts",
+            "default": "./dist/browser/upload/assignment.js"
+        },
         "./browser/upload/chunk": {
             "@madkarmaa/phodrive-core": "./src/browser/upload/chunk.ts",
             "default": "./dist/browser/upload/chunk.js"
@@ -347,6 +351,7 @@
             "./browser/hashers": "./dist/browser/hashers.js",
             "./browser/library": "./dist/browser/library.js",
             "./browser/upload": "./dist/browser/upload/index.js",
+            "./browser/upload/assignment": "./dist/browser/upload/assignment.js",
             "./browser/upload/chunk": "./dist/browser/upload/chunk.js",
             "./browser/upload/hash": "./dist/browser/upload/hash.js",
             "./browser/upload/job-state": "./dist/browser/upload/job-state.js",

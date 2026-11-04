@@ -4,6 +4,7 @@ import {
     DEFAULT_PREFERENCES_DEFAULTS,
     ProcessingMode,
     ThemeSchema,
+    type GoogleAccountSummary,
     type PreferencesDefaults
 } from '@madkarmaa/phodrive-core/models';
 import { fileKey, type FileAction, type FileGroup } from '@madkarmaa/phodrive-core/files';
@@ -20,7 +21,7 @@ import { downloadAndSave, trashFile, uploadBatch } from '#browser/drive/actions'
 import { DriveLibrary } from '#browser/drive/library.svelte';
 import { DriveSettings } from '#browser/drive/settings.svelte';
 import { failUnfinishedJobs, replaceJob, unchangedFile } from '#browser/drive/chunks';
-import type { GoogleAccountSummary } from '@madkarmaa/phodrive-core/models';
+import { planUploads, type UploadQueue } from '#browser/drive/upload-plan';
 
 /** The signed-in user's drive; their Google account and token stay on the server. */
 export class DriveController {
@@ -156,13 +157,6 @@ export class DriveController {
     }
 
     async upload(files: readonly File[]) {
-        const context = this.context.current;
-        if (!context || context.kind !== 'account') {
-            this.feedbackMessage = 'Select an individual account to upload.';
-
-            return;
-        }
-
         if (this.working || files.length === 0) return;
 
         if (this.library.loading) {
@@ -172,11 +166,31 @@ export class DriveController {
             return;
         }
 
+        const context = this.context.current;
+        if (!context) {
+            this.feedbackMessage = 'Connect a Google account before uploading.';
+
+            return;
+        }
+        if (context.kind === 'group' && context.group.members.length === 0) {
+            this.feedbackMessage = 'Add an account to this group before uploading.';
+
+            return;
+        }
+
         this.uploadSources = [...files];
-        this.uploadJobs = createUploadJobs(files);
+        const plan = planUploads(files, context);
+        this.uploadJobs = plan.jobs;
         this.uploadOwners.clear();
-        for (let id = 0; id < files.length; id++) this.uploadOwners.set(id, context.account);
-        await this.runUploads(files, context.account);
+        for (const [jobId, account] of plan.owners) this.uploadOwners.set(jobId, account);
+
+        if (!plan.queues.length) {
+            this.uploadPanelOpen = true;
+
+            return;
+        }
+
+        await this.runUploads(plan.queues);
     }
 
     async retryUpload(id: number) {
@@ -184,10 +198,17 @@ export class DriveController {
 
         const job = this.uploadJobs.find((current) => current.id === id);
         const file = this.uploadSources[id];
-        const ownerId = this.uploadOwners.get(id)?.id;
-        const owner = this.context.accounts.find((account) => account.id === ownerId);
-        if (!job || job.status !== UploadJobStatus.Error || !file) return;
+        if (!job || job.status !== UploadJobStatus.Error || job.retryable === false || !file)
+            return;
 
+        const recorded = this.uploadOwners.get(id);
+        if (!recorded) {
+            this.feedbackMessage = 'This upload has no assigned account.';
+
+            return;
+        }
+
+        const owner = this.context.accounts.find((account) => account.id === recorded.id);
         if (!owner) {
             this.feedbackMessage = 'The Google account for this upload is no longer connected.';
 
@@ -196,35 +217,41 @@ export class DriveController {
 
         this.uploadJobs = replaceJob(this.uploadJobs, id, createUploadJobs([file])[0]);
 
-        await this.runUploads([file], owner, id);
+        await this.runUploads([{ account: owner, files: [file], jobIds: [id] }], id);
     }
 
-    private async runUploads(
-        files: readonly File[],
-        account: GoogleAccountSummary,
-        retryId?: number
-    ) {
+    private async runUploads(queues: readonly UploadQueue[], retryId?: number) {
         this.uploadPanelOpen = true;
         this.feedbackMessage = '';
         this.busy = true;
 
-        const uploaded = await uploadBatch({
-            files,
-            account,
-            workers: this.settings.concurrentWorkers,
-            processing: this.processing,
-            library: this.library,
-            retryId,
-            onJob: (job, id) => {
-                this.uploadJobs = replaceJob(this.uploadJobs, id, job);
-                if (job.status === UploadJobStatus.Error) this.feedbackMessage = job.message;
-            }
-        });
+        await Promise.all(
+            queues.map(async (queue) => {
+                const uploaded = await uploadBatch({
+                    files: queue.files,
+                    account: queue.account,
+                    workers: this.settings.concurrentWorkers,
+                    processing: this.processing,
+                    library: this.library,
+                    jobIds: queue.jobIds,
+                    retryId,
+                    onJob: (job, id) => {
+                        this.uploadJobs = replaceJob(this.uploadJobs, id, job);
+                        if (job.status === UploadJobStatus.Error)
+                            this.feedbackMessage = job.message;
+                    }
+                });
 
-        uploaded.inspectErr((error) => {
-            this.feedbackMessage = error.message;
-            this.uploadJobs = failUnfinishedJobs(this.uploadJobs, error.message, retryId);
-        });
+                uploaded.inspectErr((error) => {
+                    this.feedbackMessage = error.message;
+                    this.uploadJobs = failUnfinishedJobs(
+                        this.uploadJobs,
+                        error.message,
+                        queue.jobIds
+                    );
+                });
+            })
+        );
 
         this.busy = false;
     }

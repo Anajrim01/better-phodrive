@@ -52,9 +52,9 @@
         </select>
     </label>
 
-    {#if context.current?.kind === 'group'}
+    {#if context.current?.kind === 'group' && context.current.group.members.length === 0}
         <p class="mb-3 px-1 text-xs leading-relaxed text-muted" role="status">
-            Select an individual account to upload.
+            Add an account to this group before uploading.
         </p>
     {/if}
 {/if}

@@ -24,7 +24,9 @@ export class DriveContextState {
     ) {}
 
     get canUpload(): boolean {
-        return this.current?.kind === 'account';
+        if (this.current?.kind === 'account') return true;
+
+        return this.current?.kind === 'group' && this.current.group.members.length > 0;
     }
 
     get showSelector(): boolean {
