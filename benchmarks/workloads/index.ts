@@ -1,6 +1,5 @@
 import { CHUNK, MIB, repeat, SIZES, type Workload } from '../fixtures';
 import {
-    bmpEncodeWorkload,
     chunkHashWorkload,
     hashWorkload,
     identityWorkload,
@@ -35,7 +34,6 @@ export function createWorkloads(
         'chunk-hash-large': () => chunkHashWorkload(CHUNK, 1),
         planning: planningWorkload,
         prefix: prefixWorkload,
-        'bmp-encode': bmpEncodeWorkload,
         'bmp-stream': bmpStreamWorkload,
         'download-stream': downloadStreamWorkload,
         'protocol-page': protocolPageWorkload,
