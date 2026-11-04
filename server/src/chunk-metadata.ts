@@ -8,7 +8,7 @@ import { SERVER_ERRORS } from '@madkarmaa/phodrive-core/server/errors';
 import type { Database } from './db/client';
 import { chunkMetadata } from './db/schema';
 
-type Scope = { userId: string; googleEmail: string };
+type Scope = { userId: string; googleAccountId: string };
 
 function record(row: typeof chunkMetadata.$inferSelect): ChunkMetadataRecord {
     return {
@@ -27,9 +27,12 @@ function record(row: typeof chunkMetadata.$inferSelect): ChunkMetadataRecord {
 /** Scope every query to the signed-in user and the currently connected Google account. */
 export function createChunkMetadataStore(
     db: Database,
-    { userId, googleEmail }: Scope
+    { userId, googleAccountId }: Scope
 ): ChunkMetadataStore {
-    const scope = and(eq(chunkMetadata.userId, userId), eq(chunkMetadata.googleEmail, googleEmail));
+    const scope = and(
+        eq(chunkMetadata.userId, userId),
+        eq(chunkMetadata.googleAccountId, googleAccountId)
+    );
 
     return {
         load(candidates) {
@@ -57,7 +60,7 @@ export function createChunkMetadataStore(
                     .values(
                         records.map((item) => ({
                             userId,
-                            googleEmail,
+                            googleAccountId,
                             mediaKey: item.mediaKey,
                             sha1: item.sha1,
                             storedBmpSize: item.storedBmpSize,
@@ -72,7 +75,7 @@ export function createChunkMetadataStore(
                     .onConflictDoUpdate({
                         target: [
                             chunkMetadata.userId,
-                            chunkMetadata.googleEmail,
+                            chunkMetadata.googleAccountId,
                             chunkMetadata.mediaKey
                         ],
                         set: {

@@ -38,6 +38,11 @@ export const SignUpRequestSchema = SignUpSchema.omit({ token: true }).extend({
 });
 export const GoogleTokenRequestSchema = z.object({ encryptedToken: EncryptedTokenSchema });
 
+export const AddGoogleAccountRequestSchema = z.object({
+    email: z.email({ error: 'Enter a valid Google account email.' }),
+    encryptedToken: EncryptedTokenSchema
+});
+
 export const SignedInUserSchema = z.object({ email: z.email() });
 
 /** What the web app loads before rendering: the signed-in user, if any, and server settings. */

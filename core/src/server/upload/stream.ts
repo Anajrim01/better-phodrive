@@ -81,9 +81,13 @@ export function uploadEventStream({ run, cancel }: UploadTask): Response {
 }
 
 /** Encode or relay one received chunk while reporting its upload events. */
-export function uploadStream(input: ReceivedUpload, metadata?: ChunkMetadataStore): Response {
+export function uploadStream(
+    input: ReceivedUpload,
+    metadata?: ChunkMetadataStore,
+    accountId?: string
+): Response {
     return uploadEventStream({
-        run: (emit) => uploadFiles(input, emit, undefined, metadata),
+        run: (emit) => uploadFiles(input, emit, undefined, metadata, accountId),
         cancel: input.cancel
     });
 }

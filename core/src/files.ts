@@ -4,6 +4,7 @@ export type UploadedChunk = RemoteBmp & { email: string };
 
 export type FileGroup = {
     email: string;
+    accountId?: string;
     fileHash: string;
     fileId: string;
     name: string;
@@ -13,8 +14,13 @@ export type FileGroup = {
     complete: boolean;
 };
 
-export function fileKey(file: { email: string; fileId: string }): string {
-    return `${file.email}:${file.fileId}`;
+/** The direct-token CLI library has no server account id, so email remains its owner key. */
+export function ownerKey(file: { email: string; accountId?: string }): string {
+    return file.accountId ?? file.email;
+}
+
+export function fileKey(file: { email: string; fileId: string; accountId?: string }): string {
+    return `${ownerKey(file)}:${file.fileId}`;
 }
 
 type IndexedFileGroup = {
@@ -32,6 +38,7 @@ export function groupChunks(items: UploadedChunk[]): FileGroup[] {
         if (!entry) {
             const file: FileGroup = {
                 email: chunk.email,
+                ...(chunk.accountId ? { accountId: chunk.accountId } : {}),
                 fileHash: chunk.fileHash,
                 fileId: chunk.fileId,
                 name: chunk.originalName ?? `File ${chunk.fileHash.slice(0, 12)}`,

@@ -2,7 +2,7 @@
     import { fade } from 'svelte/transition';
     import { prefersReducedMotion } from 'svelte/motion';
     import AppFooter from '#components/AppFooter.svelte';
-    import GoogleTokenForm from '#components/GoogleTokenForm.svelte';
+    import AccountsGroups from '#components/AccountsGroups.svelte';
     import NumberSettingForm from '#components/NumberSettingForm.svelte';
     import {
         MAX_REFRESH_INTERVAL_SECONDS,
@@ -15,10 +15,10 @@
     } from '@madkarmaa/phodrive-core/models';
 
     interface Props {
-        email: string;
         processing: ProcessingMode;
         replacingToken: boolean;
-        onreplacetoken: (token: string) => Promise<boolean>;
+        onreplacetoken: (accountId: string, token: string) => Promise<boolean>;
+        onaccountschange: () => void;
         refreshIntervalSeconds: number;
         concurrentWorkers: number;
         defaults: PreferencesDefaults;
@@ -30,10 +30,10 @@
     }
 
     let {
-        email,
         processing,
         replacingToken,
         onreplacetoken,
+        onaccountschange,
         refreshIntervalSeconds,
         concurrentWorkers,
         defaults,
@@ -55,7 +55,7 @@
     </div>
 
     <div class="mt-4 grid max-w-180 gap-8 pb-16">
-        <GoogleTokenForm {email} replacing={replacingToken} onreplace={onreplacetoken} />
+        <AccountsGroups {replacingToken} {onreplacetoken} {onaccountschange} />
 
         <NumberSettingForm
             setting="refresh interval"
