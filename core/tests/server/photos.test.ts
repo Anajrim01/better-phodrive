@@ -1,9 +1,12 @@
 import { createHash } from 'node:crypto';
 import { UploadStatus } from '@madkarmaa/phodrive-core/models';
 import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
-import { uploadBmp, validateAasAccount } from '@madkarmaa/phodrive-core/server/photos';
+import { uploadBmpStream, validateAasAccount } from '@madkarmaa/phodrive-core/server/photos';
+import { encodeUploadBmp } from '@madkarmaa/phodrive-core/server/upload/bmp';
+import { receiveUpload } from '@madkarmaa/phodrive-core/server/upload/input';
 import { expect, test } from 'vitest';
 import { authResponse, bytes, num } from '../helpers/protobuf';
+import { TEST_ACCOUNT, uploadForm } from '../helpers/upload';
 
 test('account validation checks the email and AAS token with Google', async () => {
     const accepted: Fetcher = async (input, init) => {
@@ -24,8 +27,11 @@ test('account validation checks the email and AAS token with Google', async () =
 });
 
 test('Pixel XL flow hashes, transfers, and commits one BMP', async () => {
-    const bmp = Buffer.from('BM test pixels');
-    const sha1 = createHash('sha1').update(bmp).digest();
+    const fixture = uploadForm(Buffer.from('BM test pixels'));
+    const received = await receiveUpload(fixture.request(), TEST_ACCOUNT);
+    const input = received.unwrap();
+    const source = encodeUploadBmp(input);
+    const sha1 = Buffer.from(source.sha1, 'hex');
     const scotty = Buffer.from([8, 2, 18, 1, 7]);
     const missing = bytes(1, bytes(2, bytes(1, bytes(1, sha1))));
     const committed = bytes(
@@ -36,7 +42,6 @@ test('Pixel XL flow hashes, transfers, and commits one BMP', async () => {
     const fakeFetch: Fetcher = async (input, init) => {
         const url = String(input);
         const headers = new Headers(init?.headers);
-        expect(init?.signal).toBeUndefined();
         if (step++ === 0) {
             expect(url).toBe('https://android.googleapis.com/auth');
             expect(headers.get('user-agent')).toContain('Pixel XL');
@@ -54,8 +59,9 @@ test('Pixel XL flow hashes, transfers, and commits one BMP', async () => {
         }
         if (step === 4) {
             expect(url).toContain('upload_id=upload-id');
-            const requestBody = await new Response(init?.body).arrayBuffer();
-            expect(Buffer.from(requestBody)).toEqual(bmp);
+            const requestBody = Buffer.from(await new Response(init?.body).arrayBuffer());
+            expect(requestBody.length).toBe(source.length);
+            expect(createHash('sha1').update(requestBody).digest('hex')).toBe(source.sha1);
             return new Response(scotty);
         }
         expect(url).toContain('photosdata-pa.googleapis.com');
@@ -63,24 +69,28 @@ test('Pixel XL flow hashes, transfers, and commits one BMP', async () => {
         expect(Buffer.from(commitBody).includes(Buffer.from('Pixel XL'))).toBe(true);
         return new Response(Uint8Array.from(committed));
     };
-    const uploaded = await uploadBmp(
-        'test@example.com',
-        'aas_et/test',
+    const uploaded = await uploadBmpStream(
+        TEST_ACCOUNT.email,
+        TEST_ACCOUNT.token,
         'sample.bmp',
-        bmp,
+        source,
         fakeFetch
     );
     expect(uploaded.unwrap()).toEqual({
         status: UploadStatus.Uploaded,
         mediaKey: 'media-key',
-        sha1: sha1.toString('hex')
+        sha1: source.sha1
     });
     expect(step).toBe(5);
+    await input.cancel();
 });
 
 test('a connection timeout during commit remains uncertain and is never retried automatically', async () => {
-    const bmp = Buffer.from('BM test pixels');
-    const sha1 = createHash('sha1').update(bmp).digest();
+    const fixture = uploadForm(Buffer.from('BM test pixels'));
+    const received = await receiveUpload(fixture.request(), TEST_ACCOUNT);
+    const input = received.unwrap();
+    const source = encodeUploadBmp(input);
+    const sha1 = Buffer.from(source.sha1, 'hex');
     const missing = bytes(1, bytes(2, bytes(1, bytes(1, sha1))));
     const scotty = Buffer.from([8, 2, 18, 1, 7]);
     const responses = [
@@ -90,9 +100,13 @@ test('a connection timeout during commit remains uncertain and is never retried 
         new Response(scotty)
     ];
     let requests = 0;
-    const fakeFetch: Fetcher = async () => {
+    const fakeFetch: Fetcher = async (_input, init) => {
         const response = responses[requests++];
-        if (response) return response;
+        if (response) {
+            if (init?.method === 'PUT') await new Response(init.body).arrayBuffer();
+
+            return response;
+        }
 
         const cause = Object.assign(new Error('Connection timed out'), {
             code: 'UND_ERR_CONNECT_TIMEOUT'
@@ -101,11 +115,11 @@ test('a connection timeout during commit remains uncertain and is never retried 
         throw new TypeError('fetch failed', { cause });
     };
 
-    const uploaded = await uploadBmp(
-        'test@example.com',
-        'aas_et/test',
+    const uploaded = await uploadBmpStream(
+        TEST_ACCOUNT.email,
+        TEST_ACCOUNT.token,
         'sample.bmp',
-        bmp,
+        source,
         fakeFetch
     );
 
@@ -114,4 +128,5 @@ test('a connection timeout during commit remains uncertain and is never retried 
         message: 'Commit outcome uncertain. Check Google Photos before retrying.'
     });
     expect(requests).toBe(5);
+    await input.cancel();
 });

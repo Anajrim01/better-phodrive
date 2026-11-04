@@ -16,8 +16,7 @@ import { planUpload } from '@madkarmaa/phodrive-core/server/upload';
 import { bmpResponse } from '../helpers/download';
 
 vi.mock('@madkarmaa/phodrive-core/server/photos', () => ({
-    downloadBmp: vi.fn(),
-    uploadBmp: vi.fn()
+    downloadBmp: vi.fn()
 }));
 
 const FILE_NAME = 'compatible.bin';
