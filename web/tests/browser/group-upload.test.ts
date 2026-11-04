@@ -172,6 +172,32 @@ test('an empty group refuses uploads with concise feedback', async () => {
     expect(drive.feedbackMessage).toBe('Add an account to this group before uploading.');
 });
 
+test('invalid selections keep their validation message and cannot be retried', async () => {
+    const upload = vi.spyOn(filesApi, 'uploadFiles');
+    const drive = new DriveController('test@example.com');
+    drive.initialize();
+    useGroup(drive, GROUP);
+    const invalidName = new File(['x'], 'bad/name');
+    const invalidSize = new File(['x'], 'bad-size.bin');
+    Object.defineProperty(invalidSize, 'size', { value: -1 });
+
+    await drive.upload([invalidName, invalidSize]);
+
+    expect(upload).not.toHaveBeenCalled();
+    expect(drive.uploadJobs).toHaveLength(2);
+    for (const job of drive.uploadJobs) {
+        expect(job.status).toBe(UploadJobStatus.Error);
+        expect(job.message).toBe('Invalid file name or size.');
+        expect(job.retryable).toBe(false);
+    }
+
+    await drive.retryUpload(0);
+    await drive.retryUpload(1);
+
+    expect(upload).not.toHaveBeenCalled();
+    expect(drive.feedbackMessage).toBe('');
+});
+
 test('a one-member group sends every file through that member', async () => {
     const upload = vi
         .spyOn(filesApi, 'uploadFiles')

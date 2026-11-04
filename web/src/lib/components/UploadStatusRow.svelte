@@ -63,15 +63,17 @@
             />
         {:else if job.status === UploadJobStatus.Error}
             <IconError aria-hidden="true" class="size-6 shrink-0 text-error" />
-            <IconButton
-                size="s"
-                aria-label={`Retry ${job.name}`}
-                title={`Retry ${job.name}`}
-                disabled={retryDisabled}
-                onclick={onretry}
-            >
-                <IconRetry aria-hidden="true" />
-            </IconButton>
+            {#if job.retryable !== false}
+                <IconButton
+                    size="s"
+                    aria-label={`Retry ${job.name}`}
+                    title={`Retry ${job.name}`}
+                    disabled={retryDisabled}
+                    onclick={onretry}
+                >
+                    <IconRetry aria-hidden="true" />
+                </IconButton>
+            {/if}
         {:else if job.status === UploadJobStatus.Complete}
             <IconCheckCircle aria-hidden="true" class="size-6 shrink-0 text-success" />
         {/if}

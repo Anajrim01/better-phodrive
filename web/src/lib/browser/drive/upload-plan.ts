@@ -34,7 +34,8 @@ export function planUploads(files: readonly File[], context: DriveContext): Uplo
             jobs = replaceJob(jobs, jobId, {
                 ...jobs[jobId]!,
                 status: UploadJobStatus.Error,
-                message: 'Invalid file name or size.'
+                message: 'Invalid file name or size.',
+                retryable: false
             });
             continue;
         }

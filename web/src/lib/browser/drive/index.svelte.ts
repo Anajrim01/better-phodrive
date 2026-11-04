@@ -198,7 +198,8 @@ export class DriveController {
 
         const job = this.uploadJobs.find((current) => current.id === id);
         const file = this.uploadSources[id];
-        if (!job || job.status !== UploadJobStatus.Error || !file) return;
+        if (!job || job.status !== UploadJobStatus.Error || job.retryable === false || !file)
+            return;
 
         const recorded = this.uploadOwners.get(id);
         if (!recorded) {
