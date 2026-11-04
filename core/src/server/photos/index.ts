@@ -5,9 +5,3 @@ export { downloadBmp } from './download';
 export { moveToTrash } from './trash';
 
 export type { ChunkMetadataRecord, ChunkMetadataStore } from './library/index';
-export {
-    chunkMetadataRecord,
-    metadataItem,
-    metadataMatches,
-    uploadedChunkMetadata
-} from './library/index';
