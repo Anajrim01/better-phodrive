@@ -51,7 +51,7 @@ function store(rows: readonly ChunkMetadataRecord[] = []): ChunkMetadataStore & 
 } {
     const map = new Map(rows.map((row) => [row.mediaKey, row]));
     const load = vi.fn(() => Ok(map).andThenAsync(async (value) => Ok(value)));
-    const save = vi.fn(() => Ok(undefined).andThenAsync(async () => Ok(undefined)));
+    const save = vi.fn(async () => {});
 
     return {
         load,

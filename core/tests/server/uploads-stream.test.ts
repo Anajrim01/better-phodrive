@@ -78,9 +78,7 @@ test('resolved metadata is saved only after Google confirms the upload', async (
     const received = await receiveUpload(fixture.request(), TEST_ACCOUNT);
     const input = received.unwrap();
     const harness = photosUploadHarness({ failCommit: true });
-    const save = vi.fn((_records: readonly ChunkMetadataRecord[]) =>
-        Ok(undefined).andThenAsync(async () => Ok(undefined))
-    );
+    const save = vi.fn(async (_records: readonly ChunkMetadataRecord[]) => {});
     const metadata = {
         load: () => Ok(new Map()).andThenAsync(async (value) => Ok(value)),
         save

@@ -24,7 +24,7 @@ export type ChunkMetadataStore = {
         candidates: readonly LibraryCandidate[]
     ) => AsyncResult<Map<string, ChunkMetadataRecord>, ServerError>;
     /** Persist confirmed rows. Callers must not write before Google confirms the media. */
-    save: (records: readonly ChunkMetadataRecord[]) => AsyncResult<void, ServerError>;
+    save: (records: readonly ChunkMetadataRecord[]) => Promise<void>;
 };
 
 export function chunkMetadataRecord(item: RemoteBmp, storedBmpSize: number): ChunkMetadataRecord {
