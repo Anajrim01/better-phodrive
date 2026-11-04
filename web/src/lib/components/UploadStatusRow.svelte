@@ -29,6 +29,7 @@
             return job.result?.status === UploadStatus.AlreadyExists
                 ? 'Already in Google Photos'
                 : 'Uploaded successfully';
+        if (job.retryAt !== null) return 'Waiting for Google Photos…';
         if (progress.phase === UploadPhase.Receiving) return 'Sending files to server…';
         if (progress.phase === UploadPhase.Preparing) return `Preparing file… ${percent}%`;
         if (processed === progress.total) return 'Finishing upload…';

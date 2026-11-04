@@ -65,6 +65,7 @@ export const SERVER_ERRORS = {
         code: 'COMMIT_OUTCOME_UNCERTAIN',
         message: 'Commit outcome uncertain. Check Google Photos before retrying.'
     },
+    UPLOAD_CANCELLED: { code: 'UPLOAD_CANCELLED', message: 'Upload cancelled.' },
     INVALID_FILE_REFERENCE: { code: 'INVALID_FILE_REFERENCE', message: 'Invalid file reference' },
     INVALID_DOWNLOAD_CONTENT_TYPE: {
         code: 'INVALID_DOWNLOAD_CONTENT_TYPE',
@@ -147,4 +148,11 @@ export const SERVER_ERRORS = {
 
 export type ServerError =
     | (typeof SERVER_ERRORS)[keyof typeof SERVER_ERRORS]
-    | { readonly code: 'REQUEST_FAILED'; readonly message: string };
+    | {
+          readonly code: 'REQUEST_FAILED';
+          readonly message: string;
+          readonly stage?: string;
+          readonly status?: number;
+          readonly retryAfterSeconds?: number;
+      }
+    | { readonly code: 'THROTTLED'; readonly message: string; readonly retryAfterSeconds: number };

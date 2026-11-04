@@ -24,9 +24,9 @@ export function jsonResponse(body: unknown, headers?: HeadersInit): Response {
 }
 
 /** Errors without their own status are client errors. */
-export function errorResponse(error: { message: string; status?: ContentfulStatusCode }): Response {
+export function errorResponse(error: { message: string; status?: number }): Response {
     return Response.json(
         { error: error.message },
-        { status: error.status ?? 400, headers: NO_STORE_HEADERS }
+        { status: (error.status ?? 400) as ContentfulStatusCode, headers: NO_STORE_HEADERS }
     );
 }

@@ -14,6 +14,7 @@ import { planChunks, type UploadPlan } from '../../upload';
 import { chunkFileName, fileIdentity } from '../chunks';
 import { photosFetchWithProgress, type Fetcher } from '../fetcher';
 import { uploadBmpStream } from '../photos/index';
+import { defaultThrottle, type ThrottleCoordinator } from '../photos/throttle';
 import { encodeUploadBmp, relayUploadBmp } from './bmp';
 import type { ReceivedUpload } from './input';
 import { chunkMetadataRecord, type ChunkMetadataStore } from '../photos/library/metadata-store';
@@ -34,17 +35,22 @@ export function uploadFiles(
     emit: (event: UploadEvent) => void,
     fetcher?: Fetcher,
     metadata?: ChunkMetadataStore,
-    accountId?: string
+    accountId?: string,
+    coordinator: ThrottleCoordinator = defaultThrottle
 ): AsyncResult<void, ServerError> {
     return Ok(undefined).andThenAsync(async () => {
         const source =
             input.format === ChunkFormat.Bmp ? relayUploadBmp(input) : encodeUploadBmp(input);
         let lastProgress = 0;
+        let lastCompleted = 0;
+        let lastReused = 0;
         const report = (completed: number, reused = 0, force = false) => {
             const now = performance.now();
             if (!force && now - lastProgress < PROGRESS_INTERVAL_MS) return;
 
             lastProgress = now;
+            lastCompleted = completed;
+            lastReused = reused;
             emit({
                 type: UploadEventType.Progress,
                 id: 0,
@@ -69,7 +75,25 @@ export function uploadFiles(
             ),
             source,
             fetcher ?? photosFetchWithProgress((sent) => report(sent)),
-            input.signal
+            input.signal,
+            {
+                key: accountId ?? input.email,
+                coordinator,
+                onWait: (retryAfterSeconds) => {
+                    lastProgress = performance.now();
+                    emit({
+                        type: UploadEventType.Progress,
+                        id: 0,
+                        progress: {
+                            phase: UploadPhase.Uploading,
+                            completed: lastCompleted,
+                            reused: lastReused,
+                            total: input.bmp.totalSize,
+                            retryAfterSeconds
+                        }
+                    });
+                }
+            }
         );
 
         if (uploaded.isOk() && metadata) {

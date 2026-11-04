@@ -79,13 +79,20 @@ export function driveRoutes(context: ServerContext) {
             // Browsers send finished chunks to relay, or whole files for the server to process.
             if (context.env.PHODRIVE_PROCESSING === ProcessingMode.Browser)
                 return receiveUpload(c.req.raw, account, ChunkFormat.Bmp).match({
-                    Ok: (input) => uploadStream(input, metadata, account.id),
+                    Ok: (input) => uploadStream(input, metadata, account.id, context.throttle),
                     Err: errorResponse
                 });
 
             return receiveFileUpload(c.req.raw).match({
                 Ok: (received) =>
-                    fileUploadStream(received, account, undefined, metadata, account.id),
+                    fileUploadStream(
+                        received,
+                        account,
+                        undefined,
+                        metadata,
+                        account.id,
+                        context.throttle
+                    ),
                 Err: errorResponse
             });
         })

@@ -2,7 +2,8 @@ import { Err, Ok, type AsyncResult } from 'results-ts';
 import { SERVER_ERRORS, type ServerError } from '../../errors';
 import type { Fetcher } from '../../fetcher';
 import { bodyBytes, bytesField, message, numberField } from '../../protobuf';
-import { readBody, send } from '../transport';
+import { guardedSend, readBody } from '../transport';
+import type { ThrottleScope } from '../throttle';
 import { existingMedia, mediaFromCommit, parseTransfer, type Transfer } from './responses';
 
 const UPLOAD_URL = 'https://photos.googleapis.com/data/upload/uploadmedia/interactive';
@@ -13,7 +14,8 @@ export function startUpload(
     length: number,
     sha1: Buffer,
     commonHeaders: Record<string, string>,
-    fetcher: Fetcher
+    fetcher: Fetcher,
+    throttle: ThrottleScope
 ): AsyncResult<string, ServerError> {
     const request = message(
         numberField(1, 2),
@@ -23,7 +25,8 @@ export function startUpload(
         numberField(7, length)
     );
 
-    return send(
+    return guardedSend(
+        throttle,
         fetcher,
         UPLOAD_URL,
         {
@@ -52,12 +55,14 @@ export function transferBmp(
     uploadId: string,
     commonHeaders: Record<string, string>,
     fetcher: Fetcher,
+    throttle: ThrottleScope,
     length?: number
 ): AsyncResult<Transfer, ServerError> {
     const url = new URL(UPLOAD_URL);
     url.searchParams.set('upload_id', uploadId);
 
-    return send(
+    return guardedSend(
+        throttle,
         fetcher,
         url,
         {
@@ -78,7 +83,8 @@ export function commitBmp(
     sha1: Buffer,
     transfer: Transfer,
     rpcHeaders: Record<string, string>,
-    fetcher: Fetcher
+    fetcher: Fetcher,
+    throttle: ThrottleScope
 ): AsyncResult<string, ServerError> {
     const media = message(
         bytesField(1, message(numberField(1, transfer.type), bytesField(2, transfer.token))),
@@ -98,7 +104,8 @@ export function commitBmp(
         bytesField(3, Buffer.from([1, 3]))
     );
 
-    return send(
+    return guardedSend(
+        throttle,
         fetcher,
         COMMIT_URL,
         {
@@ -107,27 +114,32 @@ export function commitBmp(
             headers: rpcHeaders,
             body: bodyBytes(request)
         },
-        'Commit'
+        'Commit',
+        { preserveServerFailure: true }
     )
         .andThenAsync((response) =>
             readBody(response, 'Commit').andThen((body) => mediaFromCommit(body, transfer.scotty))
         )
         .mapErr((error) =>
-            error.code === 'COMMIT_REJECTED' ? error : SERVER_ERRORS.COMMIT_OUTCOME_UNCERTAIN
+            error.code === 'COMMIT_REJECTED' || error.code === 'THROTTLED'
+                ? error
+                : SERVER_ERRORS.COMMIT_OUTCOME_UNCERTAIN
         );
 }
 
 export function hashLookup(
     sha1: Buffer,
     rpcHeaders: Record<string, string>,
-    fetcher: Fetcher
+    fetcher: Fetcher,
+    throttle: ThrottleScope
 ): AsyncResult<string | null, ServerError> {
     const hashRequest = bytesField(
         1,
         message(bytesField(1, bytesField(1, sha1)), bytesField(2, Buffer.alloc(0)))
     );
 
-    return send(
+    return guardedSend(
+        throttle,
         fetcher,
         HASH_URL,
         {

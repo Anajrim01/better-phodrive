@@ -19,6 +19,11 @@ export const INVALID_UPLOAD_PROGRESS = {
     message: 'Invalid upload progress response.'
 } as const satisfies ApplicationError;
 
+export const UPLOAD_CANCELLED = {
+    code: 'UPLOAD_CANCELLED',
+    message: 'Upload cancelled.'
+} as const satisfies ApplicationError;
+
 const UPLOAD_STREAM_INTERRUPTED = {
     code: 'UPLOAD_STREAM_INTERRUPTED',
     message: 'Upload connection ended before Google confirmed every file.'
@@ -97,7 +102,16 @@ function readUploadResponse(
             while (true) {
                 const received = await readEvent(reader);
 
-                const handled = received.andThen((event) => {
+                const handled = received.andThen((event): Result<boolean, ApplicationError> => {
+                    if (
+                        event.type === UploadEventType.Error &&
+                        event.retryAfterSeconds !== undefined
+                    )
+                        return Err({
+                            code: 'THROTTLED',
+                            message: event.error,
+                            retryAfterSeconds: event.retryAfterSeconds
+                        } as const);
                     if (event.type === UploadEventType.Error)
                         return Err({ code: 'UPLOAD_FAILED', message: event.error } as const);
 
@@ -119,14 +133,16 @@ function readUploadResponse(
 export function uploadRequest(
     form: FormData,
     onEvent: (event: UploadEvent) => Result<void, ApplicationError>,
-    accountId?: string
+    accountId?: string,
+    signal?: AbortSignal
 ): AsyncResult<void, ApplicationError> {
     return request(
         '/api/upload',
         {
             method: 'POST',
             headers: accountId ? { [GOOGLE_ACCOUNT_HEADER]: accountId } : undefined,
-            body: form
+            body: form,
+            signal
         },
         'Upload failed'
     ).andThenAsync((response) => readUploadResponse(response, onEvent));
@@ -140,14 +156,14 @@ function encodeChunk(payload: Blob, header: SplitHeader): Result<Blob, Applicati
 }
 
 /** Send a finished BMP to the same-origin Phodrive API, which relays it to Google as it arrives. */
-export function httpChunkTransportFor(accountId?: string): ChunkTransport {
+export function httpChunkTransportFor(accountId?: string, signal?: AbortSignal): ChunkTransport {
     return ({ metadata, payload, header }, onEvent) =>
         encodeChunk(payload, header).andThenAsync((bmp) => {
             const form = new FormData();
             form.set('metadata', JSON.stringify(metadata));
             form.set('chunk', bmp, 'chunk.bmp');
 
-            return uploadRequest(form, onEvent, accountId);
+            return uploadRequest(form, onEvent, accountId, signal);
         });
 }
 
@@ -158,11 +174,12 @@ export function uploadFileRequest(
     file: File,
     workers: number,
     onEvent: (event: UploadEvent) => Result<void, ApplicationError>,
-    accountId?: string
+    accountId?: string,
+    signal?: AbortSignal
 ): AsyncResult<void, ApplicationError> {
     const form = new FormData();
     form.set('metadata', JSON.stringify({ name: file.name, size: file.size, workers }));
     form.set('file', file, file.name);
 
-    return uploadRequest(form, onEvent, accountId);
+    return uploadRequest(form, onEvent, accountId, signal);
 }

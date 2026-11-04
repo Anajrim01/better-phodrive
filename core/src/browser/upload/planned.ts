@@ -5,7 +5,7 @@ import { UploadEventType, UploadPhase, UploadStatus, type UploadEvent } from '..
 import { planChunks, type UploadPlan } from '../../upload';
 import { uploadChunk } from './chunk';
 import { hashFile, uploadIdentity } from './hash';
-import type { ChunkTransport } from './request';
+import { UPLOAD_CANCELLED, type ChunkTransport } from './request';
 
 const PROGRESS_INTERVAL_MS = 100;
 
@@ -48,7 +48,7 @@ function fileProgress({ headers, sizes }: UploadPlan, id: number, handle: EventH
     const total = sum(sizes);
     const sent = headers.map(() => 0);
     const reused = headers.map(() => 0);
-    const report = () =>
+    const report = (retryAfterSeconds?: number) =>
         handle({
             type: UploadEventType.Progress,
             id,
@@ -56,16 +56,22 @@ function fileProgress({ headers, sizes }: UploadPlan, id: number, handle: EventH
                 phase: UploadPhase.Uploading,
                 completed: sum(sent),
                 reused: sum(reused),
-                total
+                total,
+                ...(retryAfterSeconds === undefined ? {} : { retryAfterSeconds })
             }
         });
 
     return {
         report,
-        update: (chunkIndex: number, completed: number, existing: number) => {
-            sent[chunkIndex] = completed;
-            reused[chunkIndex] = existing;
-            report();
+        update: (
+            chunkIndex: number,
+            completed: number,
+            existing: number,
+            retryAfterSeconds?: number
+        ) => {
+            sent[chunkIndex] = Math.max(sent[chunkIndex] ?? 0, completed);
+            reused[chunkIndex] = Math.max(reused[chunkIndex] ?? 0, existing);
+            report(retryAfterSeconds);
         }
     };
 }
@@ -80,9 +86,16 @@ export function uploadPlannedFile(
     email: string,
     transport: ChunkTransport,
     chunkLimit: ReturnType<typeof pLimit>,
-    handle: EventHandler
+    handle: EventHandler,
+    signal?: AbortSignal
 ): AsyncResult<void, ApplicationError> {
     return Ok(undefined).andThenAsync(async () => {
+        if (signal?.aborted) {
+            handle({ type: UploadEventType.FileError, id, error: 'Upload cancelled.' });
+
+            return Ok(undefined);
+        }
+
         const progress = fileProgress(plan, id, handle);
         let failure: ApplicationError | null = null;
         let uploadedAny = false;
@@ -90,14 +103,17 @@ export function uploadPlannedFile(
 
         const results = await chunkLimit.map(plan.headers, async (header) => {
             if (failure) return Err(failure);
+            if (signal?.aborted) return Err(UPLOAD_CANCELLED);
 
             const result = await uploadChunk(
                 file,
                 header,
                 email,
                 transport,
-                (completed, existing) => progress.update(header.chunkIndex, completed, existing),
-                (event) => handle({ ...event, id })
+                (completed, existing, retryAfterSeconds) =>
+                    progress.update(header.chunkIndex, completed, existing, retryAfterSeconds),
+                (event) => handle({ ...event, id }),
+                signal
             );
 
             result.match({

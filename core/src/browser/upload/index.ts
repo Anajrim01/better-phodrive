@@ -66,7 +66,8 @@ export function uploadFiles(
     onJob: (job: UploadJob) => void,
     onChunk: (chunk: UploadedChunk, jobId: number) => void,
     processing: ProcessingMode,
-    accountId?: string
+    accountId?: string,
+    signal?: AbortSignal
 ): AsyncResult<void, ApplicationError> {
     const emittedChunk = (chunk: UploadedChunk, jobId: number) =>
         onChunk(accountId ? { ...chunk, accountId } : chunk, jobId);
@@ -77,14 +78,15 @@ export function uploadFiles(
         'Invalid concurrent worker count.'
     ).andThenAsync((concurrency) =>
         processing === ProcessingMode.Server
-            ? sendFiles(files, email, concurrency, onJob, emittedChunk, accountId)
+            ? sendFiles(files, email, concurrency, onJob, emittedChunk, accountId, signal)
             : transferFiles(
                   files,
                   email,
                   concurrency,
                   onJob,
                   emittedChunk,
-                  accountId ? httpChunkTransportFor(accountId) : httpChunkTransport
+                  accountId ? httpChunkTransportFor(accountId, signal) : httpChunkTransport,
+                  signal
               )
     );
 }
@@ -96,7 +98,8 @@ function sendFiles(
     concurrency: number,
     onJob: (job: UploadJob) => void,
     onChunk: (chunk: UploadedChunk, jobId: number) => void,
-    accountId?: string
+    accountId?: string,
+    signal?: AbortSignal
 ): AsyncResult<void, ApplicationError> {
     return Ok(undefined).andThenAsync(async () => {
         const jobs = createUploadJobs(files);
@@ -106,6 +109,12 @@ function sendFiles(
         const handle = createUploadEventHandler(sources, jobs, email, onJob, onChunk);
         // One whole file at a time per account queue keeps the server's worker count bounded.
         await pLimit(1).map(sources, async ({ file }, id) => {
+            if (signal?.aborted) {
+                handle({ type: UploadEventType.FileError, id, error: 'Upload cancelled.' });
+
+                return;
+            }
+
             const sent = await uploadFileRequest(
                 file,
                 concurrency,
@@ -118,12 +127,17 @@ function sendFiles(
 
                     return handle({ ...event, id });
                 },
-                accountId
+                accountId,
+                signal
             );
 
             // A job already marked complete or failed rejects this report, which is expected.
             sent.inspectErr((error) =>
-                handle({ type: UploadEventType.FileError, id, error: error.message })
+                handle({
+                    type: UploadEventType.FileError,
+                    id,
+                    error: signal?.aborted ? 'Upload cancelled.' : error.message
+                })
             );
         });
 
@@ -141,7 +155,8 @@ export function transferFiles(
     concurrency: number,
     onJob: (job: UploadJob) => void,
     onChunk: (chunk: UploadedChunk, jobId: number) => void,
-    transport: ChunkTransport
+    transport: ChunkTransport,
+    signal?: AbortSignal
 ): AsyncResult<void, ApplicationError> {
     return Ok(undefined).andThenAsync(async () => {
         const jobs = createUploadJobs(files);
@@ -152,6 +167,12 @@ export function transferFiles(
         const chunkLimit = pLimit(concurrency);
         const fileLimit = pLimit(concurrency);
         await fileLimit.map(sources, async ({ file }, id) => {
+            if (signal?.aborted) {
+                handle({ type: UploadEventType.FileError, id, error: 'Upload cancelled.' });
+
+                return;
+            }
+
             handle({ type: UploadEventType.Queued, id });
 
             const planned = await prepareFile(file, id, handle);
@@ -164,7 +185,7 @@ export function transferFiles(
             }
 
             await planned.andThenAsync((plan) =>
-                uploadPlannedFile({ file, id }, plan, email, transport, chunkLimit, handle)
+                uploadPlannedFile({ file, id }, plan, email, transport, chunkLimit, handle, signal)
             );
         });
 

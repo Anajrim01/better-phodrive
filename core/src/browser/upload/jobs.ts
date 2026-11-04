@@ -60,14 +60,25 @@ export function createUploadEventHandler(
                 return completeJob(job, file, confirmed[jobId], event.result).map(publish);
 
             case UploadEventType.FileError:
-                publish({ ...job, status: UploadJobStatus.Error, message: event.error });
+                publish({
+                    ...job,
+                    status: UploadJobStatus.Error,
+                    message: event.error,
+                    retryAt: null
+                });
                 return Ok(undefined);
         }
     }
 
     return (event) => {
         if (event.type === UploadEventType.Error)
-            return Err({ code: 'UPLOAD_FAILED', message: event.error } as const);
+            return event.retryAfterSeconds === undefined
+                ? Err({ code: 'UPLOAD_FAILED', message: event.error } as const)
+                : Err({
+                      code: 'THROTTLED',
+                      message: event.error,
+                      retryAfterSeconds: event.retryAfterSeconds
+                  } as const);
         if (event.type === UploadEventType.Complete)
             return jobs.every(finished) ? Ok(undefined) : invalidProgress();
 

@@ -6,16 +6,22 @@ import { transferFiles } from '../browser/upload/index';
 import type { ChunkTransport } from '../browser/upload/request';
 import type { UploadJob } from '../browser/upload/jobs';
 import type { Fetcher } from '../server/fetcher';
+import type { ThrottleCoordinator } from '../server/photos/throttle';
 import { receiveChunk } from '../server/upload/input';
 import { uploadFiles as forwardChunk } from '../server/upload/index';
 import { validateWorkers } from '../server/workers';
 
-export type TransferOptions = { signal?: AbortSignal; fetcher?: Fetcher };
+export type TransferOptions = {
+    signal?: AbortSignal;
+    fetcher?: Fetcher;
+    accountId?: string;
+    coordinator?: ThrottleCoordinator;
+};
 
 /** Forward chunks to Google Photos in this process, reporting the same events as the HTTP API. */
 export function localChunkTransport(
     account: Account,
-    { signal, fetcher }: TransferOptions = {}
+    { signal, fetcher, accountId, coordinator }: TransferOptions = {}
 ): ChunkTransport {
     return ({ metadata, payload }, onEvent) =>
         Ok(undefined).andThenAsync(async () => {
@@ -41,7 +47,14 @@ export function localChunkTransport(
                     payload.stream(),
                     abort.signal
                 ).andThenAsync(async (input) => {
-                    const forwarded = await forwardChunk(input, emit, fetcher);
+                    const forwarded = await forwardChunk(
+                        input,
+                        emit,
+                        fetcher,
+                        undefined,
+                        accountId,
+                        coordinator
+                    );
 
                     const cancelled = await input.cancel();
 
@@ -53,7 +66,14 @@ export function localChunkTransport(
 
                 return uploaded.match({
                     Ok: () => onEvent({ type: UploadEventType.Complete }),
-                    Err: (error) => onEvent({ type: UploadEventType.Error, error: error.message })
+                    Err: (error) =>
+                        onEvent({
+                            type: UploadEventType.Error,
+                            error: error.message,
+                            ...(error.code === 'THROTTLED'
+                                ? { retryAfterSeconds: error.retryAfterSeconds }
+                                : {})
+                        })
                 });
             } finally {
                 signal?.removeEventListener('abort', onAbort);
@@ -81,7 +101,8 @@ export function uploadFiles(
             concurrency,
             onJob,
             onChunk,
-            localChunkTransport({ email, token }, options)
+            localChunkTransport({ email, token }, options),
+            options.signal
         )
     );
 }

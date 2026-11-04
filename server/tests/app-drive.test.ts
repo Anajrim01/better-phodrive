@@ -26,7 +26,16 @@ vi.mock('../src/google', () => ({
 }));
 vi.mock('@madkarmaa/phodrive-core/server/photos', () => ({
     downloadBmp: vi.fn(),
-    listBmps: vi.fn()
+    listBmps: vi.fn(),
+    createThrottleCoordinator: () => ({
+        pause: vi.fn(),
+        wait: vi.fn(),
+        remaining: vi.fn(() => 0),
+        serverFailure: vi.fn(() => null),
+        serverSuccess: vi.fn(),
+        success: vi.fn(),
+        clear: vi.fn()
+    })
 }));
 vi.mock('@madkarmaa/phodrive-core/server/upload/input', () => ({ receiveUpload: vi.fn() }));
 vi.mock('@madkarmaa/phodrive-core/server/upload/file', () => ({

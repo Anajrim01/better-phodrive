@@ -233,6 +233,10 @@
             "@madkarmaa/phodrive-core": "./src/server/photos/library/requests.ts",
             "default": "./dist/server/photos/library/requests.js"
         },
+        "./server/photos/throttle": {
+            "@madkarmaa/phodrive-core": "./src/server/photos/throttle.ts",
+            "default": "./dist/server/photos/throttle.js"
+        },
         "./server/photos/transport": {
             "@madkarmaa/phodrive-core": "./src/server/photos/transport.ts",
             "default": "./dist/server/photos/transport.js"
@@ -392,6 +396,7 @@
             "./server/photos/library/metadata": "./dist/server/photos/library/metadata.js",
             "./server/photos/library/probe": "./dist/server/photos/library/probe.js",
             "./server/photos/library/requests": "./dist/server/photos/library/requests.js",
+            "./server/photos/throttle": "./dist/server/photos/throttle.js",
             "./server/photos/transport": "./dist/server/photos/transport.js",
             "./server/photos/trash": "./dist/server/photos/trash.js",
             "./server/photos/upload": "./dist/server/photos/upload/index.js",
