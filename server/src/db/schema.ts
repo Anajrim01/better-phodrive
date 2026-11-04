@@ -121,12 +121,7 @@ export const chunkMetadata = pgTable(
         chunkIndex: integer('chunk_index').notNull(),
         isLast: boolean('is_last').notNull(),
         originalName: text('original_name'),
-        size: integer('size').notNull(),
-        createdAt: timestamp('created_at').defaultNow().notNull(),
-        updatedAt: timestamp('updated_at')
-            .defaultNow()
-            .$onUpdate(() => new Date())
-            .notNull()
+        size: integer('size').notNull()
     },
     (table) => [
         primaryKey({

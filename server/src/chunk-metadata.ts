@@ -83,8 +83,7 @@ export function createChunkMetadataStore(
                             chunkIndex: sql`excluded.chunk_index`,
                             isLast: sql`excluded.is_last`,
                             originalName: sql`excluded.original_name`,
-                            size: sql`excluded.size`,
-                            updatedAt: new Date()
+                            size: sql`excluded.size`
                         }
                     });
             } catch {}

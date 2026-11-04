@@ -10,8 +10,6 @@ CREATE TABLE "chunk_metadata" (
 	"is_last" boolean NOT NULL,
 	"original_name" text,
 	"size" integer NOT NULL,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL,
 	CONSTRAINT "chunk_metadata_scope_pk" PRIMARY KEY("user_id","google_email","media_key")
 );
 --> statement-breakpoint
