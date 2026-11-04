@@ -8,10 +8,12 @@ import {
     type FileGroup,
     type UploadedChunk
 } from '@madkarmaa/phodrive-core/files';
+import { foldersFor, visibleFilesFor } from '#browser/drive/library-folders';
 
 function file(name: string, at: number): FileGroup {
     return {
         name,
+        folder: '',
         at,
         email: 'test@example.com',
         fileHash: name,
@@ -107,4 +109,27 @@ test('UC17 file types never collide with the empty all-types filter', () => {
     expect(fileType('notes')).toBe('FILE');
     expect(fileType('photo.')).toBe('FILE');
     expect(fileType('backup.verylongextension')).toBe('VERYL');
+});
+
+test('folder browsing scopes files while filtering searches the loaded library', () => {
+    const files = [
+        file('root.txt', 1),
+        { ...file('inside.txt', 2), folder: 'Projects' },
+        { ...file('deep.ts', 3), folder: 'Projects/2026' }
+    ];
+
+    expect(
+        visibleFilesFor(files, 'Projects', false, '', '', '', FileSort.NameAscending).map(
+            (item) => item.name
+        )
+    ).toEqual(['inside.txt']);
+    expect(foldersFor(files, 'Projects', false)).toEqual([
+        { path: 'Projects/2026', name: '2026', files: 1, subfolders: 0 }
+    ]);
+    expect(
+        visibleFilesFor(files, 'Projects', true, 'deep', '', '', FileSort.NameAscending).map(
+            (item) => item.name
+        )
+    ).toEqual(['deep.ts']);
+    expect(foldersFor(files, 'Projects', true)).toEqual([]);
 });

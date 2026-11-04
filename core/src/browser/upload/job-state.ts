@@ -25,6 +25,7 @@ export interface UploadJob {
 export interface UploadSource {
     file: File;
     jobId: number;
+    folder: string;
 }
 
 export function createUploadJobs(files: readonly File[]): UploadJob[] {

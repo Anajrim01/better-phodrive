@@ -9,18 +9,21 @@
 
     interface Props {
         disabled: boolean;
+        destination?: string;
         onupload: (files: File[]) => void;
         children?: Snippet;
     }
 
-    let { disabled, onupload, children }: Props = $props();
+    let { disabled, destination = 'My files', onupload, children }: Props = $props();
 
     const DESKTOP_DROP_QUERY = '(width > 800px) and (hover: hover) and (pointer: fine)';
     const desktop = new MediaQuery(DESKTOP_DROP_QUERY, false);
     let dragging = $state(false);
     let overFiles = $state(false);
+    let dropError = $state('');
     let zone = $state<HTMLDivElement>();
     let dragDepth = 0;
+    let dropRun = 0;
     const fileRect = new ElementRect(() => zone);
 
     $effect(() => {
@@ -28,6 +31,7 @@
     });
 
     function resetDrag() {
+        dropRun++;
         dragging = false;
         overFiles = false;
         dragDepth = 0;
@@ -73,17 +77,23 @@
         if (event.relatedTarget) overFiles = isOverFiles(event.relatedTarget);
     }
 
-    function dropFiles(event: DragEvent) {
+    async function dropFiles(event: DragEvent) {
         resetDrag();
         if (!isFileDrag(event) || !event.dataTransfer) return;
 
         event.preventDefault();
         if (disabled || !isOverFiles(event.target)) return;
 
-        const files = droppedFiles(event.dataTransfer);
-        if (!files.length) return;
+        const run = dropRun;
+        try {
+            const files = await droppedFiles(event.dataTransfer);
+            if (run !== dropRun || disabled || !files.length) return;
 
-        onupload(files);
+            dropError = '';
+            onupload(files);
+        } catch {
+            if (run === dropRun) dropError = 'Could not read the dropped files. Try again.';
+        }
     }
 </script>
 
@@ -101,6 +111,9 @@
 
 {#if children}
     <div class="file-drop" bind:this={zone}>
+        {#if dropError}
+            <p class="mb-2 text-sm text-error" role="alert">{dropError}</p>
+        {/if}
         {@render children()}
 
         {#if desktop.current && !disabled && dragging && overFiles}
@@ -116,10 +129,10 @@
             <div
                 class="grid min-w-60 justify-items-center gap-2 text-sm text-(--np-color-on-primary)"
             >
-                <span>Drop files to upload them to</span>
+                <span>Drop files or folders to upload to</span>
                 <span class="flex items-center gap-2">
                     <IconFolder aria-hidden="true" class="size-4.5" />
-                    My files
+                    {destination}
                 </span>
             </div>
         </Card>

@@ -5,6 +5,7 @@ import { sortFiles, type FileGroup } from '@madkarmaa/phodrive-core/files';
 function file(name: string, at: number): FileGroup {
     return {
         name,
+        folder: '',
         at,
         email: 'test@example.com',
         fileHash: name,

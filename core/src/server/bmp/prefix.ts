@@ -16,7 +16,8 @@ function sameHeader(header: SplitHeader, expected: SplitHeader): boolean {
         header.chunkIndex === expected.chunkIndex &&
         header.flags === expected.flags &&
         header.payloadSize === expected.payloadSize &&
-        header.fileName === expected.fileName
+        header.fileName === expected.fileName &&
+        header.folder === expected.folder
     );
 }
 

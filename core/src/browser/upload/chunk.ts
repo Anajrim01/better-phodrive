@@ -57,6 +57,7 @@ function acceptChunk(report: ChunkReport, { chunk }: ChunkEvent, email: string) 
         chunk.isLast === Boolean(header.flags) &&
         chunk.size === header.payloadSize &&
         chunk.originalName === header.fileName &&
+        chunk.folder === header.folder &&
         chunk.sha1 === report.sha1;
     if (report.saved || !matches) return invalidResponse();
 
@@ -127,14 +128,20 @@ export function uploadChunk(
     transport: ChunkTransport,
     onProgress: (sent: number, reused: number, retryAfterSeconds?: number) => void,
     onChunk: (chunk: ChunkEvent) => Result<void, ApplicationError>,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    folder = ''
 ): AsyncResult<UploadResponse, ApplicationError> {
     const start = header.chunkIndex * MAX_CHUNK_PAYLOAD_BYTES;
     const payload = file.slice(start, start + header.payloadSize);
 
     return hashUploadChunk(payload, header).andThenAsync(async ({ sha1, size }) => {
         const metadata = {
-            file: { name: file.name, size: file.size, fileHash: header.fileHash },
+            file: {
+                name: file.name,
+                size: file.size,
+                fileHash: header.fileHash,
+                ...(folder ? { folder } : {})
+            },
             chunkIndex: header.chunkIndex,
             sha1
         };

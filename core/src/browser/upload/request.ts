@@ -175,10 +175,14 @@ export function uploadFileRequest(
     workers: number,
     onEvent: (event: UploadEvent) => Result<void, ApplicationError>,
     accountId?: string,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    folder = ''
 ): AsyncResult<void, ApplicationError> {
     const form = new FormData();
-    form.set('metadata', JSON.stringify({ name: file.name, size: file.size, workers }));
+    form.set(
+        'metadata',
+        JSON.stringify({ name: file.name, size: file.size, workers, ...(folder ? { folder } : {}) })
+    );
     form.set('file', file, file.name);
 
     return uploadRequest(form, onEvent, accountId, signal);

@@ -77,11 +77,42 @@ test('split metadata requires file identity and rejects unsupported format versi
     expect(fileId).toBe(FILE_HASH);
     expect(SplitHeaderSchema.safeParse(missingIdentity).success).toBe(false);
 
-    for (const version of [0, 2, 255]) {
+    for (const version of [0, 3, 255]) {
         const bmp = encodeSplitBmp(Uint8Array.of(9), metadata).unwrap();
         bmp[61] = version;
         expect(decodeSplitBmp(bmp).isErr()).toBe(true);
     }
+});
+
+test('root headers stay v1 while folder headers use v2 on chunk zero only', () => {
+    const folder = 'Projects/2026';
+    const rootBmp = encodeSplitBmp(Uint8Array.of(1), header(0, 1, true)).unwrap();
+    const folderHeader = { ...header(0, 1, false), folder };
+    const folderBmp = encodeSplitBmp(Uint8Array.of(1), folderHeader).unwrap();
+    const later = encodeSplitBmp(Uint8Array.of(1), {
+        ...header(1, 1, true),
+        folder: undefined
+    }).unwrap();
+
+    expect(new TextDecoder().decode(rootBmp.subarray(54, 62))).toBe('BMSPLIT\x01');
+    expect(new TextDecoder().decode(folderBmp.subarray(54, 62))).toBe('BMSPLIT\x02');
+    expect(new TextDecoder().decode(later.subarray(54, 62))).toBe('BMSPLIT\x01');
+    expect(decodeSplitBmp(folderBmp).unwrap().header.folder).toBe(folder);
+    expect(decodeSplitBmp(later).unwrap().header.folder).toBeUndefined();
+    expect(splitBmpByteLength(folderHeader).unwrap()).toBe(folderBmp.length);
+});
+
+test('folder headers reject malformed or misplaced folder metadata', () => {
+    for (const folder of ['/root', 'a//b', 'a/../b', 'a\\b']) {
+        expect(SplitHeaderSchema.safeParse({ ...header(0, 1, true), folder }).success).toBe(false);
+    }
+    expect(SplitHeaderSchema.safeParse({ ...header(1, 1, true), folder: 'Projects' }).success).toBe(
+        false
+    );
+
+    const bmp = encodeSplitBmp(Uint8Array.of(1), header(0, 1, true)).unwrap();
+    bmp[61] = 2;
+    expect(decodeSplitBmp(bmp).isErr()).toBe(true);
 });
 
 test('projected chunks fit the photo limit and reject damaged padding', () => {

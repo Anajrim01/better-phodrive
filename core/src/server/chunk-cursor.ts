@@ -16,7 +16,8 @@ export function openChunk(
         chunkIndex: chunk.chunkIndex,
         flags: chunk.isLast ? 1 : 0,
         payloadSize: chunk.size,
-        fileName: chunk.chunkIndex === 0 ? input.name : undefined
+        fileName: chunk.chunkIndex === 0 ? input.name : undefined,
+        folder: chunk.chunkIndex === 0 ? chunk.folder : undefined
     };
 
     return downloadBmp(

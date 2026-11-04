@@ -14,7 +14,7 @@ const HEADERS = { commonHeaders: {}, rpcHeaders: {} } as unknown as Parameters<
     typeof scanLibraryPage
 >[1];
 
-function item(mediaKey = 'media-key') {
+function item(mediaKey = 'media-key', folder?: string) {
     const payload = Uint8Array.of(1, 2, 3, 4);
     const fileHash = createHash('sha256').update('file').digest('hex');
     const fileId = createHash('sha256').update('file-id').digest('hex');
@@ -25,7 +25,8 @@ function item(mediaKey = 'media-key') {
             chunkIndex: 0,
             flags: 1,
             payloadSize: payload.length,
-            fileName: 'note.bin'
+            fileName: 'note.bin',
+            ...(folder ? { folder } : {})
         }).unwrap()
     );
     const sha1 = createHash('sha1').update(bmp).digest('hex');
@@ -39,6 +40,7 @@ function item(mediaKey = 'media-key') {
         chunkIndex: 0,
         isLast: true,
         originalName: 'note.bin',
+        ...(folder ? { folder } : {}),
         size: payload.length
     };
 
@@ -108,6 +110,21 @@ test('a matching metadata row skips both Google probe requests', async () => {
     ]);
 });
 
+test('a matching foldered row preserves folder without a Google probe', async () => {
+    const { candidate, record } = item('media-key', 'Projects/2026');
+    const metadata = store([record]);
+    const fetcher = vi.fn<Fetcher>();
+    const result = await scanLibraryPage(
+        { items: [candidate], nextPageToken: '' },
+        HEADERS,
+        fetcher,
+        metadata
+    );
+
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(result.unwrap().items[0]).toMatchObject({ folder: 'Projects/2026' });
+});
+
 test('a missing row probes once and saves the resolved metadata', async () => {
     const { bmp, candidate } = item();
     const metadata = store();
@@ -153,6 +170,29 @@ test('changed fingerprint or size is not reused', async () => {
         sized
     );
     expect(sized.save).toHaveBeenCalledOnce();
+});
+
+test('an unindexed folder item probes twice and saves its folder', async () => {
+    const { bmp, candidate } = item('media-key', 'Projects/2026');
+    const metadata = store();
+    let calls = 0;
+    const fetcher: Fetcher = (input, init) => {
+        calls++;
+
+        return fetcherFor(bmp, candidate.sha1)(input, init);
+    };
+    const result = await scanLibraryPage(
+        { items: [candidate], nextPageToken: '' },
+        HEADERS,
+        fetcher,
+        metadata
+    );
+
+    expect(calls).toBe(2);
+    expect(result.unwrap().items[0]).toMatchObject({ folder: 'Projects/2026' });
+    expect(metadata.save.mock.calls[0]?.[0]).toEqual([
+        expect.objectContaining({ folder: 'Projects/2026' })
+    ]);
 });
 
 test('a page of 5,000 indexed unique candidates makes no Google probe calls', async () => {

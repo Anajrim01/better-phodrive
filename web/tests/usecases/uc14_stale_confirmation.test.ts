@@ -91,6 +91,7 @@ test('refresh removing a chunk invalidates the stale file confirmation', async (
         email: FIRST,
         fileHash: HASH_A,
         fileId: HASH_A,
+        folder: '',
         name: 'alpha.bmp',
         at: 1,
         chunkCount: 2,

@@ -2,7 +2,8 @@ import { createSHA1, createSHA256, sha256, type IHasher } from 'hash-wasm';
 import { Err, Ok, type AsyncResult } from 'results-ts';
 import type { ApplicationError } from '../../errors';
 import type { SplitHeader } from '../../models';
-import { encodeSplitPrefix, MAX_CHUNK_PAYLOAD_BYTES } from '../../bmp/format';
+import { encodeSplitPrefix } from '../../bmp/format';
+import { identityInput } from '../../files';
 import {
     acquireHasher,
     digestHasher,
@@ -121,11 +122,12 @@ function hashFileIncrementally(
 
 export function uploadIdentity(
     name: string,
-    fileHash: string
+    fileHash: string,
+    folder = ''
 ): AsyncResult<string, ApplicationError> {
     return Ok(undefined).andThenAsync(async () => {
         try {
-            const identity = await sha256(`${fileHash}\0${name}\0${MAX_CHUNK_PAYLOAD_BYTES}`);
+            const identity = await sha256(identityInput(name, fileHash, undefined, folder));
 
             return Ok(identity);
         } catch {

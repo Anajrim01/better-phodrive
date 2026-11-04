@@ -17,25 +17,28 @@ export const TEST_ACCOUNT: Account = { email: 'test@example.com', token: 'aas_et
 export function uploadForm(
     payload: Uint8Array = Buffer.from([0, 255, 13, 10, 42]),
     name = 'proof.bin',
-    options: { fileSize?: number; fileHash?: string; chunkIndex?: number } = {}
+    options: { fileSize?: number; fileHash?: string; chunkIndex?: number; folder?: string } = {}
 ) {
+    const folder = options.folder;
     const file = {
         name,
         size: options.fileSize ?? payload.length,
-        fileHash: options.fileHash ?? createHash('sha256').update(payload).digest('hex')
+        fileHash: options.fileHash ?? createHash('sha256').update(payload).digest('hex'),
+        ...(folder ? { folder } : {})
     };
     const chunkIndex = options.chunkIndex ?? 0;
     const count = Math.max(1, Math.ceil(file.size / MAX_CHUNK_PAYLOAD_BYTES));
     const header = {
         fileHash: file.fileHash,
-        fileId: fileIdentity(name, file.fileHash),
+        fileId: fileIdentity(name, file.fileHash, undefined, folder ?? ''),
         chunkIndex,
         flags: chunkIndex === count - 1 ? (1 as const) : (0 as const),
         payloadSize: Math.min(
             MAX_CHUNK_PAYLOAD_BYTES,
             file.size - chunkIndex * MAX_CHUNK_PAYLOAD_BYTES
         ),
-        fileName: chunkIndex === 0 ? name : undefined
+        fileName: chunkIndex === 0 ? name : undefined,
+        folder: chunkIndex === 0 ? folder : undefined
     };
     const prefix = encodeSplitPrefix(header).unwrap();
     // A deliberately short payload can test ingestion without allocating a sparse file's declared size.
@@ -80,11 +83,17 @@ export async function browserUploadResponse(
     const count = Math.max(1, Math.ceil(metadata.file.size / MAX_CHUNK_PAYLOAD_BYTES));
     const header = {
         fileHash: metadata.file.fileHash,
-        fileId: fileIdentity(metadata.file.name, metadata.file.fileHash),
+        fileId: fileIdentity(
+            metadata.file.name,
+            metadata.file.fileHash,
+            undefined,
+            metadata.file.folder ?? ''
+        ),
         chunkIndex: metadata.chunkIndex,
         flags: metadata.chunkIndex === count - 1 ? (1 as const) : (0 as const),
         payloadSize: payload.length,
-        fileName: metadata.chunkIndex === 0 ? metadata.file.name : undefined
+        fileName: metadata.chunkIndex === 0 ? metadata.file.name : undefined,
+        folder: metadata.chunkIndex === 0 ? metadata.file.folder : undefined
     };
     if (!Buffer.from(encodeSplitBmp(payload, header).unwrap()).equals(bmp))
         throw new Error('Browser BMP does not match the expected encoding');
@@ -115,6 +124,7 @@ export async function browserUploadResponse(
                 chunkIndex: header.chunkIndex,
                 isLast: Boolean(header.flags),
                 originalName: header.fileName,
+                folder: header.folder,
                 size: payload.length,
                 at: 1,
                 mediaKey: result.mediaKey,

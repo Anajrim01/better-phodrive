@@ -1,13 +1,15 @@
 <script lang="ts">
     import { Button } from 'noph-ui';
     import { FileLayout, FileSort } from '@madkarmaa/phodrive-core/models';
-    import type { FileGroup, FileAction } from '@madkarmaa/phodrive-core/files';
+    import type { FileGroup, FileAction, FolderEntry } from '@madkarmaa/phodrive-core/files';
     import FileCardGrid from '#components/FileCardGrid.svelte';
     import FileGridStatus from '#components/FileGridStatus.svelte';
     import FileList from '#components/FileList.svelte';
+    import FolderTiles from '#components/FolderTiles.svelte';
 
     interface Props {
         files: FileGroup[];
+        folders?: FolderEntry[];
         layout: FileLayout;
         sort: FileSort;
         loading: boolean;
@@ -16,14 +18,17 @@
         hasFiles: boolean;
         hasMore: boolean;
         disabled: boolean;
+        foldersDisabled?: boolean;
         action: FileAction | null;
         ondownload: (item: FileGroup) => void;
         ondelete: (item: FileGroup) => void;
+        onopenfolder?: (path: string) => void;
         onmore: () => void;
     }
 
     let {
         files,
+        folders = [],
         layout,
         sort = $bindable(),
         loading,
@@ -32,18 +37,30 @@
         hasFiles,
         hasMore,
         disabled,
+        foldersDisabled = false,
         action,
         ondownload,
         ondelete,
+        onopenfolder,
         onmore
     }: Props = $props();
 </script>
 
 <section class="flex min-h-0 flex-1 flex-col" aria-labelledby="files-heading">
-    {#if !files.length}
+    <FolderTiles {folders} disabled={foldersDisabled} onopen={(path) => onopenfolder?.(path)} />
+
+    {#if !files.length && !folders.length}
         <FileGridStatus {loading} {loadFailed} filteredOut={filtered && hasFiles} />
     {:else if layout === FileLayout.List}
-        <FileList {files} bind:sort {disabled} {action} {ondownload} {ondelete} />
+        <FileList
+            {files}
+            bind:sort
+            {disabled}
+            {action}
+            showFolder={filtered}
+            {ondownload}
+            {ondelete}
+        />
     {:else}
         <FileCardGrid {files} {disabled} {action} {ondownload} {ondelete} />
     {/if}

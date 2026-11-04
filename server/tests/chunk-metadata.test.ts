@@ -25,6 +25,7 @@ test('chunk metadata is scoped by user, Google account, and media key', () => {
             'chunk_index',
             'is_last',
             'original_name',
+            'folder',
             'size'
         ])
     );
@@ -43,6 +44,9 @@ test('the migration creates account groups and scopes metadata by account id', a
     expect(migration).toContain('ALTER TABLE "google_account" ADD COLUMN "id" text');
     expect(migration).toContain('CREATE TABLE "chunk_metadata"');
     expect(migration).toContain('PRIMARY KEY("user_id","google_account_id","media_key")');
+    expect(migration).toContain('"original_name" text');
+    expect(migration).toContain('"folder" text');
+    expect(migration).toContain('"size" integer NOT NULL');
     expect(migration).toContain(
         'FOREIGN KEY ("user_id","google_account_id") REFERENCES "public"."google_account"("user_id","id") ON DELETE cascade'
     );

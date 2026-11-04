@@ -1,8 +1,15 @@
 import { SERVER_ERRORS, type ServerError } from '../errors';
 import { Err, Ok, type Result } from 'results-ts';
 import { SplitHeaderSchema, type SplitHeader } from '../../models';
-import { hashHex, isSplitBmp, readSplitName, readVarint } from './fields';
-import { BMP_HEADER_BYTES, SPLIT_MAGIC, FILE_HASH_BYTES } from '../../bmp/format';
+import {
+    hashHex,
+    isSplitBmp,
+    readSplitFolder,
+    readSplitName,
+    readVarint,
+    splitMagic
+} from './fields';
+import { BMP_HEADER_BYTES, SPLIT_MAGIC_WITH_FOLDER, FILE_HASH_BYTES } from '../../bmp/format';
 export {
     BMP_HEADER_BYTES,
     MAX_PHOTOS_BMP_BYTES,
@@ -20,7 +27,9 @@ export function decodeSplitHeader(
     const invalid = () => Err(SERVER_ERRORS.INVALID_DOWNLOADED_BMP);
     if (!isSplitBmp(prefix, totalSize)) return invalid();
 
-    let offset = BMP_HEADER_BYTES + SPLIT_MAGIC.length;
+    const magic = splitMagic(prefix)!;
+    const withFolder = magic === SPLIT_MAGIC_WITH_FOLDER;
+    let offset = BMP_HEADER_BYTES + magic.length;
     const fileHash = hashHex(prefix.subarray(offset, offset + FILE_HASH_BYTES));
     offset += FILE_HASH_BYTES;
 
@@ -48,6 +57,16 @@ export function decodeSplitHeader(
                 ...header,
                 ...name
             }))
+        )
+        .andThen((header) =>
+            withFolder
+                ? readSplitFolder(prefix, header.payloadOffset, header.chunkIndex).map(
+                      (folder) => ({
+                          ...header,
+                          ...folder
+                      })
+                  )
+                : Ok(header)
         )
         .andThen(
             ({

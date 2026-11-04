@@ -42,6 +42,8 @@ export interface UploadBatch {
     library: DriveLibrary;
     /** Global job IDs for this queue, in the same order as `files`. */
     jobIds?: readonly number[];
+    /** Resolved folder for each queue file, in the same order. */
+    folders?: readonly string[];
     /** A retry reports its single file under the job ID it already has. */
     retryId?: number;
     signal?: AbortSignal;
@@ -56,6 +58,7 @@ export function uploadBatch({
     processing,
     library,
     jobIds,
+    folders,
     retryId,
     signal,
     onJob
@@ -75,7 +78,8 @@ export function uploadBatch({
         uploadedChunks.hold,
         processing,
         account.id,
-        signal
+        signal,
+        folders
     )
         .inspect(uploadedChunks.releaseAll)
         .inspectErr(uploadedChunks.releaseAll);

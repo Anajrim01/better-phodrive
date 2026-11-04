@@ -19,7 +19,8 @@ function sum(values: readonly number[]): number {
 export function prepareFile(
     file: File,
     id: number,
-    handle: EventHandler
+    handle: EventHandler,
+    folder = ''
 ): AsyncResult<UploadPlan, ApplicationError> {
     let lastProgress = 0;
     const onHashed = (completed: number) => {
@@ -36,10 +37,13 @@ export function prepareFile(
 
     return hashFile(file, onHashed)
         .andThenAsync((fileHash) =>
-            uploadIdentity(file.name, fileHash).map((fileId) => ({ fileHash, fileId }))
+            uploadIdentity(file.name, fileHash, folder).map((fileId) => ({ fileHash, fileId }))
         )
         .andThen(({ fileHash, fileId }) =>
-            planChunks({ name: file.name, size: file.size, fileHash }, fileId)
+            planChunks(
+                { name: file.name, size: file.size, fileHash, ...(folder ? { folder } : {}) },
+                fileId
+            )
         );
 }
 
@@ -87,7 +91,8 @@ export function uploadPlannedFile(
     transport: ChunkTransport,
     chunkLimit: ReturnType<typeof pLimit>,
     handle: EventHandler,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    folder = ''
 ): AsyncResult<void, ApplicationError> {
     return Ok(undefined).andThenAsync(async () => {
         if (signal?.aborted) {
@@ -113,7 +118,8 @@ export function uploadPlannedFile(
                 (completed, existing, retryAfterSeconds) =>
                     progress.update(header.chunkIndex, completed, existing, retryAfterSeconds),
                 (event) => handle({ ...event, id }),
-                signal
+                signal,
+                folder
             );
 
             result.match({
