@@ -76,7 +76,7 @@
     </div>
 
     <p class="mx-2 mt-4 text-center text-xs text-muted">
-        To use another Google account, sign out and sign in with its Phodrive account.
+        To change the Google library, use the selector in the drive sidebar.
     </p>
 </Menu>
 

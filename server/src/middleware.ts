@@ -1,11 +1,9 @@
+import { GOOGLE_ACCOUNT_HEADER } from '@madkarmaa/phodrive-core/models';
 import { createMiddleware } from 'hono/factory';
 import { errorResponse } from './api';
 import { requireSessionUser, type SessionUser } from './auth';
 import type { ServerContext } from './context';
 import { readGoogleAccount, type ServerAccount } from './google';
-
-/** The browser selects a Google account by its stable server-side row id. */
-export const GOOGLE_ACCOUNT_HEADER = 'x-phodrive-account-id';
 
 /** The server sets the socket's client address before the API sees a request. */
 export type ApiEnv = { Variables: { clientAddress: string } };

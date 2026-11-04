@@ -17,7 +17,7 @@ const DAMAGED_CHUNKS = {
 afterEach(() => vi.restoreAllMocks());
 
 /** Upload in browser mode, keeping each job's latest state and every confirmed chunk. */
-async function upload(files: File[], workers: number) {
+async function upload(files: File[], workers: number, accountId?: string) {
     const jobs = new Map<number, UploadJob>();
     const saved: UploadedChunk[] = [];
     const result = await uploadFiles(
@@ -26,7 +26,8 @@ async function upload(files: File[], workers: number) {
         workers,
         (job) => jobs.set(job.id, job),
         (chunk) => saved.push(chunk),
-        ProcessingMode.Browser
+        ProcessingMode.Browser,
+        accountId
     );
 
     return { result, jobs, saved };
@@ -51,6 +52,21 @@ test('browser hashes incrementally and posts raw slices with stable verified BMP
     expect(saved.map((chunk) => chunk.originalName).sort()).toEqual(['other.bin', 'proof.bin']);
     expect(new Set(saved.map((chunk) => chunk.fileId)).size).toBe(2);
     expect(statuses(jobs).every((status) => status === UploadJobStatus.Complete)).toBe(true);
+});
+
+test('account-targeted browser uploads send the header and stamp every chunk', async () => {
+    const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
+        expect(new Headers(init?.headers).get('x-phodrive-account-id')).toBe('account-one');
+
+        return browserUploadResponse(init);
+    });
+
+    const { result, saved } = await upload([new File([PAYLOAD], 'proof.bin')], 1, 'account-one');
+
+    expect(result.isOk()).toBe(true);
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(saved).toHaveLength(1);
+    expect(saved[0]).toMatchObject({ accountId: 'account-one', email: 'test@example.com' });
 });
 
 test('full-file hashing reads at most 1 MiB at once and retries reuse the immutable file hash', async () => {

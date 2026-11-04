@@ -4,6 +4,7 @@ import { Ok } from 'results-ts';
 import { UploadJobStatus, UploadStatus } from '@madkarmaa/phodrive-core/models';
 import type { UploadedChunk } from '@madkarmaa/phodrive-core/files';
 import { DriveController } from '#browser/drive/index.svelte';
+import { useAccount } from '../helpers/drive';
 import * as filesApi from '#browser/files';
 
 const { storage } = await vi.hoisted(async () => {
@@ -69,6 +70,7 @@ test('a file appears only once its upload ends, even when a later chunk finishes
     );
     const drive = new DriveController('test@example.com');
     drive.initialize();
+    useAccount(drive);
 
     const uploading = drive.upload([new File(['large'], 'large.bin')]);
     await vi.waitFor(() => expect(drive.busy).toBe(true));
@@ -146,6 +148,7 @@ test('partial confirmations survive one failed file while others finish; retry i
         });
     const drive = new DriveController('test@example.com');
     drive.initialize();
+    useAccount(drive);
 
     const uploading = drive.upload(sources);
     await vi.waitFor(() => expect(drive.uploadJobs[0].status).toBe(UploadJobStatus.Error));

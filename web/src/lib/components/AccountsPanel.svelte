@@ -7,12 +7,14 @@
 
     interface Props {
         model: AccountsGroupsState;
+        disabled: boolean;
         replacingToken: boolean;
         onreplacetoken: (accountId: string, token: string) => Promise<boolean>;
-        onaccountschange: () => void;
     }
 
-    let { model, replacingToken, onreplacetoken, onaccountschange }: Props = $props();
+    let { model, disabled, replacingToken, onreplacetoken }: Props = $props();
+
+    const blocked = $derived(disabled || replacingToken || Boolean(model.busy));
 
     let email = $state('');
     let token = $state('');
@@ -21,15 +23,18 @@
     let replacementToken = $state('');
 
     async function addAccount() {
+        if (blocked) return;
+
         if (await model.addAccount(email.trim(), token.trim())) {
             email = '';
             token = '';
             showHelp = false;
-            onaccountschange();
         }
     }
 
     async function disconnect(account: GoogleAccountSummary) {
+        if (blocked) return;
+
         if (
             !confirm(
                 `Disconnect ${account.email}? Its cached metadata and group memberships are removed. Files stay in Google Photos.`
@@ -37,11 +42,11 @@
         )
             return;
 
-        if (await model.disconnect(account)) onaccountschange();
+        await model.disconnect(account);
     }
 
     async function replaceToken() {
-        if (!replacingAccount || replacingToken) return;
+        if (!replacingAccount || blocked) return;
         if (!(await onreplacetoken(replacingAccount, replacementToken.trim()))) return;
 
         replacingAccount = '';
@@ -52,8 +57,8 @@
 <div>
     <h2 class="text-base font-medium">Google accounts</h2>
     <p class="mt-1 text-sm leading-relaxed text-muted">
-        Connect the Google accounts this drive can use. Until group libraries arrive, the drive
-        reads from the first connected account.
+        Connect the Google accounts this drive can use. The library selector chooses one account or
+        a group.
     </p>
 </div>
 
@@ -66,7 +71,7 @@
                     <Button
                         variant="text"
                         size="xs"
-                        disabled={Boolean(model.busy) || replacingToken}
+                        disabled={blocked}
                         onclick={() => {
                             replacingAccount = replacingAccount === account.id ? '' : account.id;
                             replacementToken = '';
@@ -78,7 +83,7 @@
                         variant="text"
                         size="xs"
                         aria-label={`Disconnect ${account.email}`}
-                        disabled={Boolean(model.busy) || replacingToken}
+                        disabled={blocked}
                         onclick={() => disconnect(account)}
                     >
                         <IconDelete class="size-4.5" aria-hidden="true" />
@@ -101,7 +106,7 @@
                                 name="replacementToken"
                                 type="password"
                                 bind:value={replacementToken}
-                                disabled={replacingToken}
+                                disabled={blocked}
                                 autocomplete="off"
                                 required
                             />
@@ -112,7 +117,7 @@
                             size="s"
                             loading={replacingToken}
                             loadingAriaLabel="Replacing token"
-                            disabled={!replacementToken.trim()}
+                            disabled={blocked || !replacementToken.trim()}
                         >
                             Replace
                         </Button>
@@ -139,7 +144,7 @@
             name="googleEmail"
             type="email"
             bind:value={email}
-            disabled={Boolean(model.busy)}
+            disabled={blocked}
             autocomplete="email"
             required
         />
@@ -148,7 +153,7 @@
             name="googleToken"
             type="password"
             bind:value={token}
-            disabled={Boolean(model.busy)}
+            disabled={blocked}
             autocomplete="off"
             required
         />
@@ -159,6 +164,7 @@
             variant="tonal"
             loading={model.busy === 'add-account'}
             loadingAriaLabel="Adding account"
+            disabled={blocked}
         >
             Add account
         </Button>

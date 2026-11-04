@@ -5,6 +5,7 @@ import type { AsyncResult } from 'results-ts';
 import { readLibrarySnapshot } from '@madkarmaa/phodrive-core/browser/library';
 import * as api from '@madkarmaa/phodrive-core/browser/api';
 import { DriveController } from '#browser/drive/index.svelte';
+import { useAccount } from '../helpers/drive';
 import {
     LibraryResponseSchema,
     type LibraryResponse,
@@ -102,6 +103,7 @@ test('load more deduplicates chunks and disables further loading after a cyclic 
     const apiJson = vi.spyOn(api, 'apiJson').mockImplementation(() => apiResult(page([], '')));
     const drive = new DriveController('test@example.com');
     drive.initialize();
+    useAccount(drive);
     await new Promise((resolve) => setTimeout(resolve, 0));
     apiJson.mockClear();
     apiJson.mockImplementation(() => apiResult(page([], '')));
@@ -113,7 +115,7 @@ test('load more deduplicates chunks and disables further loading after a cyclic 
     await drive.library.load();
     await drive.library.load(false);
     expect(drive.feedbackMessage).toContain('repeated a library page');
-    expect(drive.library.nextPageToken).toBe('');
+    expect(drive.library.hasMore).toBe(false);
     await drive.library.load(false);
 
     expect(drive.library.chunks.map(({ mediaKey }) => mediaKey)).toEqual(['part-0', 'part-1']);

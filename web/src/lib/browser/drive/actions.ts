@@ -1,6 +1,6 @@
 import type { ApplicationError } from '@madkarmaa/phodrive-core/errors';
 import type { FileGroup } from '@madkarmaa/phodrive-core/files';
-import type { ProcessingMode } from '@madkarmaa/phodrive-core/models';
+import type { GoogleAccountSummary, ProcessingMode } from '@madkarmaa/phodrive-core/models';
 import type { AsyncResult } from 'results-ts';
 import {
     deleteFile,
@@ -9,7 +9,7 @@ import {
     uploadFiles,
     type UploadJob
 } from '#browser/files';
-import { holdUploadedChunks, withChunks, withoutChunk } from '#browser/drive/chunks';
+import { holdUploadedChunks } from '#browser/drive/chunks';
 import type { DriveLibrary } from '#browser/drive/library.svelte';
 
 /** Move a file's chunks to the trash, dropping each from the library once Google confirms it. */
@@ -21,7 +21,7 @@ export function trashFile(
     return deleteFile(
         item,
         (chunk) => {
-            library.chunks = withoutChunk(library.chunks, item, chunk);
+            library.removeChunk(item, chunk);
         },
         workers
     );
@@ -36,7 +36,7 @@ export function downloadAndSave(
 
 export interface UploadBatch {
     files: readonly File[];
-    email: string;
+    account: GoogleAccountSummary;
     workers: number;
     processing: ProcessingMode;
     library: DriveLibrary;
@@ -45,10 +45,10 @@ export interface UploadBatch {
     onJob: (job: UploadJob, id: number) => void;
 }
 
-/** Upload files, adding each file's confirmed chunks to the library once its upload ends. */
+/** Upload files to one account, adding each file's confirmed chunks to the library once it ends. */
 export function uploadBatch({
     files,
-    email,
+    account,
     workers,
     processing,
     library,
@@ -56,19 +56,20 @@ export function uploadBatch({
     onJob
 }: UploadBatch): AsyncResult<void, ApplicationError> {
     const uploadedChunks = holdUploadedChunks((saved) => {
-        library.chunks = withChunks(library.chunks, saved);
+        library.appendChunks(saved);
     });
 
     return uploadFiles(
         files,
-        email,
+        account.email,
         workers,
         (job) => {
             onJob(job, retryId ?? job.id);
             uploadedChunks.settle(job);
         },
         uploadedChunks.hold,
-        processing
+        processing,
+        account.id
     )
         .inspect(uploadedChunks.releaseAll)
         .inspectErr(uploadedChunks.releaseAll);

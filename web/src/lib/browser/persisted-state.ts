@@ -51,6 +51,18 @@ export function nullableNumberSerializer(schema: z.ZodType<number>) {
     };
 }
 
+/** JSON values are validated on read; malformed or obsolete shapes behave like an unset choice. */
+export function jsonSerializer<T>(schema: z.ZodType<T>) {
+    return {
+        serialize: (value: T | undefined) => (value === undefined ? '' : JSON.stringify(value)),
+        deserialize: (raw: string): T | undefined => {
+            const parsed = schema.safeParse(readStoredJson(raw));
+
+            return parsed.success ? parsed.data : undefined;
+        }
+    };
+}
+
 /** A saved choice that stays unset, so deployment defaults apply until the user saves one. */
 export function persistedChoice<T>(
     key: string,

@@ -12,20 +12,25 @@
         drive: DriveController;
         /** An upload or file action is running. */
         working: boolean;
+        /** An upload is not allowed for the current drive context. */
+        uploadDisabled: boolean;
         onupload: (files: File[]) => void;
     }
 
-    let { drive, working, onupload }: Props = $props();
+    let { drive, working, uploadDisabled, onupload }: Props = $props();
 
-    const { library, settings } = $derived(drive);
+    const { library, settings, context } = $derived(drive);
     const disabled = $derived(working || library.loading);
     const filtered = $derived(!!(library.searchTerm || library.typeFilter || library.modifiedDays));
+    const heading = $derived(
+        context.current?.kind === 'group' ? context.current.group.name : 'My files'
+    );
 </script>
 
 <div class="flex flex-1 flex-col" in:fade={{ duration: prefersReducedMotion.current ? 0 : 160 }}>
     <div class="workspace-heading">
         <h1 id="files-heading">
-            My files <span class="text-subtle">({library.visibleFiles.length})</span>
+            {heading} <span class="text-subtle">({library.visibleFiles.length})</span>
         </h1>
         <LayoutToggle bind:layout={settings.fileLayout} />
     </div>
@@ -36,7 +41,10 @@
         bind:days={library.modifiedDays}
         bind:sort={settings.fileSort}
     />
-    <FileDrop disabled={disabled || drive.confirmOpen || drive.accountMenuOpen} {onupload}>
+    <FileDrop
+        disabled={disabled || uploadDisabled || drive.confirmOpen || drive.accountMenuOpen}
+        {onupload}
+    >
         <FileGrid
             files={library.visibleFiles}
             layout={settings.fileLayout}
@@ -45,7 +53,7 @@
             loadFailed={library.loadFailed}
             {filtered}
             hasFiles={!!library.files.length}
-            hasMore={!!library.nextPageToken}
+            hasMore={library.hasMore}
             {disabled}
             action={drive.fileAction}
             ondownload={(item) => {

@@ -6,24 +6,32 @@
 
     interface Props {
         model: AccountsGroupsState;
+        disabled: boolean;
     }
 
-    let { model }: Props = $props();
+    let { model, disabled }: Props = $props();
+
+    const blocked = $derived(disabled || Boolean(model.busy));
 
     let groupName = $state('');
     let memberChoice = $state<Record<string, string>>({});
 
     async function createGroup() {
+        if (blocked) return;
+
         if (await model.createGroup(groupName.trim())) groupName = '';
     }
 
     async function deleteGroup(group: GoogleAccountGroup) {
+        if (blocked) return;
         if (!confirm(`Delete ${group.name}? The accounts stay connected.`)) return;
 
         await model.deleteGroup(group);
     }
 
     async function addMember(group: GoogleAccountGroup) {
+        if (blocked) return;
+
         const accountId = memberChoice[group.id];
         if (!accountId || !(await model.addMember(group, accountId))) return;
 
@@ -58,7 +66,7 @@
                     variant="text"
                     size="xs"
                     aria-label={`Delete ${group.name}`}
-                    disabled={Boolean(model.busy)}
+                    disabled={blocked}
                     onclick={() => deleteGroup(group)}
                 >
                     Delete group
@@ -76,7 +84,7 @@
                                 type="button"
                                 class="text-muted hover:text-error"
                                 aria-label={`Remove ${member.email} from ${group.name}`}
-                                disabled={Boolean(model.busy)}
+                                disabled={blocked}
                                 onclick={() => model.removeMember(group, member)}
                             >
                                 <IconClose class="size-3.5" aria-hidden="true" />
@@ -94,7 +102,7 @@
                     <select
                         class="h-9 rounded-lg border border-border bg-surface px-2 text-sm text-text"
                         bind:value={memberChoice[group.id]}
-                        disabled={Boolean(model.busy) || availableAccounts(group).length === 0}
+                        disabled={blocked || availableAccounts(group).length === 0}
                     >
                         <option value="">Choose an account</option>
                         {#each availableAccounts(group) as account (account.id)}
@@ -105,7 +113,7 @@
                 <Button
                     variant="tonal"
                     size="s"
-                    disabled={Boolean(model.busy) || !memberChoice[group.id]}
+                    disabled={blocked || !memberChoice[group.id]}
                     onclick={() => addMember(group)}
                 >
                     Add member
@@ -128,7 +136,7 @@
             label="New group name"
             name="groupName"
             bind:value={groupName}
-            disabled={Boolean(model.busy)}
+            disabled={blocked}
             required
         />
     </div>
@@ -137,6 +145,7 @@
         variant="tonal"
         loading={model.busy === 'create-group'}
         loadingAriaLabel="Creating group"
+        disabled={blocked}
     >
         Create group
     </Button>

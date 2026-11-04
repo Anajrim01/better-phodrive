@@ -11,7 +11,12 @@ import {
 import type { ApplicationError } from '../../errors';
 import type { UploadedChunk } from '../../files';
 import { schemaResult } from '../../validation';
-import { httpChunkTransport, uploadFileRequest, type ChunkTransport } from './request';
+import {
+    httpChunkTransport,
+    httpChunkTransportFor,
+    uploadFileRequest,
+    type ChunkTransport
+} from './request';
 import {
     createUploadJobs,
     createUploadEventHandler,
@@ -58,16 +63,27 @@ export function uploadFiles(
     workers: number,
     onJob: (job: UploadJob) => void,
     onChunk: (chunk: UploadedChunk, jobId: number) => void,
-    processing: ProcessingMode
+    processing: ProcessingMode,
+    accountId?: string
 ): AsyncResult<void, ApplicationError> {
+    const emittedChunk = (chunk: UploadedChunk, jobId: number) =>
+        onChunk(accountId ? { ...chunk, accountId } : chunk, jobId);
+
     return schemaResult(
         ConcurrentWorkersSchema,
         workers,
         'Invalid concurrent worker count.'
     ).andThenAsync((concurrency) =>
         processing === ProcessingMode.Server
-            ? sendFiles(files, email, concurrency, onJob, onChunk)
-            : transferFiles(files, email, concurrency, onJob, onChunk, httpChunkTransport)
+            ? sendFiles(files, email, concurrency, onJob, emittedChunk, accountId)
+            : transferFiles(
+                  files,
+                  email,
+                  concurrency,
+                  onJob,
+                  emittedChunk,
+                  accountId ? httpChunkTransportFor(accountId) : httpChunkTransport
+              )
     );
 }
 
@@ -77,7 +93,8 @@ function sendFiles(
     email: string,
     concurrency: number,
     onJob: (job: UploadJob) => void,
-    onChunk: (chunk: UploadedChunk, jobId: number) => void
+    onChunk: (chunk: UploadedChunk, jobId: number) => void,
+    accountId?: string
 ): AsyncResult<void, ApplicationError> {
     return Ok(undefined).andThenAsync(async () => {
         const jobs = createUploadJobs(files);
@@ -86,12 +103,20 @@ function sendFiles(
 
         const handle = createUploadEventHandler(sources, jobs, email, onJob, onChunk);
         await pLimit(concurrency).map(sources, async ({ file }, id) => {
-            const sent = await uploadFileRequest(file, concurrency, (event) => {
-                if (event.type === UploadEventType.Complete || event.type === UploadEventType.Error)
-                    return Ok(undefined);
+            const sent = await uploadFileRequest(
+                file,
+                concurrency,
+                (event) => {
+                    if (
+                        event.type === UploadEventType.Complete ||
+                        event.type === UploadEventType.Error
+                    )
+                        return Ok(undefined);
 
-                return handle({ ...event, id });
-            });
+                    return handle({ ...event, id });
+                },
+                accountId
+            );
 
             // A job already marked complete or failed rejects this report, which is expected.
             sent.inspectErr((error) =>

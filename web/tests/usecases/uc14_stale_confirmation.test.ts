@@ -2,6 +2,7 @@ import { FileSort, ThemeMode, type RemoteBmp } from '@madkarmaa/phodrive-core/mo
 import { afterAll, beforeEach, expect, test, vi } from 'vitest';
 import { Ok } from 'results-ts';
 import { DriveController } from '#browser/drive/index.svelte';
+import { useAccount } from '../helpers/drive';
 import { BrowserPreferences } from '#browser/storage';
 import * as filesApi from '#browser/files';
 import * as libraryApi from '@madkarmaa/phodrive-core/browser/library';
@@ -77,6 +78,7 @@ test('refresh removing a chunk invalidates the stale file confirmation', async (
         .mockReturnValue(Ok(undefined).andThenAsync(async () => Ok(undefined)));
     const drive = new DriveController(FIRST);
     drive.initialize();
+    useAccount(drive, { id: 'account-first', email: FIRST });
 
     const chunkZero = chunk(HASH_A, FIRST, 0, 'alpha-chunk-0');
     const chunkOne = {
