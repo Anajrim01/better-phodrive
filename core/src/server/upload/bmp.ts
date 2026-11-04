@@ -92,14 +92,10 @@ export function relayUploadBmp(input: ReceivedUpload): UploadBmpSource {
             if (read.isErr()) return read;
 
             const block = read.unwrap();
-            if (block === null) {
-                if (prefixOffset !== prefix.length)
-                    return Err(SERVER_ERRORS.UPLOAD_INTEGRITY_FAILED);
-
+            if (block === null)
                 return hash.digest('hex') === input.sha1
                     ? Ok(null)
                     : Err(SERVER_ERRORS.UPLOAD_INTEGRITY_FAILED);
-            }
 
             if (prefixOffset < prefix.length) {
                 if (!prefixMatches(block, prefix, prefixOffset))
