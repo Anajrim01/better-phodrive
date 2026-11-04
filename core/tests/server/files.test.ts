@@ -68,9 +68,13 @@ test('a zero-byte last chunk still verifies its BMP and the complete file hash',
     expect(downloadBmp).toHaveBeenCalledTimes(2);
 });
 
-test('oversized requested headers are rejected before any network allocation', async () => {
-    const { input } = fixture();
+test('oversized requested headers are rejected by the reader and their body is cancelled', async () => {
+    const { input, bmps } = fixture();
     const name = 'a'.repeat(65_536);
+    const cancelled = vi.fn();
+    vi.mocked(downloadBmp).mockImplementation(() =>
+        asyncOk(bmpResponse(bmps[0], 1024, { onCancel: cancelled }))
+    );
     const downloaded = await downloadFile({
         ...input,
         name,
@@ -79,7 +83,8 @@ test('oversized requested headers are rejected before any network allocation', a
         )
     });
     expect(downloaded.unwrapErr()).toEqual(SERVER_ERRORS.INVALID_CHUNK_METADATA);
-    expect(downloadBmp).not.toHaveBeenCalled();
+    expect(downloadBmp).toHaveBeenCalledOnce();
+    expect(cancelled).toHaveBeenCalledOnce();
 });
 
 test('incomplete and empty groups fail before contacting Photos; incorrect first metadata cancels its body', async () => {
