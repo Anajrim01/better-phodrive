@@ -116,9 +116,3 @@ function findFilePage(
 }
 
 export type { ChunkMetadataRecord, ChunkMetadataStore } from './metadata-store';
-export {
-    chunkMetadataRecord,
-    metadataItem,
-    metadataMatches,
-    uploadedChunkMetadata
-} from './metadata-store';

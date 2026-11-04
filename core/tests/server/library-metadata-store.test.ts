@@ -5,7 +5,7 @@ import type {
     ChunkMetadataRecord,
     ChunkMetadataStore
 } from '@madkarmaa/phodrive-core/server/photos';
-import { encodeSplitBmp } from '@madkarmaa/phodrive-core/server/bmp';
+import { encodeSplitBmp } from '../helpers/split-bmp';
 import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
 import { scanLibraryPage } from '@madkarmaa/phodrive-core/server/photos/library/probe';
 import { downloadMetadata, imageDownload } from '../helpers/protobuf';
@@ -51,7 +51,7 @@ function store(rows: readonly ChunkMetadataRecord[] = []): ChunkMetadataStore & 
 } {
     const map = new Map(rows.map((row) => [row.mediaKey, row]));
     const load = vi.fn(() => Ok(map).andThenAsync(async (value) => Ok(value)));
-    const save = vi.fn(() => Ok(undefined).andThenAsync(async () => Ok(undefined)));
+    const save = vi.fn(async () => {});
 
     return {
         load,

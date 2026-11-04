@@ -7,7 +7,7 @@ import {
     type Account,
     type UploadEvent
 } from '@madkarmaa/phodrive-core/models';
-import { encodeSplitBmp, decodeSplitBmp } from '@madkarmaa/phodrive-core/server/bmp';
+import { decodeSplitBmp, encodeSplitBmp } from './split-bmp';
 import { encodeSplitPrefix, MAX_CHUNK_PAYLOAD_BYTES } from '@madkarmaa/phodrive-core/bmp/format';
 import { fileIdentity } from '@madkarmaa/phodrive-core/server/chunks';
 

@@ -50,52 +50,43 @@ export function createChunkMetadataStore(
             });
         },
 
-        save(records) {
-            return Ok(undefined).andThenAsync(async () => {
-                if (records.length === 0) return Ok(undefined);
-
-                try {
-                    await db
-                        .insert(chunkMetadata)
-                        .values(
-                            records.map((item) => ({
-                                userId,
-                                googleEmail,
-                                mediaKey: item.mediaKey,
-                                sha1: item.sha1,
-                                storedBmpSize: item.storedBmpSize,
-                                fileHash: item.fileHash,
-                                fileId: item.fileId,
-                                chunkIndex: item.chunkIndex,
-                                isLast: item.isLast,
-                                originalName: item.originalName ?? null,
-                                size: item.size
-                            }))
-                        )
-                        .onConflictDoUpdate({
-                            target: [
-                                chunkMetadata.userId,
-                                chunkMetadata.googleEmail,
-                                chunkMetadata.mediaKey
-                            ],
-                            set: {
-                                sha1: sql`excluded.sha1`,
-                                storedBmpSize: sql`excluded.stored_bmp_size`,
-                                fileHash: sql`excluded.file_hash`,
-                                fileId: sql`excluded.file_id`,
-                                chunkIndex: sql`excluded.chunk_index`,
-                                isLast: sql`excluded.is_last`,
-                                originalName: sql`excluded.original_name`,
-                                size: sql`excluded.size`,
-                                updatedAt: new Date()
-                            }
-                        });
-
-                    return Ok(undefined);
-                } catch {
-                    return Err(SERVER_ERRORS.METADATA_UNAVAILABLE);
-                }
-            });
+        async save(records) {
+            try {
+                await db
+                    .insert(chunkMetadata)
+                    .values(
+                        records.map((item) => ({
+                            userId,
+                            googleEmail,
+                            mediaKey: item.mediaKey,
+                            sha1: item.sha1,
+                            storedBmpSize: item.storedBmpSize,
+                            fileHash: item.fileHash,
+                            fileId: item.fileId,
+                            chunkIndex: item.chunkIndex,
+                            isLast: item.isLast,
+                            originalName: item.originalName ?? null,
+                            size: item.size
+                        }))
+                    )
+                    .onConflictDoUpdate({
+                        target: [
+                            chunkMetadata.userId,
+                            chunkMetadata.googleEmail,
+                            chunkMetadata.mediaKey
+                        ],
+                        set: {
+                            sha1: sql`excluded.sha1`,
+                            storedBmpSize: sql`excluded.stored_bmp_size`,
+                            fileHash: sql`excluded.file_hash`,
+                            fileId: sql`excluded.file_id`,
+                            chunkIndex: sql`excluded.chunk_index`,
+                            isLast: sql`excluded.is_last`,
+                            originalName: sql`excluded.original_name`,
+                            size: sql`excluded.size`
+                        }
+                    });
+            } catch {}
         }
     };
 }

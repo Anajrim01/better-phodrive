@@ -65,7 +65,6 @@ export const SERVER_ERRORS = {
         code: 'COMMIT_OUTCOME_UNCERTAIN',
         message: 'Commit outcome uncertain. Check Google Photos before retrying.'
     },
-    INVALID_SHA_1: { code: 'INVALID_SHA_1', message: 'Invalid SHA-1' },
     INVALID_FILE_REFERENCE: { code: 'INVALID_FILE_REFERENCE', message: 'Invalid file reference' },
     INVALID_DOWNLOAD_CONTENT_TYPE: {
         code: 'INVALID_DOWNLOAD_CONTENT_TYPE',
@@ -90,10 +89,6 @@ export const SERVER_ERRORS = {
         message: 'Download fingerprint mismatch'
     },
     INVALID_CHUNK_VARINT: { code: 'INVALID_CHUNK_VARINT', message: 'Invalid chunk varint' },
-    BMP_ALLOCATION_FAILED: {
-        code: 'BMP_ALLOCATION_FAILED',
-        message: 'Not enough memory to create BMP'
-    },
     INVALID_DOWNLOADED_BMP: {
         code: 'INVALID_DOWNLOADED_BMP',
         message: 'Downloaded BMP is invalid or damaged'

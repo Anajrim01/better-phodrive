@@ -6,9 +6,9 @@ import {
     uploadIdentity
 } from '@madkarmaa/phodrive-core/browser/upload/hash';
 import { encodeSplitPrefix } from '@madkarmaa/phodrive-core/bmp/format';
-import { encodeSplitBmp } from '@madkarmaa/phodrive-core/server/bmp';
+import { encodeSplitBmp } from '../../core/tests/helpers/split-bmp';
 import { planChunks } from '@madkarmaa/phodrive-core/upload';
-import { files, freshFiles, header, MIB, sum, type Workload } from '../fixtures';
+import { files, freshFiles, header, sum, type Workload } from '../fixtures';
 
 const PLANNED_FILE_BYTES = 500_000_000_000;
 
@@ -83,18 +83,6 @@ export function prefixWorkload(): Workload {
         run: () => {
             for (let i = 0; i < 10_000; i++)
                 assert.ok(encodeSplitPrefix(header(i)).unwrap().prefix.length > 100);
-        }
-    };
-}
-
-export function bmpEncodeWorkload(): Workload {
-    const data = new Uint8Array(64 * MIB).fill(42);
-
-    return {
-        bytes: data.length,
-        run: () => {
-            const result = encodeSplitBmp(data, header(data.length)).unwrap();
-            assert.equal(result[1000], 42);
         }
     };
 }
