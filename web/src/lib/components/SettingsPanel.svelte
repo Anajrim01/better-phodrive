@@ -16,6 +16,7 @@
 
     interface Props {
         processing: ProcessingMode;
+        disabled: boolean;
         replacingToken: boolean;
         onreplacetoken: (accountId: string, token: string) => Promise<boolean>;
         onresourceschange: () => void;
@@ -31,6 +32,7 @@
 
     let {
         processing,
+        disabled,
         replacingToken,
         onreplacetoken,
         onresourceschange,
@@ -55,7 +57,7 @@
     </div>
 
     <div class="mt-4 grid max-w-180 gap-8 pb-16">
-        <AccountsGroups {replacingToken} {onreplacetoken} {onresourceschange} />
+        <AccountsGroups {disabled} {replacingToken} {onreplacetoken} {onresourceschange} />
 
         <NumberSettingForm
             setting="refresh interval"

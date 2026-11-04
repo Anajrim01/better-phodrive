@@ -1,10 +1,11 @@
-import { UploadJobStatus, UploadStatus } from '@madkarmaa/phodrive-core/models';
+import { FileActionKind, UploadJobStatus, UploadStatus } from '@madkarmaa/phodrive-core/models';
 import { afterAll, beforeEach, expect, test, vi } from 'vitest';
 import { Err, Ok } from 'results-ts';
 import { DriveController } from '#browser/drive/index.svelte';
 import { SECOND_ACCOUNT, TEST_ACCOUNT, useAccount, useGroup } from '../helpers/drive';
 import * as filesApi from '#browser/files';
 import * as libraryApi from '@madkarmaa/phodrive-core/browser/library';
+import { chunk } from '../helpers/files';
 
 const { storage } = await vi.hoisted(async () => {
     const { stubBrowser } = await import('../helpers/browser');
@@ -177,4 +178,33 @@ test('a group context refuses new uploads and retry keeps the original account',
     expect(upload).toHaveBeenCalledTimes(2);
     expect(upload.mock.calls[1][1]).toBe(TEST_ACCOUNT.email);
     expect(upload.mock.calls[1][6]).toBe(TEST_ACCOUNT.id);
+});
+test('reloadContext waits for uploads and file actions before changing the library', async () => {
+    const drive = new DriveController('test@example.com');
+    drive.initialize();
+    useAccount(drive);
+    const contextLoad = vi.spyOn(drive.context, 'load').mockResolvedValue();
+    const libraryReset = vi.spyOn(drive.library, 'reset');
+    const libraryLoad = vi.spyOn(drive.library, 'load').mockResolvedValue();
+    const originalContext = drive.context.current;
+    drive.library.chunks = [{ ...chunk(), email: TEST_ACCOUNT.email, accountId: TEST_ACCOUNT.id }];
+
+    drive.busy = true;
+    await drive.reloadContext();
+    expect(contextLoad).not.toHaveBeenCalled();
+    expect(libraryReset).not.toHaveBeenCalled();
+    expect(libraryLoad).not.toHaveBeenCalled();
+    expect(drive.context.current).toEqual(originalContext);
+
+    drive.busy = false;
+    drive.fileAction = { fileId: 'b'.repeat(64), kind: FileActionKind.Download };
+    await drive.reloadContext();
+    expect(contextLoad).not.toHaveBeenCalled();
+    expect(drive.context.current).toEqual(originalContext);
+
+    drive.fileAction = null;
+    await drive.reloadContext();
+    expect(contextLoad).toHaveBeenCalledOnce();
+    expect(libraryReset).toHaveBeenCalledOnce();
+    expect(libraryLoad).toHaveBeenCalledOnce();
 });

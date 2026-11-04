@@ -31,8 +31,8 @@ function fileRequest(item: FileGroup, action: FileActionKind, workers: number): 
             name: item.name,
             fileHash: item.fileHash,
             fileId: item.fileId,
-            // Chunks carry their owner's email locally; the request header selects the account.
-            chunks: item.chunks.map(({ email: _email, ...chunk }) => chunk),
+            // Chunks keep their owner locally; the request header selects the account.
+            chunks: item.chunks.map(({ email: _email, accountId: _accountId, ...chunk }) => chunk),
             workers
         })
     };

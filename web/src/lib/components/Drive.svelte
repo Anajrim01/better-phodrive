@@ -29,7 +29,7 @@
         untrack(() => preferencesDefaults),
         untrack(() => processing)
     );
-    const actionsDisabled = $derived(drive.busy || !!drive.fileAction);
+    const actionsDisabled = $derived(drive.working);
     const uploadDisabled = $derived(
         actionsDisabled || drive.library.loading || !drive.context.canUpload
     );
@@ -111,6 +111,7 @@
         {#if drive.ready && view === AppView.Settings}
             <SettingsPanel
                 processing={drive.processing}
+                disabled={actionsDisabled}
                 replacingToken={drive.account.replacingToken}
                 onreplacetoken={(accountId, token) => drive.account.replaceToken(accountId, token)}
                 onresourceschange={() => {

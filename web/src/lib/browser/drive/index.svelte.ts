@@ -72,7 +72,7 @@ export class DriveController {
     }
 
     /** An upload or a file action is running. */
-    private get working(): boolean {
+    get working(): boolean {
         return this.busy || this.fileAction !== null;
     }
 
@@ -111,11 +111,11 @@ export class DriveController {
         await this.library.load();
     }
 
-    /** Refresh account and group lists after Settings changes, then reload the drive context. */
+    /** Reload accounts, groups, and the library after Settings changes; skipped during file work. */
     async reloadContext() {
-        await this.context.load();
         if (this.working) return;
 
+        await this.context.load();
         this.library.reset();
         await this.library.load();
     }

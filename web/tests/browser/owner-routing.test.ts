@@ -22,14 +22,32 @@ function header(init: RequestInit | undefined): string | null {
     return new Headers(init?.headers).get(GOOGLE_ACCOUNT_HEADER);
 }
 
+function expectOwnerFreeBody(init: RequestInit | undefined) {
+    const body = JSON.parse(String(init?.body)) as {
+        email?: unknown;
+        accountId?: unknown;
+        chunks: Array<Record<string, unknown>>;
+    };
+
+    expect(body).not.toHaveProperty('email');
+    expect(body).not.toHaveProperty('accountId');
+    for (const item of body.chunks) {
+        expect(item).not.toHaveProperty('email');
+        expect(item).not.toHaveProperty('accountId');
+    }
+
+    FileActionRequestSchema.parse(body);
+}
+
 afterEach(() => vi.restoreAllMocks());
 
 test('server-mode download carries the file owner account id', async () => {
     const group = groupChunks([ownedChunk()])[0];
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
         expect(header(init)).toBe(OWNER);
-        expect(init?.body).not.toContain('owner@example.com');
-        FileActionRequestSchema.parse(JSON.parse(String(init?.body)));
+        expect(String(init?.body)).not.toContain('owner@example.com');
+        expect(String(init?.body)).not.toContain(OWNER);
+        expectOwnerFreeBody(init);
 
         return new Response(PAYLOAD);
     });
@@ -39,12 +57,13 @@ test('server-mode download carries the file owner account id', async () => {
     expect(fetchMock).toHaveBeenCalledOnce();
 });
 
-test('delete carries the file owner account id and keeps the body credential-free', async () => {
+test('delete carries the file owner only in the header', async () => {
     const group = groupChunks([ownedChunk()])[0];
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
         expect(header(init)).toBe(OWNER);
         expect(String(init?.body)).not.toContain('owner@example.com');
-        FileActionRequestSchema.parse(JSON.parse(String(init?.body)));
+        expect(String(init?.body)).not.toContain(OWNER);
+        expectOwnerFreeBody(init);
 
         return Response.json({ deleted: [chunk()] });
     });
@@ -67,6 +86,8 @@ test('browser-mode chunk requests use the owning account for every chunk', async
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, init) => {
         expect(url).toBe('/api/chunk');
         expect(header(init)).toBe(OWNER);
+        expect(String(init?.body)).not.toContain(OWNER);
+        expect(String(init?.body)).not.toContain('owner@example.com');
 
         return bmpResponse(fixture.bmps[calls++]);
     });
@@ -101,6 +122,8 @@ test('an ownerless file does not send an account header', async () => {
     const group = groupChunks([{ ...chunk(), email: 'test@example.com' }])[0];
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
         expect(header(init)).toBeNull();
+        expect(String(init?.body)).not.toContain('test@example.com');
+        expectOwnerFreeBody(init);
 
         return new Response(PAYLOAD);
     });

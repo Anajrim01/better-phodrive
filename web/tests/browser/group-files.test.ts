@@ -55,8 +55,19 @@ test('deleting a group file routes to its owner and does not reload the library'
     const refresh = vi.spyOn(drive.library, 'refresh');
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
         expect(new Headers(init?.headers).get('x-phodrive-account-id')).toBe(SECOND_ACCOUNT.id);
+        const body = JSON.parse(String(init?.body)) as {
+            chunks: Array<Record<string, unknown>>;
+        };
+        expect(body).not.toHaveProperty('email');
+        expect(body).not.toHaveProperty('accountId');
+        for (const item of body.chunks) {
+            expect(item).not.toHaveProperty('email');
+            expect(item).not.toHaveProperty('accountId');
+        }
+        expect(String(init?.body)).not.toContain(SECOND_ACCOUNT.id);
+        expect(String(init?.body)).not.toContain(SECOND_ACCOUNT.email);
 
-        return Response.json({ deleted: second.chunks.map(({ email: _email, ...item }) => item) });
+        return Response.json({ deleted: body.chunks });
     });
 
     await drive.actOnFile(second, FileActionKind.Delete);
@@ -78,6 +89,17 @@ test('downloading a group file does not reload the library', async () => {
     const refresh = vi.spyOn(drive.library, 'refresh');
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
         expect(new Headers(init?.headers).get('x-phodrive-account-id')).toBe(SECOND_ACCOUNT.id);
+        const body = JSON.parse(String(init?.body)) as {
+            chunks: Array<Record<string, unknown>>;
+        };
+        expect(body).not.toHaveProperty('email');
+        expect(body).not.toHaveProperty('accountId');
+        for (const item of body.chunks) {
+            expect(item).not.toHaveProperty('email');
+            expect(item).not.toHaveProperty('accountId');
+        }
+        expect(String(init?.body)).not.toContain(SECOND_ACCOUNT.id);
+        expect(String(init?.body)).not.toContain(SECOND_ACCOUNT.email);
 
         return new Response(new Uint8Array([1, 2, 3]));
     });
