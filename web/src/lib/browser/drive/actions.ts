@@ -40,6 +40,8 @@ export interface UploadBatch {
     workers: number;
     processing: ProcessingMode;
     library: DriveLibrary;
+    /** Global job IDs for this queue, in the same order as `files`. */
+    jobIds?: readonly number[];
     /** A retry reports its single file under the job ID it already has. */
     retryId?: number;
     onJob: (job: UploadJob, id: number) => void;
@@ -52,6 +54,7 @@ export function uploadBatch({
     workers,
     processing,
     library,
+    jobIds,
     retryId,
     onJob
 }: UploadBatch): AsyncResult<void, ApplicationError> {
@@ -64,7 +67,7 @@ export function uploadBatch({
         account.email,
         workers,
         (job) => {
-            onJob(job, retryId ?? job.id);
+            onJob(job, retryId ?? jobIds?.[job.id] ?? job.id);
             uploadedChunks.settle(job);
         },
         uploadedChunks.hold,

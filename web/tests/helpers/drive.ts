@@ -2,17 +2,17 @@ import type { GoogleAccountGroup, GoogleAccountSummary } from '@madkarmaa/phodri
 import type { DriveController } from '#browser/drive/index.svelte';
 
 export const TEST_ACCOUNT: GoogleAccountSummary = {
-    id: 'account-test',
+    id: 'account-a',
     email: 'test@example.com'
 };
 
 export const SECOND_ACCOUNT: GoogleAccountSummary = {
-    id: 'account-second',
+    id: 'account-b',
     email: 'second@example.com'
 };
 
 export const THIRD_ACCOUNT: GoogleAccountSummary = {
-    id: 'account-third',
+    id: 'account-c',
     email: 'third@example.com'
 };
 

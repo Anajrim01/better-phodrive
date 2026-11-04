@@ -1,7 +1,14 @@
-import { UploadEventType, UploadPhase, type UploadEvent } from '@madkarmaa/phodrive-core/models';
+import {
+    UploadEventType,
+    UploadPhase,
+    ProcessingMode,
+    type UploadEvent
+} from '@madkarmaa/phodrive-core/models';
 import { afterEach, expect, vi, test } from 'vitest';
 import { Ok } from 'results-ts';
+import { uploadFiles } from '@madkarmaa/phodrive-core/browser/upload';
 import { uploadRequest } from '@madkarmaa/phodrive-core/browser/upload/request';
+import * as requestApi from '@madkarmaa/phodrive-core/browser/upload/request';
 
 const encoder = new TextEncoder();
 afterEach(() => vi.restoreAllMocks());
@@ -87,6 +94,48 @@ test('server errors preserve their safe message', async () => {
         code: 'UPLOAD_FAILED',
         message: 'Upload transfer failed (HTTP 429)'
     });
+});
+
+test('server mode runs one whole-file request at a time per account queue', async () => {
+    let active = 0;
+    let peak = 0;
+    const started: string[] = [];
+    const releases: Array<() => void> = [];
+    const upload = vi
+        .spyOn(requestApi, 'uploadFileRequest')
+        .mockImplementation((file, _workers, onEvent) =>
+            Ok(undefined).andThenAsync(async () => {
+                active++;
+                peak = Math.max(peak, active);
+                started.push(file.name);
+                await new Promise<void>((resolve) => releases.push(resolve));
+                active--;
+                onEvent({ type: UploadEventType.FileError, id: 0, error: 'synthetic failure' });
+
+                return Ok(undefined);
+            })
+        );
+    const files = ['a.bin', 'b.bin', 'c.bin'].map((name) => new File(['x'], name));
+    const uploading = uploadFiles(
+        files,
+        'test@example.com',
+        4,
+        () => {},
+        () => {},
+        ProcessingMode.Server,
+        'account-one'
+    );
+
+    await vi.waitFor(() => expect(started).toHaveLength(1));
+    releases.shift()?.();
+    await vi.waitFor(() => expect(started).toHaveLength(2));
+    releases.shift()?.();
+    await vi.waitFor(() => expect(started).toHaveLength(3));
+    releases.shift()?.();
+    await uploading;
+
+    expect(peak).toBe(1);
+    expect(upload).toHaveBeenCalledTimes(3);
 });
 
 test('upload event decoding preserves split UTF8, BOM and CRLF across byte boundaries', async () => {

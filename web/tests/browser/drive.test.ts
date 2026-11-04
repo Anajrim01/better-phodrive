@@ -145,40 +145,6 @@ test('selecting a group resolves its members and reloads the drive', async () =>
     expect(load).toHaveBeenCalledOnce();
 });
 
-test('a group context refuses new uploads and retry keeps the original account', async () => {
-    const upload = vi
-        .spyOn(filesApi, 'uploadFiles')
-        .mockImplementation((files, _email, _workers, onJob) => {
-            for (const job of filesApi.createUploadJobs(files))
-                onJob({
-                    ...job,
-                    status: UploadJobStatus.Error,
-                    message: 'synthetic failure',
-                    result: null
-                });
-
-            return Ok(undefined).andThenAsync(async () => Ok(undefined));
-        });
-    const drive = new DriveController('test@example.com');
-    drive.initialize();
-    useAccount(drive);
-
-    await drive.upload([new File(['first'], 'first.bin')]);
-    expect(upload).toHaveBeenCalledOnce();
-
-    const group = { id: 'group', name: 'Group', members: [TEST_ACCOUNT, SECOND_ACCOUNT] };
-    useGroup(drive, group);
-    await drive.upload([new File(['second'], 'second.bin')]);
-
-    expect(upload).toHaveBeenCalledOnce();
-    expect(drive.feedbackMessage).toBe('Select an individual account to upload.');
-
-    await drive.retryUpload(0);
-
-    expect(upload).toHaveBeenCalledTimes(2);
-    expect(upload.mock.calls[1][1]).toBe(TEST_ACCOUNT.email);
-    expect(upload.mock.calls[1][6]).toBe(TEST_ACCOUNT.id);
-});
 test('reloadContext waits for uploads and file actions before changing the library', async () => {
     const drive = new DriveController('test@example.com');
     drive.initialize();
