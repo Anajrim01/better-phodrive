@@ -18,7 +18,7 @@
         processing: ProcessingMode;
         replacingToken: boolean;
         onreplacetoken: (accountId: string, token: string) => Promise<boolean>;
-        onaccountschange: () => void;
+        onresourceschange: () => void;
         refreshIntervalSeconds: number;
         concurrentWorkers: number;
         defaults: PreferencesDefaults;
@@ -33,7 +33,7 @@
         processing,
         replacingToken,
         onreplacetoken,
-        onaccountschange,
+        onresourceschange,
         refreshIntervalSeconds,
         concurrentWorkers,
         defaults,
@@ -55,7 +55,7 @@
     </div>
 
     <div class="mt-4 grid max-w-180 gap-8 pb-16">
-        <AccountsGroups {replacingToken} {onreplacetoken} {onaccountschange} />
+        <AccountsGroups {replacingToken} {onreplacetoken} {onresourceschange} />
 
         <NumberSettingForm
             setting="refresh interval"

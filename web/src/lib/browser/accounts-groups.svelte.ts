@@ -20,6 +20,8 @@ export class AccountsGroupsState {
     error = $state('');
     busy = $state('');
 
+    constructor(private readonly onchange: () => void = () => {}) {}
+
     async load(): Promise<void> {
         this.loading = true;
         this.error = '';
@@ -80,6 +82,7 @@ export class AccountsGroupsState {
         }
 
         await this.load();
+        this.onchange();
 
         return true;
     }

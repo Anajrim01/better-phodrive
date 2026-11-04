@@ -1,18 +1,29 @@
 import type { ApplicationError } from '../errors';
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
-import { LibraryResponseSchema, type LibraryResponse, type RemoteBmp } from '../models';
+import {
+    GOOGLE_ACCOUNT_HEADER,
+    LibraryResponseSchema,
+    type LibraryResponse,
+    type RemoteBmp
+} from '../models';
 import { schemaResult } from '../validation';
 import { apiJson } from './api';
 
 export type LibrarySnapshot = LibraryResponse & { pages: number };
 
-/** The server reads the signed-in user's Google account, so requests carry no credentials. */
-export function readLibraryPage(pageToken = ''): AsyncResult<LibraryResponse, ApplicationError> {
+/** Read one library page for one Google account, or for the server's default account. */
+export function readLibraryPage(
+    pageToken = '',
+    accountId?: string
+): AsyncResult<LibraryResponse, ApplicationError> {
     return apiJson(
         '/api/library',
         {
             method: 'POST',
-            headers: { 'content-type': 'application/json' },
+            headers: {
+                'content-type': 'application/json',
+                ...(accountId ? { [GOOGLE_ACCOUNT_HEADER]: accountId } : {})
+            },
             body: JSON.stringify({ pageToken })
         },
         'Could not load files.'
@@ -21,7 +32,8 @@ export function readLibraryPage(pageToken = ''): AsyncResult<LibraryResponse, Ap
 
 /** Build a fresh snapshot to the loaded depth without changing the visible library mid-request. */
 export function readLibrarySnapshot(
-    pageCount: number
+    pageCount: number,
+    accountId?: string
 ): AsyncResult<LibrarySnapshot, ApplicationError> {
     return Ok(undefined).andThenAsync(async () => {
         const items = new Map<string, RemoteBmp>();
@@ -32,7 +44,7 @@ export function readLibrarySnapshot(
         for (let index = 0; index < Math.max(1, pageCount); index++) {
             pageTokens.add(nextPageToken);
 
-            const received = await readLibraryPage(nextPageToken);
+            const received = await readLibraryPage(nextPageToken, accountId);
 
             const merged = received.andThen((page): Result<void, ApplicationError> => {
                 if (page.nextPageToken && pageTokens.has(page.nextPageToken)) {

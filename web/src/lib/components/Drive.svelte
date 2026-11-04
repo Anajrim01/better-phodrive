@@ -30,13 +30,19 @@
         untrack(() => processing)
     );
     const actionsDisabled = $derived(drive.busy || !!drive.fileAction);
+    const uploadDisabled = $derived(
+        actionsDisabled || drive.library.loading || !drive.context.canUpload
+    );
+    const contextDisabled = $derived(
+        actionsDisabled || drive.context.loading || drive.account.replacingToken
+    );
     let view = $state<AppView>(AppView.Files);
     let navigationOpen = $state(false);
     let accountButton = $state<HTMLElement>();
 
     onMount(() => {
         drive.initialize();
-        void drive.library.load();
+        void drive.loadDrive();
     });
 
     function upload(files: File[]) {
@@ -65,7 +71,7 @@
         {navigationOpen}
         onnavigation={() => (navigationOpen = true)}
         refreshing={drive.library.loading}
-        refreshDisabled={actionsDisabled || drive.library.loading}
+        refreshDisabled={actionsDisabled || drive.library.loading || drive.context.loading}
         onrefresh={() => {
             void drive.library.refresh();
         }}
@@ -88,8 +94,13 @@
 
     <UploadSidebar
         bind:open={navigationOpen}
-        disabled={actionsDisabled || drive.library.loading}
+        disabled={uploadDisabled}
+        {contextDisabled}
         {view}
+        context={drive.context}
+        oncontextchange={(selection) => {
+            void drive.selectContext(selection);
+        }}
         onnavigate={(nextView) => (view = nextView)}
         onupload={upload}
     />
@@ -102,9 +113,8 @@
                 processing={drive.processing}
                 replacingToken={drive.account.replacingToken}
                 onreplacetoken={(accountId, token) => drive.account.replaceToken(accountId, token)}
-                onaccountschange={() => {
-                    drive.library.reset();
-                    void drive.library.load();
+                onresourceschange={() => {
+                    void drive.reloadContext();
                 }}
                 defaults={preferencesDefaults}
                 refreshIntervalSeconds={drive.settings.refreshIntervalSeconds}
@@ -116,7 +126,7 @@
                 onresetworkers={() => drive.settings.resetConcurrentWorkers()}
             />
         {:else if drive.ready}
-            <FilesView {drive} working={actionsDisabled} onupload={upload} />
+            <FilesView {drive} working={actionsDisabled} {uploadDisabled} onupload={upload} />
         {/if}
     </main>
 </div>

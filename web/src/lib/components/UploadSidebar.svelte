@@ -2,6 +2,9 @@
     import { ExtendedFab, Fab, IconButton, NavigationDrawer, NavigationDrawerItem } from 'noph-ui';
     import { MediaQuery } from 'svelte/reactivity';
     import { AppView } from '@madkarmaa/phodrive-core/models';
+    import type { DriveContextState } from '#browser/drive/context.svelte';
+    import type { DriveContextSelection } from '#browser/storage';
+    import DriveContextSelect from '#components/DriveContextSelect.svelte';
     import IconAdd from '~icons/material-symbols/add';
     import IconHome from '~icons/material-symbols/home-outline';
     import IconSettings from '~icons/material-symbols/settings-outline';
@@ -10,12 +13,24 @@
     interface Props {
         open?: boolean;
         disabled: boolean;
+        contextDisabled: boolean;
         view: AppView;
+        context: DriveContextState;
+        oncontextchange: (selection: DriveContextSelection) => void;
         onnavigate: (view: AppView) => void;
         onupload: (files: File[]) => void;
     }
 
-    let { open = $bindable(false), disabled, view, onnavigate, onupload }: Props = $props();
+    let {
+        open = $bindable(false),
+        disabled,
+        contextDisabled,
+        view,
+        context,
+        oncontextchange,
+        onnavigate,
+        onupload
+    }: Props = $props();
 
     let picker: HTMLInputElement;
     const mobile = new MediaQuery('(width < 800px)');
@@ -48,6 +63,7 @@
         multiple
         class="sr-only"
         aria-label="Upload files"
+        {disabled}
         onchange={(event) => {
             const files = Array.from(event.currentTarget.files ?? []);
             event.currentTarget.value = '';
@@ -74,6 +90,14 @@
                 </IconButton>
             </div>
         {/if}
+        <DriveContextSelect
+            {context}
+            disabled={contextDisabled}
+            onchange={(selection) => {
+                oncontextchange(selection);
+                open = false;
+            }}
+        />
         <NavigationDrawerItem
             label="My files"
             aria-label="My files"

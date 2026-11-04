@@ -1,6 +1,7 @@
 import { UploadJobStatus } from '@madkarmaa/phodrive-core/models';
 import { beforeEach, expect, test, vi } from 'vitest';
 import { DriveController } from '#browser/drive/index.svelte';
+import { useAccount } from '../helpers/drive';
 import { createUploadJobs } from '#browser/files';
 import { browserUploadResponse } from '../../../core/tests/helpers/upload';
 
@@ -35,6 +36,7 @@ test('mixed tiny-file batch preserves local IDs across invalid names and rejects
     });
     const drive = new DriveController('test@example.com');
     drive.initialize();
+    useAccount(drive);
     const first = drive.upload(files);
     expect(drive.busy).toBe(true);
     const duplicate = await drive.upload(files);

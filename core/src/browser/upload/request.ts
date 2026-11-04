@@ -2,6 +2,7 @@ import type { ApplicationError } from '../../errors';
 import {
     UploadEventType,
     UploadEventSchema,
+    GOOGLE_ACCOUNT_HEADER,
     type SplitHeader,
     type UploadChunk,
     type UploadEvent
@@ -117,11 +118,18 @@ function readUploadResponse(
 
 export function uploadRequest(
     form: FormData,
-    onEvent: (event: UploadEvent) => Result<void, ApplicationError>
+    onEvent: (event: UploadEvent) => Result<void, ApplicationError>,
+    accountId?: string
 ): AsyncResult<void, ApplicationError> {
-    return request('/api/upload', { method: 'POST', body: form }, 'Upload failed').andThenAsync(
-        (response) => readUploadResponse(response, onEvent)
-    );
+    return request(
+        '/api/upload',
+        {
+            method: 'POST',
+            headers: accountId ? { [GOOGLE_ACCOUNT_HEADER]: accountId } : undefined,
+            body: form
+        },
+        'Upload failed'
+    ).andThenAsync((response) => readUploadResponse(response, onEvent));
 }
 
 /** The finished BMP is assembled lazily from the file slice, so it is never copied in memory. */
@@ -132,24 +140,29 @@ function encodeChunk(payload: Blob, header: SplitHeader): Result<Blob, Applicati
 }
 
 /** Send a finished BMP to the same-origin Phodrive API, which relays it to Google as it arrives. */
-export const httpChunkTransport: ChunkTransport = ({ metadata, payload, header }, onEvent) =>
-    encodeChunk(payload, header).andThenAsync((bmp) => {
-        const form = new FormData();
-        form.set('metadata', JSON.stringify(metadata));
-        form.set('chunk', bmp, 'chunk.bmp');
+export function httpChunkTransportFor(accountId?: string): ChunkTransport {
+    return ({ metadata, payload, header }, onEvent) =>
+        encodeChunk(payload, header).andThenAsync((bmp) => {
+            const form = new FormData();
+            form.set('metadata', JSON.stringify(metadata));
+            form.set('chunk', bmp, 'chunk.bmp');
 
-        return uploadRequest(form, onEvent);
-    });
+            return uploadRequest(form, onEvent, accountId);
+        });
+}
+
+export const httpChunkTransport: ChunkTransport = httpChunkTransportFor();
 
 /** Send a whole file for the server to hash, split, encode, and upload. */
 export function uploadFileRequest(
     file: File,
     workers: number,
-    onEvent: (event: UploadEvent) => Result<void, ApplicationError>
+    onEvent: (event: UploadEvent) => Result<void, ApplicationError>,
+    accountId?: string
 ): AsyncResult<void, ApplicationError> {
     const form = new FormData();
     form.set('metadata', JSON.stringify({ name: file.name, size: file.size, workers }));
     form.set('file', file, file.name);
 
-    return uploadRequest(form, onEvent);
+    return uploadRequest(form, onEvent, accountId);
 }

@@ -1,5 +1,6 @@
 import type { ApplicationError } from '@madkarmaa/phodrive-core/errors';
 import { Err, Ok, type Result } from 'results-ts';
+import { z } from 'zod';
 import {
     ConcurrentWorkersSchema,
     DEFAULT_PREFERENCES_DEFAULTS,
@@ -18,6 +19,7 @@ import {
 import {
     STORAGE_UNAVAILABLE,
     enumSerializer,
+    jsonSerializer,
     nullableNumberSerializer,
     persistedChoice,
     readState,
@@ -30,6 +32,7 @@ export const FILE_SORT_KEY = 'phodrive-sort';
 export const FILE_LAYOUT_KEY = 'phodrive-layout';
 export const REFRESH_INTERVAL_KEY = 'phodrive-refresh-interval';
 export const CONCURRENT_WORKERS_KEY = 'phodrive-concurrent-workers';
+export const DRIVE_CONTEXT_KEY = 'phodrive-drive-context';
 /** Earlier versions kept Google accounts and their tokens here; the server holds them now. */
 export const LEGACY_CREDENTIAL_KEYS = ['accounts', 'selectedAccount'] as const;
 export const NEXT_THEME: Record<ThemeMode, ThemeMode> = {
@@ -38,11 +41,18 @@ export const NEXT_THEME: Record<ThemeMode, ThemeMode> = {
     [ThemeMode.Dark]: ThemeMode.Auto
 };
 
+export const DriveContextSelectionSchema = z.object({
+    kind: z.enum(['account', 'group']),
+    id: z.string().min(1)
+});
+export type DriveContextSelection = z.infer<typeof DriveContextSelectionSchema>;
+
 export const THEME_SERIALIZER = enumSerializer(ThemeSchema);
 export const FILE_SORT_SERIALIZER = enumSerializer(FileSortSchema);
 export const FILE_LAYOUT_SERIALIZER = enumSerializer(FileLayoutSchema);
 export const REFRESH_INTERVAL_SERIALIZER = nullableNumberSerializer(RefreshIntervalSchema);
 export const CONCURRENT_WORKERS_SERIALIZER = nullableNumberSerializer(ConcurrentWorkersSchema);
+export const DRIVE_CONTEXT_SERIALIZER = jsonSerializer(DriveContextSelectionSchema);
 
 /** Per-page reactive preferences, with validated data and synchronization across tabs. */
 export class BrowserPreferences {
@@ -59,6 +69,10 @@ export class BrowserPreferences {
     private readonly concurrentWorkersState = persistedChoice(
         CONCURRENT_WORKERS_KEY,
         CONCURRENT_WORKERS_SERIALIZER
+    );
+    private readonly driveContextState = persistedChoice(
+        DRIVE_CONTEXT_KEY,
+        DRIVE_CONTEXT_SERIALIZER
     );
 
     get theme(): ThemeMode {
@@ -85,6 +99,10 @@ export class BrowserPreferences {
             readState(this.concurrentWorkersState).unwrapOr(undefined) ??
             this.defaults.concurrentWorkers
         );
+    }
+
+    get driveContext(): DriveContextSelection | undefined {
+        return readState(this.driveContextState).unwrapOr(undefined);
     }
 
     saveTheme(mode: ThemeMode): Result<void, ApplicationError> {
@@ -121,6 +139,10 @@ export class BrowserPreferences {
         }
 
         return writeState(this.concurrentWorkersState, parsed.data);
+    }
+
+    saveDriveContext(selection: DriveContextSelection): Result<void, ApplicationError> {
+        return writeState(this.driveContextState, selection);
     }
 
     resetRefreshInterval(): Result<void, ApplicationError> {

@@ -9,10 +9,9 @@
         model: AccountsGroupsState;
         replacingToken: boolean;
         onreplacetoken: (accountId: string, token: string) => Promise<boolean>;
-        onaccountschange: () => void;
     }
 
-    let { model, replacingToken, onreplacetoken, onaccountschange }: Props = $props();
+    let { model, replacingToken, onreplacetoken }: Props = $props();
 
     let email = $state('');
     let token = $state('');
@@ -25,7 +24,6 @@
             email = '';
             token = '';
             showHelp = false;
-            onaccountschange();
         }
     }
 
@@ -37,7 +35,7 @@
         )
             return;
 
-        if (await model.disconnect(account)) onaccountschange();
+        await model.disconnect(account);
     }
 
     async function replaceToken() {
@@ -52,8 +50,8 @@
 <div>
     <h2 class="text-base font-medium">Google accounts</h2>
     <p class="mt-1 text-sm leading-relaxed text-muted">
-        Connect the Google accounts this drive can use. Until group libraries arrive, the drive
-        reads from the first connected account.
+        Connect the Google accounts this drive can use. The library selector chooses one account or
+        a group.
     </p>
 </div>
 

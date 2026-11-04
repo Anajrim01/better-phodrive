@@ -1,6 +1,6 @@
 import { afterEach, expect, test, vi } from 'vitest';
-import { readLibrarySnapshot } from '@madkarmaa/phodrive-core/browser/library';
-import type { RemoteBmp } from '@madkarmaa/phodrive-core/models';
+import { readLibraryPage, readLibrarySnapshot } from '@madkarmaa/phodrive-core/browser/library';
+import { GOOGLE_ACCOUNT_HEADER, type RemoteBmp } from '@madkarmaa/phodrive-core/models';
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -36,6 +36,22 @@ test('refresh reads the loaded pagination depth and stops when the library ends'
     expect(refreshed.unwrap().pages).toBe(2);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock.mock.calls[1][1]?.body).toBe(JSON.stringify({ pageToken: 'page-two' }));
+});
+
+test('library pages select their account with the shared header', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch');
+    fetchMock.mockResolvedValue(Response.json({ items: [], nextPageToken: '' }));
+
+    await readLibraryPage('page-two', 'account-one');
+    await readLibrarySnapshot(1, 'account-two');
+
+    expect(new Headers(fetchMock.mock.calls[0][1]?.headers).get(GOOGLE_ACCOUNT_HEADER)).toBe(
+        'account-one'
+    );
+    expect(fetchMock.mock.calls[0][1]?.body).toBe(JSON.stringify({ pageToken: 'page-two' }));
+    expect(new Headers(fetchMock.mock.calls[1][1]?.headers).get(GOOGLE_ACCOUNT_HEADER)).toBe(
+        'account-two'
+    );
 });
 
 test('a failed later page rejects the refresh instead of returning a partial replacement', async () => {

@@ -6,6 +6,7 @@ import {
 } from '@madkarmaa/phodrive-core/models';
 import { browserUploadResponse } from '../../../core/tests/helpers/upload';
 import { DriveController } from '#browser/drive/index.svelte';
+import { useAccount } from '../helpers/drive';
 
 const { storage } = await vi.hoisted(async () => {
     const { stubBrowser } = await import('../helpers/browser');
@@ -50,6 +51,7 @@ test('truncated batch marks only unfinished work failed; retry submits that file
 
     const drive = new DriveController('test@example.com');
     drive.initialize();
+    useAccount(drive);
     await drive.upload(files);
 
     expect(drive.busy).toBe(false);
@@ -83,6 +85,7 @@ test('fetch rejection becomes a retryable failed job and releases the busy state
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('simulated offline'));
     const drive = new DriveController('test@example.com');
     drive.initialize();
+    useAccount(drive);
 
     await drive.upload([new File(['payload'], 'offline.bin')]);
 

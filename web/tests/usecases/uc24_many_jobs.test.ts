@@ -1,6 +1,7 @@
 import { afterAll, beforeEach, expect, test, vi } from 'vitest';
 import { Ok } from 'results-ts';
 import { DriveController } from '#browser/drive/index.svelte';
+import { useAccount } from '../helpers/drive';
 import * as filesApi from '#browser/files';
 import * as libraryApi from '@madkarmaa/phodrive-core/browser/library';
 import { FileActionKind, UploadJobStatus, UploadStatus } from '@madkarmaa/phodrive-core/models';
@@ -94,6 +95,7 @@ test('large queue stays single-flight and takes the current worker preference on
         );
     const drive = new DriveController(OWNER);
     drive.initialize();
+    useAccount(drive, { id: 'account-owner', email: OWNER });
     drive.library.chunks = [uploadedChunk('existing.bin')];
 
     const firstUpload = drive.upload(largeSelection);

@@ -7,12 +7,12 @@
     interface Props {
         replacingToken: boolean;
         onreplacetoken: (accountId: string, token: string) => Promise<boolean>;
-        onaccountschange: () => void;
+        onresourceschange: () => void;
     }
 
-    let { replacingToken, onreplacetoken, onaccountschange }: Props = $props();
+    let { replacingToken, onreplacetoken, onresourceschange }: Props = $props();
 
-    const model = new AccountsGroupsState();
+    const model = new AccountsGroupsState(() => onresourceschange());
 
     onMount(() => {
         void model.load();
@@ -27,7 +27,7 @@
     {#if model.loading}
         <p class="text-sm text-muted" role="status">Loading accounts and groups</p>
     {:else}
-        <AccountsPanel {model} {replacingToken} {onreplacetoken} {onaccountschange} />
+        <AccountsPanel {model} {replacingToken} {onreplacetoken} />
         <GroupsPanel {model} />
     {/if}
 </section>
