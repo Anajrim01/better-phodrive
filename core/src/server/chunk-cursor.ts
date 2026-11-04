@@ -1,7 +1,6 @@
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import type { FileRequest, RemoteBmp, SplitHeader } from '../models';
 import { SplitBmpReader } from './bmp/stream';
-import { MAX_SPLIT_HEADER_BYTES, splitHeaderByteLength } from './bmp/index';
 import { SERVER_ERRORS, type ServerError } from './errors';
 import { downloadBmp } from './photos/index';
 
@@ -20,16 +19,14 @@ export function openChunk(
         fileName: chunk.chunkIndex === 0 ? input.name : undefined
     };
 
-    return splitHeaderByteLength(expected)
-        .andThen((length) =>
-            length <= MAX_SPLIT_HEADER_BYTES
-                ? Ok(undefined)
-                : Err(SERVER_ERRORS.INVALID_CHUNK_METADATA)
-        )
-        .andThenAsync(() =>
-            downloadBmp(input.email, input.token, chunk.mediaKey, chunk.sha1, undefined, signal)
-        )
-        .andThenAsync((response) => SplitBmpReader.open(response, expected, chunk.sha1));
+    return downloadBmp(
+        input.email,
+        input.token,
+        chunk.mediaKey,
+        chunk.sha1,
+        undefined,
+        signal
+    ).andThenAsync((response) => SplitBmpReader.open(response, expected, chunk.sha1));
 }
 
 /** Close a chunk opened after the download was already cancelled. */
