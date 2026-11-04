@@ -45,8 +45,7 @@ function metadataStore(): ChunkMetadataStore & { save: ReturnType<typeof vi.fn> 
     return {
         load: () =>
             Ok(new Map<string, ChunkMetadataRecord>()).andThenAsync(async (value) => Ok(value)),
-        save,
-        remove: () => Ok(undefined).andThenAsync(async () => Ok(undefined))
+        save
     };
 }
 

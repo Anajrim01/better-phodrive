@@ -55,8 +55,7 @@ function store(rows: readonly ChunkMetadataRecord[] = []): ChunkMetadataStore & 
 
     return {
         load,
-        save,
-        remove: () => Ok(undefined).andThenAsync(async () => Ok(undefined))
+        save
     };
 }
 

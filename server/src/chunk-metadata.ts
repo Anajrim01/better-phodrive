@@ -96,23 +96,6 @@ export function createChunkMetadataStore(
                     return Err(SERVER_ERRORS.METADATA_UNAVAILABLE);
                 }
             });
-        },
-
-        remove(mediaKeys) {
-            return Ok(undefined).andThenAsync(async () => {
-                const keys = [...new Set(mediaKeys)];
-                if (keys.length === 0) return Ok(undefined);
-
-                try {
-                    await db
-                        .delete(chunkMetadata)
-                        .where(and(scope, inArray(chunkMetadata.mediaKey, keys)));
-
-                    return Ok(undefined);
-                } catch {
-                    return Err(SERVER_ERRORS.METADATA_UNAVAILABLE);
-                }
-            });
         }
     };
 }

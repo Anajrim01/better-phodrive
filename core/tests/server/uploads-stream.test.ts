@@ -83,8 +83,7 @@ test('resolved metadata is saved only after Google confirms the upload', async (
     );
     const metadata = {
         load: () => Ok(new Map()).andThenAsync(async (value) => Ok(value)),
-        save,
-        remove: () => Ok(undefined).andThenAsync(async () => Ok(undefined))
+        save
     };
 
     const failed = await uploadFiles(input, () => {}, harness.fetcher, metadata);
