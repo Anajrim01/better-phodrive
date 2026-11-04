@@ -43,7 +43,7 @@ export function withoutChunk(
 ): UploadedChunk[] {
     return chunks.filter(
         (saved) =>
-            saved.email !== file.email ||
+            fileKey(saved) !== fileKey(file) ||
             saved.mediaKey !== removed.mediaKey ||
             saved.sha1 !== removed.sha1
     );

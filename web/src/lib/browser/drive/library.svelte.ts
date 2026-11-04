@@ -3,6 +3,7 @@ import {
     sortFiles,
     filterFiles,
     fileType,
+    ownerKey,
     type UploadedChunk
 } from '@madkarmaa/phodrive-core/files';
 import { FileSort } from '@madkarmaa/phodrive-core/models';
@@ -84,7 +85,7 @@ export class DriveLibrary {
                 const chunks = reset ? found : [...this.chunks, ...found];
                 this.chunks = [
                     ...new Map(
-                        chunks.map((item) => [`${item.email}:${item.mediaKey}`, item])
+                        chunks.map((item) => [`${ownerKey(item)}:${item.mediaKey}`, item])
                     ).values()
                 ];
                 this.nextPageToken = data.nextPageToken;

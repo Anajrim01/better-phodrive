@@ -103,7 +103,7 @@ function linkGoogleAccount(
 ): AsyncResult<void, SignUpError> {
     return connectGoogleAccount(email, token)
         .andThenAsync<void, SignUpError>((aasToken) =>
-            saveGoogleAccount(context, userId, { email, token: aasToken })
+            saveGoogleAccount(context, userId, { email, token: aasToken }).map(() => undefined)
         )
         .orElseAsync((error) => removeUser(context, userId).andThen(() => Err(error)));
 }

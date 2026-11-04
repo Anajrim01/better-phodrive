@@ -33,7 +33,8 @@ export function uploadFiles(
     input: ReceivedUpload,
     emit: (event: UploadEvent) => void,
     fetcher?: Fetcher,
-    metadata?: ChunkMetadataStore
+    metadata?: ChunkMetadataStore,
+    accountId?: string
 ): AsyncResult<void, ServerError> {
     return Ok(undefined).andThenAsync(async () => {
         const source =
@@ -106,7 +107,8 @@ export function uploadFiles(
                     size: input.header.payloadSize,
                     at: Date.now(),
                     mediaKey: result.mediaKey,
-                    sha1: result.sha1
+                    sha1: result.sha1,
+                    ...(accountId ? { accountId } : {})
                 }
             });
             emit({ type: UploadEventType.FileComplete, id: 0, result });

@@ -24,4 +24,20 @@ export const StoredAccountsSchema = z.record(z.string(), z.unknown());
 
 export const AccountRequestSchema = z.object({ email: EmailSchema, token: z.string() });
 
+export const GroupNameSchema = z.string().trim().min(1).max(80);
+
+export const GoogleAccountSummarySchema = z.object({
+    id: z.string().min(1),
+    email: EmailSchema
+});
+
+export const GoogleAccountGroupSchema = z.object({
+    id: z.string().min(1),
+    name: GroupNameSchema,
+    members: z.array(GoogleAccountSummarySchema)
+});
+
 export type Account = z.infer<typeof AccountSchema>;
+export type GroupName = z.infer<typeof GroupNameSchema>;
+export type GoogleAccountSummary = z.infer<typeof GoogleAccountSummarySchema>;
+export type GoogleAccountGroup = z.infer<typeof GoogleAccountGroupSchema>;

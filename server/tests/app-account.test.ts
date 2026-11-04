@@ -3,7 +3,14 @@ import { connectGoogleAccount } from '@madkarmaa/phodrive-core/server/accounts';
 import { ProcessingMode } from '@madkarmaa/phodrive-core/models';
 import { SessionResponseSchema } from '@madkarmaa/phodrive-core/auth';
 import { handleAuthRequest, readSessionUser, requireSessionUser } from '../src/auth';
-import { readGoogleAccount, readGoogleEmail, saveGoogleAccount } from '../src/google';
+import {
+    listGoogleAccounts,
+    readGoogleAccount,
+    readGoogleEmail,
+    removeGoogleAccount,
+    saveGoogleAccount,
+    updateGoogleAccountToken
+} from '../src/google';
 import { AUTH_ERRORS } from '../src/errors';
 import { signUp } from '../src/signup';
 import {
@@ -25,9 +32,12 @@ vi.mock('../src/auth', () => ({
     requireSessionUser: vi.fn()
 }));
 vi.mock('../src/google', () => ({
+    listGoogleAccounts: vi.fn(),
     readGoogleAccount: vi.fn(),
     readGoogleEmail: vi.fn(),
-    saveGoogleAccount: vi.fn()
+    removeGoogleAccount: vi.fn(),
+    saveGoogleAccount: vi.fn(),
+    updateGoogleAccountToken: vi.fn()
 }));
 vi.mock('../src/signup', () => ({ signUp: vi.fn() }));
 vi.mock('@madkarmaa/phodrive-core/server/accounts', () => ({ connectGoogleAccount: vi.fn() }));
@@ -36,6 +46,17 @@ beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(requireSessionUser).mockReturnValue(resolved(USER));
     vi.mocked(readGoogleAccount).mockReturnValue(resolved(ACCOUNT));
+    vi.mocked(readGoogleEmail).mockReturnValue(resolved(ACCOUNT.email));
+    vi.mocked(listGoogleAccounts).mockReturnValue(
+        resolved([{ id: ACCOUNT.id, email: ACCOUNT.email }])
+    );
+    vi.mocked(saveGoogleAccount).mockReturnValue(
+        resolved({ id: ACCOUNT.id, email: ACCOUNT.email })
+    );
+    vi.mocked(updateGoogleAccountToken).mockReturnValue(
+        resolved({ id: ACCOUNT.id, email: ACCOUNT.email })
+    );
+    vi.mocked(removeGoogleAccount).mockReturnValue(resolved(true));
     settings.processing = ProcessingMode.Browser;
 });
 
@@ -123,13 +144,11 @@ test('signup rejects invalid input before creating a user', async () => {
     expect(signUp).not.toHaveBeenCalled();
 });
 
-test('replacing the Google token validates it for the stored email and saves only on success', async () => {
-    vi.mocked(readGoogleEmail).mockReturnValue(resolved(ACCOUNT.email));
+test('replacing one account token validates it for that account and keeps its identity', async () => {
     vi.mocked(connectGoogleAccount).mockReturnValue(resolved('aas_et/new'));
-    vi.mocked(saveGoogleAccount).mockReturnValue(resolved(undefined));
 
     const response = await postJson(
-        '/api/account/google',
+        `/api/account/google/${ACCOUNT.id}`,
         { encryptedToken: await encrypted('oauth2_4/new') },
         'PUT'
     );
@@ -138,24 +157,72 @@ test('replacing the Google token validates it for the stored email and saves onl
     expect(response.status).toBe(200);
     expect(text).not.toContain('aas_et');
     expect(connectGoogleAccount).toHaveBeenCalledWith(ACCOUNT.email, 'oauth2_4/new');
-    expect(vi.mocked(saveGoogleAccount).mock.calls[0].slice(1)).toEqual([
+    expect(vi.mocked(readGoogleEmail).mock.calls[0].slice(1)).toEqual([USER.id, ACCOUNT.id]);
+    expect(vi.mocked(updateGoogleAccountToken).mock.calls[0].slice(1)).toEqual([
         USER.id,
-        { email: ACCOUNT.email, token: 'aas_et/new' }
+        ACCOUNT.id,
+        'aas_et/new'
     ]);
 
     vi.mocked(connectGoogleAccount).mockReturnValue(
         rejected({ code: 'ACCOUNT_CONNECTION_FAILED', message: 'Google refused' } as const)
     );
-    vi.mocked(saveGoogleAccount).mockClear();
+    vi.mocked(updateGoogleAccountToken).mockClear();
 
     const refused = await postJson(
-        '/api/account/google',
+        `/api/account/google/${ACCOUNT.id}`,
         { encryptedToken: await encrypted('oauth2_4/bad') },
         'PUT'
     );
 
     expect(refused.status).toBe(400);
-    expect(saveGoogleAccount).not.toHaveBeenCalled();
+    expect(updateGoogleAccountToken).not.toHaveBeenCalled();
+});
+
+test('accounts are listed and removed without exposing tokens', async () => {
+    const listed = await call('/api/account/google');
+    const listText = await listed.text();
+
+    expect(listed.status).toBe(200);
+    expect(JSON.parse(listText)).toEqual({
+        accounts: [{ id: ACCOUNT.id, email: ACCOUNT.email }]
+    });
+    expect(listText).not.toContain(ACCOUNT.token);
+
+    const removed = await call(`/api/account/google/${ACCOUNT.id}`, { method: 'DELETE' });
+
+    expect(removed.status).toBe(200);
+    expect(vi.mocked(removeGoogleAccount).mock.calls[0].slice(1)).toEqual([USER.id, ACCOUNT.id]);
+
+    vi.mocked(removeGoogleAccount).mockReturnValue(resolved(false));
+
+    const missing = await call('/api/account/google/missing', { method: 'DELETE' });
+
+    expect(missing.status).toBe(404);
+});
+
+test('adding an account validates it and stores only the returned summary', async () => {
+    vi.mocked(connectGoogleAccount).mockReturnValue(resolved('aas_et/new'));
+    vi.mocked(saveGoogleAccount).mockReturnValue(
+        resolved({ id: 'second-account', email: 'second@example.com' })
+    );
+
+    const response = await postJson('/api/account/google', {
+        email: 'second@example.com',
+        encryptedToken: await encrypted('oauth2_4/second')
+    });
+    const text = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(text).not.toContain('aas_et');
+    expect(JSON.parse(text)).toEqual({
+        account: { id: 'second-account', email: 'second@example.com' }
+    });
+    expect(connectGoogleAccount).toHaveBeenCalledWith('second@example.com', 'oauth2_4/second');
+    expect(vi.mocked(saveGoogleAccount).mock.calls[0].slice(1)).toEqual([
+        USER.id,
+        { email: 'second@example.com', token: 'aas_et/new' }
+    ]);
 });
 
 test('the session endpoint reports the signed-in user and server settings without secrets', async () => {

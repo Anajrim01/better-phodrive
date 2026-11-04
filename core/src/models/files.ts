@@ -39,7 +39,8 @@ export const RemoteBmpSchema = z.object({
     size: z.number().nonnegative(),
     at: z.int().nonnegative(),
     mediaKey: z.string().min(1),
-    sha1: Sha1HexSchema
+    sha1: Sha1HexSchema,
+    accountId: z.string().min(1).optional()
 });
 
 export const LibraryResponseSchema = z.object({

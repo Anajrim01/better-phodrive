@@ -1,5 +1,6 @@
 import { afterAll, beforeEach, expect, test, vi } from 'vitest';
-import { replaceGoogleToken, signUp } from '#browser/auth';
+import { replaceGoogleAccountToken } from '#browser/accounts';
+import { signUp } from '#browser/auth';
 import {
     GoogleTokenRequestSchema,
     SignInSchema,
@@ -110,14 +111,20 @@ test('signup sends only an encrypted token and never stores it in the browser', 
     server.fetchMock.mockRestore();
 });
 
-test('token replacement sends only an encrypted token', async () => {
-    const server = await tokenServer(Response.json({ connected: true }));
-    const replaced = await replaceGoogleToken('aas_et/replacement');
+test('token replacement sends only an encrypted token for that account', async () => {
+    const server = await tokenServer(
+        Response.json({ account: { id: 'account-id', email: 'test@example.com' } })
+    );
+    const replaced = await replaceGoogleAccountToken('account-id', 'aas_et/replacement');
 
     expect(replaced.isOk()).toBe(true);
+    expect(server.fetchMock.mock.calls.map(([url]) => url)).toEqual([
+        '/api/account/key',
+        '/api/account/google/account-id'
+    ]);
     expect(server.bodies.some((body) => body.includes('aas_et'))).toBe(false);
 
-    const sent = GoogleTokenRequestSchema.parse(JSON.parse(server.bodies[1]));
+    const sent = GoogleTokenRequestSchema.parse(JSON.parse(server.bodies.at(-1) ?? '{}'));
     expect(await server.decrypt(sent.encryptedToken)).toBe('aas_et/replacement');
     server.fetchMock.mockRestore();
 });

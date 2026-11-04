@@ -2,7 +2,8 @@ import { afterAll, beforeEach, expect, test, vi } from 'vitest';
 import { Err, Ok } from 'results-ts';
 import { invalidateAll } from '$app/navigation';
 import { DriveController } from '#browser/drive/index.svelte';
-import { replaceGoogleToken, signOut } from '#browser/auth';
+import { replaceGoogleAccountToken } from '#browser/accounts';
+import { signOut } from '#browser/auth';
 
 const { storage } = await vi.hoisted(async () => {
     const { stubBrowser } = await import('../helpers/browser');
@@ -13,10 +14,15 @@ const { storage } = await vi.hoisted(async () => {
 vi.mock('esm-env', () => ({ BROWSER: true, DEV: true }));
 vi.mock('$app/navigation', () => ({ invalidateAll: vi.fn(async () => {}) }));
 vi.mock('#browser/drive/refresh.svelte', () => ({ useAutomaticRefresh: vi.fn() }));
+vi.mock('#browser/accounts', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('#browser/accounts')>();
+
+    return { ...actual, replaceGoogleAccountToken: vi.fn() };
+});
 vi.mock('#browser/auth', async (importOriginal) => {
     const actual = await importOriginal<typeof import('#browser/auth')>();
 
-    return { ...actual, replaceGoogleToken: vi.fn(), signOut: vi.fn() };
+    return { ...actual, signOut: vi.fn() };
 });
 
 beforeEach(() => {
@@ -35,14 +41,14 @@ function createDrive() {
 }
 
 test('a rejected replacement token keeps the library and shows a safe error', async () => {
-    vi.mocked(replaceGoogleToken).mockReturnValue(
+    vi.mocked(replaceGoogleAccountToken).mockReturnValue(
         Ok(undefined).andThenAsync(async () =>
             Err({ code: 'REQUEST_FAILED', message: 'AAS authentication failed' } as const)
         )
     );
     const drive = createDrive();
 
-    const replaced = await drive.account.replaceToken('oauth2_4/fake');
+    const replaced = await drive.account.replaceToken('account-id', 'oauth2_4/fake');
 
     expect(replaced).toBe(false);
     expect(drive.feedbackMessage).toBe('AAS authentication failed');
@@ -52,8 +58,8 @@ test('a rejected replacement token keeps the library and shows a safe error', as
 
 test('a second replacement while one is pending does not issue another request', async () => {
     let resolveReplacement:
-        ((value: Awaited<ReturnType<typeof replaceGoogleToken>>) => void) | undefined;
-    vi.mocked(replaceGoogleToken).mockReturnValue(
+        ((value: Awaited<ReturnType<typeof replaceGoogleAccountToken>>) => void) | undefined;
+    vi.mocked(replaceGoogleAccountToken).mockReturnValue(
         Ok(undefined).andThenAsync(
             () =>
                 new Promise((resolve) => {
@@ -63,11 +69,11 @@ test('a second replacement while one is pending does not issue another request',
     );
     const drive = createDrive();
 
-    const first = drive.account.replaceToken('oauth2_4/fake');
-    const second = await drive.account.replaceToken('oauth2_4/other');
+    const first = drive.account.replaceToken('account-id', 'oauth2_4/fake');
+    const second = await drive.account.replaceToken('account-id', 'oauth2_4/other');
 
     expect(second).toBe(false);
-    expect(replaceGoogleToken).toHaveBeenCalledTimes(1);
+    expect(replaceGoogleAccountToken).toHaveBeenCalledTimes(1);
     expect(drive.account.replacingToken).toBe(true);
 
     resolveReplacement?.(Ok(undefined));

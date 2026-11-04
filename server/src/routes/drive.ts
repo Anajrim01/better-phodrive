@@ -35,15 +35,24 @@ export function driveRoutes(context: ServerContext) {
 
     return new Hono<ApiEnv>()
         .post('/library', signedIn, connected, (c) => {
-            const { email, token } = c.get('account');
+            const account = c.get('account');
             const metadata = createChunkMetadataStore(context.db, {
                 userId: c.get('user').id,
-                googleEmail: email
+                googleAccountId: account.id
             });
 
             return readJsonRequest(c.req.raw, LibraryPageRequestSchema, 'Invalid request')
                 .andThenAsync((input) =>
-                    listBmps(email, token, input.pageToken ?? '', undefined, metadata)
+                    listBmps(
+                        account.email,
+                        account.token,
+                        input.pageToken ?? '',
+                        undefined,
+                        metadata
+                    ).map((page) => ({
+                        ...page,
+                        items: page.items.map((item) => ({ ...item, accountId: account.id }))
+                    }))
                 )
                 .match({ Ok: jsonResponse, Err: errorResponse });
         })
@@ -64,18 +73,19 @@ export function driveRoutes(context: ServerContext) {
             const account = c.get('account');
             const metadata = createChunkMetadataStore(context.db, {
                 userId: c.get('user').id,
-                googleEmail: account.email
+                googleAccountId: account.id
             });
 
             // Browsers send finished chunks to relay, or whole files for the server to process.
             if (context.env.PHODRIVE_PROCESSING === ProcessingMode.Browser)
                 return receiveUpload(c.req.raw, account, ChunkFormat.Bmp).match({
-                    Ok: (input) => uploadStream(input, metadata),
+                    Ok: (input) => uploadStream(input, metadata, account.id),
                     Err: errorResponse
                 });
 
             return receiveFileUpload(c.req.raw).match({
-                Ok: (received) => fileUploadStream(received, account, undefined, metadata),
+                Ok: (received) =>
+                    fileUploadStream(received, account, undefined, metadata, account.id),
                 Err: errorResponse
             });
         })
