@@ -76,16 +76,53 @@ export function encodeUploadBmp(input: ReceivedUpload): UploadBmpSource {
 }
 
 /**
- * Relay a browser-encoded BMP without hashing it; Google rejects bytes that do not match the
- * SHA-1 sent when the upload starts. Only the length is checked, so Google receives exactly the
- * declared size.
+ * Relay a browser-encoded BMP, verifying that its prefix matches the request metadata and its
+ * SHA-1 matches the claimed checksum before Google can commit it. Both checks stay streaming.
  */
 export function relayUploadBmp(input: ReceivedUpload): UploadBmpSource {
     const length = input.bmp.totalSize;
     const payload = payloadReader(input, length);
-    const { body, verified } = verifiedStream(payload.read, payload);
+    const hash = createHash('sha1');
+    const prefix = input.bmp.prefix;
+    let prefixOffset = 0;
+
+    const nextBlock: NextBlock = () =>
+        Ok(undefined).andThenAsync(async () => {
+            const read = await payload.read();
+            if (read.isErr()) return read;
+
+            const block = read.unwrap();
+            if (block === null) {
+                if (prefixOffset !== prefix.length)
+                    return Err(SERVER_ERRORS.UPLOAD_INTEGRITY_FAILED);
+
+                return hash.digest('hex') === input.sha1
+                    ? Ok(null)
+                    : Err(SERVER_ERRORS.UPLOAD_INTEGRITY_FAILED);
+            }
+
+            if (prefixOffset < prefix.length) {
+                if (!prefixMatches(block, prefix, prefixOffset))
+                    return Err(SERVER_ERRORS.UPLOAD_INTEGRITY_FAILED);
+
+                prefixOffset += Math.min(block.length, prefix.length - prefixOffset);
+            }
+            hash.update(block);
+
+            return Ok(block);
+        });
+
+    const { body, verified } = verifiedStream(nextBlock, payload);
 
     return bmpSource(body, verified, length, input.sha1);
+}
+
+function prefixMatches(received: Uint8Array, expected: Uint8Array, offset: number): boolean {
+    const count = Math.min(received.length, expected.length - offset);
+    for (let index = 0; index < count; index++)
+        if (received[index] !== expected[offset + index]) return false;
+
+    return true;
 }
 
 /** Drain lets an already-stored chunk finish reading its request before reporting the result. */

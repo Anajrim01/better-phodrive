@@ -49,21 +49,14 @@ export function driveRoutes(context: ServerContext) {
         })
         .post('/files', signedIn, connected, (c) => {
             const account = c.get('account');
-            const metadata = createChunkMetadataStore(context.db, {
-                userId: c.get('user').id,
-                googleEmail: account.email
-            });
 
             return readJsonRequest(c.req.raw, FileActionRequestSchema, 'Invalid request')
                 .andThenAsync(async (input) => {
                     if (input.action === FileActionKind.Download)
                         return downloadFile({ ...input, ...account }, c.req.raw.signal);
 
-                    const deleted = await deleteFile({ ...input, ...account });
-                    if (deleted.isOk())
-                        await metadata.remove(input.chunks.map((chunk) => chunk.mediaKey));
-
-                    return deleted.map(jsonResponse);
+                    // Delete moves media to Google Photos trash, where it can be restored.
+                    return deleteFile({ ...input, ...account }).map(jsonResponse);
                 })
                 .match({ Ok: (response) => response, Err: errorResponse });
         })

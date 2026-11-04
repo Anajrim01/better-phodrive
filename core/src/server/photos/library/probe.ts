@@ -49,6 +49,7 @@ export function scanLibraryPage(
             probeLibraryItem(candidate, headers.commonHeaders, headers.rpcHeaders, fetcher)
         );
         const records: ChunkMetadataRecord[] = [];
+        const missingByKey = new Map(missing.map((candidate) => [candidate.mediaKey, candidate]));
 
         for (const result of scanned) {
             if (result.isErr()) return result;
@@ -57,7 +58,7 @@ export function scanLibraryPage(
                 if (item === null) return;
 
                 items.set(item.mediaKey, item);
-                const candidate = missing.find((value) => value.mediaKey === item.mediaKey);
+                const candidate = missingByKey.get(item.mediaKey);
                 if (candidate) records.push(chunkMetadataRecord(item, candidate.size));
             });
         }

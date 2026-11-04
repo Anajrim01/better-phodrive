@@ -160,12 +160,18 @@ test('a page of 5,000 indexed unique candidates makes no Google probe calls', as
     const { record } = item();
     const candidates = Array.from({ length: 5_000 }, (_, index) => ({
         mediaKey: `key-${index}`,
-        sha1: record.sha1,
+        sha1: createHash('sha1').update(`chunk-${index}`).digest('hex'),
         size: record.storedBmpSize,
         at: index
     }));
     const metadata = store(
-        candidates.map((candidate) => ({ ...record, mediaKey: candidate.mediaKey }))
+        candidates.map((candidate, index) => ({
+            ...record,
+            mediaKey: candidate.mediaKey,
+            sha1: candidate.sha1,
+            fileHash: createHash('sha256').update(`file-${index}`).digest('hex'),
+            fileId: createHash('sha256').update(`file-id-${index}`).digest('hex')
+        }))
     );
     const fetcher = vi.fn<Fetcher>();
 
