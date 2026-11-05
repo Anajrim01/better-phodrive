@@ -12,15 +12,15 @@ This branch stops at the design and research gate. It adds no share schema, rout
 
 ## Acceptance criteria
 
-| Requirement                                                  | Design response                                                                                                                   |
-| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| Shares isolated by authenticated user and Google account     | Session user and account are the only ownership inputs. Composite database constraints and scoped queries enforce isolation.      |
-| Active shares survive reload, restart, and another device    | Server row is written before remote mutation and stores every handle needed for revocation. Browser storage is not authoritative. |
-| Create ambiguity is recoverable and does not lose revocation | Requires a discovery or reconciliation operation. None is proven. This is an implementation blocker.                              |
-| Revocation state is durable and testable                     | `active` to `revoking` to `revoked`, with verification before success.                                                            |
-| Capability gating prevents unusable links                    | Sharing stays off until live create, public activation, and revoke verification pass.                                             |
-| No historical browser compatibility                          | `phodrive-shares`, recovery JSON, and old client records are rejected.                                                            |
-| Protocol assumptions are re-verified                         | This document lists every assumption as unverified and defines the live verification plan.                                        |
+| Requirement                                                  | Design response                                                                                                                                                                           |
+| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Shares isolated by authenticated user and Google account     | Session user and account are the only ownership inputs. Composite database constraints and scoped queries enforce isolation.                                                              |
+| Active shares survive reload, restart, and another device    | Server row is written before remote mutation and stores every handle needed for revocation. Browser storage is not authoritative.                                                         |
+| Create ambiguity is recoverable and does not lose revocation | Requires a discovery or reconciliation operation. None is proven. This is an implementation blocker.                                                                                      |
+| Revocation/rotation state is durable and testable            | Revocation uses `active` to `revoking` to `revoked`, with verification before success. User-facing rotation is out of scope for the first slice and remains blocked by the protocol gate. |
+| Capability gating prevents unusable links                    | Sharing stays off until live create, public activation, and revoke verification pass.                                                                                                     |
+| No historical browser compatibility                          | `phodrive-shares`, recovery JSON, and old client records are rejected.                                                                                                                    |
+| Protocol assumptions are re-verified                         | This document lists every assumption as unverified and defines the live verification plan.                                                                                                |
 
 ## Current state
 
@@ -121,9 +121,15 @@ Proposed states:
 
 There is no separate ambiguous state. An old `creating` row is unresolved, not safe to retry blindly. The same applies to an old `revoking` row. `failed` is forbidden if a link may have been enabled. `revoked` is forbidden while any public probe still reports a live link.
 
+## Rotation
+
+User-facing rotation is not in scope for the first slice. The historical protocol had no rotation operation. A retry of link enablement can return a different short URL. Treat that as an unresolved create, not as an active rotation: persist the new short URL in `pending_short_url`, verify the new link and any previous link, and promote to active only when the full tuple is durable and every previously issued URL is stopped. If a previous URL remains live, the row stays `creating` and requires manual recovery.
+
+A future rotation feature would need a separate state and a stored previous-URL handle. It is not authorized here because current provider behavior is unverified.
+
 ## Data model
 
-Proposed before implementation, subject to the product decision on multi-file shares:
+Proposed before implementation. The file relation is required even when a share contains one file.
 
 ```text
 google_share
@@ -141,25 +147,35 @@ google_share
   share_url          text
   created_at         timestamp not null
   updated_at         timestamp not null
+
+google_share_file
+  user_id            text not null
+  share_id           text not null
+  file_id            text not null
+  file_hash          text not null
+  name               text not null
+  chunk_count        integer not null
+  primary key (user_id, share_id, file_id)
 ```
 
 Constraints and indexes:
 
-- Unique `(user_id, id)`.
-- Unique `(user_id, request_key)` so a retried create cannot start a second remote grant after a lost response.
+- Unique `(user_id, id)` on `google_share`.
+- Unique `(user_id, request_key)` on `google_share` so a retried create cannot start a second remote grant after a lost response.
 - Foreign key `(user_id, google_account_id)` to `google_account(user_id, id)` with `ON DELETE RESTRICT`. Cascading the account would drop the only revocation handles for a live public album.
 - Check `status` in the five states above.
-- Index `(user_id, google_account_id)` for the share list. The primary key covers direct lookup. No other index is justified yet.
+- Foreign key `(user_id, share_id)` to `google_share(user_id, id)` with `ON DELETE CASCADE`.
+- Index `(user_id, google_account_id)` on `google_share` for the share list. The primary key covers direct lookup. No other index is justified yet.
 
-The row stores no email, token, media key, chunk hash, or provider error. Those are either derived from the account and file tables or not needed for revocation.
+`google_share_file` is the durable local association between a share and its selected files. It is not a foreign key to `chunk_metadata`, because `chunk_metadata` is a cache and its rows can be removed. The row stores the file identity, content hash, display name, and chunk count as an immutable snapshot. It does not store media keys or individual chunks: those are provider-side items inside the album, and the revocation unit is the album, not a chunk.
 
-A second `google_share_file` table is needed only if the first release allows more than one file per share. It would store `(user_id, share_id, file_id)` with a composite foreign key and no chunk rows. Multi-file sharing is an open product decision, not a protocol requirement. Starting with one file per share avoids a speculative relation.
+The share row stores no email, token, media key, chunk hash, or provider error. Those are either derived from the account or not needed for revocation. Multi-file sharing remains a product decision, but the relation supports either one file or a selection without changing the remote lifecycle.
 
 ## API
 
 Proposed only after the capability gate is passed:
 
-- `POST /api/shares` with a client request key, one file identity, and a display name. The server resolves the account and verifies file and chunk ownership. A retry with the same request key returns the same row without repeating remote creation.
+- `POST /api/shares` with a client request key, one or more file identities, and a display name. The first release may restrict the list to one file. The server resolves the account and verifies file and chunk ownership. A retry with the same request key returns the same row without repeating remote creation.
 - `GET /api/shares` returns owner-visible summaries for the session user and selected account.
 - `GET /api/shares/:id` returns a summary only to that user. Foreign or missing ids return 404.
 - `POST /api/shares/:id/revoke` starts revocation and returns the durable state. Success is not reported until the row reaches `revoked`.
@@ -240,7 +256,8 @@ The implementation gate is not passed if step 6 has no deterministic answer, or 
 
 - Single-file shares only, or multi-file selections. The remote unit is one album and one link either way.
 - Whether the public share URL is the provider canonical URL or a new Phodrive viewer. The old viewer deployment is not part of current integration.
-- Whether expiration or link rotation is required. The historical record had no expiry.
+- Whether expiration is required. The historical record had no expiry.
+- User-facing link rotation is out of scope for the first slice. Provider-side short-URL replacement during a retry is handled as unresolved creation, not as rotation. A rotation feature needs a separate protocol gate, state, and previous-URL handle.
 - Whether a shared file that is trashed or permanently deleted should be revoked automatically. Automatic revocation is irreversible and needs an explicit product rule.
 
 ## Implementation gate
