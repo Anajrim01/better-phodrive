@@ -170,8 +170,7 @@ test('file actions dispatch to the shared mutation path with the stable account 
         name: 'proof.bin',
         fileHash: baseChunk.fileHash,
         fileId: baseChunk.fileId,
-        chunks: [{ ...baseChunk, ...(trashed ? { trashed: true } : {}) }],
-        workers: 1
+        chunks: [{ ...baseChunk, ...(trashed ? { trashed: true } : {}) }]
     });
     vi.mocked(deleteFile).mockReturnValue(resolved({ applied: [baseChunk] }));
     vi.mocked(restoreFile).mockReturnValue(resolved({ applied: [baseChunk] }));

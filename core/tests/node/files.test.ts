@@ -99,7 +99,7 @@ test('delete moves every chunk to the trash', async () => {
         asyncOk({ applied: [...targets] })
     );
 
-    const deleted = await deleteFile(item, 'aas_et/test', 2);
+    const deleted = await deleteFile(item, 'aas_et/test');
 
     expect(deleted.unwrap().applied).toHaveLength(item.chunks.length);
     expect(deleted.unwrap().error).toBeUndefined();

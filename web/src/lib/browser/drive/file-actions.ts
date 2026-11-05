@@ -7,7 +7,6 @@ import type { DriveLibrary } from './library.svelte';
 export type FileActionContext = {
     library: DriveLibrary;
     processing: ProcessingMode;
-    workers: number;
 };
 
 /** The freshly loaded group matching a confirmation target, or null if it changed. */
@@ -26,7 +25,7 @@ export function confirmedFile(
 export async function performFileAction(
     item: FileGroup,
     action: FileActionKind,
-    { library, processing, workers }: FileActionContext
+    { library, processing }: FileActionContext
 ): Promise<string> {
     let result;
 
@@ -35,13 +34,13 @@ export async function performFileAction(
             result = await downloadAndSave(item, processing);
             break;
         case FileActionKind.Restore:
-            result = await restoreFile(library, item, workers);
+            result = await restoreFile(library, item);
             break;
         case FileActionKind.DeleteForever:
-            result = await deleteForeverFile(library, item, workers);
+            result = await deleteForeverFile(library, item);
             break;
         default:
-            result = await trashFile(library, item, workers);
+            result = await trashFile(library, item);
     }
     let message = '';
     result.inspectErr((error) => {

@@ -129,14 +129,13 @@ function deleteFailure(file: FileGroup, { applied, error }: DeleteResult): strin
 export function deleteFiles(
     context: CliContext,
     session: Session,
-    files: readonly FileGroup[],
-    workers: number
+    files: readonly FileGroup[]
 ): AsyncResult<void, CliError> {
     return Ok(undefined).andThenAsync(async () => {
         let failed = 0;
 
         for (const file of files) {
-            const deleted = await deleteFile(file, session.token, workers);
+            const deleted = await deleteFile(file, session.token);
 
             const failure = deleted.match({
                 Ok: (result) => deleteFailure(file, result),

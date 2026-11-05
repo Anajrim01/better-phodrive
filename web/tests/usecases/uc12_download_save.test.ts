@@ -76,8 +76,7 @@ function requestFor(
             name,
             fileHash,
             fileId: fileHash,
-            chunks,
-            workers: 1
+            chunks
         },
         bmps
     };

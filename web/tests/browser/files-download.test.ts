@@ -31,12 +31,20 @@ test('batch deletion reports confirmed chunks even when the server returns parti
     const removed: UploadedChunk[] = [];
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
         if (typeof init?.body !== 'string') throw new Error('Expected JSON');
-        const request = FileActionRequestSchema.parse(JSON.parse(init.body));
+        const body = JSON.parse(init.body) as Record<string, unknown>;
+        expect(Object.keys(body).sort()).toEqual([
+            'action',
+            'chunks',
+            'fileHash',
+            'fileId',
+            'name'
+        ]);
+        expect(body).not.toHaveProperty('workers');
+        const request = FileActionRequestSchema.parse(body);
         expect(request.action).toBe('delete');
-        expect(request.workers).toBe(2);
         return Response.json({ applied: [chunk()], error: 'One chunk failed' });
     });
-    const result = await deleteFile(group, (item) => removed.push(item), 2);
+    const result = await deleteFile(group, (item) => removed.push(item));
     expect(result.unwrapErr().message).toBe('One chunk failed');
     expect(removed).toEqual(group.chunks);
     expect(fetchMock).toHaveBeenCalledTimes(1);

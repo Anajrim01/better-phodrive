@@ -67,8 +67,7 @@ export function downloadFixture(
             name,
             fileHash,
             fileId: fileHash,
-            chunks,
-            workers: 2
+            chunks
         }
     };
 }

@@ -68,7 +68,7 @@ test('delete carries the file owner only in the header', async () => {
         return Response.json({ applied: [chunk()] });
     });
 
-    await deleteFile(group, () => {}, 1).unwrap();
+    await deleteFile(group, () => {}).unwrap();
 
     expect(fetchMock).toHaveBeenCalledOnce();
 });
@@ -89,7 +89,7 @@ test.each([
         return Response.json({ applied: [ownedChunk({ trashed: true })] });
     });
 
-    await action(group, () => {}, 1).unwrap();
+    await action(group, () => {}).unwrap();
 
     expect(fetchMock).toHaveBeenCalledOnce();
     expect(body.action).toBe(expected);

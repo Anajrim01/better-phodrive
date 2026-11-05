@@ -12,7 +12,6 @@ import {
     downloadFile as downloadRemoteFile
 } from '../server/files';
 import { defaultThrottle } from '../server/photos';
-import { validateWorkers } from '../server/workers';
 import { ensureAvailable, moveIntoPlace, writeBody } from './save';
 
 export type DownloadOptions = {
@@ -31,8 +30,7 @@ type FileError = ApplicationError | ServerError;
 function fileRequest(
     item: FileGroup,
     action: FileActionKind,
-    token: string,
-    workers: number
+    token: string
 ): Result<FileRequest, ApplicationError> {
     return schemaResult(
         FileRequestSchema,
@@ -43,8 +41,7 @@ function fileRequest(
             name: item.name,
             fileHash: item.fileHash,
             fileId: item.fileId,
-            chunks: item.chunks,
-            workers
+            chunks: item.chunks
         },
         'Invalid file metadata.'
     );
@@ -71,7 +68,7 @@ export function downloadFile(
             dirname(destination),
             `.${basename(destination)}.${randomUUID()}.part`
         );
-        const saved = await fileRequest(item, FileActionKind.Download, token, 1)
+        const saved = await fileRequest(item, FileActionKind.Download, token)
             .andThenAsync((input) => downloadRemoteFile(input, signal))
             .andThenAsync(async (response) => {
                 if (!response.body) return Err(SERVER_ERRORS.MISSING_DOWNLOAD_BODY);
@@ -87,17 +84,11 @@ export function downloadFile(
 }
 
 /** Move every chunk to the trash; confirmed removals are returned even after a partial failure. */
-export function deleteFile(
-    item: FileGroup,
-    token: string,
-    workers: number
-): AsyncResult<DeleteResult, FileError> {
-    return validateWorkers(workers)
-        .andThen((concurrency) => fileRequest(item, FileActionKind.Delete, token, concurrency))
-        .andThenAsync((input) =>
-            deleteRemoteFile(input, {
-                key: item.accountId ?? item.email,
-                coordinator: defaultThrottle
-            })
-        );
+export function deleteFile(item: FileGroup, token: string): AsyncResult<DeleteResult, FileError> {
+    return fileRequest(item, FileActionKind.Delete, token).andThenAsync((input) =>
+        deleteRemoteFile(input, {
+            key: item.accountId ?? item.email,
+            coordinator: defaultThrottle
+        })
+    );
 }

@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import { AccountRequestSchema } from './accounts';
-import { WorkerCountSchema } from './settings';
 
 export enum FileActionKind {
     Download = 'download',
@@ -90,8 +89,7 @@ export const FileActionRequestSchema = z.object({
     name: z.string().min(1),
     fileHash: Sha256HexSchema,
     fileId: Sha256HexSchema,
-    chunks: z.array(RemoteBmpSchema).nonempty(),
-    workers: WorkerCountSchema
+    chunks: z.array(RemoteBmpSchema).nonempty()
 });
 
 export const FileRequestSchema = AccountRequestSchema.extend(FileActionRequestSchema.shape);

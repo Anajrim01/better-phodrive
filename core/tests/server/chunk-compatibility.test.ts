@@ -115,8 +115,7 @@ test('old 64 MB chunks and a larger-chunk reupload coexist and both download int
                 name: group.name,
                 fileHash,
                 fileId: group.fileId,
-                chunks: group.chunks,
-                workers: 1
+                chunks: group.chunks
             });
             const response = downloaded.unwrap();
             const bytes = await response.arrayBuffer();

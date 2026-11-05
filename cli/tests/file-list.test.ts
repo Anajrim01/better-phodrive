@@ -93,7 +93,7 @@ test('deletes need confirmation and report partially deleted files', async () =>
     const deleted = await runCli(['file', 'delete', 'report.pdf', '--yes'], {
         folder: folder.path
     });
-    expect(deleteFile).toHaveBeenCalledWith(report, AAS_TOKEN, 8);
+    expect(deleteFile).toHaveBeenCalledWith(report, AAS_TOKEN);
     expect(deleted.failures).toMatchObject([{ code: 'DELETE_INCOMPLETE' }]);
     expect(deleted.stderr).toContain('deleted 0 of 1 chunks. Request failed');
 });

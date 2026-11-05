@@ -2,7 +2,6 @@ import type { ApplicationError } from '../errors';
 import {
     FileActionKind,
     GOOGLE_ACCOUNT_HEADER,
-    ConcurrentWorkersSchema,
     FileMutationResponseSchema,
     ProcessingMode
 } from '../models';
@@ -19,7 +18,7 @@ export { uploadFiles } from './upload/index';
 
 const FILES_API_URL = '/api/files';
 
-function fileRequest(item: FileGroup, action: FileActionKind, workers: number): RequestInit {
+function fileRequest(item: FileGroup, action: FileActionKind): RequestInit {
     return {
         method: 'POST',
         headers: {
@@ -32,8 +31,7 @@ function fileRequest(item: FileGroup, action: FileActionKind, workers: number): 
             fileHash: item.fileHash,
             fileId: item.fileId,
             // Chunks keep their owner locally; the request header selects the account.
-            chunks: item.chunks.map(({ email: _email, accountId: _accountId, ...chunk }) => chunk),
-            workers
+            chunks: item.chunks.map(({ email: _email, accountId: _accountId, ...chunk }) => chunk)
         })
     };
 }
@@ -52,15 +50,11 @@ const FILE_ACTION_ERRORS = {
 function mutateFile(
     item: FileGroup,
     action: MutatingAction,
-    onApplied: (chunk: UploadedChunk) => void,
-    workers: number
+    onApplied: (chunk: UploadedChunk) => void
 ): AsyncResult<void, ApplicationError> {
     const failure = FILE_ACTION_ERRORS[action];
 
-    return schemaResult(ConcurrentWorkersSchema, workers, 'Invalid concurrent worker count.')
-        .andThenAsync((concurrency) =>
-            apiJson(FILES_API_URL, fileRequest(item, action, concurrency), failure.message)
-        )
+    return apiJson(FILES_API_URL, fileRequest(item, action), failure.message)
         .andThen((data) => schemaResult(FileMutationResponseSchema, data, failure.message))
         .andThen(({ applied, error }): Result<void, ApplicationError> => {
             for (const chunk of applied) {
@@ -82,26 +76,23 @@ function mutateFile(
 
 export function deleteFile(
     item: FileGroup,
-    onDeleted: (chunk: UploadedChunk) => void,
-    workers: number
+    onDeleted: (chunk: UploadedChunk) => void
 ): AsyncResult<void, ApplicationError> {
-    return mutateFile(item, FileActionKind.Delete, onDeleted, workers);
+    return mutateFile(item, FileActionKind.Delete, onDeleted);
 }
 
 export function restoreFile(
     item: FileGroup,
-    onRestored: (chunk: UploadedChunk) => void,
-    workers: number
+    onRestored: (chunk: UploadedChunk) => void
 ): AsyncResult<void, ApplicationError> {
-    return mutateFile(item, FileActionKind.Restore, onRestored, workers);
+    return mutateFile(item, FileActionKind.Restore, onRestored);
 }
 
 export function deleteForeverFile(
     item: FileGroup,
-    onDeleted: (chunk: UploadedChunk) => void,
-    workers: number
+    onDeleted: (chunk: UploadedChunk) => void
 ): AsyncResult<void, ApplicationError> {
-    return mutateFile(item, FileActionKind.DeleteForever, onDeleted, workers);
+    return mutateFile(item, FileActionKind.DeleteForever, onDeleted);
 }
 
 /** The server's processing mode decides whether chunks are decoded here or on the server. */
@@ -128,7 +119,7 @@ export function downloadFile(
 
         return request(
             FILES_API_URL,
-            fileRequest(item, FileActionKind.Download, 1),
+            fileRequest(item, FileActionKind.Download),
             'Download failed'
         ).andThenAsync(async (response) => {
             try {

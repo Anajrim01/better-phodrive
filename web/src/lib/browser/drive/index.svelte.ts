@@ -171,8 +171,7 @@ export class DriveController {
 
         const message = await performFileAction(item, action, {
             library: this.library,
-            processing: this.processing,
-            workers: this.settings.concurrentWorkers
+            processing: this.processing
         });
         if (message) this.feedbackMessage = message;
         if (action === FileActionKind.Delete || action === FileActionKind.DeleteForever)
