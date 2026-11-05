@@ -14,6 +14,8 @@ export const SPLIT_MAGIC = new TextEncoder().encode('BMSPLIT\x01');
 export const SPLIT_MAGIC_WITH_FOLDER = new TextEncoder().encode('BMSPLIT\x02');
 export const SPLIT_FOLDER_VERSION = 2;
 export const FILE_HASH_BYTES = 32;
+export const MIN_SPLIT_BMP_BYTES = BMP_HEADER_BYTES + 3 * 32 * 32;
+export const SPLIT_BMP_SIZE_ALIGNMENT = 12;
 
 function writeHashBytes(target: Uint8Array, offset: number, hash: string): void {
     for (let position = 0; position < FILE_HASH_BYTES; position++)
@@ -37,6 +39,13 @@ function bmpLayout(
         return Err(BMP_ERRORS.CHUNK_TOO_LARGE);
 
     return Ok({ width, height, total });
+}
+
+/** Stored split BMPs are 54 + 12k bytes: 24-bit rows with a width divisible by 4. */
+export function isPossibleSplitBmpSize(size: number): boolean {
+    return (
+        size >= MIN_SPLIT_BMP_BYTES && (size - BMP_HEADER_BYTES) % SPLIT_BMP_SIZE_ALIGNMENT === 0
+    );
 }
 
 function splitHeaderLayout(

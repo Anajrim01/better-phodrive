@@ -12,9 +12,11 @@ import {
 import { BMP_HEADER_BYTES, SPLIT_MAGIC_WITH_FOLDER, FILE_HASH_BYTES } from '../../bmp/format';
 export {
     BMP_HEADER_BYTES,
+    isPossibleSplitBmpSize,
     MAX_PHOTOS_BMP_BYTES,
     MAX_CHUNK_PAYLOAD_BYTES,
     MAX_SPLIT_HEADER_BYTES,
+    MIN_SPLIT_BMP_BYTES,
     splitHeaderByteLength,
     splitBmpByteLength
 } from '../../bmp/format';

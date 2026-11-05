@@ -1,7 +1,7 @@
 import { SERVER_ERRORS, type ServerError } from '../../errors';
 import { Err, Ok, type Result } from 'results-ts';
 import { Sha1HexSchema, type LibraryWarning } from '../../../models';
-import { MAX_PHOTOS_BMP_BYTES, BMP_HEADER_BYTES } from '../../bmp/index';
+import { isPossibleSplitBmpSize } from '../../bmp/index';
 import { LIBRARY_PAGE_REQUEST } from './requests';
 import {
     bytes,
@@ -59,11 +59,10 @@ function libraryItem(value: Buffer): Result<LibraryCandidate | null, ServerError
     return parsed.andThen(({ item, details, visible }) => {
         if (isKeyOnlyHidden(details, visible)) return Ok(null);
 
-        // Size alone proves an item outside the BMP range is not Phodrive, even without a fingerprint.
+        // A size that cannot be a split BMP proves the item is not Phodrive, even without a fingerprint.
         const listedSize = integer(details, 10);
         if (listedSize.isErr()) return Err(listedSize.unwrapErr());
-        if (listedSize.unwrap() < BMP_HEADER_BYTES || listedSize.unwrap() > MAX_PHOTOS_BMP_BYTES)
-            return Ok(null);
+        if (!isPossibleSplitBmpSize(listedSize.unwrap())) return Ok(null);
 
         return libraryMetadata(item, details).andThen(({ fingerprint, size, at, mediaKey }) => {
             const sha1 = fingerprint.toString('hex');

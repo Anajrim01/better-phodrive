@@ -61,7 +61,7 @@ test('visible items with missing or invalid metadata are counted without droppin
                 Buffer.concat([
                     bytes(4, 'valid.bmp'),
                     num(9, 1),
-                    num(10, 120),
+                    num(10, 3126),
                     bytes(13, bytes(1, Buffer.alloc(20, 1)))
                 ])
             )
@@ -71,7 +71,7 @@ test('visible items with missing or invalid metadata are counted without droppin
         2,
         Buffer.concat([
             bytesField(1, 'missing-fingerprint'),
-            bytesField(2, Buffer.concat([bytes(4, 'missing.bmp'), num(9, 1), num(10, 120)]))
+            bytesField(2, Buffer.concat([bytes(4, 'missing.bmp'), num(9, 1), num(10, 3126)]))
         ])
     );
     const invalidFingerprint = bytesField(
@@ -83,7 +83,7 @@ test('visible items with missing or invalid metadata are counted without droppin
                 Buffer.concat([
                     bytes(4, 'invalid.bmp'),
                     num(9, 1),
-                    num(10, 120),
+                    num(10, 3126),
                     bytes(13, bytes(1, Buffer.alloc(3, 1)))
                 ])
             )
@@ -93,7 +93,7 @@ test('visible items with missing or invalid metadata are counted without droppin
         bytesField(1, Buffer.concat([valid, missingFingerprint, invalidFingerprint]))
     ).unwrap();
 
-    expect(page.items).toEqual([expect.objectContaining({ mediaKey: 'valid-key', size: 120 })]);
+    expect(page.items).toEqual([expect.objectContaining({ mediaKey: 'valid-key', size: 3126 })]);
     expect(page.warnings).toEqual([{ code: 'ENTRY_PARSE_FAILED', count: 2 }]);
 });
 
@@ -101,7 +101,7 @@ test('a malformed entry is counted without dropping the valid page entries', () 
     const details = Buffer.concat([
         bytes(4, 'valid.bmp'),
         num(9, 1),
-        num(10, 120),
+        num(10, 3126),
         bytes(13, bytes(1, Buffer.alloc(20, 1)))
     ]);
     const valid = bytesField(
@@ -111,6 +111,6 @@ test('a malformed entry is counted without dropping the valid page entries', () 
     const malformed = bytesField(2, Buffer.from([0x0a, 0x05, 0x41]));
     const page = parseLibraryPage(bytesField(1, Buffer.concat([valid, malformed]))).unwrap();
 
-    expect(page.items).toEqual([expect.objectContaining({ mediaKey: 'valid-key', size: 120 })]);
+    expect(page.items).toEqual([expect.objectContaining({ mediaKey: 'valid-key', size: 3126 })]);
     expect(page.warnings).toEqual([{ code: 'ENTRY_PARSE_FAILED', count: 1 }]);
 });

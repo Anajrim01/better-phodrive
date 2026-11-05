@@ -56,11 +56,15 @@ export function createChunkMetadataStore(
 
         save(records) {
             return Ok(undefined).andThenAsync(async () => {
+                // PostgreSQL rejects an upsert whose batch repeats a conflict key.
+                const rows = [...new Map(records.map((item) => [item.mediaKey, item])).values()];
+                if (!rows.length) return Ok(undefined);
+
                 try {
                     await db
                         .insert(chunkMetadata)
                         .values(
-                            records.map((item) => ({
+                            rows.map((item) => ({
                                 userId,
                                 googleAccountId,
                                 mediaKey: item.mediaKey,

@@ -225,6 +225,10 @@
             "@madkarmaa/phodrive-core": "./src/server/photos/library/index.ts",
             "default": "./dist/server/photos/library/index.js"
         },
+        "./server/photos/library/content-groups": {
+            "@madkarmaa/phodrive-core": "./src/server/photos/library/content-groups.ts",
+            "default": "./dist/server/photos/library/content-groups.js"
+        },
         "./server/photos/library/metadata": {
             "@madkarmaa/phodrive-core": "./src/server/photos/library/metadata.ts",
             "default": "./dist/server/photos/library/metadata.js"
@@ -402,6 +406,7 @@
             "./server/photos/auth": "./dist/server/photos/auth.js",
             "./server/photos/download": "./dist/server/photos/download.js",
             "./server/photos/library": "./dist/server/photos/library/index.js",
+            "./server/photos/library/content-groups": "./dist/server/photos/library/content-groups.js",
             "./server/photos/library/metadata": "./dist/server/photos/library/metadata.js",
             "./server/photos/library/probe": "./dist/server/photos/library/probe.js",
             "./server/photos/library/requests": "./dist/server/photos/library/requests.js",

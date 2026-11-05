@@ -14,7 +14,7 @@ const CHUNKS_PER_FILE = 512;
 
 function libraryEntry(index: number) {
     const hash = bytesField(13, bytesField(1, new Uint8Array(20).fill(index % 255)));
-    const metadata = message(numberField(9, index + 1), numberField(10, 10000), hash);
+    const metadata = message(numberField(9, index + 1), numberField(10, 10002), hash);
 
     return bytesField(2, message(bytesField(1, `media-${index}`), bytesField(2, metadata)));
 }
