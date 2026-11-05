@@ -4,7 +4,7 @@ Status: APK-backed design and research. This document does not authorize an impl
 
 ## Decision
 
-Google Photos 7.98 contains account-scoped sharing enumeration and read operations. The sharing management screen is backed by a local database populated by `PhotosSyncSharedCollections`. The sync response carries the provider collection identity and the full collection record, including the current short URL and auth key.
+Google Photos 7.98 contains account-scoped sharing enumeration and read operations. The sharing management screen is backed by a local database populated by `PhotosSyncSharedCollections`. The sync response can carry the provider collection identity and the full collection record, including a current short URL and auth key.
 
 A lost client response is therefore not proof that the provider share is unknowable. The server can reconcile provider state from Google instead of treating every ambiguous response as a permanent local recovery record.
 
@@ -142,7 +142,7 @@ The full collection record `clxa` contains the collection metadata at `clxa.e` (
 | `envelopes.can_link_share` | `clwm.p` capability data               | `acdv.n` line 252                                               |
 | `envelopes.protobuf`       | full `clxa` record                     | `acdv.n` line 445                                               |
 
-The response therefore contains the current short URL and auth key for a known collection. The local database is a cache of provider state, not the source of truth.
+The response can therefore contain a current short URL and auth key for a known collection. The local database is a cache of provider state, not the source of truth.
 
 ### Create, link, and delete
 
@@ -187,23 +187,26 @@ The historical split between `albumKey`, `envelopeKey`, `pendingShortUrl`, and `
 
 ### Lost create response
 
-If `PhotosCreateEnvelope` succeeds and the response is lost, the collection should appear in a later `PhotosSyncSharedCollections` result for the same account. The local share row can match the returned collection by:
+If `PhotosCreateEnvelope` succeeds and the response is lost, the collection is expected to appear in a later `PhotosSyncSharedCollections` result for the same account. That expectation still needs live verification: the APK proves the sync operation and the top-level collection fields, but it does not prove that a fresh empty-state sync returns every collection or that the response exposes the complete media-key set.
 
-- owner user and Google account;
-- exact media-key set of the selected Phodrive chunks;
-- collection title.
-
-If exactly one candidate matches, persist its collection media key and treat the share as active when the sync record has an enabled link. If several candidates match, fail closed and require an explicit choice. Do not create another collection.
+Do not automatically adopt a candidate by title or media-key set. Identical files and duplicate titles can produce an existing collection that looks like the lost create. If exactly one candidate appears, it is still only a candidate. Keep the local row unresolved and require explicit confirmation, or use a provider-visible correlation marker that live verification proves unique. If several candidates appear, fail closed and require an explicit choice. Do not create another collection and do not revoke a candidate merely because it is the only visible match.
 
 `PhotosReadSharedCollections` can read known collection identities. It does not solve the first match, but it removes the need to persist every provider handle after identity is known.
 
 ### Lost revoke response
 
-If `PhotosDeleteEnvelope` or link disable succeeds and the response is lost, a later sync can show whether the collection still exists and whether it still has a short URL. If the collection is absent or the link is disabled, the revoke is complete even if the local delete failed. If it is still present, retry the remote operation from the stable collection media key.
+If `PhotosDeleteEnvelope` or link disable succeeds and the response is lost, a later sync may show whether the collection still exists and what link fields it carries. Absence from one incremental or incomplete sync does not prove deletion. Disabling the link does not prove that `PhotosDeleteEnvelope` succeeded.
+
+The revoke is complete only when both conditions hold:
+
+- a full or otherwise authoritative sync shows the collection removed, or shows the provider's verified deletion state;
+- public URL checks confirm that no previously issued link still serves the content.
+
+Until both hold, keep the local row and retry or verify from the stable collection media key. Do not remove the local association merely because one sync page omitted the collection.
 
 ### Lost link response
 
-If `PhotosUpdateLinkSharingState` succeeds and the response is lost, a later sync returns the current short URL and auth key in the full collection record. If the link is disabled, the record has no short URL and the server can retry enablement with the stable collection media key.
+If `PhotosUpdateLinkSharingState` succeeds and the response is lost, a later sync may return the current short URL and auth key in the full collection record. The APK does not prove how a disabled link is represented. A disabled record may retain a previous short URL or omit it. Do not infer link state from URL absence, and do not retry enablement until the live plan establishes the disabled-link representation and the field that reports link state.
 
 ## What local PostgreSQL must store
 
@@ -250,9 +253,9 @@ The row has:
 - a nullable provider collection key;
 - timestamps for cleanup and diagnostics.
 
-The provider state is computed at read time by reconciling the account's sync records with local rows. A local row whose provider collection no longer exists is stale. It can be hidden from active lists and removed after reconciliation. It is not a public grant.
+Once the live plan verifies how the sync record represents link state, provider state can be computed at read time by reconciling the account's sync records with local rows. A local row whose provider collection no longer exists is stale. It can be hidden from active lists and removed after reconciliation. It is not a public grant.
 
-This reduces the local state machine to idempotent create and revoke operations plus reconciliation. It also means a local persistence failure after a remote create does not lose the ability to revoke, because the provider collection remains enumerable.
+This reduces the local state machine to idempotent create and revoke operations plus reconciliation. A local persistence failure after a remote create does not lose the provider share, because the collection remains enumerable. It can still require explicit confirmation before the server attributes that collection to the lost local create.
 
 ## API
 
@@ -304,10 +307,10 @@ Static APK evidence is not a live provider verification. Before implementation:
 2. Create one shared collection, disable the link, and confirm it is not publicly reachable.
 3. Enable the link and confirm the short URL resolves to the canonical album page.
 4. Clear all local Phodrive state, run `PhotosSyncSharedCollections` with a fresh account state, and confirm the collection is listed with its collection media key, short URL, auth key, title, owner, and media items.
-5. Disable the link and confirm the sync record loses or changes the short URL.
+5. Disable the link and record whether the sync record retains, loses, or changes the short URL and which field reports the disabled state.
 6. Re-enable the link and record whether the short URL changes, whether the old URL stops working, and whether the collection media key remains stable.
-7. Delete the shared collection and confirm the sync record no longer lists it and the public URL stops serving.
-8. Drop the connection after create, after link enable, and after delete, then reconcile from sync and confirm the local association can be recovered without creating a duplicate.
+7. Delete the shared collection and confirm the full sync no longer lists it and the public URL stops serving.
+8. Drop the connection after create, after link enable, and after delete, then reconcile from sync. Confirm the collection is discoverable and can be explicitly associated without creating a duplicate or revoking an existing collection.
 9. Confirm the empty-state initial sync returns all collections, not only recent activity.
 10. Repeat with a multi-chunk file and confirm the album contains every chunk and the public page exposes all of them.
 
