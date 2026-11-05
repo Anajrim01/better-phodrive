@@ -1,8 +1,11 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
+import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
+import { guardedSend } from '@madkarmaa/phodrive-core/server/photos/transport';
 import {
     createThrottleCoordinator,
     parseRetryAfter,
-    THROTTLE_MAX_SECONDS
+    THROTTLE_MAX_SECONDS,
+    waitForThrottle
 } from '@madkarmaa/phodrive-core/server/photos/throttle';
 
 beforeEach(() => {
@@ -108,6 +111,19 @@ test('cancelling one account wait leaves another account cooldown intact', async
     await other;
 });
 
+test('waitForThrottle returns a typed cancellation instead of a boolean', async () => {
+    const coordinator = createThrottleCoordinator(() => 0);
+    coordinator.pause('account-a', 60);
+    const controller = new AbortController();
+    const waiting = waitForThrottle({ key: 'account-a', coordinator }, controller.signal);
+    controller.abort();
+
+    expect((await waiting).unwrapErr()).toEqual({
+        code: 'UPLOAD_CANCELLED',
+        message: 'Upload cancelled.'
+    });
+});
+
 test('three consecutive server failures start bounded exponential backoff', async () => {
     const throttle = createThrottleCoordinator(() => 0.5);
 
@@ -138,6 +154,53 @@ test('a successful request clears failures, but not a pause recorded after it st
 
     throttle.success('account-a', Date.now() + 1);
     expect(throttle.remaining('account-a')).toBe(0);
+});
+
+test('a success that started in the same millisecond as a pause cannot clear it', () => {
+    const throttle = createThrottleCoordinator(() => 0);
+    const startedAt = Date.now();
+    throttle.pause('account-a', 60);
+
+    throttle.success('account-a', startedAt);
+    expect(throttle.remaining('account-a')).toBe(60);
+
+    throttle.success('account-a', Date.now() + 1);
+    expect(throttle.remaining('account-a')).toBe(0);
+});
+
+test('a concurrent success cannot clear a pause recorded by a same-account 429', async () => {
+    const coordinator = createThrottleCoordinator(() => 0);
+    let calls = 0;
+    let releaseThrottled!: () => void;
+    let releaseSuccess!: () => void;
+    const throttled = new Promise<Response>((resolve) => {
+        releaseThrottled = () =>
+            resolve(new Response(null, { status: 429, headers: { 'retry-after': '120' } }));
+    });
+    const success = new Promise<Response>((resolve) => {
+        releaseSuccess = () => resolve(new Response(null, { status: 200 }));
+    });
+    const fetcher: Fetcher = async () => {
+        calls++;
+
+        return calls === 1 ? throttled : success;
+    };
+    const scope = { key: 'account-a', coordinator };
+
+    const first = guardedSend(scope, fetcher, 'https://photos.test/library', {}, 'Library list');
+    const second = guardedSend(scope, fetcher, 'https://photos.test/library', {}, 'Library list');
+    await vi.waitFor(() => expect(calls).toBe(2));
+
+    releaseThrottled();
+    expect((await first).unwrapErr()).toMatchObject({
+        code: 'THROTTLED',
+        retryAfterSeconds: 120
+    });
+    expect(coordinator.remaining('account-a')).toBe(120);
+
+    releaseSuccess();
+    expect((await second).isOk()).toBe(true);
+    expect(coordinator.remaining('account-a')).toBe(120);
 });
 
 test('a missing Retry-After falls back to the bounded backoff', () => {

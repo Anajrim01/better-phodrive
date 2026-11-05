@@ -24,6 +24,7 @@ import { DriveLibrary } from '#browser/drive/library.svelte';
 import { DriveSettings } from '#browser/drive/settings.svelte';
 import { failUnfinishedJobs, replaceJob } from '#browser/drive/chunks';
 import { planUploads, type UploadQueue } from '#browser/drive/upload-plan';
+import { uploadWarningMessage } from '#browser/drive/upload-warning';
 
 /** The signed-in user's drive; their Google account and token stay on the server. */
 export class DriveController {
@@ -274,6 +275,10 @@ export class DriveController {
                             this.uploadJobs = replaceJob(this.uploadJobs, id, job);
                             if (job.status === UploadJobStatus.Error)
                                 this.feedbackMessage = job.message;
+                            else if (job.status === UploadJobStatus.Complete) {
+                                const warning = uploadWarningMessage(job.result?.warnings);
+                                if (warning) this.feedbackMessage = warning;
+                            }
                         },
                         onError: (message, jobIds) => {
                             this.feedbackMessage = message;

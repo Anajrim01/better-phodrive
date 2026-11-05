@@ -3,7 +3,8 @@ import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import { Sha1HexSchema } from '../../models';
 import { authenticatedHeaders } from './auth';
 import { photosFetch, type Fetcher } from '../fetcher';
-import { send, readBody } from './transport';
+import { guardedSend, send, readBody } from './transport';
+import type { ThrottleScope } from './throttle';
 import {
     message,
     bytesField,
@@ -79,24 +80,26 @@ export function preparedDownloadUrl(
     mediaKey: string,
     sha1: string,
     rpcHeaders: Record<string, string>,
-    fetcher: Fetcher
+    fetcher: Fetcher,
+    scope?: ThrottleScope
 ): AsyncResult<URL | null, ServerError> {
     const request = message(
         bytesField(1, bytesField(1, bytesField(1, mediaKey))),
         bytesField(2, DOWNLOAD_MASK)
     );
+    const init: RequestInit = {
+        method: 'POST',
+        redirect: 'manual',
+        headers: rpcHeaders,
+        body: bodyBytes(request),
+        ...(scope?.signal ? { signal: scope.signal } : {})
+    };
 
-    return send(
-        fetcher,
-        DOWNLOAD_URL,
-        {
-            method: 'POST',
-            redirect: 'manual',
-            headers: rpcHeaders,
-            body: bodyBytes(request)
-        },
-        'Prepare download'
-    ).andThenAsync((response) =>
+    const sent = scope
+        ? guardedSend(scope, fetcher, DOWNLOAD_URL, init, 'Prepare download')
+        : send(fetcher, DOWNLOAD_URL, init, 'Prepare download');
+
+    return sent.andThenAsync((response) =>
         readBody(response, 'Prepare download').andThen((metadata) =>
             parsePhotoDownloadUrl(metadata, mediaKey, sha1)
         )

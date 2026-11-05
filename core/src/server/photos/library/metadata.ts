@@ -1,6 +1,6 @@
-import type { ServerError } from '../../errors';
-import { Ok, type Result } from 'results-ts';
-import { Sha1HexSchema } from '../../../models';
+import { SERVER_ERRORS, type ServerError } from '../../errors';
+import { Err, Ok, type Result } from 'results-ts';
+import { Sha1HexSchema, type LibraryWarning } from '../../../models';
 import { MAX_PHOTOS_BMP_BYTES, BMP_HEADER_BYTES } from '../../bmp/index';
 import { LIBRARY_PAGE_REQUEST } from './requests';
 import {
@@ -42,6 +42,11 @@ export type LibraryCandidate = {
     trashed?: boolean;
 };
 
+/** The provider lists hidden items with only a key and their visibility state. */
+function isKeyOnlyHidden(details: Field[], visible: boolean): boolean {
+    return !visible && !optional(details, 13) && !optional(details, 10) && !optional(details, 9);
+}
+
 function libraryItem(value: Buffer): Result<LibraryCandidate | null, ServerError> {
     const parsed = parse(value).andThen((item) =>
         bytes(item, 2)
@@ -51,27 +56,29 @@ function libraryItem(value: Buffer): Result<LibraryCandidate | null, ServerError
             )
     );
 
-    return parsed.andThen(({ item, details, visible }) =>
-        libraryMetadata(item, details).map(({ fingerprint, size, at, mediaKey }) => {
-            const sha1 = fingerprint.toString('hex');
-            if (
-                !Sha1HexSchema.safeParse(sha1).success ||
-                !mediaKey ||
-                !Number.isSafeInteger(at) ||
-                size < BMP_HEADER_BYTES ||
-                size > MAX_PHOTOS_BMP_BYTES
-            )
-                return null;
+    return parsed.andThen(({ item, details, visible }) => {
+        if (isKeyOnlyHidden(details, visible)) return Ok(null);
 
-            return {
+        // Size alone proves an item outside the BMP range is not Phodrive, even without a fingerprint.
+        const listedSize = integer(details, 10);
+        if (listedSize.isErr()) return Err(listedSize.unwrapErr());
+        if (listedSize.unwrap() < BMP_HEADER_BYTES || listedSize.unwrap() > MAX_PHOTOS_BMP_BYTES)
+            return Ok(null);
+
+        return libraryMetadata(item, details).andThen(({ fingerprint, size, at, mediaKey }) => {
+            const sha1 = fingerprint.toString('hex');
+            if (!Sha1HexSchema.safeParse(sha1).success || !mediaKey || !Number.isSafeInteger(at))
+                return Err(SERVER_ERRORS.INVALID_FILE_METADATA);
+
+            return Ok({
                 size,
                 at,
                 mediaKey,
                 sha1,
                 ...(visible ? {} : { trashed: true })
-            };
-        })
-    );
+            });
+        });
+    });
 }
 
 function visibleInLibrary(details: Field[]): Result<boolean, ServerError> {
@@ -102,29 +109,38 @@ function libraryMetadata(
 
 export function parseLibraryPage(
     data: Buffer
-): Result<{ items: LibraryCandidate[]; nextPageToken: string }, ServerError> {
+): Result<
+    { items: LibraryCandidate[]; nextPageToken: string; warnings: LibraryWarning[] },
+    ServerError
+> {
     return parse(data)
         .andThen((fields) => bytes(fields, 1))
         .andThen(parse)
         .map((fields) => {
             const items: LibraryCandidate[] = [];
+            const failures: ServerError[] = [];
+
             for (const entry of fields) {
                 if (entry.number !== 2 || typeof entry.value === 'number') continue;
 
-                const value = entry.value;
-
-                const parsed = libraryItem(value);
-                parsed.inspect((item) => {
-                    if (item) items.push(item);
+                libraryItem(entry.value).match({
+                    Ok: (item) => {
+                        if (item) items.push(item);
+                    },
+                    Err: (error) => failures.push(error)
                 });
             }
 
             const next = optional(fields, 1);
+            const warnings: LibraryWarning[] = failures.length
+                ? [{ code: 'ENTRY_PARSE_FAILED', count: failures.length }]
+                : [];
 
             return {
                 items,
                 nextPageToken:
-                    next && typeof next.value !== 'number' ? next.value.toString('base64url') : ''
+                    next && typeof next.value !== 'number' ? next.value.toString('base64url') : '',
+                warnings
             };
         });
 }

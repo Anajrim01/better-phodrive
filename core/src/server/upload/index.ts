@@ -7,7 +7,8 @@ import {
     UploadPhase,
     UploadStatus,
     type UploadEvent,
-    type UploadFile
+    type UploadFile,
+    type UploadWarning
 } from '../../models';
 import { SERVER_ERRORS, type ServerError } from '../errors';
 import { planChunks, type UploadPlan } from '../../upload';
@@ -96,9 +97,10 @@ export function uploadFiles(
             }
         );
 
+        let warnings: UploadWarning[] = [];
         if (uploaded.isOk() && metadata) {
             const result = uploaded.unwrap();
-            await metadata.save([
+            const saved = await metadata.save([
                 chunkMetadataRecord(
                     {
                         fileHash: input.header.fileHash,
@@ -115,9 +117,11 @@ export function uploadFiles(
                     input.bmp.totalSize
                 )
             ]);
+            if (saved.isErr()) warnings = [{ code: 'METADATA_SAVE_FAILED' }];
         }
 
         return uploaded.map((result) => {
+            const completed = warnings.length ? { ...result, warnings } : result;
             const reused = result.status === UploadStatus.AlreadyExists ? input.bmp.totalSize : 0;
             report(input.bmp.totalSize - reused, reused, true);
             emit({
@@ -137,7 +141,7 @@ export function uploadFiles(
                     ...(accountId ? { accountId } : {})
                 }
             });
-            emit({ type: UploadEventType.FileComplete, id: 0, result });
+            emit({ type: UploadEventType.FileComplete, id: 0, result: completed });
         });
     });
 }

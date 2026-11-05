@@ -11,7 +11,8 @@ import {
     UploadPhase,
     type Account,
     type FileUploadRequest,
-    type UploadEvent
+    type UploadEvent,
+    type UploadWarning
 } from '../../models';
 import type { UploadJob } from '../../browser/upload/jobs';
 import { uploadFiles as uploadLocalFiles } from '../../node/upload';
@@ -87,6 +88,7 @@ function uploadSpooledFile(
         }
 
         const records: ChunkMetadataRecord[] = [];
+        const completions: Array<Extract<UploadEvent, { type: UploadEventType.FileComplete }>> = [];
         const uploaded = await uploadLocalFiles(
             [file],
             account.email,
@@ -94,7 +96,9 @@ function uploadSpooledFile(
             limitWorkers(workers),
             (job) => {
                 const event = jobEvent(job);
-                if (event) emit(event);
+                if (!event) return;
+                if (event.type === UploadEventType.FileComplete) completions.push(event);
+                else emit(event);
             },
             (chunk) => {
                 const record = uploadedChunkMetadata(chunk);
@@ -104,7 +108,14 @@ function uploadSpooledFile(
             { signal, fetcher, accountId, coordinator, folder }
         );
 
-        if (metadata && records.length) await metadata.save(records);
+        let warnings: UploadWarning[] = [];
+        if (metadata && records.length) {
+            const saved = await metadata.save(records);
+            if (saved.isErr()) warnings = [{ code: 'METADATA_SAVE_FAILED' }];
+        }
+
+        for (const event of completions)
+            emit(warnings.length ? { ...event, result: { ...event.result, warnings } } : event);
 
         return uploaded;
     });

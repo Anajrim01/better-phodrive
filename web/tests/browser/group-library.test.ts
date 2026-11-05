@@ -78,6 +78,24 @@ beforeEach(() => {
 
 afterAll(() => vi.unstubAllGlobals());
 
+test('a metadata warning is surfaced without dropping the Google files', async () => {
+    const group: GoogleAccountGroup = { id: 'group', name: 'Group', members: [A] };
+    vi.mocked(libraryApi.readLibraryPage).mockImplementation(() =>
+        asyncOk({
+            items: [item(A.id, 'a1')],
+            nextPageToken: '',
+            warnings: [{ code: 'METADATA_SAVE_FAILED' }]
+        })
+    );
+    const feedback: string[] = [];
+    const library = driveFor(group, feedback);
+
+    await library.load();
+
+    expect(library.chunks).toHaveLength(1);
+    expect(feedback).toContain('Files loaded, but Phodrive could not update its metadata index.');
+});
+
 test('initial pages merge and load more advances only accounts with a token', async () => {
     const group: GoogleAccountGroup = { id: 'group', name: 'Group', members: [A, B, C] };
     const pages = new Map<string, LibraryResponse>([

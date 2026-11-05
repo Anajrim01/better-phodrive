@@ -74,9 +74,21 @@ export const RemoteBmpSchema = RemoteBmpObjectSchema.refine(
     (chunk) => chunk.chunkIndex === 0 || chunk.folder === undefined
 );
 
+export const LibraryWarningCodeSchema = z.enum([
+    'ENTRY_PARSE_FAILED',
+    'METADATA_LOAD_FAILED',
+    'METADATA_SAVE_FAILED'
+]);
+
+export const LibraryWarningSchema = z.object({
+    code: LibraryWarningCodeSchema,
+    count: z.int().positive().optional()
+});
+
 export const LibraryResponseSchema = z.object({
     items: z.array(RemoteBmpSchema),
-    nextPageToken: z.string()
+    nextPageToken: z.string(),
+    warnings: z.array(LibraryWarningSchema).optional()
 });
 
 export const ErrorResponseSchema = z.object({ error: z.string() });
@@ -106,6 +118,8 @@ export const ChunkReferenceSchema = RemoteBmpObjectSchema.pick({ mediaKey: true,
 export type RemoteBmp = z.infer<typeof RemoteBmpSchema>;
 
 export type LibraryResponse = z.infer<typeof LibraryResponseSchema>;
+
+export type LibraryWarning = z.infer<typeof LibraryWarningSchema>;
 
 export type SplitHeader = z.infer<typeof SplitHeaderSchema>;
 

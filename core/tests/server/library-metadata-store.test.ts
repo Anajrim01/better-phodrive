@@ -1,10 +1,12 @@
 import { createHash } from 'node:crypto';
-import { Ok } from 'results-ts';
+import { Err, Ok } from 'results-ts';
 import { expect, test, vi } from 'vitest';
 import type {
     ChunkMetadataRecord,
     ChunkMetadataStore
 } from '@madkarmaa/phodrive-core/server/photos';
+import { SERVER_ERRORS } from '@madkarmaa/phodrive-core/server/errors';
+import { createThrottleCoordinator } from '@madkarmaa/phodrive-core/server/photos/throttle';
 import { encodeSplitBmp } from '../helpers/split-bmp';
 import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
 import { scanLibraryPage } from '@madkarmaa/phodrive-core/server/photos/library/probe';
@@ -53,12 +55,12 @@ function store(rows: readonly ChunkMetadataRecord[] = []): ChunkMetadataStore & 
 } {
     const map = new Map(rows.map((row) => [row.mediaKey, row]));
     const load = vi.fn(() => Ok(map).andThenAsync(async (value) => Ok(value)));
-    const save = vi.fn(async () => {});
+    const save = vi.fn(() => Ok(undefined).andThenAsync(async () => Ok(undefined)));
 
     return {
         load,
         save,
-        remove: async () => {}
+        remove: () => Ok(undefined).andThenAsync(async () => Ok(undefined))
     };
 }
 
@@ -182,6 +184,68 @@ test('a missing row probes once and saves the resolved metadata', async () => {
             fileId: expect.any(String)
         })
     ]);
+});
+
+test('a metadata load failure falls back to Google and keeps a warning', async () => {
+    const { bmp, candidate } = item();
+    const save = vi.fn(() => Ok(undefined).andThenAsync(async () => Ok(undefined)));
+    const metadata: ChunkMetadataStore = {
+        load: () => Ok(undefined).andThenAsync(async () => Err(SERVER_ERRORS.METADATA_UNAVAILABLE)),
+        save,
+        remove: () => Ok(undefined).andThenAsync(async () => Ok(undefined))
+    };
+
+    const result = await scanLibraryPage(
+        { items: [candidate], nextPageToken: '' },
+        HEADERS,
+        fetcherFor(bmp, candidate.sha1),
+        metadata
+    );
+    const page = result.unwrap();
+
+    expect(page.items).toHaveLength(1);
+    expect(page.warnings).toContainEqual({ code: 'METADATA_LOAD_FAILED' });
+    expect(save).toHaveBeenCalledOnce();
+});
+
+test('a metadata save failure keeps the Google files and reports the warning', async () => {
+    const { bmp, candidate } = item();
+    const metadata: ChunkMetadataStore = {
+        load: () => Ok(new Map()).andThenAsync(async (value) => Ok(value)),
+        save: () => Ok(undefined).andThenAsync(async () => Err(SERVER_ERRORS.METADATA_SAVE_FAILED)),
+        remove: () => Ok(undefined).andThenAsync(async () => Ok(undefined))
+    };
+
+    const result = await scanLibraryPage(
+        { items: [candidate], nextPageToken: '' },
+        HEADERS,
+        fetcherFor(bmp, candidate.sha1),
+        metadata
+    );
+    const page = result.unwrap();
+
+    expect(page.items).toHaveLength(1);
+    expect(page.warnings).toContainEqual({ code: 'METADATA_SAVE_FAILED' });
+});
+
+test('a throttled probe pauses only the account scope', async () => {
+    const { candidate } = item();
+    const coordinator = createThrottleCoordinator(() => 0);
+    const fetcher = vi.fn<Fetcher>(
+        async () => new Response(null, { status: 429, headers: { 'retry-after': '120' } })
+    );
+    const result = await scanLibraryPage(
+        { items: [candidate], nextPageToken: '' },
+        HEADERS,
+        fetcher,
+        undefined,
+        { key: 'account-a', coordinator }
+    );
+
+    expect(result.unwrapErr()).toMatchObject({ code: 'THROTTLED', retryAfterSeconds: 120 });
+    expect(fetcher).toHaveBeenCalledOnce();
+    expect(coordinator.remaining('account-a')).toBeGreaterThan(0);
+    expect(coordinator.remaining('account-b')).toBe(0);
 });
 
 test('changed fingerprint or size is not reused', async () => {

@@ -183,8 +183,10 @@ test('permanent delete removes metadata only after confirmed progress', async ()
     const metadata: ChunkMetadataStore = {
         load: vi.fn(),
         save: vi.fn(),
-        remove: async (mediaKeys) => {
+        remove: (mediaKeys) => {
             removed.push([...mediaKeys]);
+
+            return Ok(undefined).andThenAsync(async () => Ok(undefined));
         }
     };
     vi.mocked(mutatePhotos).mockImplementation((_kind, _account, targets) =>

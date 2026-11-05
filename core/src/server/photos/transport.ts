@@ -10,7 +10,8 @@ export function send(
     fetcher: Fetcher,
     url: string | URL,
     init: RequestInit,
-    stage: string
+    stage: string,
+    acceptedStatuses: readonly number[] = [200]
 ): AsyncResult<Response, ServerError> {
     return Ok(undefined).andThenAsync<Response, ServerError>(async () => {
         let response: Response;
@@ -26,7 +27,7 @@ export function send(
                 stage
             } as const);
         }
-        if (response.status !== 200) {
+        if (!acceptedStatuses.includes(response.status)) {
             try {
                 await response.body?.cancel();
             } catch {
@@ -57,14 +58,14 @@ export function guardedSend(
     url: string | URL,
     init: RequestInit,
     stage: string,
-    options: { preserveServerFailure?: boolean } = {}
+    options: { preserveServerFailure?: boolean; acceptedStatuses?: readonly number[] } = {}
 ): AsyncResult<Response, ServerError> {
     return Ok(undefined).andThenAsync(async () => {
-        if (!(await waitForThrottle(scope, init.signal ?? undefined)))
-            return Err(SERVER_ERRORS.UPLOAD_CANCELLED);
+        const waited = await waitForThrottle(scope, init.signal ?? undefined);
+        if (waited.isErr()) return Err(waited.unwrapErr());
 
         const startedAt = Date.now();
-        const sent = await send(fetcher, url, init, stage);
+        const sent = await send(fetcher, url, init, stage, options.acceptedStatuses);
         if (sent.isOk()) {
             scope.coordinator.success(scope.key, startedAt);
 

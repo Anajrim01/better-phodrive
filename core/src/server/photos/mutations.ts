@@ -103,7 +103,7 @@ export function mutatePhotos<T extends MutationTarget>(
     targets: readonly T[],
     scope: ThrottleScope,
     fetcher: Fetcher = photosFetch,
-    onApplied?: (applied: readonly T[]) => void | Promise<void>
+    onApplied?: (applied: readonly T[]) => AsyncResult<void, ServerError>
 ): AsyncResult<MutationOutcome<T>, ServerError> {
     return uniqueTargets(targets).andThenAsync(
         (unique): AsyncResult<MutationOutcome<T>, ServerError> =>
@@ -171,10 +171,12 @@ export function mutatePhotos<T extends MutationTarget>(
 
                         for (const target of applied) appliedKeys.add(target.mediaKey);
 
-                        try {
-                            await onApplied?.(applied);
-                        } catch {
-                            failure = SERVER_ERRORS.METADATA_REMOVE_FAILED;
+                        if (onApplied) {
+                            const saved = await onApplied(applied);
+                            if (saved.isErr()) {
+                                failure = saved.unwrapErr();
+                                break;
+                            }
                         }
 
                         if (failure) break;

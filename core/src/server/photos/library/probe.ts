@@ -1,11 +1,13 @@
 import pLimit from 'p-limit';
 import { Err, Ok, type AsyncResult } from 'results-ts';
-import type { RemoteBmp } from '../../../models';
+import type { LibraryWarning, RemoteBmp } from '../../../models';
 import { decodeSplitHeader, MAX_SPLIT_HEADER_BYTES } from '../../bmp/index';
 import { SERVER_ERRORS, type ServerError } from '../../errors';
 import type { Fetcher } from '../../fetcher';
 import type { PhotosHeaders } from '../auth';
 import { preparedDownloadUrl } from '../download';
+import type { ThrottleScope } from '../throttle';
+import { guardedSend } from '../transport';
 import type { LibraryCandidate } from './metadata';
 import {
     chunkMetadataRecord,
@@ -20,16 +22,25 @@ const LIBRARY_PROBE_CONCURRENCY = 4;
 
 /** Keep the photos on a library page whose first bytes hold a Phodrive split header. */
 export function scanLibraryPage(
-    page: { items: LibraryCandidate[]; nextPageToken: string },
+    page: { items: LibraryCandidate[]; nextPageToken: string; warnings?: LibraryWarning[] },
     headers: PhotosHeaders,
     fetcher: Fetcher,
-    metadata?: ChunkMetadataStore
-): AsyncResult<{ items: RemoteBmp[]; nextPageToken: string }, ServerError> {
+    metadata?: ChunkMetadataStore,
+    scope?: ThrottleScope
+): AsyncResult<
+    { items: RemoteBmp[]; nextPageToken: string; warnings: LibraryWarning[] },
+    ServerError
+> {
     return Ok(undefined).andThenAsync(async () => {
+        const warnings = [...(page.warnings ?? [])];
         const stored = metadata
             ? await metadata.load(page.items).match({
                   Ok: (rows) => rows,
-                  Err: () => new Map<string, ChunkMetadataRecord>()
+                  Err: () => {
+                      warnings.push({ code: 'METADATA_LOAD_FAILED' });
+
+                      return new Map<string, ChunkMetadataRecord>();
+                  }
               })
             : new Map<string, ChunkMetadataRecord>();
         const items = new Map<string, RemoteBmp>();
@@ -46,7 +57,7 @@ export function scanLibraryPage(
 
         const limit = pLimit(LIBRARY_PROBE_CONCURRENCY);
         const scanned = await limit.map(missing, (candidate) =>
-            probeLibraryItem(candidate, headers.commonHeaders, headers.rpcHeaders, fetcher)
+            probeLibraryItem(candidate, headers.commonHeaders, headers.rpcHeaders, fetcher, scope)
         );
         const records: ChunkMetadataRecord[] = [];
         const missingByKey = new Map(missing.map((candidate) => [candidate.mediaKey, candidate]));
@@ -63,7 +74,10 @@ export function scanLibraryPage(
             });
         }
 
-        if (metadata && records.length) await metadata.save(records);
+        if (metadata && records.length) {
+            const saved = await metadata.save(records);
+            if (saved.isErr()) warnings.push({ code: 'METADATA_SAVE_FAILED' });
+        }
 
         return Ok({
             items: page.items.flatMap((candidate) => {
@@ -71,7 +85,8 @@ export function scanLibraryPage(
 
                 return item ? [item] : [];
             }),
-            nextPageToken: page.nextPageToken
+            nextPageToken: page.nextPageToken,
+            warnings
         });
     });
 }
@@ -110,20 +125,35 @@ function readPrefix(response: Response): AsyncResult<Buffer, ServerError> {
 function fetchPrefix(
     url: URL,
     commonHeaders: Record<string, string>,
-    fetcher: Fetcher
+    fetcher: Fetcher,
+    scope?: ThrottleScope
 ): AsyncResult<Buffer, ServerError> {
+    const init: RequestInit = {
+        method: 'GET',
+        redirect: 'manual',
+        headers: {
+            ...commonHeaders,
+            range: `bytes=0-${HEADER_PROBE_BYTES - 1}`
+        },
+        ...(scope?.signal ? { signal: scope.signal } : {})
+    };
+
+    if (scope)
+        return guardedSend(scope, fetcher, url, init, 'Inspect photo header', {
+            acceptedStatuses: [200, 206]
+        })
+            .mapErr((error) =>
+                error.code === 'THROTTLED' || error.code === 'UPLOAD_CANCELLED'
+                    ? error
+                    : SERVER_ERRORS.COULD_NOT_INSPECT_PHOTO_HEADER
+            )
+            .andThenAsync((response) => readPrefix(response));
+
     return Ok(undefined).andThenAsync(async () => {
         let response: Response;
 
         try {
-            response = await fetcher(url, {
-                method: 'GET',
-                redirect: 'manual',
-                headers: {
-                    ...commonHeaders,
-                    range: `bytes=0-${HEADER_PROBE_BYTES - 1}`
-                }
-            });
+            response = await fetcher(url, init);
         } catch {
             return Err(SERVER_ERRORS.COULD_NOT_INSPECT_PHOTO_HEADER);
         }
@@ -139,13 +169,14 @@ function probeLibraryItem(
     candidate: LibraryCandidate,
     commonHeaders: Record<string, string>,
     rpcHeaders: Record<string, string>,
-    fetcher: Fetcher
+    fetcher: Fetcher,
+    scope?: ThrottleScope
 ): AsyncResult<RemoteBmp | null, ServerError> {
-    return preparedDownloadUrl(candidate.mediaKey, candidate.sha1, rpcHeaders, fetcher)
+    return preparedDownloadUrl(candidate.mediaKey, candidate.sha1, rpcHeaders, fetcher, scope)
         .andThenAsync(async (url) => {
             if (url === null) return Ok(null);
 
-            return await fetchPrefix(url, commonHeaders, fetcher);
+            return await fetchPrefix(url, commonHeaders, fetcher, scope);
         })
         .map((prefix) => {
             if (prefix === null) return null;

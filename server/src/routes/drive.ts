@@ -48,6 +48,11 @@ export function driveRoutes(context: ServerContext) {
                 userId: c.get('user').id,
                 googleAccountId: account.id
             });
+            const scope = {
+                key: account.id,
+                coordinator: context.throttle,
+                signal: c.req.raw.signal
+            };
 
             return readJsonRequest(c.req.raw, LibraryPageRequestSchema, 'Invalid request')
                 .andThenAsync((input) =>
@@ -56,7 +61,8 @@ export function driveRoutes(context: ServerContext) {
                         account.token,
                         input.pageToken ?? '',
                         undefined,
-                        metadata
+                        metadata,
+                        scope
                     ).map((page) => ({
                         ...page,
                         items: page.items.map((item) => ({ ...item, accountId: account.id }))

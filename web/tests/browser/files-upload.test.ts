@@ -5,6 +5,7 @@ import type { UploadedChunk } from '@madkarmaa/phodrive-core/files';
 import { uploadFiles, type UploadJob } from '#browser/files';
 import { HASH_BLOCK_BYTES, hashFile } from '@madkarmaa/phodrive-core/browser/upload/hash';
 import { browserUploadResponse } from '../../../core/tests/helpers/upload';
+import { uploadWarningMessage } from '#browser/drive/upload-warning';
 import { PAYLOAD } from '../helpers/files';
 
 /** Chunk confirmations that disagree with what the browser sent. */
@@ -52,6 +53,36 @@ test('browser hashes incrementally and posts raw slices with stable verified BMP
     expect(saved.map((chunk) => chunk.originalName).sort()).toEqual(['other.bin', 'proof.bin']);
     expect(new Set(saved.map((chunk) => chunk.fileId)).size).toBe(2);
     expect(statuses(jobs).every((status) => status === UploadJobStatus.Complete)).toBe(true);
+});
+
+test('a metadata save warning keeps the upload complete and reaches the UI message', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) =>
+        browserUploadResponse(init, false, (events) =>
+            events.map((event) =>
+                event.type === UploadEventType.FileComplete
+                    ? {
+                          ...event,
+                          result: {
+                              ...event.result,
+                              warnings: [{ code: 'METADATA_SAVE_FAILED' as const }]
+                          }
+                      }
+                    : event
+            )
+        )
+    );
+
+    const { result, jobs } = await upload([new File([PAYLOAD], 'warning.bin')], 1);
+    const job = jobs.get(0);
+
+    expect(result.isOk()).toBe(true);
+    expect(job).toMatchObject({
+        status: UploadJobStatus.Complete,
+        result: { warnings: [{ code: 'METADATA_SAVE_FAILED' }] }
+    });
+    expect(uploadWarningMessage(job?.result?.warnings)).toBe(
+        'Uploaded, but Phodrive could not update its metadata index.'
+    );
 });
 
 test('account-targeted browser uploads send the header and stamp every chunk', async () => {

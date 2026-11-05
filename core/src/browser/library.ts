@@ -4,6 +4,7 @@ import {
     GOOGLE_ACCOUNT_HEADER,
     LibraryResponseSchema,
     type LibraryResponse,
+    type LibraryWarning,
     type RemoteBmp
 } from '../models';
 import { schemaResult } from '../validation';
@@ -37,6 +38,7 @@ export function readLibrarySnapshot(
 ): AsyncResult<LibrarySnapshot, ApplicationError> {
     return Ok(undefined).andThenAsync(async () => {
         const items = new Map<string, RemoteBmp>();
+        const warnings = new Map<LibraryWarning['code'], LibraryWarning>();
         const pageTokens = new Set<string>();
         let nextPageToken = '';
         let pages = 0;
@@ -55,6 +57,15 @@ export function readLibrarySnapshot(
                 }
 
                 for (const item of page.items) items.set(item.mediaKey, item);
+                for (const warning of page.warnings ?? []) {
+                    const current = warnings.get(warning.code);
+                    warnings.set(warning.code, {
+                        code: warning.code,
+                        ...(current?.count || warning.count
+                            ? { count: (current?.count ?? 0) + (warning.count ?? 0) }
+                            : {})
+                    });
+                }
                 nextPageToken = page.nextPageToken;
                 pages++;
 
@@ -65,6 +76,11 @@ export function readLibrarySnapshot(
             if (!nextPageToken) break;
         }
 
-        return Ok({ items: [...items.values()], nextPageToken, pages });
+        return Ok({
+            items: [...items.values()],
+            nextPageToken,
+            warnings: [...warnings.values()],
+            pages
+        });
     });
 }

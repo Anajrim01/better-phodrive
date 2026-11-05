@@ -8,7 +8,7 @@ import {
     type FileGroup,
     type UploadedChunk
 } from '@madkarmaa/phodrive-core/files';
-import { FileSort } from '@madkarmaa/phodrive-core/models';
+import { FileSort, type LibraryWarning } from '@madkarmaa/phodrive-core/models';
 import { readLibraryPage, readLibrarySnapshot } from '@madkarmaa/phodrive-core/browser/library';
 import { withTrashState, withoutChunk, withChunks } from '#browser/drive/chunks';
 import type { DriveContext } from '#browser/drive/context.svelte';
@@ -23,6 +23,7 @@ import {
     libraryMembers,
     mergeAccountChunks,
     pruneCursors,
+    warningMessage,
     type AccountCursor,
     type MemberFailure
 } from '#browser/drive/library-state';
@@ -125,6 +126,7 @@ export class DriveLibrary {
         }
 
         const failures: MemberFailure[] = [];
+        const warnings: LibraryWarning[] = [];
         let successes = 0;
 
         for (const account of members) {
@@ -142,6 +144,7 @@ export class DriveLibrary {
             }
 
             const data = loaded.unwrap();
+            warnings.push(...(data.warnings ?? []));
             const found = data.items.map((item): UploadedChunk => ({
                 ...item,
                 email: account.email
@@ -163,7 +166,7 @@ export class DriveLibrary {
             }
         }
 
-        const applied = this.finish(request, failures, successes);
+        const applied = this.finish(request, failures, successes, warnings);
         if (applied) this.navigation.settle(this.hasMore);
     }
 
@@ -186,6 +189,7 @@ export class DriveLibrary {
         }
 
         const failures: MemberFailure[] = [];
+        const warnings: LibraryWarning[] = [];
         let successes = 0;
 
         for (const account of members) {
@@ -202,6 +206,7 @@ export class DriveLibrary {
             }
 
             const snapshot = refreshed.unwrap();
+            warnings.push(...(snapshot.warnings ?? []));
             this.chunksByAccount.set(
                 account.id,
                 snapshot.items.map((item) => ({ ...item, email: account.email }))
@@ -213,7 +218,7 @@ export class DriveLibrary {
             successes++;
         }
 
-        const applied = this.finish(request, failures, successes);
+        const applied = this.finish(request, failures, successes, warnings);
         if (applied) this.navigation.settle(this.hasMore);
     }
 
@@ -262,7 +267,8 @@ export class DriveLibrary {
     private finish(
         request: number,
         failures: readonly MemberFailure[],
-        successes: number
+        successes: number,
+        warnings: readonly LibraryWarning[]
     ): boolean {
         if (request !== this.libraryRequest) return false;
 
@@ -271,7 +277,8 @@ export class DriveLibrary {
         this.loadFailed = failures.length > 0 && successes === 0;
         this.loading = false;
 
-        const message = failureMessage(libraryMembers(this.context()), failures);
+        const message =
+            failureMessage(libraryMembers(this.context()), failures) ?? warningMessage(warnings);
         if (message) this.feedback(message);
 
         return successes > 0;
