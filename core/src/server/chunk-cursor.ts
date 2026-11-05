@@ -2,13 +2,14 @@ import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import type { FileRequest, RemoteBmp, SplitHeader } from '../models';
 import { SplitBmpReader } from './bmp/stream';
 import { SERVER_ERRORS, type ServerError } from './errors';
-import { downloadBmp } from './photos/index';
+import { downloadBmp, type ThrottleScope } from './photos/index';
 
 /** Download one chunk and check its BMP header matches what the file expects. */
 export function openChunk(
     input: FileRequest,
     chunk: RemoteBmp,
-    signal: AbortSignal
+    signal: AbortSignal,
+    scope?: ThrottleScope
 ): AsyncResult<SplitBmpReader, ServerError> {
     const expected: SplitHeader = {
         fileHash: input.fileHash,
@@ -26,7 +27,8 @@ export function openChunk(
         chunk.mediaKey,
         chunk.sha1,
         undefined,
-        signal
+        signal,
+        scope
     ).andThenAsync((response) => SplitBmpReader.open(response, expected, chunk.sha1));
 }
 
@@ -46,7 +48,8 @@ export class ChunkCursor {
 
     constructor(
         private readonly input: FileRequest,
-        private readonly chunks: RemoteBmp[]
+        private readonly chunks: RemoteBmp[],
+        private readonly scope?: ThrottleScope
     ) {}
 
     get signal(): AbortSignal {
@@ -98,7 +101,12 @@ export class ChunkCursor {
 
     private openNext(): AsyncResult<void, ServerError> {
         return Ok(undefined).andThenAsync(async () => {
-            const opened = await openChunk(this.input, this.chunks[this.index], this.signal);
+            const opened = await openChunk(
+                this.input,
+                this.chunks[this.index],
+                this.signal,
+                this.scope
+            );
             opened.inspect((reader) => {
                 this.active = reader;
             });

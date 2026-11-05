@@ -27,20 +27,34 @@ export function downloadBmp(
     mediaKey: string,
     sha1: string,
     fetcher: Fetcher = photosFetch,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    scope?: ThrottleScope
 ): AsyncResult<Response, ServerError> {
     const validReference =
         mediaKey && mediaKey.length <= 1024 && Sha1HexSchema.safeParse(sha1).success
             ? Ok(undefined)
             : Err(SERVER_ERRORS.INVALID_FILE_REFERENCE);
+    const activeSignal = signal ?? scope?.signal;
+    const activeScope = scope
+        ? { ...scope, ...(activeSignal ? { signal: activeSignal } : {}) }
+        : undefined;
 
     return validReference
         .andThenAsync(() =>
-            authenticatedHeaders(email, token, (url, init) => fetcher(url, { ...init, signal }))
+            authenticatedHeaders(
+                email,
+                token,
+                (url, init) => fetcher(url, { ...init, signal: activeSignal }),
+                activeScope
+            )
         )
         .andThenAsync(({ commonHeaders, rpcHeaders }) =>
-            preparedDownloadUrl(mediaKey, sha1, rpcHeaders, (url, init) =>
-                fetcher(url, { ...init, signal })
+            preparedDownloadUrl(
+                mediaKey,
+                sha1,
+                rpcHeaders,
+                (url, init) => fetcher(url, { ...init, signal: activeSignal }),
+                activeScope
             ).map((url) => ({
                 url,
                 commonHeaders
@@ -49,17 +63,16 @@ export function downloadBmp(
         .andThenAsync(async ({ url, commonHeaders }) => {
             if (url === null) return Err(SERVER_ERRORS.INVALID_DOWNLOAD_CONTENT_TYPE);
 
-            return await send(
-                fetcher,
-                url,
-                {
-                    method: 'GET',
-                    redirect: 'manual',
-                    headers: commonHeaders,
-                    signal
-                },
-                'Download'
-            );
+            const init: RequestInit = {
+                method: 'GET',
+                redirect: 'manual',
+                headers: commonHeaders,
+                signal: activeSignal
+            };
+
+            return activeScope
+                ? guardedSend(activeScope, fetcher, url, init, 'Download')
+                : send(fetcher, url, init, 'Download');
         })
         .andThenAsync(async (response) => {
             if (!response.headers.get('content-type')?.startsWith('image/')) {
