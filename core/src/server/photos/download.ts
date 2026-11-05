@@ -34,7 +34,6 @@ export function downloadBmp(
         mediaKey && mediaKey.length <= 1024 && Sha1HexSchema.safeParse(sha1).success
             ? Ok(undefined)
             : Err(SERVER_ERRORS.INVALID_FILE_REFERENCE);
-    // An explicit media signal wins; otherwise the scope supplies cancellation.
     const activeSignal = signal ?? scope?.signal;
     const activeScope = scope
         ? { ...scope, ...(activeSignal ? { signal: activeSignal } : {}) }
