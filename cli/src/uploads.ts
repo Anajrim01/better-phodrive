@@ -41,13 +41,15 @@ function reportJob(context: CliContext, job: UploadJob): void {
 
         return;
     }
-    if (job.result?.status === UploadStatus.AlreadyExists) {
+
+    if (job.result?.status === UploadStatus.AlreadyExists)
         status(context).success(`${job.name} was already in Google Photos`);
+    else status(context).success(`Uploaded ${job.name}`);
 
-        return;
-    }
-
-    status(context).success(`Uploaded ${job.name}`);
+    if (job.result?.warnings?.some((warning) => warning.code === 'METADATA_SAVE_FAILED'))
+        status(context).warn(
+            `${job.name}: Google Photos confirmed the file, but Phodrive could not update its metadata index.`
+        );
 }
 
 /** Show combined progress; scripts get a line as each file finishes, the terminal a summary. */

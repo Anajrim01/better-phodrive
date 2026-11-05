@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { afterEach, expect, test, vi } from 'vitest';
-import { Ok } from 'results-ts';
+import { Err, Ok } from 'results-ts';
 import type { UploadedChunk } from '@madkarmaa/phodrive-core/files';
 import { uploadFiles as uploadFromBrowser } from '@madkarmaa/phodrive-core/browser/upload';
 import type { UploadJob } from '@madkarmaa/phodrive-core/browser/upload/jobs';
@@ -17,6 +17,7 @@ import type {
     ChunkMetadataRecord,
     ChunkMetadataStore
 } from '@madkarmaa/phodrive-core/server/photos';
+import { SERVER_ERRORS } from '@madkarmaa/phodrive-core/server/errors';
 import { decodeSplitBmp, encodeSplitBmp } from '../helpers/split-bmp';
 import { fileIdentity } from '@madkarmaa/phodrive-core/server/chunks';
 import { uploadFiles } from '@madkarmaa/phodrive-core/server/upload';
@@ -200,6 +201,28 @@ test('a server-processed whole file saves its confirmed metadata row', async () 
         size: PAYLOAD.length
     });
     expect(saved[0]?.storedBmpSize).toBeGreaterThan(PAYLOAD.length);
+});
+
+test('a server-processed file reports a metadata save warning without failing the upload', async () => {
+    const harness = photosUploadHarness();
+    const store: ChunkMetadataStore = {
+        load: () =>
+            Ok(new Map<string, ChunkMetadataRecord>()).andThenAsync(async (value) => Ok(value)),
+        save: () => Ok(undefined).andThenAsync(async () => Err(SERVER_ERRORS.METADATA_SAVE_FAILED)),
+        remove: () => Ok(undefined).andThenAsync(async () => Ok(undefined))
+    };
+    const received = await receiveFileUpload(fileRequest(PAYLOAD));
+    const response = fileUploadStream(received.unwrap(), TEST_ACCOUNT, harness.fetcher, store);
+    const reported = events(await response.text());
+
+    const completed = reported.findIndex((event) => event.type === UploadEventType.FileComplete);
+    expect(reported[completed]).toMatchObject({
+        result: { warnings: [{ code: 'METADATA_SAVE_FAILED' }] }
+    });
+    expect(reported.findIndex((event) => event.type === UploadEventType.Complete)).toBeGreaterThan(
+        completed
+    );
+    expect(reported.some((event) => event.type === UploadEventType.Error)).toBe(false);
 });
 
 test('a whole file shorter than declared fails before anything is uploaded', async () => {

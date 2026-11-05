@@ -3,6 +3,7 @@
 
     import { CircularProgress, IconButton, ListItem } from 'noph-ui';
     import type { UploadJob } from '#browser/files';
+    import { uploadWarningMessage } from '#browser/drive/upload-warning';
     import IconDescription from '~icons/material-symbols/description';
     import IconCheckCircle from '~icons/material-symbols/check-circle';
     import IconError from '~icons/material-symbols/error-outline';
@@ -25,10 +26,14 @@
     const detail = $derived.by(() => {
         if (job.status === UploadJobStatus.Queued) return 'Waiting…';
         if (job.status === UploadJobStatus.Error) return job.message;
-        if (job.status === UploadJobStatus.Complete)
+        if (job.status === UploadJobStatus.Complete) {
+            const warning = uploadWarningMessage(job.result?.warnings);
+            if (warning) return warning;
+
             return job.result?.status === UploadStatus.AlreadyExists
                 ? 'Already in Google Photos'
                 : 'Uploaded successfully';
+        }
         if (job.retryAt !== null) return 'Waiting for Google Photos…';
         if (progress.phase === UploadPhase.Receiving) return 'Sending files to server…';
         if (progress.phase === UploadPhase.Preparing) return `Preparing file… ${percent}%`;

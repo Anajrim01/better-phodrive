@@ -1,5 +1,5 @@
-import type { ServerError } from '../../errors';
-import { Ok, type Result } from 'results-ts';
+import { SERVER_ERRORS, type ServerError } from '../../errors';
+import { Err, Ok, type Result } from 'results-ts';
 import { Sha1HexSchema, type LibraryWarning } from '../../../models';
 import { MAX_PHOTOS_BMP_BYTES, BMP_HEADER_BYTES } from '../../bmp/index';
 import { LIBRARY_PAGE_REQUEST } from './requests';
@@ -42,6 +42,11 @@ export type LibraryCandidate = {
     trashed?: boolean;
 };
 
+/** The provider lists hidden items with only a key and their visibility state. */
+function isKeyOnlyHidden(details: Field[], visible: boolean): boolean {
+    return !visible && !optional(details, 13) && !optional(details, 10) && !optional(details, 9);
+}
+
 function libraryItem(value: Buffer): Result<LibraryCandidate | null, ServerError> {
     const parsed = parse(value).andThen((item) =>
         bytes(item, 2)
@@ -52,26 +57,26 @@ function libraryItem(value: Buffer): Result<LibraryCandidate | null, ServerError
     );
 
     return parsed.andThen(({ item, details, visible }) => {
-        const metadata = libraryMetadata(item, details);
-        if (metadata.isErr()) return Ok(null);
+        if (isKeyOnlyHidden(details, visible)) return Ok(null);
 
-        const { fingerprint, size, at, mediaKey } = metadata.unwrap();
-        const sha1 = fingerprint.toString('hex');
-        if (
-            !Sha1HexSchema.safeParse(sha1).success ||
-            !mediaKey ||
-            !Number.isSafeInteger(at) ||
-            size < BMP_HEADER_BYTES ||
-            size > MAX_PHOTOS_BMP_BYTES
-        )
+        // Size alone proves an item outside the BMP range is not Phodrive, even without a fingerprint.
+        const listedSize = integer(details, 10);
+        if (listedSize.isErr()) return Err(listedSize.unwrapErr());
+        if (listedSize.unwrap() < BMP_HEADER_BYTES || listedSize.unwrap() > MAX_PHOTOS_BMP_BYTES)
             return Ok(null);
 
-        return Ok({
-            size,
-            at,
-            mediaKey,
-            sha1,
-            ...(visible ? {} : { trashed: true })
+        return libraryMetadata(item, details).andThen(({ fingerprint, size, at, mediaKey }) => {
+            const sha1 = fingerprint.toString('hex');
+            if (!Sha1HexSchema.safeParse(sha1).success || !mediaKey || !Number.isSafeInteger(at))
+                return Err(SERVER_ERRORS.INVALID_FILE_METADATA);
+
+            return Ok({
+                size,
+                at,
+                mediaKey,
+                sha1,
+                ...(visible ? {} : { trashed: true })
+            });
         });
     });
 }

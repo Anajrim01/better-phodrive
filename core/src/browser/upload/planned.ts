@@ -1,7 +1,13 @@
 import type pLimit from 'p-limit';
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import type { ApplicationError } from '../../errors';
-import { UploadEventType, UploadPhase, UploadStatus, type UploadEvent } from '../../models';
+import {
+    UploadEventType,
+    UploadPhase,
+    UploadStatus,
+    type UploadEvent,
+    type UploadWarning
+} from '../../models';
 import { planChunks, type UploadPlan } from '../../upload';
 import { uploadChunk } from './chunk';
 import { hashFile, uploadIdentity } from './hash';
@@ -150,9 +156,24 @@ export function uploadPlannedFile(
             return Ok(undefined);
         }
 
+        const warnings: UploadWarning[] = [];
+        const seen = new Set<UploadWarning['code']>();
+        for (const result of results)
+            result.inspect((response) => {
+                for (const warning of response.warnings ?? [])
+                    if (!seen.has(warning.code)) {
+                        seen.add(warning.code);
+                        warnings.push(warning);
+                    }
+            });
+
         const status = uploadedAny ? UploadStatus.Uploaded : UploadStatus.AlreadyExists;
         last.inspect((result) =>
-            handle({ type: UploadEventType.FileComplete, id, result: { ...result, status } })
+            handle({
+                type: UploadEventType.FileComplete,
+                id,
+                result: { ...result, status, ...(warnings.length ? { warnings } : {}) }
+            })
         );
 
         return Ok(undefined);

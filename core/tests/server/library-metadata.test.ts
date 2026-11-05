@@ -42,6 +42,61 @@ test('a key-only hidden item is omitted without a parse warning', () => {
     expect(page.warnings).toEqual([]);
 });
 
+test('an item outside the BMP size range is filtered before requiring a fingerprint', () => {
+    const details = Buffer.concat([bytes(4, 'too-small.jpg'), num(9, 1), num(10, 4)]);
+    const item = bytesField(2, Buffer.concat([bytesField(1, 'small-key'), bytesField(2, details)]));
+    const page = parseLibraryPage(bytesField(1, item)).unwrap();
+
+    expect(page.items).toEqual([]);
+    expect(page.warnings).toEqual([]);
+});
+
+test('visible items with missing or invalid metadata are counted without dropping valid siblings', () => {
+    const valid = bytesField(
+        2,
+        Buffer.concat([
+            bytesField(1, 'valid-key'),
+            bytesField(
+                2,
+                Buffer.concat([
+                    bytes(4, 'valid.bmp'),
+                    num(9, 1),
+                    num(10, 120),
+                    bytes(13, bytes(1, Buffer.alloc(20, 1)))
+                ])
+            )
+        ])
+    );
+    const missingFingerprint = bytesField(
+        2,
+        Buffer.concat([
+            bytesField(1, 'missing-fingerprint'),
+            bytesField(2, Buffer.concat([bytes(4, 'missing.bmp'), num(9, 1), num(10, 120)]))
+        ])
+    );
+    const invalidFingerprint = bytesField(
+        2,
+        Buffer.concat([
+            bytesField(1, 'invalid-fingerprint'),
+            bytesField(
+                2,
+                Buffer.concat([
+                    bytes(4, 'invalid.bmp'),
+                    num(9, 1),
+                    num(10, 120),
+                    bytes(13, bytes(1, Buffer.alloc(3, 1)))
+                ])
+            )
+        ])
+    );
+    const page = parseLibraryPage(
+        bytesField(1, Buffer.concat([valid, missingFingerprint, invalidFingerprint]))
+    ).unwrap();
+
+    expect(page.items).toEqual([expect.objectContaining({ mediaKey: 'valid-key', size: 120 })]);
+    expect(page.warnings).toEqual([{ code: 'ENTRY_PARSE_FAILED', count: 2 }]);
+});
+
 test('a malformed entry is counted without dropping the valid page entries', () => {
     const details = Buffer.concat([
         bytes(4, 'valid.bmp'),

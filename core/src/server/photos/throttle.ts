@@ -25,7 +25,7 @@ export interface ThrottleCoordinator {
     /** Count a server failure and return a cooldown once the failure limit is reached. */
     serverFailure: (account: string) => number | null;
     serverSuccess: (account: string) => void;
-    /** Clear the whole state only when this request started after the latest pause. */
+    /** Clear the whole state only when this request started after the latest pause, not with it. */
     success: (account: string, startedAt: number) => void;
     clear: (account?: string) => void;
 }
@@ -165,7 +165,7 @@ export function createThrottleCoordinator(random: () => number = Math.random): T
         success(account, startedAt) {
             const state = states.get(account);
             if (!state) return;
-            if (state.pausedAt > 0 && startedAt < state.pausedAt) return;
+            if (state.pausedAt > 0 && startedAt <= state.pausedAt) return;
 
             states.delete(account);
         },

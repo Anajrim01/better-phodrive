@@ -109,7 +109,8 @@ test('uploads expand folders and fail when any file fails', async () => {
                             ? {
                                   status: UploadStatus.Uploaded,
                                   mediaKey: 'key',
-                                  sha1: 'a'.repeat(40)
+                                  sha1: 'a'.repeat(40),
+                                  warnings: [{ code: 'METADATA_SAVE_FAILED' as const }]
                               }
                             : null
                 });
@@ -127,6 +128,7 @@ test('uploads expand folders and fail when any file fails', async () => {
     expect(workers).toBe(3);
     expect(uploaded.failures).toMatchObject([{ code: 'UPLOAD_INCOMPLETE' }]);
     expect(uploaded.stderr).toContain('Commit rejected');
+    expect(uploaded.stderr).toContain('could not update its metadata index');
 });
 
 test('empty folders have nothing to upload', async () => {

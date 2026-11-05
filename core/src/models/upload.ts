@@ -52,10 +52,17 @@ export enum ChunkFormat {
 
 export const ProcessingModeSchema = z.enum(ProcessingMode);
 
+export const UploadWarningCodeSchema = z.enum(['METADATA_SAVE_FAILED']);
+
+export const UploadWarningSchema = z.object({
+    code: UploadWarningCodeSchema
+});
+
 export const UploadResponseSchema = z.object({
     status: z.enum(UploadStatus),
     mediaKey: z.string().min(1),
-    sha1: Sha1HexSchema
+    sha1: Sha1HexSchema,
+    warnings: z.array(UploadWarningSchema).optional()
 });
 
 export const UploadProgressSchema = z
@@ -141,6 +148,8 @@ export type ChunkUploadRequest = z.infer<typeof UploadRequestSchema>;
 export type FileUploadRequest = z.infer<typeof FileUploadRequestSchema>;
 
 export type UploadResponse = z.infer<typeof UploadResponseSchema>;
+
+export type UploadWarning = z.infer<typeof UploadWarningSchema>;
 
 export type UploadEvent = z.infer<typeof UploadEventSchema>;
 

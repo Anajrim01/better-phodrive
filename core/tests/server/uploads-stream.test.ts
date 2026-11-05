@@ -31,11 +31,20 @@ test('a metadata save failure does not fail a completed upload', async () => {
         save,
         remove: () => Ok(undefined).andThenAsync(async () => Ok(undefined))
     };
+    const events: UploadEvent[] = [];
 
-    const uploaded = await uploadFiles(input, () => {}, harness.fetcher, metadata);
+    const uploaded = await uploadFiles(
+        input,
+        (event) => events.push(event),
+        harness.fetcher,
+        metadata
+    );
 
     expect(uploaded.isOk()).toBe(true);
     expect(save).toHaveBeenCalledOnce();
+    expect(events.find((event) => event.type === UploadEventType.FileComplete)).toMatchObject({
+        result: { warnings: [{ code: 'METADATA_SAVE_FAILED' }] }
+    });
     await input.cancel();
 });
 
