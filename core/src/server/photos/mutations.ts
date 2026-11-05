@@ -174,7 +174,7 @@ export function mutatePhotos<T extends MutationTarget>(
                         try {
                             await onApplied?.(applied);
                         } catch {
-                            failure = SERVER_ERRORS.METADATA_UNAVAILABLE;
+                            failure = SERVER_ERRORS.METADATA_REMOVE_FAILED;
                         }
 
                         if (failure) break;

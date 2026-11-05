@@ -80,7 +80,6 @@ export function groupChunks(items: UploadedChunk[]): FileGroup[] {
             if ((current.trashed ?? false) === (chunk.trashed ?? false) && current.at > chunk.at)
                 continue;
         }
-        group.at = Math.max(group.at, chunk.at);
 
         if (position === undefined) {
             // Single-chunk files need no map. Positions stay valid until the final sort.
@@ -99,6 +98,7 @@ export function groupChunks(items: UploadedChunk[]): FileGroup[] {
 
     return [...groups.values()].map(({ file: group }) => {
         group.chunks.sort((first, second) => first.chunkIndex - second.chunkIndex);
+        group.at = group.chunks.reduce((latest, chunk) => Math.max(latest, chunk.at), 0);
 
         const last = group.chunks.find((chunk) => chunk.isLast);
         group.chunkCount = last ? last.chunkIndex + 1 : null;

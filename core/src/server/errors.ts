@@ -39,6 +39,10 @@ export const SERVER_ERRORS = {
         code: 'METADATA_UNAVAILABLE',
         message: 'Library metadata is unavailable.'
     },
+    METADATA_REMOVE_FAILED: {
+        code: 'METADATA_REMOVE_FAILED',
+        message: 'The file was deleted, but its library metadata could not be removed.'
+    },
     REPEATED_LIBRARY_PAGE: {
         code: 'REPEATED_LIBRARY_PAGE',
         message: 'Google Photos repeated a library page. Refresh to try again.'

@@ -56,7 +56,7 @@ test('a metadata failure keeps the confirmed mutation and reports the failure', 
     const outcome = result.unwrap();
 
     expect(outcome.applied).toHaveLength(1);
-    expect(outcome.failure).toEqual(SERVER_ERRORS.METADATA_UNAVAILABLE);
+    expect(outcome.failure).toEqual(SERVER_ERRORS.METADATA_REMOVE_FAILED);
 });
 
 test('an aborted scope stops before any Google request', async () => {

@@ -113,7 +113,7 @@ test('partially trashed files stay in Files with their original name and folder'
 test('an active duplicate wins over a newer trashed copy of the same chunk', () => {
     const active = chunk({ mediaKey: 'active-copy', at: 1 });
     const trashed = chunk({ mediaKey: 'trashed-copy', at: 5, trashed: true });
-    const { files, trash } = partitionFileGroups([active, trashed]);
+    const { files, trash } = partitionFileGroups([trashed, active]);
 
     expect(trash).toHaveLength(0);
     expect(files).toHaveLength(1);
