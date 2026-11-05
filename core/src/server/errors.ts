@@ -39,6 +39,10 @@ export const SERVER_ERRORS = {
         code: 'METADATA_UNAVAILABLE',
         message: 'Library metadata is unavailable.'
     },
+    METADATA_SAVE_FAILED: {
+        code: 'METADATA_SAVE_FAILED',
+        message: 'Library metadata could not be saved.'
+    },
     METADATA_REMOVE_FAILED: {
         code: 'METADATA_REMOVE_FAILED',
         message: 'The file was deleted, but its library metadata could not be removed.'

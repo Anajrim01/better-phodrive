@@ -1,4 +1,5 @@
-import type { ServerError } from '../errors';
+import { Err, Ok, type AsyncResult } from 'results-ts';
+import { SERVER_ERRORS, type ServerError } from '../errors';
 
 export const THROTTLE_BASE_SECONDS = 60;
 export const THROTTLE_MAX_SECONDS = 1_800;
@@ -177,21 +178,23 @@ export function createThrottleCoordinator(random: () => number = Math.random): T
 }
 
 /** Wait for a known cooldown and report it once, so the upload UI can show a waiting state. */
-export async function waitForThrottle(
+export function waitForThrottle(
     scope: ThrottleScope,
     signal?: AbortSignal
-): Promise<boolean> {
-    const active = signal ?? scope.signal;
-    const seconds = scope.coordinator.remaining(scope.key);
-    if (seconds > 0) scope.onWait?.(seconds);
+): AsyncResult<void, ServerError> {
+    return Ok(undefined).andThenAsync(async () => {
+        const active = signal ?? scope.signal;
+        const seconds = scope.coordinator.remaining(scope.key);
+        if (seconds > 0) scope.onWait?.(seconds);
 
-    try {
-        await scope.coordinator.wait(scope.key, active);
+        try {
+            await scope.coordinator.wait(scope.key, active);
 
-        return !active?.aborted;
-    } catch {
-        return false;
-    }
+            return active?.aborted ? Err(SERVER_ERRORS.UPLOAD_CANCELLED) : Ok(undefined);
+        } catch {
+            return Err(SERVER_ERRORS.UPLOAD_CANCELLED);
+        }
+    });
 }
 
 export function parseRetryAfter(value: string | null, now = Date.now()): number | undefined {

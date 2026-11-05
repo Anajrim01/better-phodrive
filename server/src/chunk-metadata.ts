@@ -54,52 +54,68 @@ export function createChunkMetadataStore(
             });
         },
 
-        async save(records) {
-            try {
-                await db
-                    .insert(chunkMetadata)
-                    .values(
-                        records.map((item) => ({
-                            userId,
-                            googleAccountId,
-                            mediaKey: item.mediaKey,
-                            sha1: item.sha1,
-                            storedBmpSize: item.storedBmpSize,
-                            fileHash: item.fileHash,
-                            fileId: item.fileId,
-                            chunkIndex: item.chunkIndex,
-                            isLast: item.isLast,
-                            originalName: item.originalName ?? null,
-                            folder: item.folder ?? null,
-                            size: item.size
-                        }))
-                    )
-                    .onConflictDoUpdate({
-                        target: [
-                            chunkMetadata.userId,
-                            chunkMetadata.googleAccountId,
-                            chunkMetadata.mediaKey
-                        ],
-                        set: {
-                            sha1: sql`excluded.sha1`,
-                            storedBmpSize: sql`excluded.stored_bmp_size`,
-                            fileHash: sql`excluded.file_hash`,
-                            fileId: sql`excluded.file_id`,
-                            chunkIndex: sql`excluded.chunk_index`,
-                            isLast: sql`excluded.is_last`,
-                            originalName: sql`excluded.original_name`,
-                            folder: sql`excluded.folder`,
-                            size: sql`excluded.size`
-                        }
-                    });
-            } catch {}
+        save(records) {
+            return Ok(undefined).andThenAsync(async () => {
+                try {
+                    await db
+                        .insert(chunkMetadata)
+                        .values(
+                            records.map((item) => ({
+                                userId,
+                                googleAccountId,
+                                mediaKey: item.mediaKey,
+                                sha1: item.sha1,
+                                storedBmpSize: item.storedBmpSize,
+                                fileHash: item.fileHash,
+                                fileId: item.fileId,
+                                chunkIndex: item.chunkIndex,
+                                isLast: item.isLast,
+                                originalName: item.originalName ?? null,
+                                folder: item.folder ?? null,
+                                size: item.size
+                            }))
+                        )
+                        .onConflictDoUpdate({
+                            target: [
+                                chunkMetadata.userId,
+                                chunkMetadata.googleAccountId,
+                                chunkMetadata.mediaKey
+                            ],
+                            set: {
+                                sha1: sql`excluded.sha1`,
+                                storedBmpSize: sql`excluded.stored_bmp_size`,
+                                fileHash: sql`excluded.file_hash`,
+                                fileId: sql`excluded.file_id`,
+                                chunkIndex: sql`excluded.chunk_index`,
+                                isLast: sql`excluded.is_last`,
+                                originalName: sql`excluded.original_name`,
+                                folder: sql`excluded.folder`,
+                                size: sql`excluded.size`
+                            }
+                        });
+
+                    return Ok(undefined);
+                } catch {
+                    return Err(SERVER_ERRORS.METADATA_SAVE_FAILED);
+                }
+            });
         },
 
-        async remove(mediaKeys) {
-            const keys = [...new Set(mediaKeys)];
-            if (!keys.length) return;
+        remove(mediaKeys) {
+            return Ok(undefined).andThenAsync(async () => {
+                const keys = [...new Set(mediaKeys)];
+                if (!keys.length) return Ok(undefined);
 
-            await db.delete(chunkMetadata).where(and(scope, inArray(chunkMetadata.mediaKey, keys)));
+                try {
+                    await db
+                        .delete(chunkMetadata)
+                        .where(and(scope, inArray(chunkMetadata.mediaKey, keys)));
+
+                    return Ok(undefined);
+                } catch {
+                    return Err(SERVER_ERRORS.METADATA_REMOVE_FAILED);
+                }
+            });
         }
     };
 }

@@ -1,6 +1,6 @@
 import type { ServerError } from '../../errors';
 import { Ok, type Result } from 'results-ts';
-import { Sha1HexSchema } from '../../../models';
+import { Sha1HexSchema, type LibraryWarning } from '../../../models';
 import { MAX_PHOTOS_BMP_BYTES, BMP_HEADER_BYTES } from '../../bmp/index';
 import { LIBRARY_PAGE_REQUEST } from './requests';
 import {
@@ -51,27 +51,29 @@ function libraryItem(value: Buffer): Result<LibraryCandidate | null, ServerError
             )
     );
 
-    return parsed.andThen(({ item, details, visible }) =>
-        libraryMetadata(item, details).map(({ fingerprint, size, at, mediaKey }) => {
-            const sha1 = fingerprint.toString('hex');
-            if (
-                !Sha1HexSchema.safeParse(sha1).success ||
-                !mediaKey ||
-                !Number.isSafeInteger(at) ||
-                size < BMP_HEADER_BYTES ||
-                size > MAX_PHOTOS_BMP_BYTES
-            )
-                return null;
+    return parsed.andThen(({ item, details, visible }) => {
+        const metadata = libraryMetadata(item, details);
+        if (metadata.isErr()) return Ok(null);
 
-            return {
-                size,
-                at,
-                mediaKey,
-                sha1,
-                ...(visible ? {} : { trashed: true })
-            };
-        })
-    );
+        const { fingerprint, size, at, mediaKey } = metadata.unwrap();
+        const sha1 = fingerprint.toString('hex');
+        if (
+            !Sha1HexSchema.safeParse(sha1).success ||
+            !mediaKey ||
+            !Number.isSafeInteger(at) ||
+            size < BMP_HEADER_BYTES ||
+            size > MAX_PHOTOS_BMP_BYTES
+        )
+            return Ok(null);
+
+        return Ok({
+            size,
+            at,
+            mediaKey,
+            sha1,
+            ...(visible ? {} : { trashed: true })
+        });
+    });
 }
 
 function visibleInLibrary(details: Field[]): Result<boolean, ServerError> {
@@ -102,29 +104,38 @@ function libraryMetadata(
 
 export function parseLibraryPage(
     data: Buffer
-): Result<{ items: LibraryCandidate[]; nextPageToken: string }, ServerError> {
+): Result<
+    { items: LibraryCandidate[]; nextPageToken: string; warnings: LibraryWarning[] },
+    ServerError
+> {
     return parse(data)
         .andThen((fields) => bytes(fields, 1))
         .andThen(parse)
         .map((fields) => {
             const items: LibraryCandidate[] = [];
+            const failures: ServerError[] = [];
+
             for (const entry of fields) {
                 if (entry.number !== 2 || typeof entry.value === 'number') continue;
 
-                const value = entry.value;
-
-                const parsed = libraryItem(value);
-                parsed.inspect((item) => {
-                    if (item) items.push(item);
+                libraryItem(entry.value).match({
+                    Ok: (item) => {
+                        if (item) items.push(item);
+                    },
+                    Err: (error) => failures.push(error)
                 });
             }
 
             const next = optional(fields, 1);
+            const warnings: LibraryWarning[] = failures.length
+                ? [{ code: 'ENTRY_PARSE_FAILED', count: failures.length }]
+                : [];
 
             return {
                 items,
                 nextPageToken:
-                    next && typeof next.value !== 'number' ? next.value.toString('base64url') : ''
+                    next && typeof next.value !== 'number' ? next.value.toString('base64url') : '',
+                warnings
             };
         });
 }

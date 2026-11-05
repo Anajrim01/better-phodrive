@@ -40,13 +40,13 @@ function bmpRequest(bmp: Uint8Array, metadata = uploadForm(PAYLOAD).metadata) {
 }
 
 function metadataStore(): ChunkMetadataStore & { save: ReturnType<typeof vi.fn> } {
-    const save = vi.fn(async () => {});
+    const save = vi.fn(() => Ok(undefined).andThenAsync(async () => Ok(undefined)));
 
     return {
         load: () =>
             Ok(new Map<string, ChunkMetadataRecord>()).andThenAsync(async (value) => Ok(value)),
         save,
-        remove: async () => {}
+        remove: () => Ok(undefined).andThenAsync(async () => Ok(undefined))
     };
 }
 

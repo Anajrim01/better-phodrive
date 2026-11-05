@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from 'vitest';
-import { Ok } from 'results-ts';
+import { Err, Ok } from 'results-ts';
 import { UploadEventType, UploadStatus, type UploadEvent } from '@madkarmaa/phodrive-core/models';
 import { receiveUpload } from '@madkarmaa/phodrive-core/server/upload/input';
 import { encodeUploadBmp } from '@madkarmaa/phodrive-core/server/upload/bmp';
@@ -17,6 +17,27 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 });
 
 afterEach(() => vi.restoreAllMocks());
+
+test('a metadata save failure does not fail a completed upload', async () => {
+    const fixture = uploadForm();
+    const received = await receiveUpload(fixture.request(), TEST_ACCOUNT);
+    const input = received.unwrap();
+    const harness = photosUploadHarness();
+    const save = vi.fn(() =>
+        Ok(undefined).andThenAsync(async () => Err(SERVER_ERRORS.METADATA_SAVE_FAILED))
+    );
+    const metadata = {
+        load: () => Ok(new Map()).andThenAsync(async (value) => Ok(value)),
+        save,
+        remove: () => Ok(undefined).andThenAsync(async () => Ok(undefined))
+    };
+
+    const uploaded = await uploadFiles(input, () => {}, harness.fetcher, metadata);
+
+    expect(uploaded.isOk()).toBe(true);
+    expect(save).toHaveBeenCalledOnce();
+    await input.cancel();
+});
 
 test('multipart ingestion and BMP transfer stream without allocating files on disk', async () => {
     const fixture = uploadForm();
@@ -79,11 +100,13 @@ test('retry resolves an uncertain commit by hash lookup without a second transfe
     const received = await receiveUpload(fixture.request(), TEST_ACCOUNT);
     const input = received.unwrap();
     const harness = photosUploadHarness({ failCommit: true });
-    const save = vi.fn(async (_records: readonly ChunkMetadataRecord[]) => {});
+    const save = vi.fn((_records: readonly ChunkMetadataRecord[]) =>
+        Ok(undefined).andThenAsync(async () => Ok(undefined))
+    );
     const metadata = {
         load: () => Ok(new Map()).andThenAsync(async (value) => Ok(value)),
         save,
-        remove: async () => {}
+        remove: () => Ok(undefined).andThenAsync(async () => Ok(undefined))
     };
 
     const failed = await uploadFiles(input, () => {}, harness.fetcher, metadata);

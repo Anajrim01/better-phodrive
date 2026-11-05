@@ -104,7 +104,10 @@ function uploadSpooledFile(
             { signal, fetcher, accountId, coordinator, folder }
         );
 
-        if (metadata && records.length) await metadata.save(records);
+        if (metadata && records.length) {
+            // Metadata is a cache; a failed save must not change a confirmed upload.
+            (await metadata.save(records)).inspectErr(() => {});
+        }
 
         return uploaded;
     });

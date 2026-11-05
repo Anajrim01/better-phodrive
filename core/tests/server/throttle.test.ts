@@ -2,7 +2,8 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import {
     createThrottleCoordinator,
     parseRetryAfter,
-    THROTTLE_MAX_SECONDS
+    THROTTLE_MAX_SECONDS,
+    waitForThrottle
 } from '@madkarmaa/phodrive-core/server/photos/throttle';
 
 beforeEach(() => {
@@ -106,6 +107,19 @@ test('cancelling one account wait leaves another account cooldown intact', async
     const other = throttle.wait('account-b');
     await vi.advanceTimersByTimeAsync(60_000);
     await other;
+});
+
+test('waitForThrottle returns a typed cancellation instead of a boolean', async () => {
+    const coordinator = createThrottleCoordinator(() => 0);
+    coordinator.pause('account-a', 60);
+    const controller = new AbortController();
+    const waiting = waitForThrottle({ key: 'account-a', coordinator }, controller.signal);
+    controller.abort();
+
+    expect((await waiting).unwrapErr()).toEqual({
+        code: 'UPLOAD_CANCELLED',
+        message: 'Upload cancelled.'
+    });
 });
 
 test('three consecutive server failures start bounded exponential backoff', async () => {

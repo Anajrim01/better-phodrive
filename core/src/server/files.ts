@@ -86,10 +86,8 @@ function mutateFile(
             valid.unwrap(),
             scope,
             fetcher,
-            kind === 'delete'
-                ? async (applied) => {
-                      await metadata?.remove(applied.map((chunk) => chunk.mediaKey));
-                  }
+            kind === 'delete' && metadata
+                ? (applied) => metadata.remove(applied.map((chunk) => chunk.mediaKey))
                 : undefined
         );
 

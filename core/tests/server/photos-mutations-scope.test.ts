@@ -1,4 +1,5 @@
 import { expect, test, vi } from 'vitest';
+import { Err, Ok } from 'results-ts';
 import { SERVER_ERRORS } from '@madkarmaa/phodrive-core/server/errors';
 import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
 import {
@@ -50,9 +51,9 @@ test('a metadata failure keeps the confirmed mutation and reports the failure', 
         () => new Response(Uint8Array.from(confirmedBody(targets.map((target) => target.mediaKey))))
     );
 
-    const result = await mutatePhotos('delete', ACCOUNT, targets, scope(), fetcher, async () => {
-        throw new Error('metadata unavailable');
-    });
+    const result = await mutatePhotos('delete', ACCOUNT, targets, scope(), fetcher, () =>
+        Ok(undefined).andThenAsync(async () => Err(SERVER_ERRORS.METADATA_REMOVE_FAILED))
+    );
     const outcome = result.unwrap();
 
     expect(outcome.applied).toHaveLength(1);

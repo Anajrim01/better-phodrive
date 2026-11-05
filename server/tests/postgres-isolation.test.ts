@@ -135,9 +135,11 @@ describeDatabase('authenticated Google accounts and groups', () => {
             size: 60
         });
 
-        await firstStore.save([record('first-file')]);
-        await secondStore.save([record('second-file', 'Projects/2026')]);
-        await thirdStore.save([record('third-file')]);
+        expect((await firstStore.save([record('first-file')])).isOk()).toBe(true);
+        expect((await secondStore.save([record('second-file', 'Projects/2026')])).isOk()).toBe(
+            true
+        );
+        expect((await thirdStore.save([record('third-file')])).isOk()).toBe(true);
 
         const candidate = { mediaKey: 'shared-media', sha1: '1'.repeat(40), size: 120, at: 1 };
         expect((await firstStore.load([candidate])).unwrap().get('shared-media')).toMatchObject({
@@ -258,8 +260,8 @@ describeDatabase('authenticated Google accounts and groups', () => {
         });
         const candidate = { mediaKey: 'shared-media', sha1: '1'.repeat(40), size: 120, at: 1 };
 
-        await firstStore.save([record('first-file')]);
-        await secondStore.save([record('second-file')]);
+        expect((await firstStore.save([record('first-file')])).isOk()).toBe(true);
+        expect((await secondStore.save([record('second-file')])).isOk()).toBe(true);
         const freshFirst = createChunkMetadataStore(db, {
             userId,
             googleAccountId: first.id
@@ -271,7 +273,7 @@ describeDatabase('authenticated Google accounts and groups', () => {
         expect((await freshFirst.load([candidate])).unwrap().size).toBe(1);
         expect((await freshSecond.load([candidate])).unwrap().size).toBe(1);
 
-        await firstStore.remove(['shared-media']);
+        expect((await firstStore.remove(['shared-media'])).isOk()).toBe(true);
 
         const afterRemove = createChunkMetadataStore(db, {
             userId,

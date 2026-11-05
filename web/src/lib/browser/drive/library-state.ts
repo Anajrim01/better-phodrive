@@ -1,4 +1,4 @@
-import type { GoogleAccountSummary } from '@madkarmaa/phodrive-core/models';
+import type { GoogleAccountSummary, LibraryWarning } from '@madkarmaa/phodrive-core/models';
 import type { UploadedChunk } from '@madkarmaa/phodrive-core/files';
 import type { DriveContext } from '#browser/drive/context.svelte';
 
@@ -77,4 +77,16 @@ export function failureMessage(
     return members.length > 1
         ? `Could not load ${first.account.email}: ${first.message}`
         : first.message;
+}
+
+/** Metadata and parse failures degrade the index, not the already-valid Google results. */
+export function warningMessage(warnings: readonly LibraryWarning[]): string | null {
+    const codes = new Set(warnings.map((warning) => warning.code));
+    if (codes.has('METADATA_SAVE_FAILED'))
+        return 'Files loaded, but Phodrive could not update its metadata index.';
+    if (codes.has('METADATA_LOAD_FAILED'))
+        return 'Files loaded, but library metadata was unavailable.';
+    if (codes.has('ENTRY_PARSE_FAILED')) return 'Some Google Photos items could not be read.';
+
+    return null;
 }

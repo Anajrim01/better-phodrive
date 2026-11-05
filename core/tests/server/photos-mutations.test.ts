@@ -1,4 +1,5 @@
 import { expect, test, vi } from 'vitest';
+import { Ok } from 'results-ts';
 import { SERVER_ERRORS } from '@madkarmaa/phodrive-core/server/errors';
 import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
 import {
@@ -239,6 +240,8 @@ test('a later failed batch keeps the first confirmed 500 targets', async () => {
     const applied: MutationTarget[] = [];
     const onApplied = vi.fn((batch: readonly MutationTarget[]) => {
         applied.push(...batch);
+
+        return Ok(undefined).andThenAsync(async () => Ok(undefined));
     });
     const { fetcher, mutations } = respondingFetcher((index) => {
         if (index === 1) return new Response(null, { status: 500 });

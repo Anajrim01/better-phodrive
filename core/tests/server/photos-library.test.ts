@@ -1,6 +1,12 @@
 import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
 import { listBmps } from '@madkarmaa/phodrive-core/server/photos';
+import type {
+    ChunkMetadataRecord,
+    ChunkMetadataStore
+} from '@madkarmaa/phodrive-core/server/photos';
 import { parseLibraryPage } from '@madkarmaa/phodrive-core/server/photos/library/metadata';
+import { createThrottleCoordinator } from '@madkarmaa/phodrive-core/server/photos/throttle';
+import { Ok } from 'results-ts';
 import { expect, test } from 'vitest';
 import { AUTH_URL, EMAIL, FILE_HASH, fingerprint, libraryFixture, TOKEN } from '../helpers/library';
 import { authResponse, bytes, num } from '../helpers/protobuf';
@@ -107,4 +113,71 @@ test('library lookahead propagates failures and rejects repeated continuation to
 
     expect(failed.unwrapErr().message).toBe('Library list failed (HTTP 503)');
     expect(libraryCalls).toBe(2);
+});
+
+test('lookahead warnings are relayed with the current page', async () => {
+    const sha1 = Buffer.alloc(20, 1).toString('hex');
+    const details = Buffer.concat([
+        bytes(4, 'lookahead.bin'),
+        num(9, 1),
+        num(10, 120),
+        bytes(13, bytes(1, Buffer.alloc(20, 1)))
+    ]);
+    const item = bytes(2, Buffer.concat([bytes(1, 'lookahead-item'), bytes(2, details)]));
+    const firstPage = bytes(1, Buffer.concat([bytes(1, 'next-page'), item]));
+    const malformed = bytes(1, bytes(2, Buffer.from([0x0a, 0x05, 0x41])));
+    const record: ChunkMetadataRecord = {
+        mediaKey: 'lookahead-item',
+        sha1,
+        storedBmpSize: 120,
+        fileHash: FILE_HASH,
+        fileId: FILE_HASH,
+        chunkIndex: 0,
+        isLast: true,
+        originalName: 'lookahead.bin',
+        size: 4
+    };
+    const metadata: ChunkMetadataStore = {
+        load: () =>
+            Ok(new Map([['lookahead-item', record]])).andThenAsync(async (rows) => Ok(rows)),
+        save: () => Ok(undefined).andThenAsync(async () => Ok(undefined)),
+        remove: () => Ok(undefined).andThenAsync(async () => Ok(undefined))
+    };
+    let libraryCalls = 0;
+    const fetcher: Fetcher = async (input) => {
+        if (String(input).includes(AUTH_URL)) return authResponse();
+
+        libraryCalls++;
+
+        return new Response(Uint8Array.from(libraryCalls === 1 ? firstPage : malformed));
+    };
+
+    const result = await listBmps(EMAIL, TOKEN, '', fetcher, metadata);
+
+    expect(result.unwrap().items).toHaveLength(1);
+    expect(result.unwrap().warnings).toContainEqual({
+        code: 'ENTRY_PARSE_FAILED',
+        count: 1
+    });
+});
+
+test('library listing uses the account throttle for 429 responses', async () => {
+    const coordinator = createThrottleCoordinator(() => 0);
+    let libraryCalls = 0;
+    const fetcher: Fetcher = async (input) => {
+        if (String(input).includes(AUTH_URL)) return authResponse();
+
+        libraryCalls++;
+
+        return new Response(null, { status: 429, headers: { 'retry-after': '120' } });
+    };
+    const result = await listBmps(EMAIL, TOKEN, '', fetcher, undefined, {
+        key: 'account-a',
+        coordinator
+    });
+
+    expect(result.unwrapErr()).toMatchObject({ code: 'THROTTLED', retryAfterSeconds: 120 });
+    expect(libraryCalls).toBe(1);
+    expect(coordinator.remaining('account-a')).toBeGreaterThan(0);
+    expect(coordinator.remaining('account-b')).toBe(0);
 });

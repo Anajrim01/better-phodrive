@@ -98,23 +98,28 @@ export function uploadFiles(
 
         if (uploaded.isOk() && metadata) {
             const result = uploaded.unwrap();
-            await metadata.save([
-                chunkMetadataRecord(
-                    {
-                        fileHash: input.header.fileHash,
-                        fileId: input.header.fileId,
-                        chunkIndex: input.header.chunkIndex,
-                        isLast: input.header.flags === 1,
-                        ...(input.header.fileName ? { originalName: input.header.fileName } : {}),
-                        size: input.header.payloadSize,
-                        at: Date.now(),
-                        mediaKey: result.mediaKey,
-                        sha1: result.sha1,
-                        ...(input.header.folder ? { folder: input.header.folder } : {})
-                    },
-                    input.bmp.totalSize
-                )
-            ]);
+            // Metadata is a cache; a failed save must not change a confirmed upload.
+            (
+                await metadata.save([
+                    chunkMetadataRecord(
+                        {
+                            fileHash: input.header.fileHash,
+                            fileId: input.header.fileId,
+                            chunkIndex: input.header.chunkIndex,
+                            isLast: input.header.flags === 1,
+                            ...(input.header.fileName
+                                ? { originalName: input.header.fileName }
+                                : {}),
+                            size: input.header.payloadSize,
+                            at: Date.now(),
+                            mediaKey: result.mediaKey,
+                            sha1: result.sha1,
+                            ...(input.header.folder ? { folder: input.header.folder } : {})
+                        },
+                        input.bmp.totalSize
+                    )
+                ])
+            ).inspectErr(() => {});
         }
 
         return uploaded.map((result) => {

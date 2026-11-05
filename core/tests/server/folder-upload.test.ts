@@ -49,10 +49,12 @@ function savedRecord(): {
         records,
         store: {
             load: () => Ok(new Map()).andThenAsync(async (value) => Ok(value)),
-            save: async (next) => {
+            save: (next) => {
                 records.push(...next);
+
+                return Ok(undefined).andThenAsync(async () => Ok(undefined));
             },
-            remove: async () => {}
+            remove: () => Ok(undefined).andThenAsync(async () => Ok(undefined))
         }
     };
 }

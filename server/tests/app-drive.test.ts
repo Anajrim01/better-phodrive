@@ -74,7 +74,7 @@ test('drive routes refuse signed-out requests before contacting Google', async (
 });
 
 test('the library uses the stored account and ignores credentials sent by the client', async () => {
-    vi.mocked(listBmps).mockReturnValue(resolved({ items: [], nextPageToken: '' }));
+    vi.mocked(listBmps).mockReturnValue(resolved({ items: [], nextPageToken: '', warnings: [] }));
 
     const response = await postJson('/api/library', {
         email: 'other@example.com',
@@ -90,12 +90,31 @@ test('the library uses the stored account and ignores credentials sent by the cl
         ACCOUNT.token,
         'next',
         undefined,
-        expect.anything()
+        expect.anything(),
+        expect.objectContaining({ key: ACCOUNT.id })
     );
 });
 
+test('library warnings are relayed without failing the page', async () => {
+    vi.mocked(listBmps).mockReturnValue(
+        resolved({
+            items: [],
+            nextPageToken: '',
+            warnings: [{ code: 'METADATA_SAVE_FAILED' }]
+        })
+    );
+
+    const response = await postJson('/api/library', { pageToken: '' });
+    const body = (await response.json()) as {
+        warnings?: Array<{ code: string }>;
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.warnings).toEqual([{ code: 'METADATA_SAVE_FAILED' }]);
+});
+
 test('a drive request selects a Google account by its stable id', async () => {
-    vi.mocked(listBmps).mockReturnValue(resolved({ items: [], nextPageToken: '' }));
+    vi.mocked(listBmps).mockReturnValue(resolved({ items: [], nextPageToken: '', warnings: [] }));
 
     const response = await call('/api/library', {
         method: 'POST',
@@ -142,7 +161,8 @@ test('library items carry the stable account id', async () => {
                     sha1: 'c'.repeat(40)
                 }
             ],
-            nextPageToken: ''
+            nextPageToken: '',
+            warnings: []
         })
     );
 
