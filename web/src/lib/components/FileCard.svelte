@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { Card } from 'noph-ui';
+    import { Card, Button } from 'noph-ui';
     import type { FileActionKind } from '@madkarmaa/phodrive-core/models';
 
     import type { FileGroup } from '@madkarmaa/phodrive-core/files';
@@ -14,9 +14,10 @@
         working: FileActionKind | null;
         ondownload: (item: FileGroup) => void;
         ondelete: (item: FileGroup) => void;
+        onrestoretrashed?: (item: FileGroup) => void;
     }
 
-    let { item, disabled, working, ondownload, ondelete }: Props = $props();
+    let { item, disabled, working, ondownload, ondelete, onrestoretrashed }: Props = $props();
 </script>
 
 <Card type="text" variant="filled" class="file-card">
@@ -43,9 +44,19 @@
     </div>
 
     {#if item.trashedChunks?.length}
-        <p class="m-0 px-3 pb-2 text-xs text-muted">
-            {item.trashedChunks.length} of {item.chunkCount ?? '?'} chunks in Trash
-        </p>
+        <div class="flex flex-wrap items-center gap-2 px-3 pb-2 text-xs text-muted">
+            <span>{item.trashedChunks.length} of {item.chunkCount ?? '?'} chunks in Trash</span>
+            {#if onrestoretrashed}
+                <Button
+                    variant="text"
+                    size="xs"
+                    {disabled}
+                    onclick={() => onrestoretrashed?.(item)}
+                >
+                    Restore
+                </Button>
+            {/if}
+        </div>
     {:else if !item.complete}
         <p class="m-0 px-3 pb-2 text-xs text-muted">
             {item.chunks.length}/{item.chunkCount ?? '?'} chunks

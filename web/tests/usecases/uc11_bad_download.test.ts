@@ -6,7 +6,7 @@ import { bmpResponse, downloadFixture } from '../../../core/tests/helpers/downlo
 
 vi.mock('@madkarmaa/phodrive-core/server/photos', () => ({
     downloadBmp: vi.fn(),
-    moveToTrash: vi.fn()
+    mutatePhotos: vi.fn()
 }));
 afterEach(() => vi.clearAllMocks());
 

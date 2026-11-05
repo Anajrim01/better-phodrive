@@ -149,6 +149,20 @@ test('permanent delete confirmation acts on the Trash copy', async () => {
     expect(drive.library.trashFiles).toEqual([]);
 });
 
+test('restoring trashed siblings recovers a partial file in place', async () => {
+    const drive = driveWith([remoteChunk({ trashed: true }), lastChunk()]);
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => actionResponse(init));
+    const partial = drive.library.files[0]!;
+    if (!partial.trashedChunks?.length) throw new Error('Expected trashed siblings');
+
+    await drive.actOnFile({ ...partial, chunks: partial.trashedChunks }, FileActionKind.Restore);
+
+    expect(drive.library.trashFiles).toHaveLength(0);
+    expect(drive.library.files).toHaveLength(1);
+    expect(drive.library.files[0]?.complete).toBe(true);
+    expect(drive.library.files[0]?.chunks).toHaveLength(2);
+});
+
 test('a partial-trash file stays in Files and is not downloadable', () => {
     const drive = driveWith([remoteChunk({ trashed: true }), lastChunk()]);
     const partial = drive.library.files[0]!;

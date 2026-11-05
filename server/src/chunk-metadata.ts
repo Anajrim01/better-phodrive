@@ -99,11 +99,7 @@ export function createChunkMetadataStore(
             const keys = [...new Set(mediaKeys)];
             if (!keys.length) return;
 
-            try {
-                await db
-                    .delete(chunkMetadata)
-                    .where(and(scope, inArray(chunkMetadata.mediaKey, keys)));
-            } catch {}
+            await db.delete(chunkMetadata).where(and(scope, inArray(chunkMetadata.mediaKey, keys)));
         }
     };
 }

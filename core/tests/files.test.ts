@@ -110,6 +110,39 @@ test('partially trashed files stay in Files with their original name and folder'
     expect(files[0]?.trashedChunks?.map((item) => item.mediaKey)).toEqual(['media-one']);
 });
 
+test('an active duplicate wins over a newer trashed copy of the same chunk', () => {
+    const active = chunk({ mediaKey: 'active-copy', at: 1 });
+    const trashed = chunk({ mediaKey: 'trashed-copy', at: 5, trashed: true });
+    const { files, trash } = partitionFileGroups([active, trashed]);
+
+    expect(trash).toHaveLength(0);
+    expect(files).toHaveLength(1);
+    expect(files[0]?.complete).toBe(true);
+    expect(files[0]?.at).toBe(1);
+    expect(files[0]?.chunks[0]?.mediaKey).toBe('active-copy');
+    expect(files[0]?.chunks[0]?.trashed).toBeUndefined();
+});
+
+test('an active duplicate wins even when it is newer than the trashed copy', () => {
+    const trashed = chunk({ mediaKey: 'trashed-copy', at: 1, trashed: true });
+    const active = chunk({ mediaKey: 'active-copy', at: 5 });
+    const { files, trash } = partitionFileGroups([trashed, active]);
+
+    expect(trash).toHaveLength(0);
+    expect(files).toHaveLength(1);
+    expect(files[0]?.chunks[0]?.mediaKey).toBe('active-copy');
+});
+
+test('two trashed duplicates keep the newest copy', () => {
+    const older = chunk({ mediaKey: 'older-copy', at: 1, trashed: true });
+    const newer = chunk({ mediaKey: 'newer-copy', at: 5, trashed: true });
+    const { files, trash } = partitionFileGroups([older, newer]);
+
+    expect(files).toHaveLength(0);
+    expect(trash).toHaveLength(1);
+    expect(trash[0]?.chunks[0]?.mediaKey).toBe('newer-copy');
+});
+
 test('the same file id on two accounts partitions by owner', () => {
     const active = chunk();
     const trashed = chunk({

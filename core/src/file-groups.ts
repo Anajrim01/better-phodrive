@@ -75,8 +75,12 @@ export function groupChunks(items: UploadedChunk[]): FileGroup[] {
         }
 
         const current = position === undefined ? undefined : group.chunks[position];
+        if (current) {
+            if (!current.trashed && chunk.trashed) continue;
+            if ((current.trashed ?? false) === (chunk.trashed ?? false) && current.at > chunk.at)
+                continue;
+        }
         group.at = Math.max(group.at, chunk.at);
-        if (current && current.at > chunk.at) continue;
 
         if (position === undefined) {
             // Single-chunk files need no map. Positions stay valid until the final sort.

@@ -19,7 +19,7 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 });
 vi.mock('@madkarmaa/phodrive-core/server/photos', () => ({
     downloadBmp: vi.fn(),
-    moveToTrash: vi.fn()
+    mutatePhotos: vi.fn()
 }));
 afterEach(() => vi.clearAllMocks());
 

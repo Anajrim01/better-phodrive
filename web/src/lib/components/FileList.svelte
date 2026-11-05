@@ -1,5 +1,6 @@
 <script lang="ts">
     import prettyBytes from 'pretty-bytes';
+    import { Button } from 'noph-ui';
     import { FileSort } from '@madkarmaa/phodrive-core/models';
     import { fileKey, type FileGroup, type FileAction } from '@madkarmaa/phodrive-core/files';
     import LocalizedDate from '#components/LocalizedDate.svelte';
@@ -18,6 +19,7 @@
         trash?: boolean;
         ondownload?: (item: FileGroup) => void;
         ondelete?: (item: FileGroup) => void;
+        onrestoretrashed?: (item: FileGroup) => void;
         onrestore?: (item: FileGroup) => void;
         ondeleteforever?: (item: FileGroup) => void;
     }
@@ -33,6 +35,7 @@
         trash = false,
         ondownload,
         ondelete,
+        onrestoretrashed,
         onrestore,
         ondeleteforever
     }: Props = $props();
@@ -101,10 +104,22 @@
                                 >
                             {/if}
                             {#if !trash && item.trashedChunks?.length}
-                                <span class="text-xs text-muted"
-                                    >{item.trashedChunks.length} of {item.chunkCount ?? '?'} chunks in
-                                    Trash</span
-                                >
+                                <span class="flex flex-wrap items-center gap-2 text-xs text-muted">
+                                    <span
+                                        >{item.trashedChunks.length} of {item.chunkCount ?? '?'} chunks
+                                        in Trash</span
+                                    >
+                                    {#if onrestoretrashed}
+                                        <Button
+                                            variant="text"
+                                            size="xs"
+                                            {disabled}
+                                            onclick={() => onrestoretrashed?.(item)}
+                                        >
+                                            Restore
+                                        </Button>
+                                    {/if}
+                                </span>
                             {:else if !item.complete}
                                 <span class="text-xs text-muted"
                                     >{item.chunks.length}/{item.chunkCount ?? '?'} chunks</span
