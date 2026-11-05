@@ -93,6 +93,13 @@ export function createChunkMetadataStore(
                         }
                     });
             } catch {}
+        },
+
+        async remove(mediaKeys) {
+            const keys = [...new Set(mediaKeys)];
+            if (!keys.length) return;
+
+            await db.delete(chunkMetadata).where(and(scope, inArray(chunkMetadata.mediaKey, keys)));
         }
     };
 }

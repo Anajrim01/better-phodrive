@@ -140,7 +140,6 @@ test('download rejects a mismatched file identity before fetching any BMP bytes'
         name: 'first.bin',
         fileHash,
         fileId: requestedFileId,
-        workers: 1,
         chunks: [
             {
                 fileHash,

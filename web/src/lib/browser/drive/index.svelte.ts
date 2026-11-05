@@ -7,7 +7,7 @@ import {
     type GoogleAccountSummary,
     type PreferencesDefaults
 } from '@madkarmaa/phodrive-core/models';
-import { fileKey, type FileAction, type FileGroup } from '@madkarmaa/phodrive-core/files';
+import { type FileAction, type FileGroup } from '@madkarmaa/phodrive-core/files';
 import { useAutomaticRefresh } from '#browser/drive/refresh.svelte';
 import { DriveAccount } from '#browser/drive/account.svelte';
 import { DriveContextState } from '#browser/drive/context.svelte';
@@ -17,10 +17,12 @@ import {
     type DriveContextSelection
 } from '#browser/storage';
 import { createUploadJobs, type UploadJob } from '#browser/files';
-import { downloadAndSave, trashFile, uploadBatch } from '#browser/drive/actions';
+import { confirmedFile, performFileAction } from '#browser/drive/file-actions';
+import { runUploadQueue } from '#browser/drive/upload-queue';
+import { retryTarget } from '#browser/drive/upload-retry';
 import { DriveLibrary } from '#browser/drive/library.svelte';
 import { DriveSettings } from '#browser/drive/settings.svelte';
-import { failUnfinishedJobs, replaceJob, unchangedFile } from '#browser/drive/chunks';
+import { failUnfinishedJobs, replaceJob } from '#browser/drive/chunks';
 import { planUploads, type UploadQueue } from '#browser/drive/upload-plan';
 
 /** The signed-in user's drive; their Google account and token stay on the server. */
@@ -41,6 +43,7 @@ export class DriveController {
     accountMenuOpen = $state(false);
     confirmOpen = $state(false);
     confirmTarget = $state<FileGroup | null>(null);
+    confirmPermanent = $state(false);
 
     readonly context: DriveContextState;
     readonly library: DriveLibrary;
@@ -127,20 +130,37 @@ export class DriveController {
         await this.library.load();
     }
 
+    requestDelete(item: FileGroup) {
+        this.confirmPermanent = false;
+        this.confirmTarget = item;
+        this.confirmOpen = true;
+    }
+
+    requestDeleteForever(item: FileGroup) {
+        this.confirmPermanent = true;
+        this.confirmTarget = item;
+        this.confirmOpen = true;
+    }
+
     confirmAction() {
         const item = this.confirmTarget;
+        const permanent = this.confirmPermanent;
         this.confirmOpen = false;
         this.confirmTarget = null;
+        this.confirmPermanent = false;
         if (!item) return;
 
-        const current = this.library.files.find((file) => fileKey(file) === fileKey(item));
-        if (!unchangedFile(current, item)) {
-            this.feedbackMessage = 'The file changed. Review its current chunks before deleting.';
+        const current = confirmedFile(this.library, item, permanent);
+        if (!current) {
+            this.feedbackMessage = 'The file changed. Review its current chunks before continuing.';
 
             return;
         }
 
-        void this.actOnFile(current, FileActionKind.Delete);
+        void this.actOnFile(
+            current,
+            permanent ? FileActionKind.DeleteForever : FileActionKind.Delete
+        );
     }
 
     async actOnFile(item: FileGroup, action: FileActionKind) {
@@ -149,16 +169,14 @@ export class DriveController {
         this.fileAction = { fileId: item.fileId, kind: action };
         this.feedbackMessage = '';
 
-        const deleting = action === FileActionKind.Delete;
-        const done = deleting
-            ? await trashFile(this.library, item, this.settings.concurrentWorkers)
-            : await downloadAndSave(item, this.processing);
-
-        done.inspectErr((error) => {
-            this.feedbackMessage = error.message;
+        const message = await performFileAction(item, action, {
+            library: this.library,
+            processing: this.processing
         });
+        if (message) this.feedbackMessage = message;
+        if (action === FileActionKind.Delete || action === FileActionKind.DeleteForever)
+            this.uploadPanelOpen = false;
 
-        if (deleting) this.uploadPanelOpen = false;
         this.fileAction = null;
     }
 
@@ -204,35 +222,32 @@ export class DriveController {
     async retryUpload(id: number) {
         if (this.working || this.library.loading) return;
 
-        const job = this.uploadJobs.find((current) => current.id === id);
-        const file = this.uploadSources[id];
-        if (!job || job.status !== UploadJobStatus.Error || job.retryable === false || !file)
-            return;
-
-        const recorded = this.uploadOwners.get(id);
-        if (!recorded) {
-            this.feedbackMessage = 'This upload has no assigned account.';
-
-            return;
-        }
-        if (!this.uploadFolders.has(id)) {
-            this.feedbackMessage = 'This upload has no recorded folder.';
-
-            return;
-        }
-        const folder = this.uploadFolders.get(id)!;
-
-        const owner = this.context.accounts.find((account) => account.id === recorded.id);
-        if (!owner) {
-            this.feedbackMessage = 'The Google account for this upload is no longer connected.';
+        const target = retryTarget({
+            jobs: this.uploadJobs,
+            sources: this.uploadSources,
+            owners: this.uploadOwners,
+            folders: this.uploadFolders,
+            accounts: this.context.accounts,
+            id
+        });
+        if (!target) return;
+        if (typeof target === 'string') {
+            this.feedbackMessage = target;
 
             return;
         }
 
-        this.uploadJobs = replaceJob(this.uploadJobs, id, createUploadJobs([file])[0]);
+        this.uploadJobs = replaceJob(this.uploadJobs, id, createUploadJobs([target.file])[0]);
 
         await this.runUploads(
-            [{ account: owner, files: [file], jobIds: [id], folders: [folder] }],
+            [
+                {
+                    account: target.owner,
+                    files: [target.file],
+                    jobIds: [id],
+                    folders: [target.folder]
+                }
+            ],
             id
         );
     }
@@ -247,33 +262,25 @@ export class DriveController {
 
         try {
             await Promise.all(
-                queues.map(async (queue) => {
-                    const uploaded = await uploadBatch({
-                        files: queue.files,
-                        account: queue.account,
+                queues.map((queue) =>
+                    runUploadQueue({
+                        queue,
                         workers: this.settings.concurrentWorkers,
                         processing: this.processing,
                         library: this.library,
-                        jobIds: queue.jobIds,
-                        folders: queue.folders,
                         retryId,
                         signal: controller.signal,
                         onJob: (job, id) => {
                             this.uploadJobs = replaceJob(this.uploadJobs, id, job);
                             if (job.status === UploadJobStatus.Error)
                                 this.feedbackMessage = job.message;
+                        },
+                        onError: (message, jobIds) => {
+                            this.feedbackMessage = message;
+                            this.uploadJobs = failUnfinishedJobs(this.uploadJobs, message, jobIds);
                         }
-                    });
-
-                    uploaded.inspectErr((error) => {
-                        this.feedbackMessage = error.message;
-                        this.uploadJobs = failUnfinishedJobs(
-                            this.uploadJobs,
-                            error.message,
-                            queue.jobIds
-                        );
-                    });
-                })
+                    })
+                )
             );
 
             if (controller.signal.aborted)

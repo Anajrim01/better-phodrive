@@ -6,8 +6,16 @@ import {
     LibraryPageRequestSchema,
     ProcessingMode
 } from '@madkarmaa/phodrive-core/models';
-import { deleteFile, downloadFile } from '@madkarmaa/phodrive-core/server/files';
+import {
+    deleteFile,
+    deleteForeverFile,
+    downloadFile,
+    restoreFile
+} from '@madkarmaa/phodrive-core/server/files';
 import { downloadBmp, listBmps } from '@madkarmaa/phodrive-core/server/photos';
+import { SERVER_ERRORS } from '@madkarmaa/phodrive-core/server/errors';
+import type { ServerError } from '@madkarmaa/phodrive-core/server/errors';
+import { Err, Ok } from 'results-ts';
 import { fileUploadStream, receiveFileUpload } from '@madkarmaa/phodrive-core/server/upload/file';
 import { receiveUpload } from '@madkarmaa/phodrive-core/server/upload/input';
 import { uploadStream } from '@madkarmaa/phodrive-core/server/upload/stream';
@@ -58,14 +66,36 @@ export function driveRoutes(context: ServerContext) {
         })
         .post('/files', signedIn, connected, (c) => {
             const account = c.get('account');
+            const scope = {
+                key: account.id,
+                coordinator: context.throttle,
+                signal: c.req.raw.signal
+            };
 
             return readJsonRequest(c.req.raw, FileActionRequestSchema, 'Invalid request')
-                .andThenAsync(async (input) => {
-                    if (input.action === FileActionKind.Download)
-                        return downloadFile({ ...input, ...account }, c.req.raw.signal);
+                .andThenAsync((input) => {
+                    switch (input.action) {
+                        case FileActionKind.Download:
+                            return downloadFile({ ...input, ...account }, c.req.raw.signal);
+                        case FileActionKind.Delete:
+                            return deleteFile({ ...input, ...account }, scope).map(jsonResponse);
+                        case FileActionKind.Restore:
+                            return restoreFile({ ...input, ...account }, scope).map(jsonResponse);
+                        case FileActionKind.DeleteForever: {
+                            const metadata = createChunkMetadataStore(context.db, {
+                                userId: c.get('user').id,
+                                googleAccountId: account.id
+                            });
 
-                    // Delete moves media to Google Photos trash, where it can be restored.
-                    return deleteFile({ ...input, ...account }).map(jsonResponse);
+                            return deleteForeverFile({ ...input, ...account }, scope, metadata).map(
+                                jsonResponse
+                            );
+                        }
+                        default:
+                            return Ok(undefined).andThenAsync<Response, ServerError>(async () =>
+                                Err(SERVER_ERRORS.INVALID_FILE_METADATA)
+                            );
+                    }
                 })
                 .match({ Ok: (response) => response, Err: errorResponse });
         })

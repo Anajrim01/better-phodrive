@@ -6,7 +6,7 @@ import {
     ProcessingMode
 } from '@madkarmaa/phodrive-core/models';
 import { groupChunks, type UploadedChunk } from '@madkarmaa/phodrive-core/files';
-import { downloadFile, deleteFile } from '#browser/files';
+import { downloadFile, deleteFile, restoreFile, deleteForeverFile } from '#browser/files';
 import { downloadChunks } from '@madkarmaa/phodrive-core/browser/download';
 import { uploadFileRequest } from '@madkarmaa/phodrive-core/browser/upload/request';
 import { bmpResponse, downloadFixture } from '../../../core/tests/helpers/download';
@@ -65,12 +65,34 @@ test('delete carries the file owner only in the header', async () => {
         expect(String(init?.body)).not.toContain(OWNER);
         expectOwnerFreeBody(init);
 
-        return Response.json({ deleted: [chunk()] });
+        return Response.json({ applied: [chunk()] });
     });
 
-    await deleteFile(group, () => {}, 1).unwrap();
+    await deleteFile(group, () => {}).unwrap();
 
     expect(fetchMock).toHaveBeenCalledOnce();
+});
+
+test.each([
+    ['restore', restoreFile, 'restore'],
+    ['delete forever', deleteForeverFile, 'delete-forever']
+] as const)('%s carries the file owner only in the header', async (_name, action, expected) => {
+    const group = groupChunks([ownedChunk({ trashed: true })])[0];
+    let body: { action?: string } = {};
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
+        expect(header(init)).toBe(OWNER);
+        expect(String(init?.body)).not.toContain('owner@example.com');
+        expect(String(init?.body)).not.toContain(OWNER);
+        expectOwnerFreeBody(init);
+        body = JSON.parse(String(init?.body)) as { action?: string };
+
+        return Response.json({ applied: [ownedChunk({ trashed: true })] });
+    });
+
+    await action(group, () => {}).unwrap();
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(body.action).toBe(expected);
 });
 
 test('browser-mode chunk requests use the owning account for every chunk', async () => {

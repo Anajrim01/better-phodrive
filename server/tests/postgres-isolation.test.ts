@@ -217,6 +217,72 @@ describeDatabase('authenticated Google accounts and groups', () => {
         expect((await listGoogleAccountGroups(context, secondUser)).unwrap()).toHaveLength(1);
     });
 
+    test('metadata removal is scoped and only deletes the confirmed account rows', async () => {
+        const run = Date.now().toString(36);
+        const userId = `user-remove-${run}`;
+
+        await db
+            .insert(user)
+            .values({ id: userId, name: 'Remove', email: `remove-${run}@example.com` });
+
+        const first = (
+            await saveGoogleAccount(context, userId, {
+                email: `remove-a-${run}@example.com`,
+                token: 'aas_et/remove-a'
+            })
+        ).unwrap();
+        const second = (
+            await saveGoogleAccount(context, userId, {
+                email: `remove-b-${run}@example.com`,
+                token: 'aas_et/remove-b'
+            })
+        ).unwrap();
+        const firstStore = createChunkMetadataStore(db, {
+            userId,
+            googleAccountId: first.id
+        });
+        const secondStore = createChunkMetadataStore(db, {
+            userId,
+            googleAccountId: second.id
+        });
+        const record = (fileId: string) => ({
+            mediaKey: 'shared-media',
+            sha1: '1'.repeat(40),
+            storedBmpSize: 120,
+            fileHash: 'a'.repeat(64),
+            fileId,
+            chunkIndex: 0,
+            isLast: true,
+            originalName: 'photo.jpg',
+            size: 60
+        });
+        const candidate = { mediaKey: 'shared-media', sha1: '1'.repeat(40), size: 120, at: 1 };
+
+        await firstStore.save([record('first-file')]);
+        await secondStore.save([record('second-file')]);
+        const freshFirst = createChunkMetadataStore(db, {
+            userId,
+            googleAccountId: first.id
+        });
+        const freshSecond = createChunkMetadataStore(db, {
+            userId,
+            googleAccountId: second.id
+        });
+        expect((await freshFirst.load([candidate])).unwrap().size).toBe(1);
+        expect((await freshSecond.load([candidate])).unwrap().size).toBe(1);
+
+        await firstStore.remove(['shared-media']);
+
+        const afterRemove = createChunkMetadataStore(db, {
+            userId,
+            googleAccountId: first.id
+        });
+        expect((await afterRemove.load([candidate])).unwrap().size).toBe(0);
+        expect((await freshSecond.load([candidate])).unwrap().get('shared-media')).toMatchObject({
+            fileId: 'second-file'
+        });
+    });
+
     test('one user can route across three accounts and two groups without crossing users', async () => {
         const run = Date.now().toString(36);
         const userId = `user-${run}`;

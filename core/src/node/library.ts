@@ -33,7 +33,9 @@ export function readLibrary(
             if (merged.isErr()) return merged;
         } while (nextPageToken);
 
-        const chunks = [...items.values()].map((item) => ({ ...item, email }));
+        const chunks = [...items.values()]
+            .filter((item) => !item.trashed)
+            .map((item) => ({ ...item, email }));
 
         return Ok(groupChunks(chunks));
     });

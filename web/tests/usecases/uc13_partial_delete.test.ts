@@ -56,9 +56,9 @@ test('partial delete retains exact confirmations, retries remaining chunks, and 
         fetchBodies.push(body);
 
         if (fetchBodies.length === 1)
-            return Response.json({ deleted: [first], error: 'One chunk failed' });
+            return Response.json({ applied: [first], error: 'One chunk failed' });
 
-        return Response.json({ deleted: [remaining] });
+        return Response.json({ applied: [remaining] });
     });
 
     const drive = new DriveController('owner@example.com');
@@ -85,9 +85,14 @@ test('partial delete retains exact confirmations, retries remaining chunks, and 
         { chunks: [{ mediaKey: 'remaining-media-key' }] }
     ]);
     expect(afterPartial.map((item) => `${item.email}:${item.mediaKey}`)).toEqual([
+        'owner@example.com:shared-media-key',
         'owner@example.com:remaining-media-key',
         'other@example.com:shared-media-key'
     ]);
-    expect(drive.library.chunks).toEqual([{ ...unrelated, email: 'other@example.com' }]);
+    expect(drive.library.files).toHaveLength(1);
+    expect(drive.library.files[0]?.fileHash).toBe(unrelated.fileHash);
+    expect(drive.library.trashFiles).toHaveLength(1);
+    expect(drive.library.trashFiles[0]?.chunks).toHaveLength(2);
+    expect(drive.library.chunks.filter((item) => item.trashed)).toHaveLength(2);
     expect(drive.feedbackMessage).toBe('');
 });

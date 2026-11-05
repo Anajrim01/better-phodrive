@@ -10,7 +10,7 @@ import { asyncOk, serveBmps } from '../helpers/photos-mock';
 
 vi.mock('@madkarmaa/phodrive-core/server/photos', () => ({
     downloadBmp: vi.fn(),
-    moveToTrash: vi.fn()
+    mutatePhotos: vi.fn()
 }));
 
 afterEach(() => {

@@ -22,6 +22,7 @@
         action: FileAction | null;
         ondownload: (item: FileGroup) => void;
         ondelete: (item: FileGroup) => void;
+        onrestoretrashed?: (item: FileGroup) => void;
         onopenfolder?: (path: string) => void;
         onmore: () => void;
     }
@@ -41,6 +42,7 @@
         action,
         ondownload,
         ondelete,
+        onrestoretrashed,
         onopenfolder,
         onmore
     }: Props = $props();
@@ -60,9 +62,10 @@
             showFolder={filtered}
             {ondownload}
             {ondelete}
+            {onrestoretrashed}
         />
     {:else}
-        <FileCardGrid {files} {disabled} {action} {ondownload} {ondelete} />
+        <FileCardGrid {files} {disabled} {action} {ondownload} {ondelete} {onrestoretrashed} />
     {/if}
 
     {#if hasMore}

@@ -51,7 +51,7 @@ function confirmDeletion(
 function remove(
     context: CliContext,
     targets: readonly string[],
-    options: { yes?: boolean; workers?: string; account?: string }
+    options: { yes?: boolean; account?: string }
 ): AsyncResult<void, CliError> {
     // Fail before reading the library when no confirmation is possible.
     const confirmable = canConfirm(context, 'Deleting files needs confirmation.', options.yes);
@@ -59,13 +59,10 @@ function remove(
     return confirmable
         .andThenAsync(() => openSession(context, options.account))
         .andThenAsync((session) =>
-            chooseWorkers(session.config, context.environment, options.workers).andThenAsync(
-                (workers) =>
-                    findFiles(context, session, targets)
-                        .andThenAsync((files) =>
-                            confirmDeletion(context, session, files, options.yes).map(() => files)
-                        )
-                        .andThenAsync((files) => deleteFiles(context, session, files, workers))
+            findFiles(context, session, targets).andThenAsync((files) =>
+                confirmDeletion(context, session, files, options.yes)
+                    .map(() => files)
+                    .andThenAsync((files) => deleteFiles(context, session, files))
             )
         );
 }
@@ -105,7 +102,6 @@ export function registerFileCommands(program: Command, context: CliContext, run:
         .description('Move files to the Google Photos trash')
         .argument('<files...>', 'file names or IDs from `phodrive file list`')
         .option('-y, --yes', 'skip the confirmation')
-        .option('-w, --workers <count>', 'concurrent requests')
         .option(ACCOUNT_FLAGS, ACCOUNT_HELP)
         .action((targets, options) => run(() => remove(context, targets, options)));
 }

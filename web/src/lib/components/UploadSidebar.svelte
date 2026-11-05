@@ -15,6 +15,7 @@
     import IconAdd from '~icons/material-symbols/add';
     import IconFolder from '~icons/material-symbols/folder-outline';
     import IconHome from '~icons/material-symbols/home-outline';
+    import IconDelete from '~icons/material-symbols/delete-outline';
     import IconSettings from '~icons/material-symbols/settings-outline';
     import IconClose from '~icons/material-symbols/close';
 
@@ -140,6 +141,15 @@
             onclick={() => navigate(AppView.Files)}
         >
             {#snippet icon()}<IconHome aria-hidden="true" class="size-5 shrink-0" />{/snippet}
+        </NavigationDrawerItem>
+        <NavigationDrawerItem
+            label="Trash"
+            aria-label="Trash"
+            selected={view === AppView.Trash}
+            aria-current={view === AppView.Trash ? 'page' : undefined}
+            onclick={() => navigate(AppView.Trash)}
+        >
+            {#snippet icon()}<IconDelete aria-hidden="true" class="size-5 shrink-0" />{/snippet}
         </NavigationDrawerItem>
         <NavigationDrawerItem
             label="Settings"

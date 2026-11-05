@@ -1,8 +1,30 @@
 import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
 import { listBmps } from '@madkarmaa/phodrive-core/server/photos';
+import { parseLibraryPage } from '@madkarmaa/phodrive-core/server/photos/library/metadata';
 import { expect, test } from 'vitest';
 import { AUTH_URL, EMAIL, FILE_HASH, fingerprint, libraryFixture, TOKEN } from '../helpers/library';
-import { authResponse, bytes } from '../helpers/protobuf';
+import { authResponse, bytes, num } from '../helpers/protobuf';
+
+test('listing marks a full hidden item as trashed and omits key-only hidden items', () => {
+    const details = Buffer.concat([
+        bytes(4, 'deleted.bmp'),
+        num(9, 1),
+        num(10, 120),
+        bytes(13, bytes(1, Buffer.alloc(20, 1))),
+        bytes(16, num(3, 1))
+    ]);
+    const trashedItem = bytes(2, Buffer.concat([bytes(1, 'trashed-key'), bytes(2, details)]));
+    const keyOnlyItem = bytes(
+        2,
+        Buffer.concat([bytes(1, 'key-only'), bytes(2, bytes(16, num(3, 1)))])
+    );
+    const page = bytes(1, Buffer.concat([trashedItem, keyOnlyItem]));
+    const parsed = parseLibraryPage(page).unwrap();
+
+    expect(parsed.items).toEqual([
+        expect.objectContaining({ mediaKey: 'trashed-key', size: 120, trashed: true })
+    ]);
+});
 
 test('malformed library protobuf returns Err without throwing', async () => {
     let call = 0;

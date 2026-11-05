@@ -1,14 +1,16 @@
 import {
+    filterFiles,
     folderTrail,
-    groupChunks,
     fileType,
     ownerKey,
+    partitionFileGroups,
+    sortFiles,
     type FileGroup,
     type UploadedChunk
 } from '@madkarmaa/phodrive-core/files';
 import { FileSort } from '@madkarmaa/phodrive-core/models';
 import { readLibraryPage, readLibrarySnapshot } from '@madkarmaa/phodrive-core/browser/library';
-import { withoutChunk, withChunks } from '#browser/drive/chunks';
+import { withTrashState, withoutChunk, withChunks } from '#browser/drive/chunks';
 import type { DriveContext } from '#browser/drive/context.svelte';
 import { FolderNavigation } from '#browser/drive/folder-navigation';
 import type { FolderOpenMode } from '#browser/drive/folder-history';
@@ -41,8 +43,10 @@ export class DriveLibrary {
     private readonly cursors = new Map<string, AccountCursor>();
     private readonly chunksByAccount = new Map<string, UploadedChunk[]>();
     private readonly navigation: FolderNavigation;
+    private readonly partitioned = $derived(partitionFileGroups(this.chunks));
 
-    files = $derived(groupChunks(this.chunks));
+    files = $derived(this.partitioned.files);
+    trashFiles = $derived(this.partitioned.trash);
     availableTypes = $derived([...new Set(this.files.map((item) => fileType(item.name)))].sort());
     filtering = $derived(!!(this.searchTerm || this.typeFilter || this.modifiedDays));
     folders = $derived(foldersFor(this.files, this.folder, this.filtering));
@@ -57,6 +61,9 @@ export class DriveLibrary {
             this.modifiedDays,
             this.sortOrder()
         )
+    );
+    trashVisible = $derived.by(() =>
+        sortFiles(filterFiles(this.trashFiles, this.searchTerm, '', ''), this.sortOrder())
     );
 
     constructor(
@@ -233,6 +240,23 @@ export class DriveLibrary {
             );
 
         this.chunks = withoutChunk(this.chunks, file, removed);
+    }
+
+    markChunkTrashed(file: FileGroup, chunk: UploadedChunk) {
+        this.setTrashState(file, chunk, true);
+    }
+
+    markChunkRestored(file: FileGroup, chunk: UploadedChunk) {
+        this.setTrashState(file, chunk, false);
+    }
+
+    private setTrashState(file: FileGroup, chunk: UploadedChunk, trashed: boolean) {
+        const key = ownerKey(file);
+        const existing = this.chunksByAccount.get(key);
+
+        if (existing) this.chunksByAccount.set(key, withTrashState(existing, file, chunk, trashed));
+
+        this.chunks = withTrashState(this.chunks, file, chunk, trashed);
     }
 
     private finish(

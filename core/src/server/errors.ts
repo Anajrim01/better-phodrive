@@ -39,6 +39,10 @@ export const SERVER_ERRORS = {
         code: 'METADATA_UNAVAILABLE',
         message: 'Library metadata is unavailable.'
     },
+    METADATA_REMOVE_FAILED: {
+        code: 'METADATA_REMOVE_FAILED',
+        message: 'The file was deleted, but its library metadata could not be removed.'
+    },
     REPEATED_LIBRARY_PAGE: {
         code: 'REPEATED_LIBRARY_PAGE',
         message: 'Google Photos repeated a library page. Refresh to try again.'
@@ -124,6 +128,22 @@ export const SERVER_ERRORS = {
         message: 'Invalid UTF-8 in response'
     },
     INVALID_FILE_METADATA: { code: 'INVALID_FILE_METADATA', message: 'Invalid file metadata.' },
+    NOT_TRASHED: {
+        code: 'NOT_TRASHED',
+        message: 'Only files in Trash can be restored or deleted forever.'
+    },
+    INVALID_MUTATION_RESPONSE: {
+        code: 'INVALID_MUTATION_RESPONSE',
+        message: 'Google Photos returned an unexpected result.'
+    },
+    DUPLICATE_IN_TRASH: {
+        code: 'DUPLICATE_IN_TRASH',
+        message: 'A copy of this file is already in Trash. Restore or delete that copy, then retry.'
+    },
+    MUTATION_PARTIAL: {
+        code: 'MUTATION_PARTIAL',
+        message: 'Google Photos confirmed only some files.'
+    },
     INCOMPLETE_DOWNLOAD_CHUNKS: {
         code: 'INCOMPLETE_DOWNLOAD_CHUNKS',
         message: 'Load the remaining chunks before downloading.'

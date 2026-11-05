@@ -4,7 +4,9 @@ import type { GoogleAccountSummary, ProcessingMode } from '@madkarmaa/phodrive-c
 import type { AsyncResult } from 'results-ts';
 import {
     deleteFile,
+    deleteForeverFile as deleteForeverRemoteFile,
     downloadFile,
+    restoreFile as restoreRemoteFile,
     saveDownloadedFile,
     uploadFiles,
     type UploadJob
@@ -12,19 +14,34 @@ import {
 import { holdUploadedChunks } from '#browser/drive/chunks';
 import type { DriveLibrary } from '#browser/drive/library.svelte';
 
-/** Move a file's chunks to the trash, dropping each from the library once Google confirms it. */
+/** Move a file's chunks to the trash, marking each once Google confirms it. */
 export function trashFile(
     library: DriveLibrary,
-    item: FileGroup,
-    workers: number
+    item: FileGroup
 ): AsyncResult<void, ApplicationError> {
-    return deleteFile(
-        item,
-        (chunk) => {
-            library.removeChunk(item, chunk);
-        },
-        workers
-    );
+    return deleteFile(item, (chunk) => {
+        library.markChunkTrashed(item, chunk);
+    });
+}
+
+/** Restore a trashed file in place, without changing its identity or folder. */
+export function restoreFile(
+    library: DriveLibrary,
+    item: FileGroup
+): AsyncResult<void, ApplicationError> {
+    return restoreRemoteFile(item, (chunk) => {
+        library.markChunkRestored(item, chunk);
+    });
+}
+
+/** Permanently delete a trashed file and drop its confirmed chunks from the library. */
+export function deleteForeverFile(
+    library: DriveLibrary,
+    item: FileGroup
+): AsyncResult<void, ApplicationError> {
+    return deleteForeverRemoteFile(item, (chunk) => {
+        library.removeChunk(item, chunk);
+    });
 }
 
 export function downloadAndSave(

@@ -5,13 +5,15 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { Ok } from 'results-ts';
 import { groupChunks } from '@madkarmaa/phodrive-core/files';
 import { SERVER_ERRORS } from '@madkarmaa/phodrive-core/server/errors';
-import { downloadBmp, moveToTrash } from '@madkarmaa/phodrive-core/server/photos';
+import { downloadBmp, mutatePhotos } from '@madkarmaa/phodrive-core/server/photos';
 import { deleteFile, downloadFile } from '@madkarmaa/phodrive-core/node';
 import { bmpResponse, downloadFixture } from '../helpers/download';
+import { asyncOk } from '../helpers/photos-mock';
 
 vi.mock('@madkarmaa/phodrive-core/server/photos', () => ({
     downloadBmp: vi.fn(),
-    moveToTrash: vi.fn()
+    mutatePhotos: vi.fn(),
+    defaultThrottle: {}
 }));
 
 let folder = '';
@@ -93,12 +95,12 @@ test('incomplete files are not downloaded', async () => {
 
 test('delete moves every chunk to the trash', async () => {
     const { item } = fixture();
-    vi.mocked(moveToTrash).mockImplementation(() =>
-        Ok(undefined).andThenAsync(async () => Ok(undefined))
+    vi.mocked(mutatePhotos).mockImplementation((_kind, _account, targets) =>
+        asyncOk({ applied: [...targets] })
     );
 
-    const deleted = await deleteFile(item, 'aas_et/test', 2);
+    const deleted = await deleteFile(item, 'aas_et/test');
 
-    expect(deleted.unwrap().deleted).toHaveLength(item.chunks.length);
+    expect(deleted.unwrap().applied).toHaveLength(item.chunks.length);
     expect(deleted.unwrap().error).toBeUndefined();
 });

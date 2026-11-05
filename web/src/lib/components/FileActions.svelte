@@ -4,60 +4,105 @@
     import type { FileGroup } from '@madkarmaa/phodrive-core/files';
     import IconDownload from '~icons/material-symbols/download';
     import IconDelete from '~icons/material-symbols/delete-outline';
+    import IconRestore from '~icons/material-symbols/restore-from-trash';
+    import IconDeleteForever from '~icons/material-symbols/delete-forever';
 
     interface Props {
         item: FileGroup;
         disabled: boolean;
         working: FileActionKind | null;
         compact?: boolean;
-        ondownload: (item: FileGroup) => void;
-        ondelete: (item: FileGroup) => void;
+        trash?: boolean;
+        ondownload?: (item: FileGroup) => void;
+        ondelete?: (item: FileGroup) => void;
+        onrestore?: (item: FileGroup) => void;
+        ondeleteforever?: (item: FileGroup) => void;
     }
 
-    let { item, disabled, working, compact = false, ondownload, ondelete }: Props = $props();
+    let {
+        item,
+        disabled,
+        working,
+        compact = false,
+        trash = false,
+        ondownload,
+        ondelete,
+        onrestore,
+        ondeleteforever
+    }: Props = $props();
 </script>
 
 <div class="file-actions flex shrink-0 items-center">
-    {#if compact}
-        <IconButton
-            size="xs"
-            title={`Download ${item.name}`}
-            disabled={disabled || !item.complete}
-            loading={working === FileActionKind.Download}
-            loadingAriaLabel={`Downloading ${item.name}`}
-            onclick={() => ondownload(item)}><IconDownload aria-hidden="true" /></IconButton
-        >
-        <IconButton
-            size="xs"
-            title={`Delete ${item.name}`}
-            {disabled}
-            loading={working === FileActionKind.Delete}
-            loadingAriaLabel={`Deleting ${item.name}`}
-            onclick={() => ondelete(item)}><IconDelete aria-hidden="true" /></IconButton
-        >
+    {#if trash}
+        {#if onrestore}
+            <IconButton
+                size="xs"
+                title={`Restore ${item.name}`}
+                {disabled}
+                loading={working === FileActionKind.Restore}
+                loadingAriaLabel={`Restoring ${item.name}`}
+                onclick={() => onrestore?.(item)}><IconRestore aria-hidden="true" /></IconButton
+            >
+        {/if}
+        {#if ondeleteforever}
+            <IconButton
+                size="xs"
+                title={`Delete forever: ${item.name}`}
+                {disabled}
+                loading={working === FileActionKind.DeleteForever}
+                loadingAriaLabel={`Deleting ${item.name} forever`}
+                onclick={() => ondeleteforever?.(item)}
+                ><IconDeleteForever aria-hidden="true" /></IconButton
+            >
+        {/if}
+    {:else if compact}
+        {#if ondownload}
+            <IconButton
+                size="xs"
+                title={`Download ${item.name}`}
+                disabled={disabled || !item.complete}
+                loading={working === FileActionKind.Download}
+                loadingAriaLabel={`Downloading ${item.name}`}
+                onclick={() => ondownload?.(item)}><IconDownload aria-hidden="true" /></IconButton
+            >
+        {/if}
+        {#if ondelete}
+            <IconButton
+                size="xs"
+                title={`Delete ${item.name}`}
+                {disabled}
+                loading={working === FileActionKind.Delete}
+                loadingAriaLabel={`Deleting ${item.name}`}
+                onclick={() => ondelete?.(item)}><IconDelete aria-hidden="true" /></IconButton
+            >
+        {/if}
     {:else}
-        <Button
-            variant="text"
-            size="xs"
-            disabled={disabled || !item.complete}
-            loading={working === FileActionKind.Download}
-            loadingAriaLabel={`Downloading ${item.name}`}
-            onclick={() => ondownload(item)}
-        >
-            {#snippet start()}<IconDownload aria-hidden="true" />{/snippet}
-            Download
-        </Button>
-        <Button
-            variant="text"
-            size="xs"
-            {disabled}
-            loading={working === FileActionKind.Delete}
-            loadingAriaLabel={`Deleting ${item.name}`}
-            onclick={() => ondelete(item)}
-        >
-            {#snippet start()}<IconDelete aria-hidden="true" />{/snippet}
-            Delete
-        </Button>
+        {#if ondownload}
+            <Button
+                variant="text"
+                size="xs"
+                disabled={disabled || !item.complete}
+                loading={working === FileActionKind.Download}
+                loadingAriaLabel={`Downloading ${item.name}`}
+                onclick={() => ondownload?.(item)}
+            >
+                {#snippet start()}<IconDownload aria-hidden="true" />{/snippet}
+                Download
+            </Button>
+        {/if}
+        {#if ondelete}
+            <Button
+                variant="text"
+                size="xs"
+                {disabled}
+                loading={working === FileActionKind.Delete}
+                loadingAriaLabel={`Deleting ${item.name}`}
+                onclick={() => ondelete?.(item)}
+            >
+                {#snippet start()}<IconDelete aria-hidden="true" />{/snippet}
+                Delete
+            </Button>
+        {/if}
     {/if}
 </div>
 

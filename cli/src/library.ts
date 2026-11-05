@@ -118,25 +118,24 @@ export function findFiles(
 }
 
 /** A file is deleted only when every known chunk is confirmed in the trash. */
-function deleteFailure(file: FileGroup, { deleted, error }: DeleteResult): string | null {
-    if (!error && deleted.length === file.chunks.length) return null;
+function deleteFailure(file: FileGroup, { applied, error }: DeleteResult): string | null {
+    if (!error && applied.length === file.chunks.length) return null;
 
     const reason = error ? ` ${error}` : '';
 
-    return `${file.name}: deleted ${deleted.length} of ${file.chunks.length} chunks.${reason}`;
+    return `${file.name}: deleted ${applied.length} of ${file.chunks.length} chunks.${reason}`;
 }
 
 export function deleteFiles(
     context: CliContext,
     session: Session,
-    files: readonly FileGroup[],
-    workers: number
+    files: readonly FileGroup[]
 ): AsyncResult<void, CliError> {
     return Ok(undefined).andThenAsync(async () => {
         let failed = 0;
 
         for (const file of files) {
-            const deleted = await deleteFile(file, session.token, workers);
+            const deleted = await deleteFile(file, session.token);
 
             const failure = deleted.match({
                 Ok: (result) => deleteFailure(file, result),

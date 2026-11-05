@@ -5,6 +5,7 @@ import {
     ProcessingMode
 } from '@madkarmaa/phodrive-core/models';
 import { downloadBmp, listBmps } from '@madkarmaa/phodrive-core/server/photos';
+import { deleteFile, deleteForeverFile, restoreFile } from '@madkarmaa/phodrive-core/server/files';
 import { SERVER_ERRORS } from '@madkarmaa/phodrive-core/server/errors';
 import { receiveFileUpload } from '@madkarmaa/phodrive-core/server/upload/file';
 import { receiveUpload } from '@madkarmaa/phodrive-core/server/upload/input';
@@ -36,6 +37,12 @@ vi.mock('@madkarmaa/phodrive-core/server/photos', () => ({
         success: vi.fn(),
         clear: vi.fn()
     })
+}));
+vi.mock('@madkarmaa/phodrive-core/server/files', () => ({
+    downloadFile: vi.fn(),
+    deleteFile: vi.fn(),
+    restoreFile: vi.fn(),
+    deleteForeverFile: vi.fn()
 }));
 vi.mock('@madkarmaa/phodrive-core/server/upload/input', () => ({ receiveUpload: vi.fn() }));
 vi.mock('@madkarmaa/phodrive-core/server/upload/file', () => ({
@@ -144,6 +151,57 @@ test('library items carry the stable account id', async () => {
 
     expect(response.status).toBe(200);
     expect(body.items[0]?.accountId).toBe(ACCOUNT.id);
+});
+
+test('file actions dispatch to the shared mutation path with the stable account scope', async () => {
+    const baseChunk = {
+        fileHash: 'a'.repeat(64),
+        fileId: 'b'.repeat(64),
+        chunkIndex: 0,
+        isLast: true,
+        originalName: 'proof.bin',
+        size: 4,
+        at: 1,
+        mediaKey: 'media-key',
+        sha1: 'c'.repeat(40)
+    };
+    const body = (action: string, trashed = false) => ({
+        action,
+        name: 'proof.bin',
+        fileHash: baseChunk.fileHash,
+        fileId: baseChunk.fileId,
+        chunks: [{ ...baseChunk, ...(trashed ? { trashed: true } : {}) }]
+    });
+    vi.mocked(deleteFile).mockReturnValue(resolved({ applied: [baseChunk] }));
+    vi.mocked(restoreFile).mockReturnValue(resolved({ applied: [baseChunk] }));
+    vi.mocked(deleteForeverFile).mockReturnValue(resolved({ applied: [baseChunk] }));
+
+    const deleted = await postJson('/api/files', body('delete'));
+    expect(deleted.status).toBe(200);
+    expect(await deleted.json()).toEqual({ applied: [baseChunk] });
+    expect(vi.mocked(deleteFile).mock.calls[0]?.[0]).toMatchObject({
+        email: ACCOUNT.email,
+        token: ACCOUNT.token
+    });
+    expect(vi.mocked(deleteFile).mock.calls[0]?.[1]).toMatchObject({
+        key: ACCOUNT.id,
+        coordinator: expect.anything()
+    });
+    expect(vi.mocked(deleteFile).mock.calls[0]).toHaveLength(2);
+
+    const restored = await postJson('/api/files', body('restore', true));
+    expect(restored.status).toBe(200);
+    expect(vi.mocked(restoreFile).mock.calls[0]?.[1]).toMatchObject({ key: ACCOUNT.id });
+    expect(vi.mocked(restoreFile).mock.calls[0]).toHaveLength(2);
+
+    const removed = await postJson('/api/files', body('delete-forever', true));
+    expect(removed.status).toBe(200);
+    expect(vi.mocked(deleteForeverFile).mock.calls[0]?.[1]).toMatchObject({ key: ACCOUNT.id });
+    expect(vi.mocked(deleteForeverFile).mock.calls[0]?.[2]).toMatchObject({
+        load: expect.any(Function),
+        save: expect.any(Function),
+        remove: expect.any(Function)
+    });
 });
 
 test('in browser mode, uploads relay finished BMPs with the stored account', async () => {

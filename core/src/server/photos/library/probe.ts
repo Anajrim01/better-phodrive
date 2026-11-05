@@ -39,7 +39,7 @@ export function scanLibraryPage(
             const record = stored.get(candidate.mediaKey);
             if (record && metadataMatches(record, candidate)) {
                 items.set(candidate.mediaKey, metadataItem(record, candidate));
-            } else {
+            } else if (!candidate.trashed) {
                 missing.push(candidate);
             }
         }

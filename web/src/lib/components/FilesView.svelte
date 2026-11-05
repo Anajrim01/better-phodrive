@@ -85,9 +85,13 @@
             ondownload={(item) => {
                 void drive.actOnFile(item, FileActionKind.Download);
             }}
-            ondelete={(item) => {
-                drive.confirmTarget = item;
-                drive.confirmOpen = true;
+            ondelete={(item) => drive.requestDelete(item)}
+            onrestoretrashed={(item) => {
+                if (item.trashedChunks?.length)
+                    void drive.actOnFile(
+                        { ...item, chunks: item.trashedChunks },
+                        FileActionKind.Restore
+                    );
             }}
             onmore={() => {
                 void library.load(false);

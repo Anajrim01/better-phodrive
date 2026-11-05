@@ -1,22 +1,11 @@
 import { Err, Ok, type Result } from 'results-ts';
-import { FileSort, FileActionKind, FolderPathSchema, type RemoteBmp } from './models';
+import { FileSort, FileActionKind, FolderPathSchema } from './models';
 import { MAX_CHUNK_PAYLOAD_BYTES } from './bmp/format';
 import type { ApplicationError } from './errors';
+import type { FileGroup } from './file-groups';
 
-export type UploadedChunk = RemoteBmp & { email: string };
-
-export type FileGroup = {
-    email: string;
-    accountId?: string;
-    fileHash: string;
-    fileId: string;
-    name: string;
-    folder: string;
-    at: number;
-    chunkCount: number | null;
-    chunks: UploadedChunk[];
-    complete: boolean;
-};
+export { fileKey, groupChunks, ownerKey, partitionFileGroups } from './file-groups';
+export type { FileGroup, UploadedChunk } from './file-groups';
 
 export type FolderEntry = {
     path: string;
@@ -131,86 +120,6 @@ export function folderTrail(path: string): FolderCrumb[] {
         name,
         path: segments.slice(0, index + 1).join('/')
     }));
-}
-
-/** The direct-token CLI library has no server account id, so email remains its owner key. */
-export function ownerKey(file: { email: string; accountId?: string }): string {
-    return file.accountId ?? file.email;
-}
-
-export function fileKey(file: { email: string; fileId: string; accountId?: string }): string {
-    return `${ownerKey(file)}:${file.fileId}`;
-}
-
-type IndexedFileGroup = {
-    file: FileGroup;
-    chunkPositions?: Map<number, number>;
-};
-
-export function groupChunks(items: UploadedChunk[]): FileGroup[] {
-    const groups = new Map<string, IndexedFileGroup>();
-
-    for (const chunk of items) {
-        const key = fileKey(chunk);
-        const entry = groups.get(key);
-
-        if (!entry) {
-            const file: FileGroup = {
-                email: chunk.email,
-                ...(chunk.accountId ? { accountId: chunk.accountId } : {}),
-                fileHash: chunk.fileHash,
-                fileId: chunk.fileId,
-                name: chunk.originalName ?? `File ${chunk.fileHash.slice(0, 12)}`,
-                folder: chunk.folder ?? '',
-                at: chunk.at,
-                chunkCount: null,
-                chunks: [chunk],
-                complete: false
-            };
-            groups.set(key, { file });
-
-            continue;
-        }
-
-        const group = entry.file;
-        let position: number | undefined;
-        if (entry.chunkPositions) {
-            position = entry.chunkPositions.get(chunk.chunkIndex);
-        } else if (group.chunks[0].chunkIndex === chunk.chunkIndex) {
-            position = 0;
-        }
-
-        const current = position === undefined ? undefined : group.chunks[position];
-        group.at = Math.max(group.at, chunk.at);
-        if (current && current.at > chunk.at) continue;
-
-        if (position === undefined) {
-            // Single-chunk files need no map. Positions stay valid until the final sort.
-            entry.chunkPositions ??= new Map([[group.chunks[0].chunkIndex, 0]]);
-            entry.chunkPositions.set(chunk.chunkIndex, group.chunks.length);
-            group.chunks.push(chunk);
-        } else {
-            group.chunks[position] = chunk;
-        }
-
-        if (chunk.chunkIndex === 0) {
-            if (chunk.originalName) group.name = chunk.originalName;
-            group.folder = chunk.folder ?? '';
-        }
-    }
-
-    return [...groups.values()].map(({ file: group }) => {
-        group.chunks.sort((first, second) => first.chunkIndex - second.chunkIndex);
-
-        const last = group.chunks.find((chunk) => chunk.isLast);
-        group.chunkCount = last ? last.chunkIndex + 1 : null;
-        group.complete =
-            group.chunkCount !== null &&
-            group.chunks.length === group.chunkCount &&
-            group.chunks.every((chunk, index) => chunk.chunkIndex === index);
-
-        return group;
-    });
 }
 
 /** A trailing dot has no extension; an empty type would collide with the "All" filter. */

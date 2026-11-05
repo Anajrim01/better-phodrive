@@ -12,6 +12,7 @@
     import UploadSidebar from '#components/UploadSidebar.svelte';
     import UploadPanel from '#components/UploadPanel.svelte';
     import FilesView from '#components/FilesView.svelte';
+    import TrashView from '#components/TrashView.svelte';
     import SettingsPanel from '#components/SettingsPanel.svelte';
     import ErrorFeedback from '#components/ErrorFeedback.svelte';
     import FileDrop from '#components/FileDrop.svelte';
@@ -60,6 +61,7 @@
     <ConfirmDialog
         bind:open={drive.confirmOpen}
         target={drive.confirmTarget}
+        permanent={drive.confirmPermanent}
         onconfirm={() => drive.confirmAction()}
     />
 
@@ -126,6 +128,8 @@
                 onresetrefreshinterval={() => drive.settings.resetRefreshInterval()}
                 onresetworkers={() => drive.settings.resetConcurrentWorkers()}
             />
+        {:else if drive.ready && view === AppView.Trash}
+            <TrashView {drive} working={actionsDisabled} />
         {:else if drive.ready}
             <FilesView {drive} working={actionsDisabled} {uploadDisabled} onupload={upload} />
         {/if}
