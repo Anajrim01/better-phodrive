@@ -3,15 +3,17 @@ import { Err, Ok, type AsyncResult } from 'results-ts';
 import type { FileRequest, RemoteBmp } from '../models';
 import { ChunkCursor, openChunk } from './chunk-cursor';
 import { SERVER_ERRORS, type ServerError } from './errors';
+import type { ThrottleScope } from './photos/throttle';
 
 /** Ordered, demand-driven reconstruction with no temporary storage. */
 export function streamDownload(
     input: FileRequest,
     chunks: RemoteBmp[],
-    requestSignal?: AbortSignal
+    requestSignal?: AbortSignal,
+    scope?: ThrottleScope
 ): AsyncResult<Response, ServerError> {
     return Ok(undefined).andThenAsync(async () => {
-        const cursor = new ChunkCursor(input, chunks);
+        const cursor = new ChunkCursor(input, chunks, scope);
         const hash = createHash('sha256');
         let responseController: ReadableStreamDefaultController<Uint8Array> | undefined;
 
@@ -32,7 +34,7 @@ export function streamDownload(
         if (cursor.closed) return Err(SERVER_ERRORS.COULD_NOT_READ_THE_DOWNLOADED_FILE);
 
         // Validate the first header before sending a response so HTTP errors reach the browser.
-        const first = await openChunk(input, chunks[0], cursor.signal);
+        const first = await openChunk(input, chunks[0], cursor.signal, scope);
         if (first.isErr()) {
             await cleanup();
 

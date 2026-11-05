@@ -59,9 +59,12 @@ function validateChunks(input: FileRequest): Result<RemoteBmp[], ServerError> {
 /** Reconstruct in order as the browser reads, verifying integrity before stream completion. */
 export function downloadFile(
     input: FileRequest,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    scope?: ThrottleScope
 ): AsyncResult<Response, ServerError> {
-    return validateChunks(input).andThenAsync((chunks) => streamDownload(input, chunks, signal));
+    return validateChunks(input).andThenAsync((chunks) =>
+        streamDownload(input, chunks, signal, scope)
+    );
 }
 
 function mutationKind(action: FileActionKind): Result<MutationKind, ServerError> {

@@ -3,6 +3,7 @@ import { ProcessingMode } from '@madkarmaa/phodrive-core/models';
 import { TOKEN_ENCRYPTION, TokenKeySchema } from '@madkarmaa/phodrive-core/auth';
 import { Hono } from 'hono';
 import { createApi } from '../../src/app';
+import type { ServerContext } from '../../src/context';
 import type { ApiEnv } from '../../src/middleware';
 import { testContext } from './context';
 
@@ -26,15 +27,19 @@ export function rejected<E>(error: E) {
 }
 
 /** The API as the server mounts it, with the socket address the server would set. */
-export function call(path: string, init: RequestInit = {}) {
+export function callWith(context: ServerContext, path: string, init: RequestInit = {}) {
     const app = new Hono<ApiEnv>()
         .use(async (c, next) => {
             c.set('clientAddress', CLIENT_ADDRESS);
             await next();
         })
-        .route('/', createApi(testContext({ PHODRIVE_PROCESSING: settings.processing })));
+        .route('/', createApi(context));
 
     return app.fetch(new Request(`http://localhost${path}`, init));
+}
+
+export function call(path: string, init: RequestInit = {}) {
+    return callWith(testContext({ PHODRIVE_PROCESSING: settings.processing }), path, init);
 }
 
 /** Encrypt like the browser does, with the key the server publishes. */

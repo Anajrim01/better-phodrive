@@ -82,7 +82,7 @@ export function driveRoutes(context: ServerContext) {
                 .andThenAsync((input) => {
                     switch (input.action) {
                         case FileActionKind.Download:
-                            return downloadFile({ ...input, ...account }, c.req.raw.signal);
+                            return downloadFile({ ...input, ...account }, c.req.raw.signal, scope);
                         case FileActionKind.Delete:
                             return deleteFile({ ...input, ...account }, scope).map(jsonResponse);
                         case FileActionKind.Restore:
@@ -133,12 +133,25 @@ export function driveRoutes(context: ServerContext) {
             });
         })
         .post('/chunk', signedIn, connected, (c) => {
-            const { email, token } = c.get('account');
+            const account = c.get('account');
+            const scope = {
+                key: account.id,
+                coordinator: context.throttle,
+                signal: c.req.raw.signal
+            };
 
             // Relays one stored BMP unchanged for the browser to verify and decode.
             return readJsonRequest(c.req.raw, ChunkReferenceSchema, 'Invalid request')
                 .andThenAsync(({ mediaKey, sha1 }) =>
-                    downloadBmp(email, token, mediaKey, sha1, undefined, c.req.raw.signal)
+                    downloadBmp(
+                        account.email,
+                        account.token,
+                        mediaKey,
+                        sha1,
+                        undefined,
+                        c.req.raw.signal,
+                        scope
+                    )
                 )
                 .match({ Ok: relayedChunk, Err: errorResponse });
         });
