@@ -197,12 +197,12 @@ Do not automatically adopt a candidate by title or media-key set. Identical file
 
 If `PhotosDeleteEnvelope` or link disable succeeds and the response is lost, a later sync may show whether the collection still exists and what link fields it carries. Absence from one incremental or incomplete sync does not prove deletion. Disabling the link does not prove that `PhotosDeleteEnvelope` succeeded.
 
-The revoke is complete only when both conditions hold:
+The revoke is complete only when all conditions hold:
 
 - a full or otherwise authoritative sync shows the collection removed, or shows the provider's verified deletion state;
-- public URL checks confirm that no previously issued link still serves the content.
+- every short URL recorded for the share has been probed and is stopped.
 
-Until both hold, keep the local row and retry or verify from the stable collection media key. Do not remove the local association merely because one sync page omitted the collection.
+Capture the current short URL from sync before deleting the collection. If no URL was ever observed and the link may have been enabled, the revoke cannot be proven complete. Until all conditions hold, keep the local row and retry or verify from the stable collection media key. Do not remove the local association merely because one sync page omitted the collection.
 
 ### Lost link response
 
@@ -210,7 +210,7 @@ If `PhotosUpdateLinkSharingState` succeeds and the response is lost, a later syn
 
 ## What local PostgreSQL must store
 
-Google is authoritative for provider existence, link state, the current short URL, the auth key, and the collection media key. Local storage is authoritative only for the Phodrive association and idempotency.
+Google is authoritative for provider existence, link state, the current short URL, the auth key, and the collection media key. Local storage is authoritative for the Phodrive association, idempotency, and the set of short URLs already issued to users, because that history may not be recoverable after provider deletion.
 
 Proposed `google_share` row:
 
@@ -226,18 +226,30 @@ google_share
   provider_collection_key  text
   created_at               timestamp not null
   updated_at               timestamp not null
+
+google_share_url
+  user_id                  text not null
+  share_id                 text not null
+  short_url                text not null
+  first_seen_at            timestamp not null
+  primary key (user_id, share_id, short_url)
 ```
 
 Constraints:
 
-- Unique `(user_id, id)`.
+- Unique `(user_id, id)` on `google_share`.
 - Unique `(user_id, request_key)` so a lost create response cannot start a second remote collection.
 - Foreign key `(user_id, google_account_id)` to `google_account(user_id, id)` with `ON DELETE RESTRICT`. Cascading the account would drop the local association while a public link may still exist.
-- Index `(user_id, google_account_id)` for listing. The primary key covers direct lookup.
+- Foreign key `(user_id, share_id)` on `google_share_url` to `google_share(user_id, id)` with `ON DELETE CASCADE`.
+- Index `(user_id, google_account_id)` on `google_share` for listing. The primary key covers direct lookup.
 
-`provider_collection_key` is nullable while a create is in flight or before reconciliation. It is the only provider handle that merits local persistence because it is the stable match for revoke and read. `short_url`, `auth_key`, `album_url`, and a Phodrive manifest `share_url` are not required columns. They are provider state that can be read from the sync record. If a cached short URL is later needed for display latency, it must be treated as a cache with reconciliation, not as authority.
+`provider_collection_key` is nullable while a create is in flight or before reconciliation. It is the stable match for revoke and read.
 
-No `envelope_key`, `album_key`, `pending_short_url`, or `share_url` columns are proposed. No `auth_key` column is proposed; it is not needed for revoke and is not a stable identity.
+`google_share_url` records every short URL observed for a share, including URLs replaced by a later sync or link-state change. This is not a mirror of current provider state. It is a local audit set required to verify that every URL already issued to a user stops serving after revoke. Sync may only expose the current URL, and the APK does not prove that a deleted collection invalidates older URLs. The table stores no auth key, album URL, or manifest URL.
+
+`short_url`, `auth_key`, `album_url`, and a Phodrive manifest `share_url` are not required columns on `google_share`. The current short URL can be read from sync, but the issued URL set must be retained locally for revocation verification. If the local URL history is lost, full verification of historical URLs is impossible unless live testing proves that provider revocation invalidates every previously issued URL. That limitation must stay explicit.
+
+No `envelope_key`, `album_key`, `pending_short_url`, or `share_url` columns are proposed. No `auth_key` column is proposed; it is not needed for revoke and is not a stable identity. Only observed short URLs are retained, in the separate URL history.
 
 The initial #64 slice should support one Phodrive file per share. A `google_share_file` relation is not required until multi-file sharing is a product decision. If multi-file is approved, add one relation row per file instead of duplicating file identity on the share.
 
@@ -251,9 +263,10 @@ The row has:
 - an owning user and Google account;
 - a Phodrive file association;
 - a nullable provider collection key;
+- the short URLs observed for that share;
 - timestamps for cleanup and diagnostics.
 
-Once the live plan verifies how the sync record represents link state, provider state can be computed at read time by reconciling the account's sync records with local rows. A local row whose provider collection no longer exists is stale. It can be hidden from active lists and removed after reconciliation. It is not a public grant.
+Once the live plan verifies how the sync record represents link state, provider state can be computed at read time by reconciling the account's sync records with local rows. A local row whose provider collection no longer exists is stale. It can be hidden from active lists, but it is removed only after every recorded short URL is verified stopped. It is not a public grant.
 
 This reduces the local state machine to idempotent create and revoke operations plus reconciliation. A local persistence failure after a remote create does not by itself prove the provider share is gone. Recovery is possible only if live verification confirms that an authoritative sync enumerates the collection. It can still require explicit confirmation before the server attributes that collection to the lost local create.
 
@@ -264,7 +277,7 @@ Proposed, not implemented:
 - `POST /api/shares` with a client request key, one file identity, and a display name. The server resolves the session user, selected Google account, and file ownership. It returns the local share id and the reconciled provider state.
 - `GET /api/shares` reconciles the account's existing shared collections with local rows and returns owner-visible summaries.
 - `GET /api/shares/:id` returns one local share summary only to its owner.
-- `POST /api/shares/:id/revoke` disables the link and deletes the shared collection, then reconciles and removes the local association only after the provider no longer exposes it.
+- `POST /api/shares/:id/revoke` disables the link and deletes the shared collection, then reconciles and removes the local association only after the provider no longer exposes it and every recorded short URL is stopped.
 
 Responses contain share id, local file display metadata, display name, provider state, and the current public URL when a link is active. They never contain tokens, raw RPC payloads, media keys, or signed media URLs. The client cannot set the user, account, or provider key.
 
@@ -309,7 +322,7 @@ Static APK evidence is not a live provider verification. Before implementation:
 4. Clear all local Phodrive state, run `PhotosSyncSharedCollections` with a fresh account state, and confirm the collection is listed with its collection media key, short URL, auth key, title, owner, and media items.
 5. Disable the link and record whether the sync record retains, loses, or changes the short URL and which field reports the disabled state.
 6. Re-enable the link and record whether the short URL changes, whether the old URL stops working, and whether the collection media key remains stable.
-7. Delete the shared collection and confirm the full sync no longer lists it and the public URL stops serving.
+7. Delete the shared collection and confirm the full sync no longer lists it. Probe every short URL observed for the collection, including pre-rotation URLs, and record which ones stop serving.
 8. Drop the connection after create, after link enable, and after delete, then reconcile from sync. Confirm the collection is discoverable and can be explicitly associated without creating a duplicate or revoking an existing collection.
 9. Confirm the empty-state initial sync returns all collections, not only recent activity.
 10. Repeat with a multi-chunk file and confirm the album contains every chunk and the public page exposes all of them.
@@ -324,9 +337,10 @@ Recommended acceptance language:
 
 - The server is authoritative for the Phodrive user, account, file association, and idempotency key.
 - Google is authoritative for provider collection identity, link state, and current public URL.
-- Lost create and revoke responses are reconciled from provider enumeration before any retry.
+- Lost create responses are enumerated and presented for explicit association; a candidate is never adopted or revoked solely by title or media-key similarity.
+- Lost revoke responses are reconciled from authoritative provider state before any retry.
 - Local rows are never treated as proof that a public link exists.
-- Revocation must be verified against provider state before the local row is removed.
+- Revocation must be verified against provider state and every recorded short URL before the local row is removed.
 - Rotation support is not implied by reconciliation. Link replacement must be tested separately.
 
 Issue #64 remains open until the live verification plan passes and an implementation PR lands.
