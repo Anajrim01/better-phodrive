@@ -1,265 +1,356 @@
 # Server-authoritative shares
 
-Status: design and research. This document does not authorize an implementation. Sharing remains unavailable until the private Google Photos operations below are verified against current provider behavior.
+Status: APK-backed design and research. This document does not authorize an implementation. It replaces the earlier assumption that Google exposes no way to enumerate existing shares.
 
 ## Decision
 
-Issue #64 asks for durable, server-authoritative shares. The current integration has no share implementation. The historical fork has a browser-local share feature and a set of private Google Photos RPC calls, but its tests use fake fetchers and synthesized protobuf responses. No recorded provider response, live integration test, or current credential-backed run proves that Google still accepts those RPC ids, field numbers, states, or response shapes.
+Google Photos 7.98 contains account-scoped sharing enumeration and read operations. The sharing management screen is backed by a local database populated by `PhotosSyncSharedCollections`. The sync response carries the provider collection identity and the full collection record, including the current short URL and auth key.
 
-The missing piece is not only request shape. After an ambiguous create, the historical protocol has no proven discovery, list, or get operation for the remote album or envelope. A public URL probe can verify a known link, but it cannot discover an unknown one. Implementing create now would therefore add an unrecoverable orphan case in the exact lifecycle that #64 requires to be recoverable.
+A lost client response is therefore not proof that the provider share is unknowable. The server can reconcile provider state from Google instead of treating every ambiguous response as a permanent local recovery record.
 
-This branch stops at the design and research gate. It adds no share schema, route, provider call, browser state, or UI. Issue #64 remains open.
+The private RPC contract is not live-verified. The evidence below comes from the shipped APK, not from a captured Google response. The protocol gate looks passable, but live verification is still required before implementation.
 
-## Acceptance criteria
+## APK provenance
 
-| Requirement                                                  | Design response                                                                                                                                                                           |
-| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Shares isolated by authenticated user and Google account     | Session user and account are the only ownership inputs. Composite database constraints and scoped queries enforce isolation.                                                              |
-| Active shares survive reload, restart, and another device    | Server row is written before remote mutation and stores every handle needed for revocation. Browser storage is not authoritative.                                                         |
-| Create ambiguity is recoverable and does not lose revocation | Requires a discovery or reconciliation operation. None is proven. This is an implementation blocker.                                                                                      |
-| Revocation/rotation state is durable and testable            | Revocation uses `active` to `revoking` to `revoked`, with verification before success. User-facing rotation is out of scope for the first slice and remains blocked by the protocol gate. |
-| Capability gating prevents unusable links                    | Sharing stays off until live create, public activation, and revoke verification pass.                                                                                                     |
-| No historical browser compatibility                          | `phodrive-shares`, recovery JSON, and old client records are rejected.                                                                                                                    |
-| Protocol assumptions are re-verified                         | This document lists every assumption as unverified and defines the live verification plan.                                                                                                |
+| Field        | Value                                                                                                    |
+| ------------ | -------------------------------------------------------------------------------------------------------- |
+| File         | `com.google.android.apps.photos_7.98.0.1007591100-52591217_minAPI24(arm64-v8a)(nodpi)_apkmirror.com.apk` |
+| Package      | `com.google.android.apps.photos`                                                                         |
+| Version name | `7.98.0.1007591100`                                                                                      |
+| Version code | `52591217`                                                                                               |
+| SHA-256      | `1357526E4EBB2516F556B2BE9ACF516EBEC80BC1665BA49515C5664A1564C903`                                       |
+| ABI          | `arm64-v8a`                                                                                              |
+| Min SDK      | 24                                                                                                       |
+| Target SDK   | 37                                                                                                       |
 
-## Current state
+The APK is not committed. Analysis used JADX 1.5.6 and the Android build-tools manifest dump. No credentials, cookies, tokens, account identifiers, or private media identifiers are recorded here.
+
+## Current integration
 
 At integration `50667c40508ea4cd75bfa0ea4f7493024bab0f5e`:
 
-- No share route is mounted in `server/src/app.ts`.
-- No share table exists in `server/src/db/schema.ts`; migrations end at account groups.
-- No share model, server service, browser store, or UI exists in the current integration.
+- No share route, schema, model, service, browser store, or share UI exists.
 - User identity comes from the Better Auth session through `requireUser`.
-- A selected Google account is resolved from `x-phodrive-account-id` scoped to that session user. Unknown account ids fail closed.
-- Groups are per-user sets of Google accounts used for browsing and uploads. They are not share audiences.
-- The server already owns encrypted Google credentials. A share API must never accept or return them.
-- Google requests use the per-account `ThrottleCoordinator` in `ServerContext`.
+- The selected Google account comes from `x-phodrive-account-id`, scoped to that user. Unknown ids fail closed.
+- Groups are per-user sets of Google accounts for browsing and uploads. They are not share audiences.
+- The server holds encrypted Google credentials and never returns them.
+- Google requests use the existing per-account `ThrottleCoordinator` in `ServerContext`.
 
-## Historical evidence
+## APK evidence
 
-The historical fork is `f1206ffed73d259bbbc06c29f2618bc79f0defbf`. It is research evidence only.
+Confidence values:
 
-| Item                                                                                 | Classification                      | Use                                                                 |
-| ------------------------------------------------------------------------------------ | ----------------------------------- | ------------------------------------------------------------------- |
-| Browser `phodrive-shares` store, recovery JSON, email-keyed records                  | Historical baggage                  | Reject. It restores browser authority and has no migration value.   |
-| Browser share dialogs and share list                                                 | Historical baggage                  | Reject unless a future product slice needs a new UI.                |
-| Unauthenticated `/api/share` accepting email and token                               | Historical baggage                  | Reject. It conflicts with session auth and server-held credentials. |
-| `shared.phodrive.dev` manifest links                                                 | Historical baggage for this feature | Do not make a separate viewer deployment a sharing prerequisite.    |
-| Album create/remove and media-key batching                                           | Protocol hypothesis                 | Research input for live verification.                               |
-| Envelope create/delete and link-state RPC                                            | Protocol hypothesis                 | Research input for live verification.                               |
-| Public short-URL and canonical-album probing                                         | Still-valid observation method      | Can verify a known public link. It is not discovery.                |
-| Lifecycle lesson: remote mutation and local persistence are separate failure domains | Still valid                         | Drives the pending-state design.                                    |
+```text
+verified from APK       class, method, field, or call chain is present in the shipped APK
+strongly inferred       the call chain supports the conclusion but no live response was observed
+historical only         evidence exists only in the old better-phodrive implementation
+unknown                 not established
+```
 
-## Protocol hypothesis
+### Enumeration and read operations
 
-Everything in this section is unverified. The only source is the historical fork. The names and numbers are recorded so a future live experiment can confirm or replace them.
+The current sharing service is `social.frontend.photos.data.v1.PhotosFeService` on host `photosdata-pa.googleapis.com`.
 
-| Operation              | Historical request                                                                                                                                                                           | Historical response evidence                                                                          | Status                                         |
-| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| Create album           | `POST https://photosdata-pa.googleapis.com/6439526531001121323/8386163679468898444` with title, timestamp, media keys, device fields                                                         | Album key parsed at nested field `1.1`                                                                | Unverified                                     |
-| Remove album           | `POST .../11165707358190966680` with album key at field 1                                                                                                                                    | Empty success body                                                                                    | Unverified                                     |
-| Create envelope        | `POST .../11663664809460121647` with album target, title, permissions, client info, response masks                                                                                           | Envelope key at field 1; optional pending short URL at field 2                                        | Unverified                                     |
-| Enable or disable link | `POST https://photosdata-pa.googleapis.com/$rpc/social.frontend.photos.sharingdata.v1.PhotosSharingDataService/PhotosUpdateLinkSharingState` with envelope key at `1.1` and state at field 2 | Short URL at nested `1.1`; auth key at field 2                                                        | Unverified                                     |
-| Delete envelope        | `POST .../8089014401670041416` with envelope key at field 1                                                                                                                                  | Empty success body                                                                                    | Unverified                                     |
-| Resolve public link    | `GET` short URL with manual redirects, then `GET` the canonical `photos.google.com/share/...` page                                                                                           | A 200 HTML page is treated as live; 401, 403, 404, 410, or a non-share redirect is treated as stopped | Partially observable, not tied to RPC identity |
+| Operation                      | Evidence                                                                                                                                                                                   | Confidence                                  |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------- |
+| `PhotosSyncSharedCollections`  | `cpxx` registers the method at line 282; `cpxs` binds the name at line 446; `bmhg` builds the request and consumes the response                                                            | verified from APK                           |
+| `PhotosReadSharedCollections`  | `cpxx` registers the method at line 277; `cpxr` binds the name at line 536                                                                                                                 | verified from APK                           |
+| `PhotosCreateEnvelope`         | `cpxx` registers the method at line 301; `cpxt` binds the name at line 469; `afza` builds the request                                                                                      | verified from APK                           |
+| `PhotosDeleteEnvelope`         | `cpxx` registers the method at line 307; `cpxt` binds the name at line 505; `oni` builds the request                                                                                       | verified from APK                           |
+| `PhotosCreateAlbum`            | `cpxx` registers the method at line 298; `cpxs` binds the name at line 554                                                                                                                 | method present, no current call chain found |
+| `PhotosUpdateLinkSharingState` | service `social.frontend.photos.sharingdata.v1.PhotosSharingDataService`; `cqst` returns the explicit `/$rpc/.../PhotosUpdateLinkSharingState` path at line 291; `agpj` builds the request | verified from APK                           |
 
-Remote identifiers in the historical record:
+`PhotosSyncSharedCollections` and `PhotosReadSharedCollections` are current operations. The historical better-phodrive implementation did not implement either, which is why its missing-enumeration conclusion was a limitation of that implementation, not of Google.
 
-- `albumKey` from album creation, required for album removal.
-- `envelopeKey` from envelope creation, required for link disable and envelope deletion.
-- `pendingShortUrl` from envelope creation, optional.
-- `shortUrl` and `authKey` from link enablement. `authKey` had no consumer in the historical revoke path.
-- `albumUrl`, the provider canonical URL resolved from the short URL.
-- `shareUrl`, a locally generated Phodrive manifest URL. It is not a Google identifier and is not needed for revocation.
+### How sharing management gets its data
 
-Historical behavior that remains an assumption:
+The current app does not query Google each time the sharing management screen opens. It synchronizes shared collections into a local SQLite database and renders from that database.
 
-- Create is not idempotent. Every call creates a new remote album and envelope. There is no client idempotency key in the protocol evidence.
-- Revoke accepts 404 and 410 as already gone, but this retry tolerance is only tested with mocks.
-- A lost album-create or envelope-create response leaves an unknown remote object. No discovery RPC is proven.
-- A lost link-enable response may expose a pending short URL, but the auth key and any rotated URL are unknown.
-- A lost revoke response may have applied fully, partially, or not at all. The stored handles are required to retry.
-- Account capability may vary by provider state. No evidence covers that variation.
+Call chain for the shared-links screen:
 
-## Evidence matrix
+```text
+ManageSharingActivity
+  -> bhgv (Manage sharing menu)
+  -> ManageSharedLinksActivity
+  -> ManageSharedLinksFragment
+  -> bjkn / bdpa
+  -> local envelopes table
+```
 
-| Claim                                                            | Historical source                                                                    | Test evidence                               | Current live evidence | Status                                 |
-| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------- | --------------------- | -------------------------------------- |
-| RPC ids and endpoints still work                                 | `core/src/server/photos/albums.ts`, `core/src/server/share/requests.ts` at `f1206ff` | Fake fetcher only                           | None                  | Unverified                             |
-| Protobuf field numbers and enum values are current               | Same files                                                                           | Encoder and parser agree with test fixtures | None                  | Unverified                             |
-| Album creation returns the album key at `1.1`                    | `albums.ts`                                                                          | Synthetic response                          | None                  | Unverified                             |
-| Envelope creation returns key and optional pending URL           | `share/requests.ts`                                                                  | Synthetic response                          | None                  | Unverified                             |
-| Link state enable returns short URL and auth key                 | `share/link.ts`, `requests.ts`                                                       | Synthetic response                          | None                  | Unverified                             |
-| Link state disable and envelope/album deletion are retry-safe    | `share/revoke.ts`                                                                    | Mocked 404/410                              | None                  | Unverified                             |
-| An existing remote share can be discovered                       | No implementation                                                                    | None                                        | None                  | Not proven                             |
-| Public redirect and status probes prove activation or revocation | `share/public.ts`                                                                    | Mocked responses                            | None                  | Unverified for current Google behavior |
-| AAS token authentication still reaches these RPCs                | Historical server code                                                               | Mocked auth                                 | None                  | Unverified                             |
+`ManageSharedLinksFragment` builds its list adapter from `envelopes` rows. The database view `envelope_covers` includes `envelopes.media_key`, `short_url`, `auth_key`, `title`, owner, viewer, item counts, and link capabilities. The screen does not call a list RPC directly.
 
-## Required semantics
+The synchronization path:
 
-If the protocol gate is passed:
+```text
+bivc (SyncSharedCollections)
+  -> SyncSharedCollectionsTask
+  -> bmhg (SyncSharedCollectionsOp)
+  -> PhotosSyncSharedCollections
+  -> cpwf response
+  -> apgs applies each cpwe item to envelopes and collections
+```
 
-- The server, not the browser, is authoritative for every share.
-- A share belongs to one authenticated user and one Google account.
-- A share represents one remote album, one envelope, and one public link. Multi-file selections use one album and one manifest, not one remote object per chunk.
-- The owner account is the account that owns every selected file and chunk. A group is not an owner. Group files use the actual member account.
-- A share row is inserted before the first remote mutation and stores each remote identifier as soon as it is known.
-- No client response claims success until the active row and its public URL are durable.
-- A public link is never created unless a revocation handle is already durable.
+`bivc.c()` starts `SyncSharedCollectionsTask` with `apgw.VIEW_SHARED_COLLECTIONS_LIST`. `bhkf` handles the result and retries while the response says `continue_sync`.
 
-## State machine
+### Sync request
 
-Proposed states:
+The request message is `cpwb`, built by `bmhg.b()`.
 
-| State      | Meaning                                                                  | Allowed exits                                                                                                                           |
-| ---------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `creating` | Row exists; remote creation may be in progress or outcome may be unknown | `active` after durable full record and live verification; `failed` only after confirmed cleanup and proof that no link was ever enabled |
-| `active`   | Link is live and every revoke handle is stored                           | `revoking`                                                                                                                              |
-| `revoking` | Revocation or cleanup was attempted; the link may still be public        | `revoked` only after remote removal and stopped verification; remains `revoking` otherwise                                              |
-| `revoked`  | Revocation is verified; terminal                                         | None                                                                                                                                    |
-| `failed`   | Creation ended without a public link and cleanup is confirmed; terminal  | None                                                                                                                                    |
+| Field | Evidence                                        | Meaning                      | Confidence                                            |
+| ----- | ----------------------------------------------- | ---------------------------- | ----------------------------------------------------- |
+| 1     | repeated `cpwa` built from local `bmhd` entries | Local collection sync states | verified from APK; exact empty-state behavior unknown |
+| 2     | `cmkb` from `alzn`                              | Metadata sync state          | strongly inferred                                     |
+| 3     | `clvw` from `alzn`                              | Metadata sync state          | strongly inferred                                     |
+| 4     | `clyj` from `alzn`                              | Metadata sync state          | strongly inferred                                     |
+| 5     | `clvm` from `alzn`                              | Metadata sync state          | strongly inferred                                     |
+| 6     | `clxu` from `alzn`                              | Metadata sync state          | strongly inferred                                     |
+| 7     | `cmho` from `alzn`                              | Metadata sync state          | strongly inferred                                     |
+| 8     | `cmew` from `alzn`                              | Metadata sync state          | strongly inferred                                     |
+| 9     | integer list                                    | Feature flags                | strongly inferred                                     |
+| 10    | `cnbj` from `alzn`                              | Optional metadata sync state | strongly inferred                                     |
 
-There is no separate ambiguous state. An old `creating` row is unresolved, not safe to retry blindly. The same applies to an old `revoking` row. `failed` is forbidden if a link may have been enabled. `revoked` is forbidden while any public probe still reports a live link.
+`bmhf` limits a batch to ten local collection entries. `ReadEnvelopeTask` uses the same synchronization operation with one collection state (`aggm`, `bmhf`, `bmhd`) to refresh a specific envelope. `PhotosReadSharedCollections` is available for a direct read by known collection identities, but the traced app paths use the sync operation.
 
-## Rotation
+### Sync response
 
-User-facing rotation is not in scope for the first slice. The historical protocol had no rotation operation. A retry of link enablement can return a different short URL. Treat that as an unresolved create, not as an active rotation: persist the new short URL in `pending_short_url`, verify the new link and any previous link, and promote to active only when the full tuple is durable and every previously issued URL is stopped. If a previous URL remains live, the row stays `creating` and requires manual recovery.
+The response is `cpwf`, a repeated list of `cpwe`.
 
-A future rotation feature would need a separate state and a stored previous-URL handle. It is not authorized here because current provider behavior is unverified.
+| Field                | Evidence                                              | Meaning                                   | Confidence                                                   |
+| -------------------- | ----------------------------------------------------- | ----------------------------------------- | ------------------------------------------------------------ |
+| `cpwe.d`             | string                                                | Resume token                              | verified from APK                                            |
+| `cpwe.e`             | `cmia` message; `cmia.c` used as remote collection id | Stable collection media key               | verified from APK                                            |
+| `cpwe.f`             | `clxa` full collection                                | Full collection record                    | verified from APK                                            |
+| `cpwe.g`             | repeated message                                      | Shared media or members                   | verified from APK; exact role follows `apgs`                 |
+| `cpwe.h`             | repeated message                                      | Collection members                        | strongly inferred                                            |
+| `cpwe.i`             | repeated message                                      | Comments or media metadata                | strongly inferred                                            |
+| `cpwe.j`             | repeated message                                      | Hearts or reactions                       | strongly inferred                                            |
+| `cpwe.k` to `cpwe.n` | repeated messages                                     | Other collection relations                | verified from APK; exact roles not needed for share identity |
+| `cpwe.o`             | string                                                | Next sync token                           | verified from APK                                            |
+| `cpwe.p`             | `cpwd` enum                                           | Syncability: unknown, syncable, too large | verified from APK                                            |
+| `cpwe.q`             | `cpwe` deletion enum                                  | Deletion or reset state                   | verified from APK                                            |
+| `cpwe.r`             | `cpwc` flags                                          | Reset actions                             | verified from APK                                            |
 
-## Data model
+The full collection record `clxa` contains the collection metadata at `clxa.e` (`clwm`). The app writes that metadata into the local `envelopes` table in `acdv.n`:
 
-Proposed before implementation. The file relation is required even when a share contains one file.
+| Local column               | Source                                 | Evidence                                                        |
+| -------------------------- | -------------------------------------- | --------------------------------------------------------------- |
+| `envelopes.media_key`      | `clxa` collection media key (`cmia.c`) | `apgs.h` uses `ajzs.a(cmiaVar.c)`; `bhsf` keeps the full record |
+| `envelopes.title`          | `clwm.d`                               | `acdv.n` line 174                                               |
+| `envelopes.auth_key`       | `clwm.l`                               | `acdv.n` line 124                                               |
+| `envelopes.short_url`      | `clwm.n` (`clwo.c`)                    | `acdv.n` lines 406-427                                          |
+| `envelopes.owner_actor_id` | `clwm.c`                               | `acdv.n` line 114                                               |
+| `envelopes.can_link_share` | `clwm.p` capability data               | `acdv.n` line 252                                               |
+| `envelopes.protobuf`       | full `clxa` record                     | `acdv.n` line 445                                               |
+
+The response therefore contains the current short URL and auth key for a known collection. The local database is a cache of provider state, not the source of truth.
+
+### Create, link, and delete
+
+`PhotosCreateEnvelope` uses request `cpmo` built by `afza.b()`. The request contains collection details, media items, title, and client information. The response `cpmp` carries two string identifiers and an optional full `clxa` collection (`afza.f`). The app persists the resulting collection through `GetOrCreateEnvelopeTask` and the local envelope store.
+
+`PhotosCreateEnvelope` does not expose the album publicly by itself. Link sharing is a separate `PhotosUpdateLinkSharingState` call.
+
+`agpj` builds the current link-state request `cqto`:
+
+| Field    | Meaning                           | Evidence                                                      |
+| -------- | --------------------------------- | ------------------------------------------------------------- |
+| `cqto.c` | `cmia` collection media key       | `agpj.b()` sets `cmia.c` from the local remote collection key |
+| `cqto.d` | link state: 1 disabled, 2 enabled | `agpj.b()` maps the boolean to `(true ? 3 : 2) - 1`           |
+
+The response `cqtp` contains:
+
+| Field    | Meaning                                 | Evidence                    |
+| -------- | --------------------------------------- | --------------------------- |
+| `cqtp.b` | `clwo` short URL                        | `agpj.f()` reads `clwo.c`   |
+| `cqtp.c` | auth key                                | `agpj.f()` reads the string |
+| `cqtp.d` | repeated `cmht` capabilities/recipients | `agpj.f()` stores the list  |
+
+Public exposure begins when `PhotosUpdateLinkSharingState` enables the link, not when the collection or envelope is created. This is a strong inference from the separate create and link-state call paths. Live verification must confirm that a created but link-disabled collection is not publicly reachable.
+
+`PhotosDeleteEnvelope` uses request `cpnt` built by `oni`. It carries the collection media key and two flags. `DeleteSharedCollectionTask` uses it to remove a shared collection. Whether this removes the underlying Google album, or only the sharing envelope, is not proven. The app presents it as deleting the shared link/collection, but live verification is required.
+
+`PhotosCreateAlbum` is present in the service descriptor but no current call chain was found. The historical separate album-create endpoint is not present in the current APK. The current shared-album path creates a collection through `PhotosCreateEnvelope` and manages the link separately.
+
+### Stable provider identity
+
+The stable provider identity is the collection media key (`cmia.c`, stored locally as `envelopes.media_key`). The app uses it for:
+
+- link enable and disable (`agpj` request `cqto.c`);
+- shared collection deletion (`oni` request `cpnt.c`);
+- reading a specific envelope through the sync operation (`aggm`/`bmhd`).
+
+The short URL is not stable identity. It is a field in the full collection record (`clwm.n`, `clwo.c`) and is returned again by link-state changes. The auth key is also a field (`clwm.l`), not a revoke handle.
+
+The historical split between `albumKey`, `envelopeKey`, `pendingShortUrl`, and `authKey` is not reflected in the current link-state request. The current APK uses one collection media key for link and delete operations. The old split must not be made mandatory without live evidence.
+
+## Reconciliation model
+
+### Lost create response
+
+If `PhotosCreateEnvelope` succeeds and the response is lost, the collection should appear in a later `PhotosSyncSharedCollections` result for the same account. The local share row can match the returned collection by:
+
+- owner user and Google account;
+- exact media-key set of the selected Phodrive chunks;
+- collection title.
+
+If exactly one candidate matches, persist its collection media key and treat the share as active when the sync record has an enabled link. If several candidates match, fail closed and require an explicit choice. Do not create another collection.
+
+`PhotosReadSharedCollections` can read known collection identities. It does not solve the first match, but it removes the need to persist every provider handle after identity is known.
+
+### Lost revoke response
+
+If `PhotosDeleteEnvelope` or link disable succeeds and the response is lost, a later sync can show whether the collection still exists and whether it still has a short URL. If the collection is absent or the link is disabled, the revoke is complete even if the local delete failed. If it is still present, retry the remote operation from the stable collection media key.
+
+### Lost link response
+
+If `PhotosUpdateLinkSharingState` succeeds and the response is lost, a later sync returns the current short URL and auth key in the full collection record. If the link is disabled, the record has no short URL and the server can retry enablement with the stable collection media key.
+
+## What local PostgreSQL must store
+
+Google is authoritative for provider existence, link state, the current short URL, the auth key, and the collection media key. Local storage is authoritative only for the Phodrive association and idempotency.
+
+Proposed `google_share` row:
 
 ```text
 google_share
-  id                 text primary key
-  user_id            text not null
-  google_account_id  text not null
-  request_key        text not null
-  name               text not null
-  status             text not null
-  envelope_key       text
-  album_key          text
-  pending_short_url  text
-  short_url          text
-  album_url          text
-  share_url          text
-  created_at         timestamp not null
-  updated_at         timestamp not null
-
-google_share_file
-  user_id            text not null
-  share_id           text not null
-  file_id            text not null
-  file_hash          text not null
-  name               text not null
-  chunk_count        integer not null
-  primary key (user_id, share_id, file_id)
+  id                       text primary key
+  user_id                  text not null
+  google_account_id        text not null
+  request_key              text not null
+  file_id                  text not null
+  file_hash                text not null
+  name                     text not null
+  provider_collection_key  text
+  created_at               timestamp not null
+  updated_at               timestamp not null
 ```
 
-Constraints and indexes:
+Constraints:
 
-- Unique `(user_id, id)` on `google_share`.
-- Unique `(user_id, request_key)` on `google_share` so a retried create cannot start a second remote grant after a lost response.
-- Foreign key `(user_id, google_account_id)` to `google_account(user_id, id)` with `ON DELETE RESTRICT`. Cascading the account would drop the only revocation handles for a live public album.
-- Check `status` in the five states above.
-- Foreign key `(user_id, share_id)` to `google_share(user_id, id)` with `ON DELETE CASCADE`.
-- Index `(user_id, google_account_id)` on `google_share` for the share list. The primary key covers direct lookup. No other index is justified yet.
+- Unique `(user_id, id)`.
+- Unique `(user_id, request_key)` so a lost create response cannot start a second remote collection.
+- Foreign key `(user_id, google_account_id)` to `google_account(user_id, id)` with `ON DELETE RESTRICT`. Cascading the account would drop the local association while a public link may still exist.
+- Index `(user_id, google_account_id)` for listing. The primary key covers direct lookup.
 
-`google_share_file` is the durable local association between a share and its selected files. It is not a foreign key to `chunk_metadata`, because `chunk_metadata` is a cache and its rows can be removed. The row stores the file identity, content hash, display name, and chunk count as an immutable snapshot. It does not store media keys or individual chunks: those are provider-side items inside the album, and the revocation unit is the album, not a chunk.
+`provider_collection_key` is nullable while a create is in flight or before reconciliation. It is the only provider handle that merits local persistence because it is the stable match for revoke and read. `short_url`, `auth_key`, `album_url`, and a Phodrive manifest `share_url` are not required columns. They are provider state that can be read from the sync record. If a cached short URL is later needed for display latency, it must be treated as a cache with reconciliation, not as authority.
 
-The share row stores no email, token, media key, chunk hash, or provider error. Those are either derived from the account or not needed for revocation. Multi-file sharing remains a product decision, but the relation supports either one file or a selection without changing the remote lifecycle.
+No `envelope_key`, `album_key`, `pending_short_url`, or `share_url` columns are proposed. No `auth_key` column is proposed; it is not needed for revoke and is not a stable identity.
+
+The initial #64 slice should support one Phodrive file per share. A `google_share_file` relation is not required until multi-file sharing is a product decision. If multi-file is approved, add one relation row per file instead of duplicating file identity on the share.
+
+## Local state model
+
+Do not mirror Google's `active`, `revoked`, or link states in PostgreSQL. They can change outside Phodrive and are returned by sync. A local row represents a Phodrive-created or adopted share, not a copy of provider state.
+
+The row has:
+
+- an identity and request key;
+- an owning user and Google account;
+- a Phodrive file association;
+- a nullable provider collection key;
+- timestamps for cleanup and diagnostics.
+
+The provider state is computed at read time by reconciling the account's sync records with local rows. A local row whose provider collection no longer exists is stale. It can be hidden from active lists and removed after reconciliation. It is not a public grant.
+
+This reduces the local state machine to idempotent create and revoke operations plus reconciliation. It also means a local persistence failure after a remote create does not lose the ability to revoke, because the provider collection remains enumerable.
 
 ## API
 
-Proposed only after the capability gate is passed:
+Proposed, not implemented:
 
-- `POST /api/shares` with a client request key, one or more file identities, and a display name. The first release may restrict the list to one file. The server resolves the account and verifies file and chunk ownership. A retry with the same request key returns the same row without repeating remote creation.
-- `GET /api/shares` returns owner-visible summaries for the session user and selected account.
-- `GET /api/shares/:id` returns a summary only to that user. Foreign or missing ids return 404.
-- `POST /api/shares/:id/revoke` starts revocation and returns the durable state. Success is not reported until the row reaches `revoked`.
+- `POST /api/shares` with a client request key, one file identity, and a display name. The server resolves the session user, selected Google account, and file ownership. It returns the local share id and the reconciled provider state.
+- `GET /api/shares` reconciles the account's existing shared collections with local rows and returns owner-visible summaries.
+- `GET /api/shares/:id` returns one local share summary only to its owner.
+- `POST /api/shares/:id/revoke` disables the link and deletes the shared collection, then reconciles and removes the local association only after the provider no longer exposes it.
 
-Responses contain share id, state, display name, file display metadata, and the public URL only when active. They never contain Google tokens, media keys, signed media URLs, raw RPC payloads, or another user's identifiers. The client cannot set the owner user or account.
+Responses contain share id, local file display metadata, display name, provider state, and the current public URL when a link is active. They never contain tokens, raw RPC payloads, media keys, or signed media URLs. The client cannot set the user, account, or provider key.
 
-## Failure and recovery
-
-| Scenario                                                            | Durable result                                                   | Allowed response                                                               |
-| ------------------------------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| Pending row, remote create succeeds, final commit succeeds          | `active` with complete handles and live link                     | Success                                                                        |
-| Pending row, remote create fails definitively                       | `failed` only after cleanup is confirmed and no link could exist | Failure                                                                        |
-| Pending row, remote create succeeds, connection or response is lost | `creating`, possibly with a known album or envelope key          | Do not claim success or no-op. Requires discovery or manual recovery.          |
-| Remote create succeeds, final row update fails                      | `creating` with known handles                                    | Retry the update, otherwise keep pending. Never report active.                 |
-| Revoke succeeds remotely, local update fails                        | `revoking` with full handles                                     | Retry the update. Never report revoked.                                        |
-| Revoke may have applied but response is lost                        | `revoking`                                                       | Retry disable, delete, and remove; verify probes.                              |
-| Local commit succeeds, HTTP response is lost                        | Durable state already exists                                     | A retry with the same request key returns the same result without remote work. |
-| Restart with `revoking`                                             | Full handles are present                                         | Resume revocation.                                                             |
-| Restart with `creating`                                             | Only persisted handles are known                                 | Resume only known cleanup. Never create a second album or envelope.            |
-
-The lost album or envelope response is the hard blocker. Without a proven discovery operation, the server cannot tell whether an unknown remote object exists, and cannot store a revocation handle. The only safe behavior is to keep sharing disabled until this is resolved.
+The browser operates in Phodrive terms. It does not send provider identifiers except the local share id.
 
 ## Isolation and security
 
-- The session user is the only principal. The body cannot supply an owner user, owner email, token, or arbitrary account id.
-- The selected account is resolved from the session and the account header, then checked against `google_account`.
-- Share lookup, list, and revoke filter by `user_id`. Foreign share ids return 404.
-- A share's account and file ownership are verified server-side against owner-scoped data. Client-supplied file hashes and media keys are not authorization.
-- Group files use the owning member account id, not the group id, session default, or email.
-- Share ids are not authorization tokens for content. Public URL access is controlled by the provider, and the local API never proxies content from a guessed share id.
-- The remote identifiers are server-only. The browser receives only the public URL and summary state.
+- The session user is the only principal.
+- The Google account is resolved from the session and the account header, never from the request body.
+- Share queries filter by user. Foreign or missing ids return 404.
+- File ownership is verified against server-owned metadata for the selected account. Client media keys are not authorization.
+- Group files use the actual owning member account id.
+- Provider collection keys are server-only.
+- A public link is never reported as active until the provider sync record confirms it.
+- Account deletion is `RESTRICT` while local share rows exist. The account must be reconciled or its shares revoked first.
+
+Cross-user and cross-account isolation require database and route tests, not only unit tests.
 
 ## Throttling
 
-Create and revoke calls use the existing `ServerContext` throttle coordinator, keyed by the owning `account.id`. No share-specific coordinator, cooldown table, or request-local coordinator is allowed. Public URL probes are unauthenticated link checks, not account API calls, and must not consume another account's cooldown.
+Create, link, delete, and read operations use the existing `ServerContext` coordinator keyed by the owning `account.id`. No share-specific coordinator, request-local coordinator, or persistent cooldown table is allowed. Public URL checks are unauthenticated link checks, not account API calls.
 
-## Capability gate
+## Historical comparison
 
-Sharing is disabled by default until all of the following are proven:
+| Historical behavior                         | Current APK                                                                                                                          | Consequence                                                             |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------- |
+| Numeric create-album endpoint               | `PhotosCreateAlbum` method present; current shared-album path uses `PhotosCreateEnvelope`; no source call found for the album method | Historical endpoint is not evidence of the current path                 |
+| Numeric remove-album endpoint               | `PhotosDeleteEnvelope` method; `DeleteSharedCollectionTask` uses it                                                                  | Current removal unit may be the shared collection, not a separate album |
+| Numeric create-envelope endpoint            | `PhotosCreateEnvelope` named method                                                                                                  | Historical RPC id is obsolete evidence                                  |
+| Link state request with envelope key        | `PhotosUpdateLinkSharingState` with collection media key and state 1/2                                                               | One stable collection key replaces the old split                        |
+| No enumeration in historical implementation | `PhotosSyncSharedCollections` and `PhotosReadSharedCollections`                                                                      | Enumeration is possible; the old limitation was local                   |
+| Short URL stored from link response         | Short URL is part of the full collection sync record                                                                                 | Reconciliation can recover it                                           |
+| Browser-local records                       | No current Phodrive share implementation                                                                                             | Do not migrate `phodrive-shares` or old recovery JSON                   |
 
-1. A live authenticated create returns stable album and envelope identifiers.
-2. Link enablement returns a short URL that resolves to a live canonical album page.
-3. Link disable, envelope deletion, and album removal stop the public link, including their 404 and 410 behavior.
-4. A lost create response can be discovered or reconciled, or the design can prove no public link was created.
-5. A lost revoke response can be retried from durable handles and verified stopped.
-6. Account capability variation is known, and unusable accounts are rejected before mutation.
+## Verification plan
 
-Until then, no share route should be mounted and no public link should be issued.
+Static APK evidence is not a live provider verification. Before implementation:
 
-## Live verification plan
+1. Use a dedicated test account and non-sensitive test media.
+2. Create one shared collection, disable the link, and confirm it is not publicly reachable.
+3. Enable the link and confirm the short URL resolves to the canonical album page.
+4. Clear all local Phodrive state, run `PhotosSyncSharedCollections` with a fresh account state, and confirm the collection is listed with its collection media key, short URL, auth key, title, owner, and media items.
+5. Disable the link and confirm the sync record loses or changes the short URL.
+6. Re-enable the link and record whether the short URL changes, whether the old URL stops working, and whether the collection media key remains stable.
+7. Delete the shared collection and confirm the sync record no longer lists it and the public URL stops serving.
+8. Drop the connection after create, after link enable, and after delete, then reconcile from sync and confirm the local association can be recovered without creating a duplicate.
+9. Confirm the empty-state initial sync returns all collections, not only recent activity.
+10. Repeat with a multi-chunk file and confirm the album contains every chunk and the public page exposes all of them.
 
-Use a dedicated test account and one small, non-sensitive media item. Record sanitized request and response shapes, never tokens or account secrets.
+Do not implement until steps 4, 6, 7, and 8 are answered with current provider evidence.
 
-1. Create an album with one media key. Confirm the album appears in the account and capture the returned identifier.
-2. Create an envelope for the album. Capture the key and any pending short URL.
-3. Enable link sharing. Capture the short URL, auth key, redirect chain, and canonical page status.
-4. Disable the link, delete the envelope, and remove the album separately. Probe the short, canonical, and direct media URLs after each step.
-5. Repeat create and revoke calls. Record whether create duplicates, whether revoke is idempotent, and which statuses mean already gone.
-6. Drop the connection after each remote call and before reading the response. Check whether the account exposes a way to discover the created object.
-7. Repeat with a multi-chunk file and confirm the album contains every chunk media item and the public page exposes all of them.
-8. Exercise 429, 5xx, cancellation, and token expiry against the existing throttle and auth layers.
-9. Test at least two accounts in different provider states.
+## Effect on issue #64
 
-The implementation gate is not passed if step 6 has no deterministic answer, or if revoke cannot prove the link stopped.
+The provider enumeration changes the implementation shape. The old issue language implies a durable mirror of provider lifecycle state. That is no longer necessary if current Google enumeration works as the APK indicates.
+
+Recommended acceptance language:
+
+- The server is authoritative for the Phodrive user, account, file association, and idempotency key.
+- Google is authoritative for provider collection identity, link state, and current public URL.
+- Lost create and revoke responses are reconciled from provider enumeration before any retry.
+- Local rows are never treated as proof that a public link exists.
+- Revocation must be verified against provider state before the local row is removed.
+- Rotation support is not implied by reconciliation. Link replacement must be tested separately.
+
+Issue #64 remains open until the live verification plan passes and an implementation PR lands.
 
 ## Rejected historical baggage
 
-- `phodrive-shares`, browser-local authoritative records, and email-keyed storage.
-- Old recovery JSON and compatibility loaders.
-- Browser-supplied Google credentials on share routes.
+- `phodrive-shares` and browser-local authoritative records.
+- Old recovery JSON, compatibility loaders, and migration code.
+- Browser-supplied email and token on share routes.
 - Manifest `shareUrl` as a required product dependency.
-- Stored `authKey` without a consumer.
-- Old share UI and old localStorage tests.
-- Automatic migration of historical browser share data.
-- Any claim that mocked protobuf tests verify current Google behavior.
+- Stored `authKey` without a current consumer.
+- `albumKey`, `envelopeKey`, and `pendingShortUrl` as mandatory local fields without current evidence.
+- Old share UI and localStorage tests.
+- Treating historical mock protobuf tests as provider verification.
 
-## Open product decisions
+## Open questions
 
-- Single-file shares only, or multi-file selections. The remote unit is one album and one link either way.
-- Whether the public share URL is the provider canonical URL or a new Phodrive viewer. The old viewer deployment is not part of current integration.
-- Whether expiration is required. The historical record had no expiry.
-- User-facing link rotation is out of scope for the first slice. Provider-side short-URL replacement during a retry is handled as unresolved creation, not as rotation. A rotation feature needs a separate protocol gate, state, and previous-URL handle.
-- Whether a shared file that is trashed or permanently deleted should be revoked automatically. Automatic revocation is irreversible and needs an explicit product rule.
+- Does a fresh sync with empty local state return every shared collection, including inactive links?
+- Does `PhotosDeleteEnvelope` remove the underlying album or only the sharing record?
+- Does link re-enable change the short URL, and does the old URL stop serving?
+- Does the sync response expose every collection that can still be revoked?
+- Are account capabilities or collection size limits exposed before create?
+
+These are live verification questions, not reasons to mirror provider state locally.
 
 ## Implementation gate
 
-No implementation PR should start until the live verification plan is complete and the ambiguous-create gap has a deterministic recovery or an explicit product decision to prohibit that path. The next implementation, if approved, should start with the schema and capability gate, then the server lifecycle, then the minimal owner API. A UI is not required for the first server slice.
+The protocol gate appears passable because enumeration and stable collection identity exist in the current APK. Implementation can proceed only after the live verification plan answers the open questions. The first implementation should be the schema and reconciliation service, then the owner API, then the minimal UI.
+
+No implementation is included in this PR.
