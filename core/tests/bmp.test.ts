@@ -2,8 +2,10 @@ import { test, expect } from 'vitest';
 import { createHash } from 'node:crypto';
 import {
     decodeSplitHeader,
+    isPossibleSplitBmpSize,
     MAX_CHUNK_PAYLOAD_BYTES,
     MAX_PHOTOS_BMP_BYTES,
+    MIN_SPLIT_BMP_BYTES,
     splitBmpByteLength
 } from '@madkarmaa/phodrive-core/server/bmp';
 import { decodeSplitBmp, encodeSplitBmp } from './helpers/split-bmp';
@@ -56,6 +58,48 @@ test('split BMPs store the Zod-validated metadata and reconstruct the original b
     const reconstructed = Buffer.concat(decoded.map(({ payload }) => Buffer.from(payload)));
     expect(reconstructed).toEqual(Buffer.from(ORIGINAL));
     expect(createHash('sha256').update(reconstructed).digest('hex')).toBe(FILE_HASH);
+});
+
+test('only sizes that fit the split layout can be split BMPs', () => {
+    expect(MIN_SPLIT_BMP_BYTES).toBe(3126);
+
+    for (const payloadSize of [0, 1, 100, 2000, 65_536, MAX_CHUNK_PAYLOAD_BYTES]) {
+        const total = splitBmpByteLength(header(0, payloadSize, true)).unwrap();
+        expect(isPossibleSplitBmpSize(total)).toBe(true);
+    }
+
+    expect(isPossibleSplitBmpSize(3126)).toBe(true);
+    expect(isPossibleSplitBmpSize(3138)).toBe(true);
+    expect(isPossibleSplitBmpSize(3125)).toBe(false);
+    expect(isPossibleSplitBmpSize(3127)).toBe(false);
+    expect(isPossibleSplitBmpSize(MAX_PHOTOS_BMP_BYTES + 10)).toBe(true);
+    expect(isPossibleSplitBmpSize(MAX_PHOTOS_BMP_BYTES + 1)).toBe(false);
+});
+
+test('the listing size check accepts a size the header decoder accepts above the upload cap', () => {
+    const total = 240_000_054;
+    const prefix = Buffer.alloc(200);
+    const view = new DataView(prefix.buffer);
+    prefix.set([66, 77]);
+    prefix.set(new TextEncoder().encode('BMSPLIT\x01'), 54);
+    prefix.fill(0xab, 62, 94);
+    prefix.fill(0xcd, 94, 126);
+    view.setUint32(2, total, true);
+    view.setUint32(10, 54, true);
+    view.setUint32(14, 40, true);
+    view.setInt32(18, 32, true);
+    view.setInt32(22, 2_500_000, true);
+    view.setUint16(26, 1, true);
+    view.setUint16(28, 24, true);
+    view.setUint32(34, total - 54, true);
+    prefix[126] = 0;
+    prefix[127] = 1;
+    prefix[128] = 1;
+    prefix[129] = 1;
+    prefix[130] = 97;
+
+    expect(decodeSplitHeader(prefix, total).isOk()).toBe(true);
+    expect(isPossibleSplitBmpSize(total)).toBe(true);
 });
 
 test('chunk indexes use canonical varints, including indexes above 127', () => {

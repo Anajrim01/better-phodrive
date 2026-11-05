@@ -41,12 +41,11 @@ function splitChunk(
 export function libraryFixture(emptyFinalPage: boolean) {
     const first = splitChunk(Uint8Array.of(1, 2), 0, false, 'original.bin');
     const last = splitChunk(Uint8Array.of(3), 1, true);
-    const ordinary = Buffer.alloc(first.length);
     const originals = new Map([
         ['renamed-first', first],
         ['renamed-last', last],
-        ['ordinary-video', ordinary],
-        ['ordinary-photo', ordinary]
+        ['ordinary-video', Buffer.alloc(first.length)],
+        ['ordinary-photo', Buffer.alloc(first.length + 12, 1)]
     ]);
     const calls = { library: 0, prefix: 0, failPrefix: false };
 

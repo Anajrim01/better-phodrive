@@ -8,6 +8,7 @@ import type { PhotosHeaders } from '../auth';
 import { preparedDownloadUrl } from '../download';
 import type { ThrottleScope } from '../throttle';
 import { guardedSend } from '../transport';
+import { contentIndex, contentKey, contentRecord, groupByContent } from './content-groups';
 import type { LibraryCandidate } from './metadata';
 import {
     chunkMetadataRecord,
@@ -45,32 +46,53 @@ export function scanLibraryPage(
             : new Map<string, ChunkMetadataRecord>();
         const items = new Map<string, RemoteBmp>();
         const missing: LibraryCandidate[] = [];
+        const records: ChunkMetadataRecord[] = [];
+        const content = contentIndex(stored.values());
 
         for (const candidate of page.items) {
             const record = stored.get(candidate.mediaKey);
             if (record && metadataMatches(record, candidate)) {
                 items.set(candidate.mediaKey, metadataItem(record, candidate));
-            } else if (!candidate.trashed) {
-                missing.push(candidate);
+                continue;
             }
+
+            const shared = content.get(contentKey(candidate.sha1, candidate.size));
+            if (shared) {
+                const copied = contentRecord(shared, candidate);
+                items.set(candidate.mediaKey, metadataItem(copied, candidate));
+                records.push(copied);
+                continue;
+            }
+
+            if (!candidate.trashed) missing.push(candidate);
         }
 
+        const groups = groupByContent(missing);
         const limit = pLimit(LIBRARY_PROBE_CONCURRENCY);
-        const scanned = await limit.map(missing, (candidate) =>
-            probeLibraryItem(candidate, headers.commonHeaders, headers.rpcHeaders, fetcher, scope)
+        const scanned = await limit.map(groups, (group) =>
+            probeLibraryItem(
+                group[0],
+                headers.commonHeaders,
+                headers.rpcHeaders,
+                fetcher,
+                scope
+            ).map((item) => ({ group, item }))
         );
-        const records: ChunkMetadataRecord[] = [];
-        const missingByKey = new Map(missing.map((candidate) => [candidate.mediaKey, candidate]));
 
         for (const result of scanned) {
             if (result.isErr()) return result;
 
-            result.inspect((item) => {
+            result.inspect(({ group, item }) => {
                 if (item === null) return;
 
-                items.set(item.mediaKey, item);
-                const candidate = missingByKey.get(item.mediaKey);
-                if (candidate) records.push(chunkMetadataRecord(item, candidate.size));
+                for (const candidate of group) {
+                    const record = contentRecord(
+                        chunkMetadataRecord(item, candidate.size),
+                        candidate
+                    );
+                    items.set(candidate.mediaKey, metadataItem(record, candidate));
+                    records.push(record);
+                }
             });
         }
 

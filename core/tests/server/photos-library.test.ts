@@ -15,7 +15,7 @@ test('listing marks a full hidden item as trashed and omits key-only hidden item
     const details = Buffer.concat([
         bytes(4, 'deleted.bmp'),
         num(9, 1),
-        num(10, 120),
+        num(10, 3126),
         bytes(13, bytes(1, Buffer.alloc(20, 1))),
         bytes(16, num(3, 1))
     ]);
@@ -28,7 +28,7 @@ test('listing marks a full hidden item as trashed and omits key-only hidden item
     const parsed = parseLibraryPage(page).unwrap();
 
     expect(parsed.items).toEqual([
-        expect.objectContaining({ mediaKey: 'trashed-key', size: 120, trashed: true })
+        expect.objectContaining({ mediaKey: 'trashed-key', size: 3126, trashed: true })
     ]);
 });
 
@@ -120,7 +120,7 @@ test('lookahead warnings are relayed with the current page', async () => {
     const details = Buffer.concat([
         bytes(4, 'lookahead.bin'),
         num(9, 1),
-        num(10, 120),
+        num(10, 3126),
         bytes(13, bytes(1, Buffer.alloc(20, 1)))
     ]);
     const item = bytes(2, Buffer.concat([bytes(1, 'lookahead-item'), bytes(2, details)]));
@@ -129,7 +129,7 @@ test('lookahead warnings are relayed with the current page', async () => {
     const record: ChunkMetadataRecord = {
         mediaKey: 'lookahead-item',
         sha1,
-        storedBmpSize: 120,
+        storedBmpSize: 3126,
         fileHash: FILE_HASH,
         fileId: FILE_HASH,
         chunkIndex: 0,
