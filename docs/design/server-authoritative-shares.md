@@ -6,7 +6,7 @@ Status: APK-backed design and research. This document does not authorize an impl
 
 Google Photos 7.98 contains account-scoped sharing enumeration and read operations. The sharing management screen is backed by a local database populated by `PhotosSyncSharedCollections`. The sync response can carry the provider collection identity and the full collection record, including a current short URL and auth key.
 
-A lost client response is therefore not proof that the provider share is unknowable. The server can reconcile provider state from Google instead of treating every ambiguous response as a permanent local recovery record.
+A lost client response is therefore not proof that the provider share is unknowable. The design targets reconciliation from Google, conditioned on live verification of authoritative enumeration, instead of treating every ambiguous response as a permanent local recovery record.
 
 The private RPC contract is not live-verified. The evidence below comes from the shipped APK, not from a captured Google response. The protocol gate looks passable, but live verification is still required before implementation.
 
@@ -255,7 +255,7 @@ The row has:
 
 Once the live plan verifies how the sync record represents link state, provider state can be computed at read time by reconciling the account's sync records with local rows. A local row whose provider collection no longer exists is stale. It can be hidden from active lists and removed after reconciliation. It is not a public grant.
 
-This reduces the local state machine to idempotent create and revoke operations plus reconciliation. A local persistence failure after a remote create does not lose the provider share, because the collection remains enumerable. It can still require explicit confirmation before the server attributes that collection to the lost local create.
+This reduces the local state machine to idempotent create and revoke operations plus reconciliation. A local persistence failure after a remote create does not by itself prove the provider share is gone. Recovery is possible only if live verification confirms that an authoritative sync enumerates the collection. It can still require explicit confirmation before the server attributes that collection to the lost local create.
 
 ## API
 
