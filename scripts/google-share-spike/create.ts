@@ -25,7 +25,6 @@ import {
     type SpikeError
 } from './steps.ts';
 
-const FIXTURE_COUNT = 3;
 // Random bytes keep every fixture's SHA-1 unique, so it cannot match existing account media.
 const FIXTURE_PAYLOAD_BYTES = 1024;
 const LIVE_POLL_ATTEMPTS = 30;
@@ -65,10 +64,10 @@ function createFixture(index: number): Result<Fixture, ServerError> {
     });
 }
 
-function createFixtures(): Result<Fixture[], ServerError> {
+function createFixtures(count: number): Result<Fixture[], ServerError> {
     const fixtures: Fixture[] = [];
 
-    for (let index = 0; index < FIXTURE_COUNT; index++) {
+    for (let index = 0; index < count; index++) {
         const fixture = createFixture(index).inspect((created) => fixtures.push(created));
         if (fixture.isErr()) return fixture;
     }
@@ -234,9 +233,10 @@ export function runCreate(
     context: SpikeContext,
     path: string,
     account: OwnerSession['account'],
-    scope: OwnerSession['scope']
+    scope: OwnerSession['scope'],
+    count: number
 ): AsyncResult<void, SpikeError> {
-    return createFixtures().andThenAsync((fixtures) => {
+    return createFixtures(count).andThenAsync((fixtures) => {
         const ledger = initialLedger(account.email, fixtures);
         const owner: OwnerSession = { ...context, path, ledger, account, scope };
 

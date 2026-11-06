@@ -18,12 +18,17 @@ import {
 } from './steps.ts';
 import { runRevoke } from './teardown.ts';
 
-export const USAGE = `Usage: google-share-spike <command> --ledger <file> [--credentials <file>]
+const DEFAULT_FIXTURE_COUNT = 3;
 
-  create   Upload three tiny fixtures and share them. Refuses an existing ledger.
+export const USAGE = `Usage: google-share-spike <command> --ledger <file> [--credentials <file>] [--count <n>]
+
+  create   Upload tiny fixtures and share them. Refuses an existing ledger.
   probe    Read the public listing and media without owner credentials.
   revoke   Disable the link, delete the envelope and album, then observe public URLs.
   cleanup  Revoke, then delete only the media this ledger owns.
+
+create --count must be a positive safe integer; the default is 3 fixtures.
+Each fixture is about 3126 bytes plus upload RPCs. Choose the count for your diagnostic resource budget.
 
 Keep both files private and outside the repository. The ledger holds live share capabilities.
 The credentials file is JSON: {"email": "...", "token": "..."}. create, revoke and cleanup need it.`;
@@ -79,7 +84,8 @@ function dispatch(
     command: string,
     context: SpikeContext,
     ledgerPath: string,
-    credentialsPath: string
+    credentialsPath: string,
+    count: number
 ): AsyncResult<number, SpikeError> {
     if (command === 'probe')
         return loadLedger(ledgerPath).andThenAsync((ledger) => {
@@ -90,7 +96,9 @@ function dispatch(
 
     if (command === 'create')
         return readCredentials(credentialsPath).andThenAsync((account) =>
-            runCreate(context, ledgerPath, account, ownerScope(context, account)).map(() => 0)
+            runCreate(context, ledgerPath, account, ownerScope(context, account), count).map(
+                () => 0
+            )
         );
 
     return withOwner(
@@ -105,12 +113,17 @@ function parseCommand(argv: readonly string[]): {
     command?: string;
     ledger?: string;
     credentials?: string;
+    count?: string;
 } {
     try {
         const { values, positionals } = parseArgs({
             args: [...argv],
             allowPositionals: true,
-            options: { ledger: { type: 'string' }, credentials: { type: 'string' } }
+            options: {
+                ledger: { type: 'string' },
+                credentials: { type: 'string' },
+                count: { type: 'string' }
+            }
         });
 
         return { command: positionals[0], ...values };
@@ -120,9 +133,17 @@ function parseCommand(argv: readonly string[]): {
 }
 
 export async function runSpike(argv: readonly string[], deps: SpikeDeps): Promise<number> {
-    const { command, ledger, credentials } = parseCommand(argv);
+    const { command, ledger, credentials, count } = parseCommand(argv);
+    const fixtureCount = count === undefined ? DEFAULT_FIXTURE_COUNT : Number(count);
     const known = command === 'create' || command === 'revoke' || command === 'cleanup';
-    if (!ledger || (known && !credentials) || !(known || command === 'probe')) {
+    if (
+        !ledger ||
+        (known && !credentials) ||
+        !(known || command === 'probe') ||
+        (count !== undefined && command !== 'create') ||
+        !Number.isSafeInteger(fixtureCount) ||
+        fixtureCount <= 0
+    ) {
         deps.write(USAGE);
 
         return 2;
@@ -134,7 +155,7 @@ export async function runSpike(argv: readonly string[], deps: SpikeDeps): Promis
         report: (line: ReportLine) => deps.write(JSON.stringify(line))
     };
 
-    return dispatch(command ?? '', context, ledger, credentials ?? '').match({
+    return dispatch(command ?? '', context, ledger, credentials ?? '', fixtureCount).match({
         Ok: (problems) => (problems ? 1 : 0),
         Err: (error) => {
             context.report({ stage: command ?? '', status: failureStatus(error) });
