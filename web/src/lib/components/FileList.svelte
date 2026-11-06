@@ -234,7 +234,7 @@
             width: 76px;
         }
         .actions-column {
-            width: 96px;
+            width: 44px;
         }
         th,
         td {

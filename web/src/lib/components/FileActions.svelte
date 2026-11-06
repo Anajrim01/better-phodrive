@@ -1,5 +1,12 @@
+<script lang="ts" module>
+    import { MediaQuery } from 'svelte/reactivity';
+
+    const smallScreen = new MediaQuery('(width < 800px)');
+</script>
+
 <script lang="ts">
-    import { Button, IconButton } from 'noph-ui';
+    import type { Component } from 'svelte';
+    import { Button, IconButton, Menu, MenuItem } from 'noph-ui';
     import { FileActionKind } from '@madkarmaa/phodrive-core/models';
     import type { FileGroup } from '@madkarmaa/phodrive-core/files';
     import IconDownload from '~icons/material-symbols/download';
@@ -7,6 +14,7 @@
     import IconDelete from '~icons/material-symbols/delete-outline';
     import IconRestore from '~icons/material-symbols/restore-from-trash';
     import IconDeleteForever from '~icons/material-symbols/delete-forever';
+    import IconMore from '~icons/material-symbols/more-vert';
 
     interface Props {
         item: FileGroup;
@@ -21,6 +29,16 @@
         ondeleteforever?: (item: FileGroup) => void;
     }
 
+    type Action = {
+        label: string;
+        title: string;
+        icon: Component;
+        disabled: boolean;
+        kind?: FileActionKind;
+        loadingLabel?: string;
+        run: () => void;
+    };
+
     let {
         item,
         disabled,
@@ -33,108 +51,159 @@
         onrestore,
         ondeleteforever
     }: Props = $props();
+
+    let moreButton = $state<HTMLButtonElement | HTMLAnchorElement>();
+    let menu = $state<ReturnType<typeof Menu>>();
+    let menuElement = $state<HTMLDivElement>();
+    let menuOpen = $state(false);
+    const uid = $props.id();
+    const anchorName = `--file-actions-${uid}`;
+
+    const actions = $derived.by(() => {
+        const available: Action[] = [];
+
+        if (trash) {
+            if (onrestore)
+                available.push({
+                    label: 'Restore',
+                    title: `Restore ${item.name}`,
+                    icon: IconRestore,
+                    disabled,
+                    kind: FileActionKind.Restore,
+                    loadingLabel: `Restoring ${item.name}`,
+                    run: () => onrestore(item)
+                });
+            if (ondeleteforever)
+                available.push({
+                    label: 'Delete forever',
+                    title: `Delete forever: ${item.name}`,
+                    icon: IconDeleteForever,
+                    disabled,
+                    kind: FileActionKind.DeleteForever,
+                    loadingLabel: `Deleting ${item.name} forever`,
+                    run: () => ondeleteforever(item)
+                });
+
+            return available;
+        }
+
+        if (ondownload)
+            available.push({
+                label: 'Download',
+                title: `Download ${item.name}`,
+                icon: IconDownload,
+                disabled: disabled || !item.complete,
+                kind: FileActionKind.Download,
+                loadingLabel: `Downloading ${item.name}`,
+                run: () => ondownload(item)
+            });
+        if (onshare)
+            available.push({
+                label: 'Share',
+                title: `Share ${item.name}`,
+                icon: IconShare,
+                disabled:
+                    disabled || !item.complete || item.trashed || !!item.trashedChunks?.length,
+                run: () => onshare(item)
+            });
+        if (ondelete)
+            available.push({
+                label: 'Delete',
+                title: `Delete ${item.name}`,
+                icon: IconDelete,
+                disabled,
+                kind: FileActionKind.Delete,
+                loadingLabel: `Deleting ${item.name}`,
+                run: () => ondelete(item)
+            });
+
+        return available;
+    });
+    const runningAction = $derived(actions.find((action) => action.kind === working));
+
+    function choose(action: Action) {
+        // Noph keeps onclick on a disabled menu item.
+        if (action.disabled) return;
+
+        menu?.close();
+        moreButton?.focus();
+        action.run();
+    }
 </script>
 
 <div class="file-actions flex shrink-0 flex-wrap items-center justify-end">
-    {#if trash}
-        {#if onrestore}
-            <IconButton
+    {#if !compact && !trash}
+        {#each actions as action (action.label)}
+            <Button
+                variant="text"
                 size="xs"
-                title={`Restore ${item.name}`}
-                {disabled}
-                loading={working === FileActionKind.Restore}
-                loadingAriaLabel={`Restoring ${item.name}`}
-                onclick={() => onrestore?.(item)}><IconRestore aria-hidden="true" /></IconButton
+                disabled={action.disabled}
+                loading={!!action.kind && action.kind === working}
+                loadingAriaLabel={action.loadingLabel}
+                onclick={action.run}
             >
-        {/if}
-        {#if ondeleteforever}
-            <IconButton
-                size="xs"
-                title={`Delete forever: ${item.name}`}
-                {disabled}
-                loading={working === FileActionKind.DeleteForever}
-                loadingAriaLabel={`Deleting ${item.name} forever`}
-                onclick={() => ondeleteforever?.(item)}
-                ><IconDeleteForever aria-hidden="true" /></IconButton
-            >
-        {/if}
-    {:else if compact}
-        {#if ondownload}
-            <IconButton
-                size="xs"
-                title={`Download ${item.name}`}
-                disabled={disabled || !item.complete}
-                loading={working === FileActionKind.Download}
-                loadingAriaLabel={`Downloading ${item.name}`}
-                onclick={() => ondownload?.(item)}><IconDownload aria-hidden="true" /></IconButton
-            >
-        {/if}
-        {#if onshare}
-            <IconButton
-                size="xs"
-                title={`Share ${item.name}`}
-                disabled={disabled ||
-                    !item.complete ||
-                    item.trashed ||
-                    !!item.trashedChunks?.length}
-                onclick={() => onshare?.(item)}><IconShare aria-hidden="true" /></IconButton
-            >
-        {/if}
-        {#if ondelete}
-            <IconButton
-                size="xs"
-                title={`Delete ${item.name}`}
-                {disabled}
-                loading={working === FileActionKind.Delete}
-                loadingAriaLabel={`Deleting ${item.name}`}
-                onclick={() => ondelete?.(item)}><IconDelete aria-hidden="true" /></IconButton
-            >
-        {/if}
+                {#snippet start()}<action.icon aria-hidden="true" />{/snippet}
+                {action.label}
+            </Button>
+        {/each}
+    {:else if smallScreen.current}
+        <IconButton
+            bind:element={moreButton}
+            style={`anchor-name: ${anchorName}`}
+            size="xs"
+            title={`More actions for ${item.name}`}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            loading={!!runningAction}
+            loadingAriaLabel={runningAction?.loadingLabel}
+            onclick={() => menu?.show()}
+        >
+            <IconMore aria-hidden="true" />
+        </IconButton>
+        <Menu
+            anchor={moreButton}
+            style={`position-anchor: ${anchorName}`}
+            class="file-actions-menu"
+            bind:this={menu}
+            bind:element={menuElement}
+            bind:open={menuOpen}
+            coverAnchor={false}
+            aria-label={`Actions for ${item.name}`}
+            ontoggle={(event) => {
+                if (event.newState === 'open')
+                    menuElement?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+                else if (menuElement?.contains(document.activeElement)) moreButton?.focus();
+            }}
+        >
+            {#each actions as action (action.label)}
+                <MenuItem disabled={action.disabled} onclick={() => choose(action)}>
+                    {#snippet start()}<action.icon aria-hidden="true" class="size-5" />{/snippet}
+                    {action.label}
+                </MenuItem>
+            {/each}
+        </Menu>
     {:else}
-        {#if ondownload}
-            <Button
-                variant="text"
+        {#each actions as action (action.label)}
+            <IconButton
                 size="xs"
-                disabled={disabled || !item.complete}
-                loading={working === FileActionKind.Download}
-                loadingAriaLabel={`Downloading ${item.name}`}
-                onclick={() => ondownload?.(item)}
+                title={action.title}
+                disabled={action.disabled}
+                loading={!!action.kind && action.kind === working}
+                loadingAriaLabel={action.loadingLabel}
+                onclick={action.run}><action.icon aria-hidden="true" /></IconButton
             >
-                {#snippet start()}<IconDownload aria-hidden="true" />{/snippet}
-                Download
-            </Button>
-        {/if}
-        {#if onshare}
-            <Button
-                variant="text"
-                size="xs"
-                disabled={disabled ||
-                    !item.complete ||
-                    item.trashed ||
-                    !!item.trashedChunks?.length}
-                onclick={() => onshare?.(item)}
-            >
-                {#snippet start()}<IconShare aria-hidden="true" />{/snippet}
-                Share
-            </Button>
-        {/if}
-        {#if ondelete}
-            <Button
-                variant="text"
-                size="xs"
-                {disabled}
-                loading={working === FileActionKind.Delete}
-                loadingAriaLabel={`Deleting ${item.name}`}
-                onclick={() => ondelete?.(item)}
-            >
-                {#snippet start()}<IconDelete aria-hidden="true" />{/snippet}
-                Delete
-            </Button>
-        {/if}
+        {/each}
     {/if}
 </div>
 
 <style>
+    :global(.file-actions-menu) {
+        --np-menu-position-area: bottom span-left;
+        --np-menu-justify-self: end;
+        --np-menu-container-color: var(--app-panel);
+        --np-menu-container-shape: 8px;
+    }
+
     .file-actions :global(.np-button) {
         font-size: 12px;
         --np-button-padding: 7px;
