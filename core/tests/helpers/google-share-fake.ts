@@ -17,12 +17,10 @@ const LINK_DISABLED = 1;
 
 export type FakeCall = { method: string; url: URL; headers: Headers };
 export type FakeOptions = {
-    /** Answer for a route, or undefined to use the normal handling. */
     override?: (route: string, call: FakeCall) => Response | undefined;
     /** Evaluated on every RPC before it is answered, as a crash at that moment would see it. */
     onCall?: (route: string) => void;
     preexisting?: (sha1: string) => string | undefined;
-    /** Direct media URLs keep serving after the share is revoked. */
     directOutlivesRevoke?: boolean;
     responseNextToken?: unknown;
 };

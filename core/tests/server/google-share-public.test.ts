@@ -52,7 +52,7 @@ function listingFetcher(pages: unknown[]): {
 } {
     const requests: unknown[][] = [];
     const headers: Headers[] = [];
-    const fetcher: Fetcher = async (input, init) => {
+    const fetcher: Fetcher = async (_input, init) => {
         headers.push(new Headers(init?.headers));
         if (init?.method === 'GET') return new Response(PAGE_HTML, { status: 200 });
 

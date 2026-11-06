@@ -20,7 +20,7 @@ import { runRevoke } from './teardown.ts';
 
 const DEFAULT_FIXTURE_COUNT = 3;
 
-export const USAGE = `Usage: google-share-spike <command> --ledger <file> [--credentials <file>] [--count <n>]
+const USAGE = `Usage: google-share-spike <command> --ledger <file> [--credentials <file>] [--count <n>]
 
   create   Upload tiny fixtures and share them. Refuses an existing ledger.
   probe    Read the public listing and media without owner credentials.

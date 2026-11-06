@@ -75,7 +75,6 @@ function createFixtures(count: number): Result<Fixture[], ServerError> {
     return Ok(fixtures);
 }
 
-/** Holds the fixtures' own entries, so every state change on one is what gets saved. */
 function initialLedger(email: string, fixtures: readonly Fixture[]): Ledger {
     return {
         accountHash: accountHash(email),
