@@ -115,7 +115,9 @@ export function disableShareLink(
         UPDATE_LINK_STATE_URL,
         linkStateRequest(envelopeKey, LINK_STATE_DISABLED),
         'Disable link'
-    ).andThen(parseEmptyShareReply);
+    )
+        .andThen(parseLinkStateResponse)
+        .map(() => undefined);
 }
 
 export function classifyMutationFailure(error: ServerError): MutationFailure {

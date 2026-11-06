@@ -2,6 +2,7 @@ import { parseAlbumUrl } from '@madkarmaa/phodrive-core/server/photos/shares/goo
 import {
     classifyPublicProbe,
     probePublicUrl,
+    resolveShortUrl,
     type PublicState
 } from '@madkarmaa/phodrive-core/server/photos/shares/google-public';
 import { readPublicListing } from '@madkarmaa/phodrive-core/server/photos/shares/google-public-listing';
@@ -63,6 +64,21 @@ function observeUrl(
     });
 }
 
+async function observeShortUrl(session: SpikeSession, url: string): Promise<PublicState> {
+    const result = await resolveShortUrl(url, session.fetcher);
+
+    return result.match<PublicState | Promise<PublicState>>({
+        Ok: (probe) => {
+            const canonical = session.ledger.link.canonicalUrl;
+            if (canonical && probe.canonicalUrl === canonical)
+                return observeAlbum(session, canonical);
+
+            return classifyPublicProbe(probe);
+        },
+        Err: () => 'unknown'
+    });
+}
+
 async function observePublicUrls(session: SpikeSession, stage: string): Promise<Observation[]> {
     const { link, directUrls } = session.ledger;
     const observations: Observation[] = [];
@@ -70,7 +86,7 @@ async function observePublicUrls(session: SpikeSession, stage: string): Promise<
     if (link.shortUrl)
         observations.push({
             stage: `${stage}-short`,
-            state: await observeUrl(session, link.shortUrl),
+            state: await observeShortUrl(session, link.shortUrl),
             host: new URL(link.shortUrl).hostname
         });
     if (link.canonicalUrl)

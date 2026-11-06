@@ -132,7 +132,6 @@ export class FakeGoogle {
         if (route === 'commit') return this.commitAnswer();
         if (route === 'album-create') return binary(encode(1, encode(1, SECRETS.album)));
         if (route === 'envelope-create') return binary(encode(1, SECRETS.envelope));
-        if (route === 'link' && !this.linkOn) return new Response();
         if (route === 'link')
             return binary(
                 Buffer.concat([encode(1, encode(1, SHORT_URL)), encode(2, SECRETS.authKey)])

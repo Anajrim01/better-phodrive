@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test } from 'vitest';
 import { runSpike } from '../../../scripts/google-share-spike/cli.ts';
 import { FakeGoogle } from '../helpers/google-share-fake';
+import { ALBUM_URL } from '../helpers/google-share-fake-secrets';
 import { TEST_ACCOUNT } from '../helpers/upload';
 
 let directory: string;
@@ -116,3 +117,23 @@ test.each([
     expect(stageStatus('after-remove-direct')).toEqual(['unknown', 'unknown', 'unknown']);
     expect(redirected.calls.some(({ url }) => url.href === location)).toBe(false);
 });
+
+test.each([true, false])(
+    'short-link verification follows only its known album: %s',
+    async (known) => {
+        const google = new FakeGoogle();
+        expect(await run(google, 'create')).toBe(0);
+        expect(await run(google, 'probe')).toBe(0);
+        const location = known ? ALBUM_URL : 'https://photos.google.com/share/other?key=other';
+        const redirected = new FakeGoogle({
+            override: (route) =>
+                route === 'short'
+                    ? new Response(null, { status: 302, headers: { location } })
+                    : undefined
+        });
+
+        expect(await run(redirected, 'revoke')).toBe(known ? 0 : 1);
+        expect(stageStatus('after-remove-short')).toEqual([known ? 'stopped' : 'unknown']);
+        if (!known) expect(redirected.calls.some(({ url }) => url.href === location)).toBe(false);
+    }
+);
