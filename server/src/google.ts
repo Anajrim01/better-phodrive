@@ -58,6 +58,17 @@ function decryptToken({ env }: Store, encryptedToken: string): AsyncResult<strin
     });
 }
 
+function decryptedAccount(
+    store: Store,
+    stored: StoredGoogleAccount
+): AsyncResult<ServerAccount, AuthError> {
+    return decryptToken(store, stored.encryptedToken).map((token) => ({
+        id: stored.id,
+        email: stored.email,
+        token
+    }));
+}
+
 function encryptToken({ env }: Store, token: string): AsyncResult<string, AuthError> {
     return Ok(undefined).andThenAsync(async () => {
         try {
@@ -106,13 +117,37 @@ export function readGoogleAccount(
                           : AUTH_ERRORS.GOOGLE_ACCOUNT_MISSING
                   )
         )
-        .andThenAsync((stored) =>
-            decryptToken(store, stored.encryptedToken).map((token) => ({
-                id: stored.id,
-                email: stored.email,
-                token
-            }))
-        );
+        .andThenAsync((stored) => decryptedAccount(store, stored));
+}
+
+export function readGoogleAccountByEmail(
+    store: Store,
+    userId: string,
+    email: string
+): AsyncResult<ServerAccount, AuthError> {
+    return Ok(undefined)
+        .andThenAsync<StoredGoogleAccount, AuthError>(async () => {
+            try {
+                const [stored] = await store.db
+                    .select({
+                        id: googleAccount.id,
+                        email: googleAccount.email,
+                        encryptedToken: googleAccount.encryptedToken
+                    })
+                    .from(googleAccount)
+                    .where(
+                        and(
+                            eq(googleAccount.userId, userId),
+                            eq(googleAccount.email, email.toLowerCase())
+                        )
+                    );
+
+                return stored ? Ok(stored) : Err(AUTH_ERRORS.GOOGLE_ACCOUNT_NOT_FOUND);
+            } catch {
+                return Err(AUTH_ERRORS.DATABASE_UNAVAILABLE);
+            }
+        })
+        .andThenAsync((stored) => decryptedAccount(store, stored));
 }
 
 /** Read a stored email without decrypting its token, for an in-place token replacement. */
@@ -182,7 +217,6 @@ export function updateGoogleAccountToken(
     );
 }
 
-/** Disconnect one account. Its metadata and group memberships cascade. */
 export function removeGoogleAccount(
     store: Store,
     userId: string,
