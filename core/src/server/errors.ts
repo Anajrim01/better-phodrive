@@ -208,6 +208,26 @@ export const SERVER_ERRORS = {
         message: 'A share supports up to 500 files, 2048 chunks and a 256 KiB manifest.',
         status: 413
     },
+    GOOGLE_SHARE_RESPONSE_INVALID: {
+        code: 'GOOGLE_SHARE_RESPONSE_INVALID',
+        message: 'Google Photos returned an unexpected share response.'
+    },
+    GOOGLE_SHARE_LINK_INVALID: {
+        code: 'GOOGLE_SHARE_LINK_INVALID',
+        message: 'This is not a public Google Photos album link.'
+    },
+    GOOGLE_LISTING_SHAPE_CHANGED: {
+        code: 'GOOGLE_LISTING_SHAPE_CHANGED',
+        message: 'The Google Photos album format changed. The share cannot be read safely.'
+    },
+    GOOGLE_LISTING_INCOMPLETE: {
+        code: 'GOOGLE_LISTING_INCOMPLETE',
+        message: 'The Google Photos album listing is incomplete.'
+    },
+    GOOGLE_LISTING_PAGINATION_UNKNOWN: {
+        code: 'GOOGLE_LISTING_PAGINATION_UNKNOWN',
+        message: 'The Google Photos album uses an unknown pagination format.'
+    },
     SHARE_BUSY: {
         code: 'SHARE_BUSY',
         message: 'Too many public download requests. Try again shortly.',
