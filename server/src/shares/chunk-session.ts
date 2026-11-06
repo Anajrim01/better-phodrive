@@ -3,7 +3,11 @@ import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import type { ShareChunkSession } from '@madkarmaa/phodrive-core/models';
 import { splitBmpByteLength, splitHeaderByteLength } from '@madkarmaa/phodrive-core/bmp/format';
 import { SERVER_ERRORS } from '@madkarmaa/phodrive-core/server/errors';
-import { resolveDownloadUrl } from '@madkarmaa/phodrive-core/server/photos';
+import {
+    resolveDownloadUrl,
+    throttleError,
+    type ThrottleCoordinator
+} from '@madkarmaa/phodrive-core/server/photos';
 import type { ServerContext } from '../context';
 import { share, shareChunk, shareFile } from '../db/schema';
 import type { ShareConfig } from '../environment';
@@ -114,6 +118,17 @@ function bmpLayout(chunk: StoredChunk): Result<BmpLayout, ShareError> {
         .mapErr((): ShareError => SERVER_ERRORS.SHARE_SNAPSHOT_INCOMPLETE);
 }
 
+// A public request answers 429 during a cooldown; waiting would hold its slot until the cooldown ends.
+function withoutWaiting(coordinator: ThrottleCoordinator): ThrottleCoordinator {
+    return {
+        ...coordinator,
+        wait: (account) =>
+            coordinator.remaining(account) > 0
+                ? Promise.reject(new Error('Account is cooling down.'))
+                : Promise.resolve()
+    };
+}
+
 function resolveMediaUrl(
     context: ServerContext,
     chunk: StoredChunk,
@@ -139,12 +154,17 @@ function resolveMediaUrl(
                     signal,
                     {
                         key: account.id,
-                        coordinator: context.throttle,
+                        coordinator: withoutWaiting(context.throttle),
                         signal
                     }
-                ).mapErr((error): ShareError =>
-                    error.code === 'THROTTLED' ? error : SERVER_ERRORS.SHARE_MEDIA_UNAVAILABLE
-                )
+                ).mapErr((error): ShareError => {
+                    const cooling = context.throttle.remaining(account.id);
+                    if (cooling > 0) return throttleError(cooling);
+
+                    return error.code === 'THROTTLED'
+                        ? error
+                        : SERVER_ERRORS.SHARE_MEDIA_UNAVAILABLE;
+                })
             )
         );
 }

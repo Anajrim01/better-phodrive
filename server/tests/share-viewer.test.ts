@@ -1,6 +1,6 @@
 import { eq, sql } from 'drizzle-orm';
 import { describe, expect, test, vi } from 'vitest';
-import { Ok } from 'results-ts';
+import { Err, Ok } from 'results-ts';
 import { splitBmpByteLength, splitHeaderByteLength } from '@madkarmaa/phodrive-core/bmp/format';
 import { ShareChunkSessionSchema, PublicShareSchema } from '@madkarmaa/phodrive-core/models';
 import { SERVER_ERRORS, type ServerError } from '@madkarmaa/phodrive-core/server/errors';
@@ -37,7 +37,7 @@ describe.skipIf(!databaseUrl)('public share reads', () => {
     async function activeShare() {
         const { db, context } = state;
         const userId = await createUser(db, 'viewer');
-        const { email } = await connectedAccount(context, userId, 'viewer');
+        const { email, id: accountId } = await connectedAccount(context, userId, 'viewer');
         const created = (
             await createShare(
                 context,
@@ -48,7 +48,13 @@ describe.skipIf(!databaseUrl)('public share reads', () => {
         ).unwrap();
         const [file] = await db.select().from(shareFile).where(eq(shareFile.shareId, created.id));
 
-        return { userId, created, file: file!, token: created.publicPath.split('/').pop()! };
+        return {
+            userId,
+            accountId,
+            created,
+            file: file!,
+            token: created.publicPath.split('/').pop()!
+        };
     }
 
     test('the manifest holds only the public fields', async () => {
@@ -300,6 +306,42 @@ describe.skipIf(!databaseUrl)('public share reads', () => {
         expect(
             (await issueShareChunk(state.context, token, file.id, 0, { prepareUrl })).unwrapErr()
         ).toEqual(SERVER_ERRORS.SHARE_NOT_FOUND);
+    });
+
+    test('a cooldown answers at once with its retry delay, without calling Google', async () => {
+        const { file, token, accountId } = await activeShare();
+        state.context.throttle.pause(accountId, 600);
+
+        const issued = await issueShareChunk(state.context, token, file.id, 0);
+
+        expect(issued.unwrapErr()).toMatchObject({
+            code: 'THROTTLED',
+            retryAfterSeconds: expect.any(Number)
+        });
+        state.context.throttle.clear(accountId);
+    });
+
+    test('a cooldown that starts during media resolution also answers at once', async () => {
+        const { file, token, accountId } = await activeShare();
+
+        const issued = await issueShareChunk(state.context, token, file.id, 0, {
+            prepareUrl: (_email, _token, _key, _sha1, _fetcher, _signal, scope) => {
+                state.context.throttle.pause(accountId, 600);
+
+                return Ok(undefined).andThenAsync<URL, ServerError>(async () => {
+                    try {
+                        await scope!.coordinator.wait(scope!.key);
+
+                        return Ok(new URL(MEDIA));
+                    } catch {
+                        return Err(SERVER_ERRORS.UPLOAD_CANCELLED);
+                    }
+                });
+            }
+        });
+
+        expect(issued.unwrapErr().code).toBe('THROTTLED');
+        state.context.throttle.clear(accountId);
     });
 
     test('media failures are controlled, and throttling keeps its retry hint', async () => {
