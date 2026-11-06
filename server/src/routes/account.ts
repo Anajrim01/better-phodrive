@@ -45,6 +45,7 @@ export function sessionRoutes(context: ServerContext) {
                     user: user ? { email: user.email } : null,
                     signupEnabled: !env.PHODRIVE_DISABLE_SIGNUP,
                     processing: env.PHODRIVE_PROCESSING,
+                    sharingEnabled: env.sharing !== null,
                     preferencesDefaults: env.preferencesDefaults
                 };
 
