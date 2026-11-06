@@ -257,6 +257,30 @@
             "@madkarmaa/phodrive-core": "./src/server/photos/shares/index.ts",
             "default": "./dist/server/photos/shares/index.js"
         },
+        "./server/photos/shares/google-listing": {
+            "@madkarmaa/phodrive-core": "./src/server/photos/shares/google-listing.ts",
+            "default": "./dist/server/photos/shares/google-listing.js"
+        },
+        "./server/photos/shares/google-public": {
+            "@madkarmaa/phodrive-core": "./src/server/photos/shares/google-public.ts",
+            "default": "./dist/server/photos/shares/google-public.js"
+        },
+        "./server/photos/shares/google-public-listing": {
+            "@madkarmaa/phodrive-core": "./src/server/photos/shares/google-public-listing.ts",
+            "default": "./dist/server/photos/shares/google-public-listing.js"
+        },
+        "./server/photos/shares/google-range": {
+            "@madkarmaa/phodrive-core": "./src/server/photos/shares/google-range.ts",
+            "default": "./dist/server/photos/shares/google-range.js"
+        },
+        "./server/photos/shares/google-requests": {
+            "@madkarmaa/phodrive-core": "./src/server/photos/shares/google-requests.ts",
+            "default": "./dist/server/photos/shares/google-requests.js"
+        },
+        "./server/photos/shares/google-rpc": {
+            "@madkarmaa/phodrive-core": "./src/server/photos/shares/google-rpc.ts",
+            "default": "./dist/server/photos/shares/google-rpc.js"
+        },
         "./server/photos/shares/snapshot": {
             "@madkarmaa/phodrive-core": "./src/server/photos/shares/snapshot.ts",
             "default": "./dist/server/photos/shares/snapshot.js"
@@ -426,6 +450,12 @@
             "./server/photos/mutation-response": "./dist/server/photos/mutation-response.js",
             "./server/photos/mutations": "./dist/server/photos/mutations.js",
             "./server/photos/shares": "./dist/server/photos/shares/index.js",
+            "./server/photos/shares/google-listing": "./dist/server/photos/shares/google-listing.js",
+            "./server/photos/shares/google-public": "./dist/server/photos/shares/google-public.js",
+            "./server/photos/shares/google-public-listing": "./dist/server/photos/shares/google-public-listing.js",
+            "./server/photos/shares/google-range": "./dist/server/photos/shares/google-range.js",
+            "./server/photos/shares/google-requests": "./dist/server/photos/shares/google-requests.js",
+            "./server/photos/shares/google-rpc": "./dist/server/photos/shares/google-rpc.js",
             "./server/photos/shares/snapshot": "./dist/server/photos/shares/snapshot.js",
             "./server/photos/throttle": "./dist/server/photos/throttle.js",
             "./server/photos/transport": "./dist/server/photos/transport.js",
