@@ -3,6 +3,7 @@
     import { FileActionKind } from '@madkarmaa/phodrive-core/models';
     import type { FileGroup } from '@madkarmaa/phodrive-core/files';
     import IconDownload from '~icons/material-symbols/download';
+    import IconShare from '~icons/material-symbols/share';
     import IconDelete from '~icons/material-symbols/delete-outline';
     import IconRestore from '~icons/material-symbols/restore-from-trash';
     import IconDeleteForever from '~icons/material-symbols/delete-forever';
@@ -14,6 +15,7 @@
         compact?: boolean;
         trash?: boolean;
         ondownload?: (item: FileGroup) => void;
+        onshare?: (item: FileGroup) => void;
         ondelete?: (item: FileGroup) => void;
         onrestore?: (item: FileGroup) => void;
         ondeleteforever?: (item: FileGroup) => void;
@@ -26,13 +28,14 @@
         compact = false,
         trash = false,
         ondownload,
+        onshare,
         ondelete,
         onrestore,
         ondeleteforever
     }: Props = $props();
 </script>
 
-<div class="file-actions flex shrink-0 items-center">
+<div class="file-actions flex shrink-0 flex-wrap items-center justify-end">
     {#if trash}
         {#if onrestore}
             <IconButton
@@ -66,6 +69,17 @@
                 onclick={() => ondownload?.(item)}><IconDownload aria-hidden="true" /></IconButton
             >
         {/if}
+        {#if onshare}
+            <IconButton
+                size="xs"
+                title={`Share ${item.name}`}
+                disabled={disabled ||
+                    !item.complete ||
+                    item.trashed ||
+                    !!item.trashedChunks?.length}
+                onclick={() => onshare?.(item)}><IconShare aria-hidden="true" /></IconButton
+            >
+        {/if}
         {#if ondelete}
             <IconButton
                 size="xs"
@@ -88,6 +102,20 @@
             >
                 {#snippet start()}<IconDownload aria-hidden="true" />{/snippet}
                 Download
+            </Button>
+        {/if}
+        {#if onshare}
+            <Button
+                variant="text"
+                size="xs"
+                disabled={disabled ||
+                    !item.complete ||
+                    item.trashed ||
+                    !!item.trashedChunks?.length}
+                onclick={() => onshare?.(item)}
+            >
+                {#snippet start()}<IconShare aria-hidden="true" />{/snippet}
+                Share
             </Button>
         {/if}
         {#if ondelete}

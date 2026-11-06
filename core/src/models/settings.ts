@@ -3,6 +3,7 @@ import { z } from 'zod';
 export enum AppView {
     Files = 'files',
     Trash = 'trash',
+    Shares = 'shares',
     Settings = 'settings'
 }
 
