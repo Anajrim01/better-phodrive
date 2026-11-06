@@ -94,6 +94,18 @@ test('the listing request comes from one exact page entry with an empty token sl
     expect(pageRequest(listing, 'token')).toEqual([UID, 'token', null, KEY]);
 });
 
+test('the live page shape distinguishes metadata from the extended listing declaration', () => {
+    const html = `<script>AF_dataServiceRequests = {
+        'ds:0': {id:'UJlKrf',request:["${UID}","${KEY}"]},
+        'ds:1': {id:'snAcKc',ext: 7.1837398E7 ,request:["${UID}",null,null,"${KEY}"]}
+    };</script>`;
+
+    expect(extractListingRequest(html, ALBUM).unwrap()).toEqual({
+        rpcId: 'snAcKc',
+        request: [UID, null, null, KEY]
+    });
+});
+
 test('an unrecognised listing page or token slot fails instead of guessing', () => {
     expect(extractListingRequest('<html></html>', ALBUM).unwrapErr().code).toBe(
         'GOOGLE_LISTING_SHAPE_CHANGED'
@@ -110,6 +122,10 @@ test('an unrecognised listing page or token slot fails instead of guessing', () 
             ALBUM
         ).unwrapErr().code
     ).toBe('GOOGLE_LISTING_PAGINATION_UNKNOWN');
+});
+
+test('the observed empty-string token ends a complete listing', () => {
+    expect(parseListingPage(page([item('itemOne')], 1, '')).unwrap().nextPageToken).toBeNull();
 });
 
 test('batchexecute frames decode the named RPC and reject anything else', () => {
@@ -136,7 +152,6 @@ test('a listing page exposes hypothesised slots and normalises the download URL'
 
 test.each([
     ['numeric', 7],
-    ['empty', ''],
     ['array', ['next']]
 ])('a %s next-page slot is an unknown pagination format', (_name, token) => {
     expect(parseListingPage(page([], 0, token)).unwrapErr().code).toBe(

@@ -5,7 +5,8 @@ import { MEDIA_HOSTS } from '../download';
 const URL_SAFE_ID = /^[A-Za-z0-9_-]+$/;
 const ALBUM_PATH = /^\/share\/([A-Za-z0-9_-]+)$/;
 const MEDIA_PATH = /^\/(?:pw\/)?[A-Za-z0-9_-]+(?:=d)?$/;
-const SERVICE_REQUEST = /id\s*:\s*'([A-Za-z0-9_]+)'\s*,\s*request\s*:\s*(\[[^\]]*\])/g;
+const SERVICE_REQUEST =
+    /id\s*:\s*'([A-Za-z0-9_]+)'\s*,\s*(?:ext\s*:\s*[-+\d.Ee]+\s*,\s*)?request\s*:\s*(\[[^\]]*\])/g;
 
 // Unconfirmed provider slots: the spike exists to test them against a live album.
 const REQUEST_PAGE_TOKEN_SLOT = 1;
@@ -104,7 +105,12 @@ export function extractListingRequest(
 
     for (const [, rpcId, text] of html.matchAll(SERVICE_REQUEST)) {
         const request = parseRequestArray(text);
-        if (request?.[0] === album.uid && request.includes(album.key))
+        if (
+            request &&
+            request.length >= 4 &&
+            request[0] === album.uid &&
+            request.includes(album.key)
+        )
             matches.push({ rpcId, request });
     }
 
@@ -156,7 +162,7 @@ function parseItem(value: unknown): Result<PublicItem, ServerError> {
 }
 
 function parseNextToken(value: unknown): Result<string | null, ServerError> {
-    if (value === null || value === undefined) return Ok(null);
+    if (value === null || value === undefined || value === '') return Ok(null);
     if (typeof value === 'string' && value) return Ok(value);
 
     return Err(SERVER_ERRORS.GOOGLE_LISTING_PAGINATION_UNKNOWN);
