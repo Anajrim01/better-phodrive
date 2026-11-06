@@ -227,7 +227,9 @@ test.each([
     [401, null, false, 'stopped'],
     [404, null, false, 'stopped'],
     [410, null, false, 'stopped'],
-    [302, 'accounts.google.com', false, 'stopped'],
+    [302, 'accounts.google.com', false, 'unknown'],
+    [302, 'lh3.googleusercontent.com', false, 'unknown'],
+    [302, 'unverified.invalid', false, 'unknown'],
     [302, 'photos.google.com', true, 'unknown'],
     [302, null, false, 'unknown'],
     [500, null, false, 'unknown']

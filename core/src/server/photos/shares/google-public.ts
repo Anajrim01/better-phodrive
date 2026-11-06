@@ -92,9 +92,7 @@ export function classifyPublicProbe(probe: PublicProbe): PublicState {
     if (LIVE_STATUSES.has(probe.status)) return 'live';
     if (STOPPED_STATUSES.has(probe.status)) return 'stopped';
 
-    const redirected = probe.status >= 300 && probe.status < 400 && probe.locationHost !== null;
-
-    return redirected && !probe.toShare ? 'stopped' : 'unknown';
+    return 'unknown';
 }
 
 export function resolveShortUrl(

@@ -93,3 +93,26 @@ test('unreachable public URLs cannot confirm revocation', async () => {
     expect(await run(unavailable, 'revoke')).toBe(1);
     expect(stageStatus('after-remove-direct')).toEqual(['unknown', 'unknown', 'unknown']);
 });
+
+test.each([
+    'https://lh3.googleusercontent.com/pw/redirected-fixture=d',
+    'https://unverified.invalid/redirected-fixture'
+])('a direct media redirect to %s cannot confirm revocation', async (location) => {
+    const google = new FakeGoogle();
+    expect(await run(google, 'create')).toBe(0);
+    expect(await run(google, 'probe')).toBe(0);
+
+    const redirected = new FakeGoogle({
+        override: (route, call) => {
+            if (route === 'media') expect(call.headers.has('authorization')).toBe(false);
+
+            return route === 'media'
+                ? new Response(null, { status: 302, headers: { location } })
+                : undefined;
+        }
+    });
+
+    expect(await run(redirected, 'revoke')).toBe(1);
+    expect(stageStatus('after-remove-direct')).toEqual(['unknown', 'unknown', 'unknown']);
+    expect(redirected.calls.some(({ url }) => url.href === location)).toBe(false);
+});
