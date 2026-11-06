@@ -27,6 +27,8 @@ services:
         environment:
             DATABASE_URL: postgres://phodrive:${POSTGRES_PASSWORD:-phodrive}@db:5432/phodrive
             BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+            SHARE_CAPABILITY_KEY: ${SHARE_CAPABILITY_KEY:-}
+            PUBLIC_EDGE_URL: ${PUBLIC_EDGE_URL:-}
             PHODRIVE_PROCESSING: ${PHODRIVE_PROCESSING}
             PHODRIVE_DISABLE_SIGNUP: ${PHODRIVE_DISABLE_SIGNUP:-false}
         ports:
