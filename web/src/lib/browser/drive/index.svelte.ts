@@ -1,10 +1,8 @@
 import {
     FileActionKind,
-    UploadJobStatus,
     DEFAULT_PREFERENCES_DEFAULTS,
     ProcessingMode,
     ThemeSchema,
-    type GoogleAccountSummary,
     type PreferencesDefaults
 } from '@madkarmaa/phodrive-core/models';
 import { type FileAction, type FileGroup } from '@madkarmaa/phodrive-core/files';
@@ -16,28 +14,17 @@ import {
     type BrowserPreferences,
     type DriveContextSelection
 } from '#browser/storage';
-import { createUploadJobs, type UploadJob } from '#browser/files';
+import type { UploadJob } from '#browser/files';
 import { confirmedFile, performFileAction } from '#browser/drive/file-actions';
-import { runUploadQueue } from '#browser/drive/upload-queue';
-import { retryTarget } from '#browser/drive/upload-retry';
 import { DriveLibrary } from '#browser/drive/library.svelte';
 import { DriveSettings } from '#browser/drive/settings.svelte';
-import { failUnfinishedJobs, replaceJob } from '#browser/drive/chunks';
-import { planUploads, type UploadQueue } from '#browser/drive/upload-plan';
-import { uploadWarningMessage } from '#browser/drive/upload-warning';
+import { DriveUploads } from '#browser/drive/uploads.svelte';
 
 /** The signed-in user's drive; their Google account and token stay on the server. */
 export class DriveController {
     private preferences = $state.raw<BrowserPreferences | null>(null);
 
     ready = $state(false);
-    busy = $state(false);
-    uploadPanelOpen = $state(false);
-    uploadJobs = $state<UploadJob[]>([]);
-    private uploadSources: readonly File[] = [];
-    private readonly uploadOwners = new Map<number, GoogleAccountSummary>();
-    private readonly uploadFolders = new Map<number, string>();
-    private uploadAbort: AbortController | null = null;
 
     feedbackMessage = $state('');
     fileAction = $state<FileAction | null>(null);
@@ -50,6 +37,7 @@ export class DriveController {
     readonly library: DriveLibrary;
     readonly settings: DriveSettings;
     readonly account: DriveAccount;
+    private readonly uploads: DriveUploads;
 
     constructor(
         readonly email: string,
@@ -70,6 +58,14 @@ export class DriveController {
         );
 
         this.account = new DriveAccount(this.library, () => !this.working, feedback);
+        this.uploads = new DriveUploads(
+            () => this.context,
+            this.library,
+            this.settings,
+            this.processing,
+            () => this.working,
+            feedback
+        );
 
         useAutomaticRefresh(
             () => this.settings.refreshIntervalSeconds,
@@ -80,11 +76,43 @@ export class DriveController {
 
     /** An upload or a file action is running. */
     get working(): boolean {
-        return this.busy || this.fileAction !== null;
+        return this.uploads.running || this.fileAction !== null;
+    }
+
+    get busy(): boolean {
+        return this.uploads.running;
+    }
+
+    set busy(running: boolean) {
+        this.uploads.running = running;
+    }
+
+    get uploadPanelOpen(): boolean {
+        return this.uploads.panelOpen;
+    }
+
+    set uploadPanelOpen(open: boolean) {
+        this.uploads.panelOpen = open;
+    }
+
+    get uploadJobs() {
+        return this.uploads.jobs;
+    }
+
+    set uploadJobs(jobs: UploadJob[]) {
+        this.uploads.jobs = jobs;
     }
 
     cancelUploads() {
-        this.uploadAbort?.abort();
+        this.uploads.cancel();
+    }
+
+    upload(files: readonly File[]) {
+        return this.uploads.upload(files);
+    }
+
+    retryUpload(id: number) {
+        return this.uploads.retry(id);
     }
 
     initialize() {
@@ -179,124 +207,5 @@ export class DriveController {
             this.uploadPanelOpen = false;
 
         this.fileAction = null;
-    }
-
-    async upload(files: readonly File[]) {
-        if (this.working || files.length === 0) return;
-
-        if (this.library.loading) {
-            this.feedbackMessage =
-                'Files are refreshing. Wait for the refresh to finish, then select your files again.';
-
-            return;
-        }
-
-        const context = this.context.current;
-        if (!context) {
-            this.feedbackMessage = 'Connect a Google account before uploading.';
-
-            return;
-        }
-        if (context.kind === 'group' && context.group.members.length === 0) {
-            this.feedbackMessage = 'Add an account to this group before uploading.';
-
-            return;
-        }
-
-        this.uploadSources = [...files];
-        const plan = planUploads(files, context, this.library.folder);
-        this.uploadJobs = plan.jobs;
-        this.uploadOwners.clear();
-        this.uploadFolders.clear();
-        for (const [jobId, account] of plan.owners) this.uploadOwners.set(jobId, account);
-        for (const [jobId, folder] of plan.folders) this.uploadFolders.set(jobId, folder);
-
-        if (!plan.queues.length) {
-            this.uploadPanelOpen = true;
-
-            return;
-        }
-
-        await this.runUploads(plan.queues);
-    }
-
-    async retryUpload(id: number) {
-        if (this.working || this.library.loading) return;
-
-        const target = retryTarget({
-            jobs: this.uploadJobs,
-            sources: this.uploadSources,
-            owners: this.uploadOwners,
-            folders: this.uploadFolders,
-            accounts: this.context.accounts,
-            id
-        });
-        if (!target) return;
-        if (typeof target === 'string') {
-            this.feedbackMessage = target;
-
-            return;
-        }
-
-        this.uploadJobs = replaceJob(this.uploadJobs, id, createUploadJobs([target.file])[0]);
-
-        await this.runUploads(
-            [
-                {
-                    account: target.owner,
-                    files: [target.file],
-                    jobIds: [id],
-                    folders: [target.folder]
-                }
-            ],
-            id
-        );
-    }
-
-    private async runUploads(queues: readonly UploadQueue[], retryId?: number) {
-        this.uploadPanelOpen = true;
-        this.feedbackMessage = '';
-        this.busy = true;
-
-        const controller = new AbortController();
-        this.uploadAbort = controller;
-
-        try {
-            await Promise.all(
-                queues.map((queue) =>
-                    runUploadQueue({
-                        queue,
-                        workers: this.settings.concurrentWorkers,
-                        processing: this.processing,
-                        library: this.library,
-                        retryId,
-                        signal: controller.signal,
-                        onJob: (job, id) => {
-                            this.uploadJobs = replaceJob(this.uploadJobs, id, job);
-                            if (job.status === UploadJobStatus.Error)
-                                this.feedbackMessage = job.message;
-                            else if (job.status === UploadJobStatus.Complete) {
-                                const warning = uploadWarningMessage(job.result?.warnings);
-                                if (warning) this.feedbackMessage = warning;
-                            }
-                        },
-                        onError: (message, jobIds) => {
-                            this.feedbackMessage = message;
-                            this.uploadJobs = failUnfinishedJobs(this.uploadJobs, message, jobIds);
-                        }
-                    })
-                )
-            );
-
-            if (controller.signal.aborted)
-                this.uploadJobs = failUnfinishedJobs(
-                    this.uploadJobs,
-                    'Upload cancelled.',
-                    queues.flatMap((queue) => queue.jobIds)
-                );
-        } finally {
-            if (this.uploadAbort === controller) this.uploadAbort = null;
-            this.busy = false;
-        }
     }
 }

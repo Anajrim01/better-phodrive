@@ -13,11 +13,13 @@
         disabled: boolean;
         working: FileActionKind | null;
         ondownload: (item: FileGroup) => void;
+        onshare?: (item: FileGroup) => void;
         ondelete: (item: FileGroup) => void;
         onrestoretrashed?: (item: FileGroup) => void;
     }
 
-    let { item, disabled, working, ondownload, ondelete, onrestoretrashed }: Props = $props();
+    let { item, disabled, working, ondownload, onshare, ondelete, onrestoretrashed }: Props =
+        $props();
 </script>
 
 <Card type="text" variant="filled" class="file-card">
@@ -40,7 +42,7 @@
     </div>
 
     <div class="flex justify-end px-2 pb-2">
-        <FileActions {item} {disabled} {working} {ondownload} {ondelete} />
+        <FileActions {item} {disabled} {working} {ondownload} {onshare} {ondelete} />
     </div>
 
     {#if item.trashedChunks?.length}

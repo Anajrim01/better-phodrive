@@ -236,6 +236,7 @@ test('the session endpoint reports the signed-in user and server settings withou
     expect(session).toMatchObject({
         user: { email: USER.email },
         signupEnabled: true,
+        sharingEnabled: true,
         processing: ProcessingMode.Server
     });
     expect(text).not.toContain(USER.id);

@@ -18,6 +18,7 @@
         showOwner?: boolean;
         trash?: boolean;
         ondownload?: (item: FileGroup) => void;
+        onshare?: (item: FileGroup) => void;
         ondelete?: (item: FileGroup) => void;
         onrestoretrashed?: (item: FileGroup) => void;
         onrestore?: (item: FileGroup) => void;
@@ -34,6 +35,7 @@
         showOwner = false,
         trash = false,
         ondownload,
+        onshare,
         ondelete,
         onrestoretrashed,
         onrestore,
@@ -148,6 +150,7 @@
                         {trash}
                         working={action?.fileId === item.fileId ? action.kind : null}
                         {ondownload}
+                        {onshare}
                         {ondelete}
                         {onrestore}
                         {ondeleteforever}
@@ -204,7 +207,7 @@
         white-space: nowrap;
     }
     .actions-column {
-        width: 72px;
+        width: 108px;
         padding-inline: 4px;
     }
     .mobile-date {
@@ -229,6 +232,9 @@
         }
         .size-column {
             width: 76px;
+        }
+        .actions-column {
+            width: 44px;
         }
         th,
         td {

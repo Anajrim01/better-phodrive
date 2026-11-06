@@ -23,10 +23,19 @@ export function jsonResponse(body: unknown, headers?: HeadersInit): Response {
     return response;
 }
 
-/** Errors without their own status are client errors. */
-export function errorResponse(error: { message: string; status?: number }): Response {
+export function errorResponse(error: {
+    code?: string;
+    message: string;
+    status?: number;
+    retryAfterSeconds?: number;
+}): Response {
+    const status = error.code === 'THROTTLED' ? 429 : (error.status ?? 400);
+    const headers = new Headers(NO_STORE_HEADERS);
+    if (error.retryAfterSeconds !== undefined)
+        headers.set('retry-after', String(error.retryAfterSeconds));
+
     return Response.json(
         { error: error.message },
-        { status: (error.status ?? 400) as ContentfulStatusCode, headers: NO_STORE_HEADERS }
+        { status: status as ContentfulStatusCode, headers }
     );
 }

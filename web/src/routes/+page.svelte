@@ -16,6 +16,7 @@
             email={data.user.email}
             preferencesDefaults={data.preferencesDefaults}
             processing={data.processing}
+            sharingEnabled={data.sharingEnabled}
         />
     {/key}
 {:else}

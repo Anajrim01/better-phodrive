@@ -83,7 +83,7 @@ The server is also published as `@madkarmaa/phodrive-api`, with the web app incl
 
 ### Docker
 
-[`compose.yaml`](./compose.yaml) runs the app with PostgreSQL. Set `BETTER_AUTH_SECRET` and `PHODRIVE_PROCESSING` in `.env` next to it, then:
+[`compose.yaml`](./compose.yaml) runs the app with PostgreSQL. Set `BETTER_AUTH_SECRET` and `PHODRIVE_PROCESSING` in `.env` next to it, plus the sharing settings if you want public links, then:
 
 ```sh
 docker compose pull
@@ -94,14 +94,16 @@ Open `http://localhost:3000` or `http://127.0.0.1:3000`. The server derives its 
 
 ### Server settings
 
-| Environment variable      | Required | Description                                                                                                                                 |
-| ------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `HOST`, `PORT`            | No       | Address to listen on; defaults to `127.0.0.1` and `3000` (`0.0.0.0` in Docker)                                                              |
-| `DATABASE_URL`            | Yes      | PostgreSQL connection URL                                                                                                                   |
-| `BETTER_AUTH_SECRET`      | Yes      | At least 32 characters. Signs sessions and encrypts stored Google tokens; changing it signs everyone out and makes them replace their token |
-| `BETTER_AUTH_URL`         | No       | Public origin of the app; derived from each request when unset                                                                              |
-| `PHODRIVE_PROCESSING`     | Yes      | `browser` or `server`, chosen for your hardware; see [File processing](#file-processing)                                                    |
-| `PHODRIVE_DISABLE_SIGNUP` | No       | `true` stops new signups; defaults to `false`                                                                                               |
+| Environment variable      | Required | Description                                                                                                                                                                     |
+| ------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `HOST`, `PORT`            | No       | Address to listen on; defaults to `127.0.0.1` and `3000` (`0.0.0.0` in Docker)                                                                                                  |
+| `DATABASE_URL`            | Yes      | PostgreSQL connection URL                                                                                                                                                       |
+| `BETTER_AUTH_SECRET`      | Yes      | At least 32 characters. Signs sessions and encrypts stored Google tokens; changing it signs everyone out and makes them replace their token                                     |
+| `SHARE_CAPABILITY_KEY`    | No       | Padded base64 of an exactly 32-byte AES key (`openssl rand -base64 32`), shared with the Cloudflare Pages Function that serves public share bytes; sharing stays off without it |
+| `PUBLIC_EDGE_URL`         | No       | Origin of that Pages Function, with no path, query or credentials: https, or http on loopback; sharing stays off without it                                                     |
+| `BETTER_AUTH_URL`         | No       | Public origin of the app; derived from each request when unset                                                                                                                  |
+| `PHODRIVE_PROCESSING`     | Yes      | `browser` or `server`, chosen for your hardware; see [File processing](#file-processing)                                                                                        |
+| `PHODRIVE_DISABLE_SIGNUP` | No       | `true` stops new signups; defaults to `false`                                                                                                                                   |
 
 ### File processing
 
