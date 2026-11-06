@@ -57,7 +57,7 @@
         {folders}
         disabled={foldersDisabled}
         onopen={(path) => onopenfolder?.(path)}
-        onshare={(path) => onsharefolder?.(path)}
+        onshare={onsharefolder}
     />
 
     {#if !files.length && !folders.length}
