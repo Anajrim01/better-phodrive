@@ -1,5 +1,5 @@
 import pLimit from 'p-limit';
-import { Err, Ok, type AsyncResult } from 'results-ts';
+import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import type { LibraryWarning, RemoteBmp } from '../../../models';
 import { decodeSplitHeader, MAX_SPLIT_HEADER_BYTES } from '../../bmp/index';
 import { SERVER_ERRORS, type ServerError } from '../../errors';
@@ -21,13 +21,35 @@ import {
 const HEADER_PROBE_BYTES = MAX_SPLIT_HEADER_BYTES;
 const LIBRARY_PROBE_CONCURRENCY = 4;
 
+type ProbedGroup = { group: LibraryCandidate[]; item: RemoteBmp | null };
+
+async function probeUntilFound(
+    groups: LibraryCandidate[][],
+    probe: (group: LibraryCandidate[]) => AsyncResult<ProbedGroup, ServerError>
+): Promise<Result<ProbedGroup, ServerError>[]> {
+    // A continuation only needs proof that one Phodrive item exists.
+    for (let offset = 0; offset < groups.length; offset += LIBRARY_PROBE_CONCURRENCY) {
+        const batch = groups.slice(offset, offset + LIBRARY_PROBE_CONCURRENCY);
+        const scanned = await Promise.all(batch.map(probe));
+        if (
+            scanned.some((result) =>
+                result.match({ Ok: ({ item }) => item !== null, Err: () => true })
+            )
+        )
+            return scanned;
+    }
+
+    return [];
+}
+
 /** Keep the photos on a library page whose first bytes hold a Phodrive split header. */
 export function scanLibraryPage(
     page: { items: LibraryCandidate[]; nextPageToken: string; warnings?: LibraryWarning[] },
     headers: PhotosHeaders,
     fetcher: Fetcher,
     metadata?: ChunkMetadataStore,
-    scope?: ThrottleScope
+    scope?: ThrottleScope,
+    lookahead = false
 ): AsyncResult<
     { items: RemoteBmp[]; nextPageToken: string; warnings: LibraryWarning[] },
     ServerError
@@ -67,17 +89,21 @@ export function scanLibraryPage(
             if (!candidate.trashed) missing.push(candidate);
         }
 
-        const groups = groupByContent(missing);
-        const limit = pLimit(LIBRARY_PROBE_CONCURRENCY);
-        const scanned = await limit.map(groups, (group) =>
+        const probe = (group: LibraryCandidate[]) =>
             probeLibraryItem(
                 group[0],
                 headers.commonHeaders,
                 headers.rpcHeaders,
                 fetcher,
                 scope
-            ).map((item) => ({ group, item }))
-        );
+            ).map((item) => ({ group, item }));
+
+        const groups = groupByContent(missing);
+        const scanned = lookahead
+            ? items.size
+                ? []
+                : await probeUntilFound(groups, probe)
+            : await pLimit(LIBRARY_PROBE_CONCURRENCY).map(groups, probe);
 
         for (const result of scanned) {
             if (result.isErr()) return result;

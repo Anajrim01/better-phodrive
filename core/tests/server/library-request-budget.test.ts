@@ -140,7 +140,7 @@ test('a cold foldered multi-chunk file keeps the folder only on chunk 0', async 
     expectCounts(counts, { auth: 1, library: 1, prepare: 3, media: 3 });
 });
 
-test('many unique cold candidates cost one probe each across pages', async () => {
+test('cold lookahead stops once it can prove the next page has files', async () => {
     const first = Array.from({ length: 60 }, (_, index) =>
         chunk(`cold-${index}`, 0, true, Uint8Array.of(index + 1), {
             name: `cold-${index}.bin`
@@ -158,9 +158,18 @@ test('many unique cold candidates cost one probe each across pages', async () =>
     ]);
     const counts = emptyCounts();
     const store = memoryStore();
-    const result = await readAll(store, budgetFetcher(pages, items, counts), scope());
+    const fetcher = budgetFetcher(pages, items, counts);
+    const firstPage = await listBmps(EMAIL, TOKEN, '', fetcher, store, scope());
+    const initial = firstPage.unwrap();
 
-    expect(result).toHaveLength(100);
+    expect(initial.items).toHaveLength(60);
+    expect(initial.nextPageToken).toBeTruthy();
+    expectCounts(counts, { auth: 1, library: 2, prepare: 64, media: 64 });
+    expect(store.rows.size).toBe(64);
+
+    const next = await listBmps(EMAIL, TOKEN, initial.nextPageToken, fetcher, store, scope());
+
+    expect(next.unwrap().items).toHaveLength(40);
     expectCounts(counts, { auth: 2, library: 3, prepare: 100, media: 100 });
     expect(store.rows.size).toBe(100);
 });

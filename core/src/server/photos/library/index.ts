@@ -80,7 +80,8 @@ export function listBmpPages(
                     fetcher,
                     visited,
                     metadata,
-                    throttle
+                    throttle,
+                    pageTokens.length >= pageCount
                 );
                 if (following.isErr()) return following;
 
@@ -113,7 +114,8 @@ function readLibraryPage(
     headers: PhotosHeaders,
     fetcher: Fetcher,
     metadata: ChunkMetadataStore | undefined,
-    scope: ThrottleScope
+    scope: ThrottleScope,
+    lookahead: boolean
 ): AsyncResult<
     { items: RemoteBmp[]; nextPageToken: string; warnings: LibraryWarning[] },
     ServerError
@@ -138,7 +140,9 @@ function readLibraryPage(
         )
             .andThenAsync((response) => readBody(response, 'Library list'))
             .andThen(parseLibraryPage)
-            .andThenAsync((page) => scanLibraryPage(page, headers, fetcher, metadata, scope))
+            .andThenAsync((page) =>
+                scanLibraryPage(page, headers, fetcher, metadata, scope, lookahead)
+            )
     );
 }
 
@@ -148,7 +152,8 @@ function findFilePage(
     fetcher: Fetcher,
     visited: Set<string>,
     metadata: ChunkMetadataStore | undefined,
-    scope: ThrottleScope
+    scope: ThrottleScope,
+    lookahead = false
 ): AsyncResult<
     {
         items: RemoteBmp[];
@@ -173,7 +178,8 @@ function findFilePage(
                 headers,
                 fetcher,
                 metadata,
-                scope
+                scope,
+                lookahead
             ).map((page) => {
                 nextPageToken = page.nextPageToken;
 

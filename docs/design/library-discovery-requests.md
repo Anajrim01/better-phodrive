@@ -115,9 +115,10 @@ fetches the next page as a lookahead.
 | Three identical cold copies                |    1 |       1 |       1 |     1 |            0 / 3 |                  3 + 3 |
 | One indexed and one identical cold copy    |    1 |       1 |       0 |     0 |            1 / 1 |                  1 + 1 |
 
-The 100-candidate cold scan probes 60 items on the first page and 40 during its
-lookahead. The second call hits those 40 saved rows and makes no probes. The repeat
-scan loads the same pages and makes no probes.
+The 100-candidate cold scan probes the 60 items it returns and four more to confirm
+the continuation. Loading the second page probes the other 36. A warm scan makes
+no probes. Lookahead skips probes altogether when the metadata index already
+confirms a file on the next page.
 
 The tests in `core/tests/server/library-request-budget.test.ts`,
 `core/tests/server/library-ordinary-budget.test.ts`, and
