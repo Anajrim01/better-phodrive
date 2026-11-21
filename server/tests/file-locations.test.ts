@@ -7,62 +7,90 @@ import {
     type FileLocationEdit,
     type RemoteBmp
 } from '@madkarmaa/phodrive-core/models';
-import { listBmps } from '@madkarmaa/phodrive-core/server/photos';
+import { photosFetch } from '@madkarmaa/phodrive-core/server/fetcher';
+import { listingPage, splitChunk, type BudgetItem } from '../../core/tests/helpers/library-budget';
+import { budgetFetcher, emptyCounts } from '../../core/tests/helpers/library-budget-fetcher';
 import { requireSessionUser } from '../src/auth';
 import { createDatabase } from '../src/db/client';
 import { chunkMetadata, fileLocation } from '../src/db/schema';
+import { saveGoogleAccount } from '../src/google';
 import { createShare, getPublicShare, issueShareChunk } from '../src/shares';
 import { callWith, resolved as sessionResolved } from './helpers/api';
 import { decodeCapability } from './helpers/capability';
 import { TEST_CAPABILITY_KEY } from './helpers/context';
-import {
-    connectedAccount,
-    contextFor,
-    createUser,
-    MEDIA,
-    resolved,
-    shareDatabase
-} from './helpers/shares';
+import { contextFor, createUser, MEDIA, resolved, shareDatabase } from './helpers/shares';
 
 vi.mock('../src/auth', async (original) => ({
     ...(await original<typeof import('../src/auth')>()),
     requireSessionUser: vi.fn()
 }));
-vi.mock('@madkarmaa/phodrive-core/server/photos', async (original) => ({
-    ...(await original<typeof import('@madkarmaa/phodrive-core/server/photos')>()),
-    listBmps: vi.fn()
-}));
+vi.mock('@madkarmaa/phodrive-core/server/fetcher', () => ({ photosFetch: vi.fn() }));
 
 const databaseUrl = process.env.TEST_DATABASE_URL ?? '';
 const ORIGINAL_FOLDER = 'Original/Sub';
 const ORIGINAL_NAME = 'original.bin';
-const file = {
-    fileId: 'a'.repeat(64),
-    mediaKey: 'chunk-zero',
-    sha1: 'b'.repeat(40),
-    fileHash: 'c'.repeat(64),
-    chunkIndex: 0,
-    isLast: true,
-    originalName: ORIGINAL_NAME,
-    folder: ORIGINAL_FOLDER,
-    size: 10,
-    at: 1
-} satisfies RemoteBmp;
-const sibling = { ...file, fileId: 'd'.repeat(64), mediaKey: 'sibling' };
+function storedFile(mediaKey: string, fileId: string) {
+    const fileHash = 'c'.repeat(64);
+    const payload = Buffer.from('test bytes');
+    const photo = splitChunk({
+        mediaKey,
+        payload,
+        header: {
+            fileId,
+            fileHash,
+            chunkIndex: 0,
+            flags: 1,
+            payloadSize: payload.length,
+            fileName: ORIGINAL_NAME,
+            folder: ORIGINAL_FOLDER
+        }
+    });
+    const item = {
+        fileId,
+        mediaKey,
+        sha1: photo.sha1,
+        fileHash,
+        chunkIndex: 0,
+        isLast: true,
+        originalName: ORIGINAL_NAME,
+        folder: ORIGINAL_FOLDER,
+        size: payload.length,
+        at: photo.at
+    } satisfies RemoteBmp;
+    return { item, photo };
+}
+
+function mockListing(photos: BudgetItem[]) {
+    const pages = new Map([['', listingPage(photos)]]);
+    vi.mocked(photosFetch).mockImplementation(budgetFetcher(pages, photos, emptyCounts()));
+}
+
+const original = storedFile('chunk-zero', 'a'.repeat(64));
+const otherFile = storedFile('sibling', 'd'.repeat(64));
+const file = original.item;
+const sibling = otherFile.item;
 const identity = { fileId: file.fileId, mediaKey: file.mediaKey };
 
 describe.skipIf(!databaseUrl)('file location API', () => {
     const state = shareDatabase(databaseUrl);
 
-    async function account(suffix: string, items: RemoteBmp[] = [file, sibling]) {
+    async function connect(userId: string, suffix: string) {
+        const result = await saveGoogleAccount(state.context, userId, {
+            email: `${suffix}@google.example`,
+            token: 'aas_et/local-fixture'
+        });
+        return result.unwrap();
+    }
+
+    async function account(suffix: string) {
         const userId = await createUser(state.db, suffix);
-        const account = await connectedAccount(state.context, userId, suffix);
+        const account = await connect(userId, suffix);
         await state.db.insert(chunkMetadata).values(
-            items.map(({ at: _at, ...chunk }) => ({
+            [original, otherFile].map(({ item: { at: _at, ...chunk }, photo }) => ({
                 ...chunk,
                 userId,
                 googleAccountId: account.id,
-                storedBmpSize: 1024
+                storedBmpSize: photo.size
             }))
         );
 
@@ -95,15 +123,7 @@ describe.skipIf(!databaseUrl)('file location API', () => {
         return page.items;
     }
 
-    beforeEach(() => {
-        vi.mocked(listBmps).mockReturnValue(
-            resolved({
-                items: [file, sibling],
-                nextPageToken: '',
-                warnings: []
-            })
-        );
-    });
+    beforeEach(() => mockListing([original.photo, otherFile.photo]));
 
     test('concurrent rename and move remain visible through a fresh server connection', async () => {
         const owner = await account('parallel');
@@ -132,7 +152,7 @@ describe.skipIf(!databaseUrl)('file location API', () => {
 
     test('folder edits are atomic and scoped to the selected account and file IDs', async () => {
         const owner = await account('batch');
-        const other = await connectedAccount(state.context, owner.userId, 'other');
+        const other = await connect(owner.userId, 'other');
         signIn(owner.userId);
 
         const edits = [
@@ -169,12 +189,10 @@ describe.skipIf(!databaseUrl)('file location API', () => {
             (await move(owner.id, [{ ...identity, name: 'renamed.bin', folder: 'Moved' }])).status
         ).toBe(200);
 
-        const reuploaded = { ...file, mediaKey: 'new-media-key' };
-        vi.mocked(listBmps).mockReturnValue(
-            resolved({ items: [reuploaded], nextPageToken: '', warnings: [] })
-        );
+        const reuploaded = storedFile('new-media-key', file.fileId);
+        mockListing([reuploaded.photo]);
 
-        expect(await library(owner.id)).toEqual([{ ...reuploaded, accountId: owner.id }]);
+        expect(await library(owner.id)).toEqual([{ ...reuploaded.item, accountId: owner.id }]);
     });
 
     test('a failed database write returns failure without applying any edit', async () => {
