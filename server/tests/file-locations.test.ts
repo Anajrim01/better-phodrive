@@ -1,6 +1,5 @@
 import { eq, sql } from 'drizzle-orm';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import { splitHeaderByteLength } from '@madkarmaa/phodrive-core/bmp/format';
 import {
     GOOGLE_ACCOUNT_HEADER,
     LibraryResponseSchema,
@@ -29,18 +28,18 @@ vi.mock('@madkarmaa/phodrive-core/server/fetcher', () => ({ photosFetch: vi.fn()
 const databaseUrl = process.env.TEST_DATABASE_URL ?? '';
 const ORIGINAL_FOLDER = 'Original/Sub';
 const ORIGINAL_NAME = 'original.bin';
+const PAYLOAD = Buffer.from('test bytes');
 function storedFile(mediaKey: string, fileId: string) {
     const fileHash = 'c'.repeat(64);
-    const payload = Buffer.from('test bytes');
     const photo = splitChunk({
         mediaKey,
-        payload,
+        payload: PAYLOAD,
         header: {
             fileId,
             fileHash,
             chunkIndex: 0,
             flags: 1,
-            payloadSize: payload.length,
+            payloadSize: PAYLOAD.length,
             fileName: ORIGINAL_NAME,
             folder: ORIGINAL_FOLDER
         }
@@ -54,7 +53,7 @@ function storedFile(mediaKey: string, fileId: string) {
         isLast: true,
         originalName: ORIGINAL_NAME,
         folder: ORIGINAL_FOLDER,
-        size: payload.length,
+        size: PAYLOAD.length,
         at: photo.at
     } satisfies RemoteBmp;
     return { item, photo };
@@ -222,39 +221,31 @@ describe.skipIf(!databaseUrl)('file location API', () => {
     test('new shares use the new display path and issue ranges against the stored BMP header', async () => {
         const owner = await account('sharing');
         signIn(owner.userId);
-        expect(
-            (await move(owner.id, [{ ...identity, name: 'different name.bin', folder: 'Moved' }]))
-                .status
-        ).toBe(200);
+        const name = 'client-review-2026-final-version.bin';
+        const folder = 'Moved/Client/2026/Approved';
+        expect((await move(owner.id, [{ ...identity, name, folder }])).status).toBe(200);
 
         const created = await createShare(state.context, owner.userId, {
             kind: 'folder',
             requestKey: crypto.randomUUID(),
-            name: 'Moved',
+            name: 'Approved',
             context: { kind: 'account', id: owner.id },
-            folder: 'Moved'
+            folder
         });
         const token = created.unwrap().publicPath.split('/').at(-1)!;
         const manifest = await getPublicShare(state.context, token);
         const publicFiles = manifest.unwrap().files;
-        expect(publicFiles).toEqual([
-            expect.objectContaining({ name: 'different name.bin', relativeFolder: '' })
-        ]);
+        expect(publicFiles).toEqual([expect.objectContaining({ name, relativeFolder: '' })]);
 
         const issued = await issueShareChunk(state.context, token, publicFiles[0].id, 0, {
             prepareUrl: () => resolved(new URL(MEDIA))
         });
-        const expectedOffset = splitHeaderByteLength({
-            fileHash: file.fileHash,
-            fileId: file.fileId,
-            chunkIndex: 0,
-            flags: 1,
-            payloadSize: file.size,
-            fileName: ORIGINAL_NAME,
-            folder: ORIGINAL_FOLDER
-        });
-        expect(decodeCapability(issued.unwrap().capability, TEST_CAPABILITY_KEY).unwrap().o).toBe(
-            expectedOffset.unwrap()
-        );
+        const {
+            o: offset,
+            p: length,
+            n: total
+        } = decodeCapability(issued.unwrap().capability, TEST_CAPABILITY_KEY).unwrap();
+        expect(total).toBe(original.photo.bmp.length);
+        expect(original.photo.bmp.subarray(offset, offset + length)).toEqual(PAYLOAD);
     });
 });
