@@ -32,8 +32,8 @@ function orderedChunks(item: FileGroup): Result<RemoteBmp[], ApplicationError> {
                 chunk.isLast === (index === chunks.length - 1) &&
                 chunk.fileHash === item.fileHash &&
                 chunk.fileId === item.fileId &&
-                (index !== 0 || chunk.originalName === item.name) &&
-                (index !== 0 || (chunk.folder ?? '') === item.folder)
+                (index !== 0 || (chunk.displayName ?? chunk.originalName) === item.name) &&
+                (index !== 0 || (chunk.displayFolder ?? chunk.folder ?? '') === item.folder)
         );
 
     return complete ? Ok(chunks) : Err(INCOMPLETE_CHUNKS);
@@ -46,8 +46,8 @@ function expectedHeader(item: FileGroup, chunk: RemoteBmp): SplitHeader {
         chunkIndex: chunk.chunkIndex,
         flags: chunk.isLast ? 1 : 0,
         payloadSize: chunk.size,
-        fileName: chunk.chunkIndex === 0 ? item.name : undefined,
-        folder: chunk.chunkIndex === 0 ? item.folder || undefined : undefined
+        fileName: chunk.chunkIndex === 0 ? chunk.originalName : undefined,
+        folder: chunk.chunkIndex === 0 ? chunk.folder : undefined
     };
 }
 

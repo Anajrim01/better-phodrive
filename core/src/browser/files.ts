@@ -19,6 +19,10 @@ export { uploadFiles } from './upload/index';
 const FILES_API_URL = '/api/files';
 
 function fileRequest(item: FileGroup, action: FileActionKind): RequestInit {
+    const firstChunk = item.chunks.find((chunk) => chunk.chunkIndex === 0);
+    const name =
+        action === FileActionKind.Download ? (firstChunk?.originalName ?? item.name) : item.name;
+
     return {
         method: 'POST',
         headers: {
@@ -27,7 +31,7 @@ function fileRequest(item: FileGroup, action: FileActionKind): RequestInit {
         },
         body: JSON.stringify({
             action,
-            name: item.name,
+            name,
             fileHash: item.fileHash,
             fileId: item.fileId,
             // Chunks keep their owner locally; the request header selects the account.

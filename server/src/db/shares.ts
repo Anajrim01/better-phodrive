@@ -58,6 +58,7 @@ export function createShareTables(user: RefTable) {
             fileId: text('file_id').notNull(),
             fileHash: text('file_hash').notNull(),
             name: text('name').notNull(),
+            originalName: text('original_name'),
             folder: text('folder').notNull(),
             relativeFolder: text('relative_folder').notNull(),
             chunkCount: integer('chunk_count').notNull(),

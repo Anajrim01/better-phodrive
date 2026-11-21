@@ -24,6 +24,7 @@ import { errorResponse, jsonResponse, readJsonRequest } from '../api';
 import type { ServerContext } from '../context';
 import { requireGoogleAccount, requireUser, type ApiEnv } from '../middleware';
 import { createChunkMetadataStore } from '../chunk-metadata';
+import { applyFileLocations } from '../file-locations';
 
 function relayedChunk(response: Response): Response {
     const headers = new Headers({
@@ -44,8 +45,9 @@ export function driveRoutes(context: ServerContext) {
     return new Hono<ApiEnv>()
         .post('/library', signedIn, connected, (c) => {
             const account = c.get('account');
+            const userId = c.get('user').id;
             const metadata = createChunkMetadataStore(context.db, {
-                userId: c.get('user').id,
+                userId,
                 googleAccountId: account.id
             });
             const scope = {
@@ -66,6 +68,12 @@ export function driveRoutes(context: ServerContext) {
                     ).map((page) => ({
                         ...page,
                         items: page.items.map((item) => ({ ...item, accountId: account.id }))
+                    }))
+                )
+                .andThenAsync(({ items, ...page }) =>
+                    applyFileLocations(context.db, userId, account.email, items).map((located) => ({
+                        ...page,
+                        items: located
                     }))
                 )
                 .match({ Ok: jsonResponse, Err: errorResponse });

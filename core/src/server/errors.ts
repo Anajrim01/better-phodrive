@@ -35,6 +35,11 @@ export const SERVER_ERRORS = {
         message: 'The received file is incomplete.'
     },
     INVALID_PAGE_TOKEN: { code: 'INVALID_PAGE_TOKEN', message: 'Invalid page token' },
+    FILE_LOCATION_UNAVAILABLE: {
+        code: 'FILE_LOCATION_UNAVAILABLE',
+        message: 'File names and folders are unavailable. Try again later.',
+        status: 503
+    },
     METADATA_UNAVAILABLE: {
         code: 'METADATA_UNAVAILABLE',
         message: 'Library metadata is unavailable.'

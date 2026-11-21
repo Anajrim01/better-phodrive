@@ -2,7 +2,8 @@ import { beforeEach, expect, test, vi } from 'vitest';
 import {
     ChunkFormat,
     GOOGLE_ACCOUNT_HEADER,
-    ProcessingMode
+    ProcessingMode,
+    type RemoteBmp
 } from '@madkarmaa/phodrive-core/models';
 import { downloadBmp, listBmps } from '@madkarmaa/phodrive-core/server/photos';
 import { deleteFile, deleteForeverFile, restoreFile } from '@madkarmaa/phodrive-core/server/files';
@@ -19,6 +20,9 @@ vi.mock('../src/auth', () => ({
     handleAuthRequest: vi.fn(),
     readSessionUser: vi.fn(),
     requireSessionUser: vi.fn()
+}));
+vi.mock('../src/file-locations', () => ({
+    applyFileLocations: vi.fn((_db, _userId, _email, items: RemoteBmp[]) => resolved(items))
 }));
 vi.mock('../src/google', () => ({
     readGoogleAccount: vi.fn(),

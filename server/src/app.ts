@@ -5,6 +5,7 @@ import { AUTH_ERRORS } from './errors';
 import type { ApiEnv } from './middleware';
 import { accountRoutes, authRoutes, sessionRoutes } from './routes/account';
 import { driveRoutes } from './routes/drive';
+import { fileLocationRoutes } from './routes/file-locations';
 import { groupRoutes } from './routes/groups';
 import { publicShareRoutes } from './routes/public-shares';
 import { shareRoutes } from './routes/shares';
@@ -21,6 +22,7 @@ export function createApi(context: ServerContext) {
             .route('/shares', shareRoutes(context))
             .route('/public/shares', publicShareRoutes(context))
             .route('/', driveRoutes(context))
+            .route('/files/location', fileLocationRoutes(context))
             // A mounted app's notFound handler is not used, so unknown API paths end here instead.
             .all('*', () => errorResponse(AUTH_ERRORS.NOT_FOUND))
     );

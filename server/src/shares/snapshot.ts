@@ -9,9 +9,11 @@ import {
     type AccountSnapshot,
     type SnapshotFile
 } from '@madkarmaa/phodrive-core/server/photos/shares';
+import { listBmps } from '@madkarmaa/phodrive-core/server/photos';
 import { SERVER_ERRORS, type ServerError } from '@madkarmaa/phodrive-core/server/errors';
 import type { ServerContext } from '../context';
 import { createChunkMetadataStore } from '../chunk-metadata';
+import { applyFileLocations } from '../file-locations';
 import { googleAccount, googleAccountGroupMember } from '../db/schema';
 import { AUTH_ERRORS } from '../errors';
 import { readGoogleAccount } from '../google';
@@ -91,7 +93,13 @@ function readAccountSource(
                     userId,
                     googleAccountId: current.id
                 }),
-                scope: { key: current.id, coordinator: context.throttle, signal }
+                scope: { key: current.id, coordinator: context.throttle, signal },
+                listPage: (...input) =>
+                    listBmps(...input).andThenAsync((page) =>
+                        applyFileLocations(context.db, userId, current.email, page.items).map(
+                            (items) => ({ ...page, items })
+                        )
+                    )
             }
         );
 
