@@ -8,12 +8,11 @@ import type { PhotosHeaders } from '../auth';
 import { preparedDownloadUrl } from '../download';
 import type { ThrottleScope } from '../throttle';
 import { guardedSend } from '../transport';
-import { contentIndex, contentKey, contentRecord, groupByContent } from './content-groups';
+import { contentRecord, planLibraryScan } from './content-groups';
 import type { LibraryCandidate } from './metadata';
 import {
     chunkMetadataRecord,
     metadataItem,
-    metadataMatches,
     type ChunkMetadataRecord,
     type ChunkMetadataStore
 } from './metadata-store';
@@ -49,13 +48,19 @@ export function scanLibraryPage(
     fetcher: Fetcher,
     metadata?: ChunkMetadataStore,
     scope?: ThrottleScope,
-    lookahead = false
+    { lookahead = false, maxProbes = Infinity, offset = 0 } = {}
 ): AsyncResult<
-    { items: RemoteBmp[]; nextPageToken: string; warnings: LibraryWarning[] },
+    {
+        items: RemoteBmp[];
+        nextPageToken: string;
+        warnings: LibraryWarning[];
+        candidatesScanned: number;
+        probeGroups: number;
+    },
     ServerError
 > {
     return Ok(undefined).andThenAsync(async () => {
-        const warnings = [...(page.warnings ?? [])];
+        const warnings = offset ? [] : [...(page.warnings ?? [])];
         const stored = metadata
             ? await metadata.load(page.items).match({
                   Ok: (rows) => rows,
@@ -66,28 +71,13 @@ export function scanLibraryPage(
                   }
               })
             : new Map<string, ChunkMetadataRecord>();
-        const items = new Map<string, RemoteBmp>();
-        const missing: LibraryCandidate[] = [];
-        const records: ChunkMetadataRecord[] = [];
-        const content = contentIndex(stored.values());
-
-        for (const candidate of page.items) {
-            const record = stored.get(candidate.mediaKey);
-            if (record && metadataMatches(record, candidate)) {
-                items.set(candidate.mediaKey, metadataItem(record, candidate));
-                continue;
-            }
-
-            const shared = content.get(contentKey(candidate.sha1, candidate.size));
-            if (shared) {
-                const copied = contentRecord(shared, candidate);
-                items.set(candidate.mediaKey, metadataItem(copied, candidate));
-                records.push(copied);
-                continue;
-            }
-
-            if (!candidate.trashed) missing.push(candidate);
-        }
+        const candidates = page.items.slice(offset);
+        const {
+            items,
+            records,
+            groups,
+            scanned: candidatesScanned
+        } = planLibraryScan(candidates, stored, maxProbes);
 
         const probe = (group: LibraryCandidate[]) =>
             probeLibraryItem(
@@ -98,7 +88,6 @@ export function scanLibraryPage(
                 scope
             ).map((item) => ({ group, item }));
 
-        const groups = groupByContent(missing);
         const scanned = lookahead
             ? items.size
                 ? []
@@ -128,13 +117,15 @@ export function scanLibraryPage(
         }
 
         return Ok({
-            items: page.items.flatMap((candidate) => {
+            items: candidates.slice(0, candidatesScanned).flatMap((candidate) => {
                 const item = items.get(candidate.mediaKey);
 
                 return item ? [item] : [];
             }),
             nextPageToken: page.nextPageToken,
-            warnings
+            warnings,
+            candidatesScanned,
+            probeGroups: groups.length
         });
     });
 }

@@ -144,10 +144,16 @@ The tests in `core/tests/server/library-request-budget.test.ts`,
 
 ## Refresh
 
+`/api/library` returns after at most the requested number of provider pages
+(up to five) and 16 cold probes. The first request can start at most 34 Google
+requests: one auth POST, one listing POST, and up to 16 PrepareDownload and
+range GET pairs. A response can include a continuation even if no files were
+found yet. When the continuation points into the middle of a provider page,
+the server checks that the candidate list is unchanged before resuming.
+
 `readLibrarySnapshot` reloads the pages already loaded, in batches of up to five
-file pages per account. A batch uses one auth POST and reuses the lookahead
-for each following page in that batch. The last page can still look ahead
-to check whether more files are available.
+pages per account. Each batch uses a single auth POST. Cached candidates use no
+probe budget.
 
 With a complete index, refreshing the two-page, 100-candidate fixture costs
 one auth POST and two library POSTs, down from two auth and three library POSTs.

@@ -35,6 +35,10 @@ export const SERVER_ERRORS = {
         message: 'The received file is incomplete.'
     },
     INVALID_PAGE_TOKEN: { code: 'INVALID_PAGE_TOKEN', message: 'Invalid page token' },
+    LIBRARY_PAGE_CHANGED: {
+        code: 'LIBRARY_PAGE_CHANGED',
+        message: 'Google Photos changed during scanning. Refresh to continue.'
+    },
     METADATA_UNAVAILABLE: {
         code: 'METADATA_UNAVAILABLE',
         message: 'Library metadata is unavailable.'
