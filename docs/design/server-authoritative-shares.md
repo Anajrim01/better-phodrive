@@ -1,6 +1,6 @@
-# Server-authoritative shares
+# Google-native shares
 
-Status: APK-backed design and research. This document does not authorize an implementation. It replaces the earlier assumption that Google exposes no way to enumerate existing shares.
+Status: APK-backed research for a proposed Google-native sharing mode. Phodrive's existing public shares use server-owned snapshots.
 
 ## Decision
 
@@ -8,7 +8,7 @@ Google Photos 7.98 contains account-scoped sharing enumeration and read operatio
 
 A lost client response is therefore not proof that the provider share is unknowable. The design targets reconciliation from Google, conditioned on live verification of authoritative enumeration, instead of treating every ambiguous response as a permanent local recovery record.
 
-The private RPC contract is not live-verified. The evidence below comes from the shipped APK, not from a captured Google response. The protocol gate looks passable, but live verification is still required before implementation.
+The evidence below comes from the shipped APK. The [Google share protocol probe in #92](https://github.com/Anajrim01/better-phodrive/pull/92) exercises separate album and envelope operations. That experiment does not establish the authoritative enumeration and reconciliation described here.
 
 ## APK provenance
 
@@ -27,9 +27,8 @@ The APK is not committed. Analysis used JADX 1.5.6 and the Android build-tools m
 
 ## Current integration
 
-At integration `50667c40508ea4cd75bfa0ea4f7493024bab0f5e`:
+Phodrive public shares landed in [#90](https://github.com/Anajrim01/better-phodrive/pull/90). The current `/api/shares` routes and share tables serve [Phodrive-owned snapshots](public-shares.md). The proposed Google-native mode would use Google-hosted links and a distinct API.
 
-- No share route, schema, model, service, browser store, or share UI exists.
 - User identity comes from the Better Auth session through `requireUser`.
 - The selected Google account comes from `x-phodrive-account-id`, scoped to that user. Unknown ids fail closed.
 - Groups are per-user sets of Google accounts for browsing and uploads. They are not share audiences.
@@ -274,10 +273,10 @@ This reduces the local state machine to idempotent create and revoke operations 
 
 Proposed, not implemented:
 
-- `POST /api/shares` with a client request key, one file identity, and a display name. The server resolves the session user, selected Google account, and file ownership. It returns the local share id and the reconciled provider state.
-- `GET /api/shares` reconciles the account's existing shared collections with local rows and returns owner-visible summaries.
-- `GET /api/shares/:id` returns one local share summary only to its owner.
-- `POST /api/shares/:id/revoke` disables the link and deletes the shared collection, then reconciles and removes the local association only after the provider no longer exposes it and every recorded short URL is stopped.
+- `POST /api/google-shares` takes a client request key, one file identity, and a display name. The server resolves the session user, selected Google account, and file ownership. It returns the local share id and the reconciled provider state.
+- `GET /api/google-shares` reconciles the account's existing shared collections with local rows and returns owner-visible summaries.
+- `GET /api/google-shares/:id` returns one local share summary only to its owner.
+- `POST /api/google-shares/:id/revoke` disables the link and deletes the shared collection, then reconciles and removes the local association only after the provider no longer exposes it and every recorded short URL is stopped.
 
 Responses contain share id, local file display metadata, display name, provider state, and the current public URL when a link is active. They never contain tokens, raw RPC payloads, media keys, or signed media URLs. The client cannot set the user, account, or provider key.
 
@@ -310,7 +309,7 @@ Create, link, delete, and read operations use the existing `ServerContext` coord
 | Link state request with envelope key        | `PhotosUpdateLinkSharingState` with collection media key and state 1/2                                                               | One stable collection key replaces the old split                        |
 | No enumeration in historical implementation | `PhotosSyncSharedCollections` and `PhotosReadSharedCollections`                                                                      | Enumeration is possible; the old limitation was local                   |
 | Short URL stored from link response         | Short URL is part of the full collection sync record                                                                                 | Reconciliation can recover it                                           |
-| Browser-local records                       | No current Phodrive share implementation                                                                                             | Do not migrate `phodrive-shares` or old recovery JSON                   |
+| Browser-local records                       | Phodrive snapshots and this proposed provider mode track different resources                                                         | Keep legacy-link reconciliation a separate compatibility decision       |
 
 ## Verification plan
 
