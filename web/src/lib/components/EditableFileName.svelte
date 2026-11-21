@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { Button, IconButton, TextField } from 'noph-ui';
+    import { Button, IconButton } from 'noph-ui';
     import { getContext, onMount, tick } from 'svelte';
     import type { FileGroup } from '@madkarmaa/phodrive-core/files';
     import {
@@ -15,14 +15,13 @@
     const locations = $derived(readLocations?.());
     const renaming = $derived(locations?.isRenaming(file));
     let name = $state('');
-    let form = $state<HTMLFormElement>();
+    let field = $state<HTMLInputElement>();
     let editButton = $state<HTMLElement>();
 
     async function begin() {
         name = file.name;
         locations?.startRename(file);
         await tick();
-        const field = form?.querySelector('input');
         field?.focus();
         field?.select();
     }
@@ -52,7 +51,7 @@
     >
         <input
             type="checkbox"
-            class="mt-1 shrink-0 accent-primary"
+            class="shrink-0 accent-primary"
             aria-label={`Select ${file.name}`}
             checked={locations.isSelected(file)}
             disabled={!locations.canSelect(file)}
@@ -60,12 +59,14 @@
         />
         {#if renaming}
             <form
-                class="flex min-w-0 flex-1 flex-wrap items-center gap-1"
-                bind:this={form}
+                class="inline-rename flex min-w-0 flex-1 flex-wrap items-center gap-1"
                 onsubmit={submit}
             >
-                <TextField
-                    label="Name"
+                <input
+                    type="text"
+                    class="min-h-8 min-w-0 flex-1 basis-24 rounded-[3px] border border-[#c5d7ed] bg-black px-2 text-sm text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c5d7ed]"
+                    aria-label="File name"
+                    bind:this={field}
                     bind:value={name}
                     maxlength={255}
                     disabled={locations.saving}
@@ -76,21 +77,23 @@
                     }}
                 />
                 <Button
-                    type="submit"
-                    size="xs"
-                    variant="filled"
-                    disabled={locations.disabled || !name}
-                >
-                    Save
-                </Button>
-                <Button
                     type="button"
                     size="xs"
-                    variant="text"
+                    shape="square"
+                    variant="outlined"
                     disabled={locations.saving}
                     onclick={cancel}
                 >
                     Cancel
+                </Button>
+                <Button
+                    type="submit"
+                    size="xs"
+                    shape="square"
+                    variant="filled"
+                    disabled={locations.disabled || !name}
+                >
+                    Save
                 </Button>
                 {#if locations.error}
                     <span role="alert" class="basis-full text-xs text-error">{locations.error}</span
@@ -119,3 +122,11 @@
 {:else}
     <span class="block truncate text-sm font-medium" title={file.name}>{file.name}</span>
 {/if}
+
+<style>
+    .inline-rename {
+        --np-button-shape: 3px;
+        --np-filled-button-container-color: #e4edfa;
+        --np-filled-button-label-text-color: #111;
+    }
+</style>

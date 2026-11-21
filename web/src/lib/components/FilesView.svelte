@@ -83,37 +83,45 @@
         bind:days={library.modifiedDays}
         bind:sort={settings.fileSort}
     />
-    {#if locations.selected.length}
-        <div class="flex flex-wrap items-center gap-2 border-y border-border py-2">
-            <span class="mr-auto text-sm" role="status">{locations.selected.length} selected</span>
-            {#if !locations.moving}
-                <Button
-                    variant="text"
-                    size="xs"
-                    disabled={locations.disabled}
-                    bind:element={moveButton}
-                    onclick={() => locations.startMove()}
-                >
-                    Move selected
-                </Button>
-                <Button
-                    variant="text"
-                    size="xs"
-                    disabled={locations.disabled}
-                    onclick={() => locations.clearSelection()}
-                >
-                    Clear selection
-                </Button>
-            {/if}
-        </div>
-    {/if}
-
     <div
         class={locations.moving
             ? 'grid flex-1 items-start gap-4 min-[1230px]:grid-cols-[minmax(0,1fr)_18rem]'
             : 'flex-1'}
     >
         <div class="min-w-0">
+            {#if locations.selected.length}
+                <div
+                    class="selection-bar flex min-h-9 flex-wrap items-center gap-1 border-y border-border px-2"
+                >
+                    <span class="mr-auto text-sm tabular-nums" role="status"
+                        >{locations.selected.length} selected</span
+                    >
+                    {#if !locations.moving}
+                        <Button
+                            variant="text"
+                            shape="square"
+                            size="xs"
+                            disabled={locations.disabled}
+                            bind:element={moveButton}
+                            onclick={() => locations.startMove()}
+                        >
+                            Move selected
+                        </Button>
+                    {/if}
+                    <Button
+                        variant="text"
+                        shape="square"
+                        size="xs"
+                        disabled={locations.disabled}
+                        onclick={() => {
+                            locations.clearSelection();
+                            filesHeading?.focus();
+                        }}
+                    >
+                        Clear selection
+                    </Button>
+                </div>
+            {/if}
             <FileDrop
                 disabled={disabled ||
                     uploadDisabled ||
@@ -157,7 +165,7 @@
             </FileDrop>
         </div>
         {#if locations.moving}
-            <div class="min-w-0 max-[1229px]:order-first">
+            <div class="order-first min-w-0 min-[1230px]:order-none">
                 <MoveFilesPanel
                     {locations}
                     hasMore={library.hasMore}
@@ -169,3 +177,9 @@
         {/if}
     </div>
 </div>
+
+<style>
+    .selection-bar {
+        --np-button-shape: 3px;
+    }
+</style>
