@@ -40,6 +40,29 @@ test('image download metadata preserves the validated signed URL', async () => {
     expect(parsed.unwrap()?.href).toBe(SIGNED_URL);
 });
 
+test.each([1, 2, 3, 4, 5])('image download metadata accepts lh%i', async (host) => {
+    const signed = `https://lh${host}.googleusercontent.com/fixture=d`;
+    const parsed = await parse(metadata(bytesField(2, bytesField(5, signed))));
+
+    expect(parsed.unwrap()?.href).toBe(signed);
+});
+
+test.each([
+    'https://lh6.googleusercontent.com/fixture=d',
+    'https://lh0.googleusercontent.com/fixture=d',
+    'https://other.googleusercontent.com/fixture=d',
+    'https://googleusercontent.com/fixture=d',
+    'https://lh3.googleusercontent.com.example.com/fixture=d',
+    'http://lh3.googleusercontent.com/fixture=d',
+    'https://lh3.googleusercontent.com:8443/fixture=d',
+    'https://user:secret@lh3.googleusercontent.com/fixture=d',
+    'https://lh3.googleusercontent.com/fixture=d#fragment'
+])('image download metadata rejects %s', async (signed) => {
+    const parsed = await parse(metadata(bytesField(2, bytesField(5, signed))));
+
+    expect(parsed.unwrapErr()).toEqual(SERVER_ERRORS.INVALID_DOWNLOAD_URL);
+});
+
 test('video download metadata is skipped only after verifying its key and fingerprint', async () => {
     const video = message(numberField(1, 2), bytesField(3, bytesField(5, 'video-download')));
     const parsed = await parse(metadata(video));

@@ -89,6 +89,44 @@ export function downloadBmp(
         });
 }
 
+export function resolveDownloadUrl(
+    email: string,
+    token: string,
+    mediaKey: string,
+    sha1: string,
+    fetcher: Fetcher = photosFetch,
+    signal?: AbortSignal,
+    scope?: ThrottleScope
+): AsyncResult<URL, ServerError> {
+    const validReference =
+        mediaKey && mediaKey.length <= 1024 && Sha1HexSchema.safeParse(sha1).success
+            ? Ok(undefined)
+            : Err(SERVER_ERRORS.INVALID_FILE_REFERENCE);
+    const activeSignal = signal ?? scope?.signal;
+    const activeScope = scope
+        ? { ...scope, ...(activeSignal ? { signal: activeSignal } : {}) }
+        : undefined;
+
+    return validReference
+        .andThenAsync(() =>
+            authenticatedHeaders(
+                email,
+                token,
+                (url, init) => fetcher(url, { ...init, signal: activeSignal }),
+                activeScope
+            )
+        )
+        .andThenAsync(({ rpcHeaders }) =>
+            preparedDownloadUrl(
+                mediaKey,
+                sha1,
+                rpcHeaders,
+                (url, init) => fetcher(url, { ...init, signal: activeSignal }),
+                activeScope
+            ).andThen((url) => (url ? Ok(url) : Err(SERVER_ERRORS.INVALID_DOWNLOAD_CONTENT_TYPE)))
+        );
+}
+
 export function preparedDownloadUrl(
     mediaKey: string,
     sha1: string,
@@ -122,6 +160,14 @@ export function preparedDownloadUrl(
 const IMAGE_DOWNLOAD_TYPE = 1;
 const VIDEO_DOWNLOAD_TYPE = 2;
 
+export const MEDIA_HOSTS: ReadonlySet<string> = new Set([
+    'lh1.googleusercontent.com',
+    'lh2.googleusercontent.com',
+    'lh3.googleusercontent.com',
+    'lh4.googleusercontent.com',
+    'lh5.googleusercontent.com'
+]);
+
 function parseSignedDownloadUrl(text: string): Result<URL, ServerError> {
     let signed: URL;
 
@@ -133,7 +179,7 @@ function parseSignedDownloadUrl(text: string): Result<URL, ServerError> {
 
     if (
         signed.protocol !== 'https:' ||
-        signed.hostname !== 'lh3.googleusercontent.com' ||
+        !MEDIA_HOSTS.has(signed.hostname) ||
         signed.port ||
         signed.username ||
         signed.password ||

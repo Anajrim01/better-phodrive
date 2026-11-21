@@ -125,6 +125,10 @@
             "@madkarmaa/phodrive-core": "./src/models/settings.ts",
             "default": "./dist/models/settings.js"
         },
+        "./models/shares": {
+            "@madkarmaa/phodrive-core": "./src/models/shares.ts",
+            "default": "./dist/models/shares.js"
+        },
         "./models/upload": {
             "@madkarmaa/phodrive-core": "./src/models/upload.ts",
             "default": "./dist/models/upload.js"
@@ -248,6 +252,14 @@
         "./server/photos/mutations": {
             "@madkarmaa/phodrive-core": "./src/server/photos/mutations.ts",
             "default": "./dist/server/photos/mutations.js"
+        },
+        "./server/photos/shares": {
+            "@madkarmaa/phodrive-core": "./src/server/photos/shares/index.ts",
+            "default": "./dist/server/photos/shares/index.js"
+        },
+        "./server/photos/shares/snapshot": {
+            "@madkarmaa/phodrive-core": "./src/server/photos/shares/snapshot.ts",
+            "default": "./dist/server/photos/shares/snapshot.js"
         },
         "./server/photos/throttle": {
             "@madkarmaa/phodrive-core": "./src/server/photos/throttle.ts",
@@ -381,6 +393,7 @@
             "./models/accounts": "./dist/models/accounts.js",
             "./models/files": "./dist/models/files.js",
             "./models/settings": "./dist/models/settings.js",
+            "./models/shares": "./dist/models/shares.js",
             "./models/upload": "./dist/models/upload.js",
             "./node": "./dist/node/index.js",
             "./node/files": "./dist/node/files.js",
@@ -412,6 +425,8 @@
             "./server/photos/library/requests": "./dist/server/photos/library/requests.js",
             "./server/photos/mutation-response": "./dist/server/photos/mutation-response.js",
             "./server/photos/mutations": "./dist/server/photos/mutations.js",
+            "./server/photos/shares": "./dist/server/photos/shares/index.js",
+            "./server/photos/shares/snapshot": "./dist/server/photos/shares/snapshot.js",
             "./server/photos/throttle": "./dist/server/photos/throttle.js",
             "./server/photos/transport": "./dist/server/photos/transport.js",
             "./server/photos/upload": "./dist/server/photos/upload/index.js",

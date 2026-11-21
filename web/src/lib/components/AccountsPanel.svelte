@@ -37,7 +37,7 @@
 
         if (
             !confirm(
-                `Disconnect ${account.email}? Its cached metadata and group memberships are removed. Files stay in Google Photos.`
+                `Disconnect ${account.email}? Its cached metadata and group memberships are removed. Files stay in Google Photos. Public share links become temporarily unavailable until you reconnect this account, and you can still revoke them.`
             )
         )
             return;

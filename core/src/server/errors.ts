@@ -167,6 +167,51 @@ export const SERVER_ERRORS = {
     COULD_NOT_READ_THE_DOWNLOADED_FILE: {
         code: 'COULD_NOT_READ_THE_DOWNLOADED_FILE',
         message: 'Could not read the downloaded file.'
+    },
+    SHARE_NOT_FOUND: {
+        code: 'SHARE_NOT_FOUND',
+        message: 'Share not found.',
+        status: 404
+    },
+    SHARE_FILE_NOT_FOUND: {
+        code: 'SHARE_FILE_NOT_FOUND',
+        message: 'File not found in this share.',
+        status: 404
+    },
+    SHARE_INVALID: {
+        code: 'SHARE_INVALID',
+        message: 'This share cannot be created from the selected items.',
+        status: 400
+    },
+    SHARE_SNAPSHOT_INCOMPLETE: {
+        code: 'SHARE_SNAPSHOT_INCOMPLETE',
+        message: 'A file in this share is incomplete or partly in Trash.',
+        status: 409
+    },
+    SHARE_ACCOUNT_DISCONNECTED: {
+        code: 'SHARE_ACCOUNT_DISCONNECTED',
+        message: "This share's Google account is disconnected. Reconnect it to restore downloads.",
+        status: 409
+    },
+    SHARE_MEDIA_UNAVAILABLE: {
+        code: 'SHARE_MEDIA_UNAVAILABLE',
+        message: 'Google Photos could not provide this shared file.',
+        status: 502
+    },
+    SHARE_DISABLED: {
+        code: 'SHARE_DISABLED',
+        message: 'Public sharing is not configured on this server.',
+        status: 503
+    },
+    SHARE_LIMIT_EXCEEDED: {
+        code: 'SHARE_LIMIT_EXCEEDED',
+        message: 'A share supports up to 500 files, 2048 chunks and a 256 KiB manifest.',
+        status: 413
+    },
+    SHARE_BUSY: {
+        code: 'SHARE_BUSY',
+        message: 'Too many public download requests. Try again shortly.',
+        status: 429
     }
 } as const;
 

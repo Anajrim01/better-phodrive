@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import type { AddressInfo } from 'node:net';
 import { createContext } from './context';
 import { migrateDatabase } from './db/migrate';
-import { parseEnvironment, type Environment } from './environment';
+import { parseEnvironment, sharingDiagnostic, type Environment } from './environment';
 import { createServerApp } from './server';
 
 // Both resolve inside the package, from src/ in development and from dist/ once built.
@@ -19,6 +19,9 @@ function listeningOn({ address, family, port }: AddressInfo): string {
 }
 
 function start(env: Environment) {
+    const diagnostic = sharingDiagnostic(env);
+    if (diagnostic) console.warn(diagnostic);
+
     const context = createContext(env);
     // In development the web app has its own server, so only the API runs here.
     const webBuilt = existsSync(WEB_ROOT);

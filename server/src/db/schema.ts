@@ -10,6 +10,7 @@ import {
     timestamp,
     unique
 } from 'drizzle-orm/pg-core';
+import { createShareTables } from './shares';
 
 // Better Auth tables, generated with `auth generate` for the Drizzle PostgreSQL adapter.
 export const user = pgTable('user', {
@@ -162,6 +163,11 @@ export const googleAccountGroupMember = pgTable(
         index('google_account_group_member_account_idx').on(table.userId, table.googleAccountId)
     ]
 );
+
+const shareTables = createShareTables(user);
+export const share = shareTables.share;
+export const shareFile = shareTables.shareFile;
+export const shareChunk = shareTables.shareChunk;
 
 /**
  * Resolved BMP metadata for one Google media item.

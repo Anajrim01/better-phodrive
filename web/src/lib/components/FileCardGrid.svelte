@@ -10,11 +10,13 @@
         disabled: boolean;
         action: FileAction | null;
         ondownload: (item: FileGroup) => void;
+        onshare?: (item: FileGroup) => void;
         ondelete: (item: FileGroup) => void;
         onrestoretrashed?: (item: FileGroup) => void;
     }
 
-    let { files, disabled, action, ondownload, ondelete, onrestoretrashed }: Props = $props();
+    let { files, disabled, action, ondownload, onshare, ondelete, onrestoretrashed }: Props =
+        $props();
 
     const flipDuration = $derived(prefersReducedMotion.current ? 0 : 180);
     const fadeDuration = $derived(prefersReducedMotion.current ? 0 : 150);
@@ -32,6 +34,7 @@
                 {disabled}
                 working={action?.fileId === item.fileId ? action.kind : null}
                 {ondownload}
+                {onshare}
                 {ondelete}
                 {onrestoretrashed}
             />

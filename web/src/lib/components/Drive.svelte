@@ -6,6 +6,7 @@
     } from '@madkarmaa/phodrive-core/models';
     import { onMount, untrack } from 'svelte';
     import { DriveController } from '#browser/drive/index.svelte';
+    import { DriveShareController } from '#browser/drive/share.svelte';
     import AppHeader from '#components/AppHeader.svelte';
     import AccountMenu from '#components/AccountMenu.svelte';
     import ConfirmDialog from '#components/ConfirmDialog.svelte';
@@ -13,6 +14,8 @@
     import UploadPanel from '#components/UploadPanel.svelte';
     import FilesView from '#components/FilesView.svelte';
     import TrashView from '#components/TrashView.svelte';
+    import SharesPanel from '#components/SharesPanel.svelte';
+    import ShareDialog from '#components/ShareDialog.svelte';
     import SettingsPanel from '#components/SettingsPanel.svelte';
     import ErrorFeedback from '#components/ErrorFeedback.svelte';
     import FileDrop from '#components/FileDrop.svelte';
@@ -21,14 +24,22 @@
         email: string;
         preferencesDefaults: PreferencesDefaults;
         processing: ProcessingMode;
+        sharingEnabled: boolean;
     }
 
-    let { email, preferencesDefaults, processing }: Props = $props();
+    let { email, preferencesDefaults, processing, sharingEnabled }: Props = $props();
 
     const drive = new DriveController(
         untrack(() => email),
         untrack(() => preferencesDefaults),
         untrack(() => processing)
+    );
+    const sharing = new DriveShareController(
+        () => drive.context.current,
+        () => drive.working,
+        (message) => {
+            drive.feedbackMessage = message;
+        }
     );
     const actionsDisabled = $derived(drive.working);
     const uploadDisabled = $derived(
@@ -63,6 +74,22 @@
         target={drive.confirmTarget}
         permanent={drive.confirmPermanent}
         onconfirm={() => drive.confirmAction()}
+    />
+
+    <ShareDialog
+        open={sharing.target !== null}
+        kind={sharing.target?.kind ?? null}
+        targetName={sharing.target?.name ?? ''}
+        busy={sharing.busy}
+        error={sharing.error}
+        result={sharing.result}
+        oncreate={(name) => {
+            void sharing.create(name);
+        }}
+        onclose={() => sharing.close()}
+        oncopy={(share) => {
+            void sharing.shares.copy(share);
+        }}
     />
 
     <AppHeader
@@ -130,8 +157,20 @@
             />
         {:else if drive.ready && view === AppView.Trash}
             <TrashView {drive} working={actionsDisabled} />
+        {:else if drive.ready && view === AppView.Shares}
+            <SharesPanel
+                shares={sharing.shares}
+                disabled={actionsDisabled}
+                enabled={sharingEnabled}
+            />
         {:else if drive.ready}
-            <FilesView {drive} working={actionsDisabled} {uploadDisabled} onupload={upload} />
+            <FilesView
+                {drive}
+                share={sharingEnabled ? sharing : null}
+                working={actionsDisabled}
+                {uploadDisabled}
+                onupload={upload}
+            />
         {/if}
     </main>
 </div>

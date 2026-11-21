@@ -1,7 +1,8 @@
 export { validateAasAccount } from './auth';
 export { listBmps } from './library/index';
+export * from './shares/index';
 export { uploadBmpStream } from './upload/index';
-export { downloadBmp } from './download';
+export { downloadBmp, MEDIA_HOSTS, resolveDownloadUrl } from './download';
 export {
     mutatePhotos,
     MUTATION_BATCH_SIZE,

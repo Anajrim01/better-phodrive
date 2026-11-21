@@ -110,7 +110,8 @@ test('/api/chunk shares the stable account cooldown and does not contact Google 
         sha1: chunk.sha1
     });
 
-    expect(first.status).toBe(400);
+    expect(first.status).toBe(429);
+    expect(first.headers.get('retry-after')).toBe('120');
     expect(await first.json()).toEqual({
         error: expect.stringContaining('limiting requests')
     });
@@ -141,7 +142,8 @@ test('/api/chunk treats a media GET 429 as an account cooldown', async () => {
         sha1: chunk.sha1
     });
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(429);
+    expect(response.headers.get('retry-after')).toBe('120');
     expect(current.throttle.remaining(ACCOUNT.id)).toBe(120);
     expect(calls).toEqual({ auth: 1, prepare: 1, media: 1 });
 });
@@ -162,7 +164,8 @@ test('/api/files uses the selected owner account and leaves another account unaf
 
     const owner = await post(current, '/api/files', body, 'owner-b');
 
-    expect(owner.status).toBe(400);
+    expect(owner.status).toBe(429);
+    expect(owner.headers.get('retry-after')).toBe('120');
     expect(current.throttle.remaining('owner-b')).toBe(120);
     expect(current.throttle.remaining(ACCOUNT.id)).toBe(0);
     expect(calls).toEqual({ auth: 1, prepare: 1, media: 0 });

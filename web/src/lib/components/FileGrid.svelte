@@ -21,9 +21,11 @@
         foldersDisabled?: boolean;
         action: FileAction | null;
         ondownload: (item: FileGroup) => void;
+        onshare?: (item: FileGroup) => void;
         ondelete: (item: FileGroup) => void;
         onrestoretrashed?: (item: FileGroup) => void;
         onopenfolder?: (path: string) => void;
+        onsharefolder?: (path: string) => void;
         onmore: () => void;
     }
 
@@ -41,15 +43,22 @@
         foldersDisabled = false,
         action,
         ondownload,
+        onshare,
         ondelete,
         onrestoretrashed,
         onopenfolder,
+        onsharefolder,
         onmore
     }: Props = $props();
 </script>
 
 <section class="flex min-h-0 flex-1 flex-col" aria-labelledby="files-heading">
-    <FolderTiles {folders} disabled={foldersDisabled} onopen={(path) => onopenfolder?.(path)} />
+    <FolderTiles
+        {folders}
+        disabled={foldersDisabled}
+        onopen={(path) => onopenfolder?.(path)}
+        onshare={onsharefolder}
+    />
 
     {#if !files.length && !folders.length}
         <FileGridStatus {loading} {loadFailed} filteredOut={filtered && hasFiles} />
@@ -61,11 +70,20 @@
             {action}
             showFolder={filtered}
             {ondownload}
+            {onshare}
             {ondelete}
             {onrestoretrashed}
         />
     {:else}
-        <FileCardGrid {files} {disabled} {action} {ondownload} {ondelete} {onrestoretrashed} />
+        <FileCardGrid
+            {files}
+            {disabled}
+            {action}
+            {ondownload}
+            {onshare}
+            {ondelete}
+            {onrestoretrashed}
+        />
     {/if}
 
     {#if hasMore}

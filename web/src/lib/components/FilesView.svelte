@@ -3,6 +3,7 @@
     import { fade } from 'svelte/transition';
     import { prefersReducedMotion } from 'svelte/motion';
     import type { DriveController } from '#browser/drive/index.svelte';
+    import type { DriveShareController } from '#browser/drive/share.svelte';
     import FileDrop from '#components/FileDrop.svelte';
     import FileFilters from '#components/FileFilters.svelte';
     import FileGrid from '#components/FileGrid.svelte';
@@ -11,6 +12,7 @@
 
     interface Props {
         drive: DriveController;
+        share: DriveShareController | null;
         /** An upload or file action is running. */
         working: boolean;
         /** An upload is not allowed for the current drive context. */
@@ -18,7 +20,7 @@
         onupload: (files: File[]) => void;
     }
 
-    let { drive, working, uploadDisabled, onupload }: Props = $props();
+    let { drive, share, working, uploadDisabled, onupload }: Props = $props();
 
     const { library, settings, context } = $derived(drive);
     const disabled = $derived(working || library.loading);
@@ -85,6 +87,8 @@
             ondownload={(item) => {
                 void drive.actOnFile(item, FileActionKind.Download);
             }}
+            onshare={share ? (item) => share.requestFile(item) : undefined}
+            onsharefolder={share ? (path) => share.requestFolder(path) : undefined}
             ondelete={(item) => drive.requestDelete(item)}
             onrestoretrashed={(item) => {
                 if (item.trashedChunks?.length)

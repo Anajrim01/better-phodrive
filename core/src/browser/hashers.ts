@@ -1,4 +1,5 @@
 import type { IHasher } from 'hash-wasm';
+export { createSHA256 } from 'hash-wasm';
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import type { ApplicationError } from '../errors';
 import { MAX_CONCURRENT_WORKERS } from '../models';

@@ -50,6 +50,7 @@ export const SessionResponseSchema = z.object({
     user: SignedInUserSchema.nullable(),
     signupEnabled: z.boolean(),
     processing: ProcessingModeSchema,
+    sharingEnabled: z.boolean(),
     preferencesDefaults: PreferencesDefaultsSchema
 });
 

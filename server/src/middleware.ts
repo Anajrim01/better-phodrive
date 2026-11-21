@@ -1,4 +1,5 @@
 import { GOOGLE_ACCOUNT_HEADER } from '@madkarmaa/phodrive-core/models';
+import { SERVER_ERRORS } from '@madkarmaa/phodrive-core/server/errors';
 import { createMiddleware } from 'hono/factory';
 import { errorResponse } from './api';
 import { requireSessionUser, type SessionUser } from './auth';
@@ -19,6 +20,14 @@ export function requireUser({ auth }: ServerContext) {
             },
             Err: errorResponse
         });
+    });
+}
+
+export function requireSharing({ env }: ServerContext) {
+    return createMiddleware(async (_c, next) => {
+        if (!env.sharing) return errorResponse(SERVER_ERRORS.SHARE_DISABLED);
+
+        await next();
     });
 }
 

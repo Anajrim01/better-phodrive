@@ -2,6 +2,7 @@ import type { ApplicationError } from '../errors';
 import { Err, Ok, type AsyncResult } from 'results-ts';
 import { ErrorResponseSchema } from '../models';
 import { schemaResult } from '../validation';
+import { parseRetryAfter } from '../server/photos/throttle';
 
 function readJson(response: Response, fallback: string): AsyncResult<unknown, ApplicationError> {
     return Ok(undefined).andThenAsync(async () => {
@@ -21,7 +22,7 @@ export function request(
     init: RequestInit,
     fallback: string
 ): AsyncResult<Response, ApplicationError> {
-    return Ok(undefined).andThenAsync(async () => {
+    return Ok(undefined).andThenAsync<Response, ApplicationError>(async () => {
         let response: Response;
 
         try {
@@ -38,7 +39,14 @@ export function request(
             const parsed = schemaResult(ErrorResponseSchema, data, fallback);
             const message = parsed.match({ Ok: (value) => value.error, Err: () => fallback });
 
-            return Err({ code: 'REQUEST_FAILED', message } as const);
+            const retryAfterSeconds = parseRetryAfter(response.headers.get('retry-after'));
+
+            return Err({
+                code: 'REQUEST_FAILED',
+                message,
+                status: response.status,
+                ...(retryAfterSeconds === undefined ? {} : { retryAfterSeconds })
+            } as const);
         });
     });
 }
