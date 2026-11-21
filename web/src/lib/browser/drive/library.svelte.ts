@@ -8,9 +8,18 @@ import {
     type FileGroup,
     type UploadedChunk
 } from '@madkarmaa/phodrive-core/files';
-import { FileSort, type LibraryWarning } from '@madkarmaa/phodrive-core/models';
+import {
+    FileSort,
+    type FileLocationEdit,
+    type LibraryWarning
+} from '@madkarmaa/phodrive-core/models';
 import { readLibraryPage, readLibrarySnapshot } from '@madkarmaa/phodrive-core/browser/library';
-import { withTrashState, withoutChunk, withUploadedChunks } from '#browser/drive/chunks';
+import {
+    withFileLocations,
+    withTrashState,
+    withoutChunk,
+    withUploadedChunks
+} from '#browser/drive/chunks';
 import type { DriveContext } from '#browser/drive/context.svelte';
 import { FolderNavigation } from '#browser/drive/folder-navigation';
 import type { FolderOpenMode } from '#browser/drive/folder-history';
@@ -224,6 +233,13 @@ export class DriveLibrary {
 
     appendChunks(saved: readonly UploadedChunk[]) {
         this.chunks = withUploadedChunks(this.chunksByAccount, this.chunks, saved);
+    }
+
+    applyLocations(accountId: string, edits: FileLocationEdit[]) {
+        const existing = this.chunksByAccount.get(accountId) ?? [];
+        this.chunksByAccount.set(accountId, withFileLocations(existing, accountId, edits));
+        this.chunks = withFileLocations(this.chunks, accountId, edits);
+        this.navigation.settle(this.hasMore);
     }
 
     removeChunk(file: FileGroup, removed: { mediaKey: string; sha1: string }) {

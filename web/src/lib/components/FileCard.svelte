@@ -5,6 +5,7 @@
     import type { FileGroup } from '@madkarmaa/phodrive-core/files';
     import { fileType } from '@madkarmaa/phodrive-core/files';
     import FileActions from '#components/FileActions.svelte';
+    import EditableFileName from '#components/EditableFileName.svelte';
     import IconDescription from '~icons/material-symbols/description';
     import IconDescriptionOutline from '~icons/material-symbols/description-outline';
 
@@ -23,9 +24,9 @@
 </script>
 
 <Card type="text" variant="filled" class="file-card">
-    <div class="flex h-12 min-w-0 items-center gap-3 px-3">
+    <div class="flex min-h-12 min-w-0 items-center gap-3 px-3 py-2">
         <IconDescription aria-hidden="true" class="size-5 shrink-0 text-primary" />
-        <h3 class="min-w-0 flex-1 truncate text-sm font-medium" title={item.name}>{item.name}</h3>
+        <EditableFileName file={item} heading />
     </div>
 
     <div

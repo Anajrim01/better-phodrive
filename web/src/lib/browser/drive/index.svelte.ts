@@ -16,6 +16,7 @@ import {
 } from '#browser/storage';
 import type { UploadJob } from '#browser/files';
 import { confirmedFile, performFileAction } from '#browser/drive/file-actions';
+import { DriveFileLocations } from '#browser/drive/file-locations.svelte';
 import { DriveLibrary } from '#browser/drive/library.svelte';
 import { DriveSettings } from '#browser/drive/settings.svelte';
 import { DriveUploads } from '#browser/drive/uploads.svelte';
@@ -35,6 +36,7 @@ export class DriveController {
 
     readonly context: DriveContextState;
     readonly library: DriveLibrary;
+    readonly locations: DriveFileLocations;
     readonly settings: DriveSettings;
     readonly account: DriveAccount;
     private readonly uploads: DriveUploads;
@@ -57,6 +59,10 @@ export class DriveController {
             feedback
         );
 
+        this.locations = new DriveFileLocations(
+            this.library,
+            () => this.working || this.context.loading
+        );
         this.account = new DriveAccount(this.library, () => !this.working, feedback);
         this.uploads = new DriveUploads(
             () => this.context,
@@ -76,7 +82,7 @@ export class DriveController {
 
     /** An upload or a file action is running. */
     get working(): boolean {
-        return this.uploads.running || this.fileAction !== null;
+        return this.uploads.running || this.fileAction !== null || this.locations.saving;
     }
 
     get busy(): boolean {
@@ -146,6 +152,7 @@ export class DriveController {
             return;
         }
 
+        this.locations.reset();
         this.library.reset();
         await this.library.load();
     }
@@ -155,6 +162,7 @@ export class DriveController {
         if (this.working) return;
 
         await this.context.load();
+        this.locations.reset();
         this.library.reset();
         await this.library.load();
     }
