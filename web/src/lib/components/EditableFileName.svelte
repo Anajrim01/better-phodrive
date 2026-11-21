@@ -64,7 +64,7 @@
             >
                 <input
                     type="text"
-                    class="min-h-8 min-w-0 flex-1 basis-24 rounded-[3px] border border-[#c5d7ed] bg-black px-2 text-sm text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c5d7ed]"
+                    class="inline-rename-field min-h-8 min-w-0 flex-1 basis-24 rounded-[3px] border border-outline px-2 text-sm text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                     aria-label="File name"
                     bind:this={field}
                     bind:value={name}
@@ -126,7 +126,11 @@
 <style>
     .inline-rename {
         --np-button-shape: 3px;
-        --np-filled-button-container-color: #e4edfa;
-        --np-filled-button-label-text-color: #111;
+        --np-filled-button-container-color: light-dark(var(--np-color-primary), #e4edfa);
+        --np-filled-button-label-text-color: light-dark(var(--np-color-on-primary), #111);
+    }
+
+    .inline-rename-field {
+        background: light-dark(var(--np-color-surface), #000);
     }
 </style>
