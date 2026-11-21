@@ -1,5 +1,5 @@
 import type { RemoteBmp } from '@madkarmaa/phodrive-core/models';
-import { listBmps } from '@madkarmaa/phodrive-core/server/photos';
+import { listBmpPages, listBmps } from '@madkarmaa/phodrive-core/server/photos';
 import {
     createThrottleCoordinator,
     type ThrottleCoordinator,
@@ -165,7 +165,7 @@ test('many unique cold candidates cost one probe each across pages', async () =>
     expect(store.rows.size).toBe(100);
 });
 
-test('a repeat scan with a complete index makes no probes', async () => {
+test('a warm two-page refresh reuses authentication and the lookahead with no probes', async () => {
     const first = Array.from({ length: 60 }, (_, index) =>
         chunk(`warm-${index}`, 0, true, Uint8Array.of(index + 1), {
             name: `warm-${index}.bin`
@@ -187,10 +187,22 @@ test('a repeat scan with a complete index makes no probes', async () => {
     await readAll(store, budgetFetcher(pages, items, coldCounts), scope());
 
     const warmCounts = emptyCounts();
-    const warm = await readAll(store, budgetFetcher(pages, items, warmCounts), scope());
+    const warm = await listBmpPages(
+        EMAIL,
+        TOKEN,
+        '',
+        budgetFetcher(pages, items, warmCounts),
+        store,
+        scope(),
+        2
+    );
 
-    expect(warm).toHaveLength(100);
-    expectCounts(warmCounts, { auth: 2, library: 3, prepare: 0, media: 0 });
+    expect(warm.unwrap()).toMatchObject({
+        pageTokens: ['', Buffer.from('page-2').toString('base64url')],
+        nextPageToken: ''
+    });
+    expect(warm.unwrap().items).toHaveLength(100);
+    expectCounts(warmCounts, { auth: 1, library: 2, prepare: 0, media: 0 });
 });
 
 test('one changed chunk among indexed candidates probes only that chunk', async () => {

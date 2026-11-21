@@ -12,7 +12,7 @@ import {
     downloadFile,
     restoreFile
 } from '@madkarmaa/phodrive-core/server/files';
-import { downloadBmp, listBmps } from '@madkarmaa/phodrive-core/server/photos';
+import { downloadBmp, listBmpPages } from '@madkarmaa/phodrive-core/server/photos';
 import { SERVER_ERRORS } from '@madkarmaa/phodrive-core/server/errors';
 import type { ServerError } from '@madkarmaa/phodrive-core/server/errors';
 import { Err, Ok } from 'results-ts';
@@ -56,13 +56,14 @@ export function driveRoutes(context: ServerContext) {
 
             return readJsonRequest(c.req.raw, LibraryPageRequestSchema, 'Invalid request')
                 .andThenAsync((input) =>
-                    listBmps(
+                    listBmpPages(
                         account.email,
                         account.token,
                         input.pageToken ?? '',
                         undefined,
                         metadata,
-                        scope
+                        scope,
+                        input.pageCount
                     ).map((page) => ({
                         ...page,
                         items: page.items.map((item) => ({ ...item, accountId: account.id }))

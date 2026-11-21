@@ -21,10 +21,11 @@ function remoteFile(mediaKey: string): RemoteBmp {
 test('refresh reads the loaded pagination depth and stops when the library ends', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch');
     fetchMock.mockResolvedValueOnce(
-        Response.json({ items: [remoteFile('new-upload')], nextPageToken: 'page-two' })
-    );
-    fetchMock.mockResolvedValueOnce(
-        Response.json({ items: [remoteFile('existing-file')], nextPageToken: '' })
+        Response.json({
+            items: [remoteFile('new-upload'), remoteFile('existing-file')],
+            nextPageToken: '',
+            pageTokens: ['', 'page-two']
+        })
     );
 
     const refreshed = await readLibrarySnapshot(3);
@@ -34,16 +35,17 @@ test('refresh reads the loaded pagination depth and stops when the library ends'
         'existing-file'
     ]);
     expect(refreshed.unwrap().pages).toBe(2);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(fetchMock.mock.calls[1][1]?.body).toBe(JSON.stringify({ pageToken: 'page-two' }));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][1]?.body).toBe(JSON.stringify({ pageToken: '', pageCount: 3 }));
 });
 
-test('library snapshots merge structured warnings across pages', async () => {
+test('library snapshots merge structured warnings across batches', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch');
     fetchMock.mockResolvedValueOnce(
         Response.json({
             items: [remoteFile('new-upload')],
-            nextPageToken: 'page-two',
+            nextPageToken: 'page-six',
+            pageTokens: ['', 'page-two', 'page-three', 'page-four', 'page-five'],
             warnings: [{ code: 'METADATA_SAVE_FAILED' }]
         })
     );
@@ -51,12 +53,19 @@ test('library snapshots merge structured warnings across pages', async () => {
         Response.json({
             items: [remoteFile('existing-file')],
             nextPageToken: '',
+            pageTokens: ['page-six'],
             warnings: [{ code: 'ENTRY_PARSE_FAILED', count: 2 }, { code: 'METADATA_LOAD_FAILED' }]
         })
     );
 
-    const refreshed = await readLibrarySnapshot(2);
+    const refreshed = await readLibrarySnapshot(6);
     const snapshot = refreshed.unwrap();
+
+    expect(snapshot.pages).toBe(6);
+    expect(fetchMock.mock.calls.map(([, init]) => init?.body)).toEqual([
+        JSON.stringify({ pageToken: '', pageCount: 5 }),
+        JSON.stringify({ pageToken: 'page-six', pageCount: 1 })
+    ]);
 
     expect(snapshot.items).toHaveLength(2);
     expect(snapshot.warnings).toEqual(
@@ -70,7 +79,7 @@ test('library snapshots merge structured warnings across pages', async () => {
 
 test('library pages select their account with the shared header', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch');
-    fetchMock.mockResolvedValue(Response.json({ items: [], nextPageToken: '' }));
+    fetchMock.mockResolvedValue(Response.json({ items: [], nextPageToken: '', pageTokens: [''] }));
 
     await readLibraryPage('page-two', 'account-one');
     await readLibrarySnapshot(1, 'account-two');
@@ -84,16 +93,20 @@ test('library pages select their account with the shared header', async () => {
     );
 });
 
-test('a failed later page rejects the refresh instead of returning a partial replacement', async () => {
+test('a failed later batch rejects the refresh instead of returning a partial replacement', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch');
     fetchMock.mockResolvedValueOnce(
-        Response.json({ items: [remoteFile('new-upload')], nextPageToken: 'page-two' })
+        Response.json({
+            items: [remoteFile('new-upload')],
+            nextPageToken: 'page-six',
+            pageTokens: ['', 'page-two', 'page-three', 'page-four', 'page-five']
+        })
     );
     fetchMock.mockResolvedValueOnce(
         Response.json({ error: 'Library unavailable' }, { status: 503 })
     );
 
-    const refreshed = await readLibrarySnapshot(2);
+    const refreshed = await readLibrarySnapshot(6);
 
     expect(refreshed.unwrapErr().message).toBe('Library unavailable');
     expect(fetchMock).toHaveBeenCalledTimes(2);

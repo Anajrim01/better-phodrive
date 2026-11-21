@@ -4,7 +4,7 @@ import {
     GOOGLE_ACCOUNT_HEADER,
     ProcessingMode
 } from '@madkarmaa/phodrive-core/models';
-import { downloadBmp, listBmps } from '@madkarmaa/phodrive-core/server/photos';
+import { downloadBmp, listBmpPages } from '@madkarmaa/phodrive-core/server/photos';
 import { deleteFile, deleteForeverFile, restoreFile } from '@madkarmaa/phodrive-core/server/files';
 import { SERVER_ERRORS } from '@madkarmaa/phodrive-core/server/errors';
 import { receiveFileUpload } from '@madkarmaa/phodrive-core/server/upload/file';
@@ -27,7 +27,7 @@ vi.mock('../src/google', () => ({
 }));
 vi.mock('@madkarmaa/phodrive-core/server/photos', () => ({
     downloadBmp: vi.fn(),
-    listBmps: vi.fn(),
+    listBmpPages: vi.fn(),
     createThrottleCoordinator: () => ({
         pause: vi.fn(),
         wait: vi.fn(),
@@ -69,37 +69,42 @@ test('drive routes refuse signed-out requests before contacting Google', async (
     }
 
     expect(readGoogleAccount).not.toHaveBeenCalled();
-    expect(listBmps).not.toHaveBeenCalled();
+    expect(listBmpPages).not.toHaveBeenCalled();
     expect(receiveUpload).not.toHaveBeenCalled();
 });
 
 test('the library uses the stored account and ignores credentials sent by the client', async () => {
-    vi.mocked(listBmps).mockReturnValue(resolved({ items: [], nextPageToken: '', warnings: [] }));
+    vi.mocked(listBmpPages).mockReturnValue(
+        resolved({ items: [], nextPageToken: '', pageTokens: [''], warnings: [] })
+    );
 
     const response = await postJson('/api/library', {
         email: 'other@example.com',
         token: 'aas_et/forged',
-        pageToken: 'next'
+        pageToken: 'next',
+        pageCount: 2
     });
 
     expect(response.status).toBe(200);
     expect(vi.mocked(readGoogleAccount).mock.calls[0][1]).toBe(USER.id);
     expect(vi.mocked(readGoogleAccount).mock.calls[0][2]).toBeUndefined();
-    expect(listBmps).toHaveBeenCalledWith(
+    expect(listBmpPages).toHaveBeenCalledWith(
         ACCOUNT.email,
         ACCOUNT.token,
         'next',
         undefined,
         expect.anything(),
-        expect.objectContaining({ key: ACCOUNT.id })
+        expect.objectContaining({ key: ACCOUNT.id }),
+        2
     );
 });
 
 test('library warnings are relayed without failing the page', async () => {
-    vi.mocked(listBmps).mockReturnValue(
+    vi.mocked(listBmpPages).mockReturnValue(
         resolved({
             items: [],
             nextPageToken: '',
+            pageTokens: [''],
             warnings: [{ code: 'METADATA_SAVE_FAILED' }]
         })
     );
@@ -114,7 +119,9 @@ test('library warnings are relayed without failing the page', async () => {
 });
 
 test('a drive request selects a Google account by its stable id', async () => {
-    vi.mocked(listBmps).mockReturnValue(resolved({ items: [], nextPageToken: '', warnings: [] }));
+    vi.mocked(listBmpPages).mockReturnValue(
+        resolved({ items: [], nextPageToken: '', pageTokens: [''], warnings: [] })
+    );
 
     const response = await call('/api/library', {
         method: 'POST',
@@ -142,11 +149,11 @@ test('an unknown account header fails closed instead of using the default accoun
     });
 
     expect(response.status).toBe(404);
-    expect(listBmps).not.toHaveBeenCalled();
+    expect(listBmpPages).not.toHaveBeenCalled();
 });
 
 test('library items carry the stable account id', async () => {
-    vi.mocked(listBmps).mockReturnValue(
+    vi.mocked(listBmpPages).mockReturnValue(
         resolved({
             items: [
                 {
@@ -162,6 +169,7 @@ test('library items carry the stable account id', async () => {
                 }
             ],
             nextPageToken: '',
+            pageTokens: [''],
             warnings: []
         })
     );

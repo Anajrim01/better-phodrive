@@ -22,8 +22,28 @@ export function listBmps(
     fetcher: Fetcher = photosFetch,
     metadata?: ChunkMetadataStore,
     scope?: ThrottleScope
+) {
+    return listBmpPages(email, token, pageToken, fetcher, metadata, scope).map(
+        ({ items, nextPageToken, warnings }) => ({ items, nextPageToken, warnings })
+    );
+}
+
+/** Read up to the requested number of file pages with one authentication request. */
+export function listBmpPages(
+    email: string,
+    token: string,
+    pageToken = '',
+    fetcher: Fetcher = photosFetch,
+    metadata?: ChunkMetadataStore,
+    scope?: ThrottleScope,
+    pageCount = 1
 ): AsyncResult<
-    { items: RemoteBmp[]; nextPageToken: string; warnings: LibraryWarning[] },
+    {
+        items: RemoteBmp[];
+        nextPageToken: string;
+        warnings: LibraryWarning[];
+        pageTokens: string[];
+    },
     ServerError
 > {
     const validated =
@@ -35,39 +55,55 @@ export function listBmps(
 
     return validated
         .andThenAsync(() => authenticatedHeaders(email, token, fetcher, throttle))
-        .andThenAsync((headers) => {
+        .andThenAsync(async (headers) => {
             const visited = new Set<string>();
-
-            return findFilePage(
+            const first = await findFilePage(
                 pageToken,
                 headers,
                 fetcher,
                 visited,
                 metadata,
                 throttle
-            ).andThenAsync(async (page) => {
-                if (!page.nextPageToken)
-                    return Ok({
-                        items: page.items,
-                        nextPageToken: '',
-                        warnings: page.warnings
-                    });
+            );
+            if (first.isErr()) return first;
 
-                // Google Photos can return a resume token followed only by an empty sync page.
-                // Look ahead so the UI offers Load more only for confirmed Phodrive files.
-                return await findFilePage(
-                    page.nextPageToken,
+            const initial = first.unwrap();
+            const items = [...initial.items];
+            const warnings = [...initial.warnings];
+            let nextPageToken = initial.nextPageToken;
+            const pageTokens = [initial.requestToken];
+
+            while (nextPageToken) {
+                const following = await findFilePage(
+                    nextPageToken,
                     headers,
                     fetcher,
                     visited,
                     metadata,
                     throttle
-                ).map((next) => ({
-                    items: page.items,
-                    nextPageToken: next.items.length ? next.requestToken : '',
-                    warnings: [...page.warnings, ...next.warnings]
-                }));
-            });
+                );
+                if (following.isErr()) return following;
+
+                const next = following.unwrap();
+                warnings.push(...next.warnings);
+
+                // A resume token can lead to an empty tail. Expose Load more only if
+                // the lookahead found file items, and reuse that page within the batch.
+                if (!next.items.length) {
+                    nextPageToken = '';
+                    break;
+                }
+                if (pageTokens.length >= pageCount) {
+                    nextPageToken = next.requestToken;
+                    break;
+                }
+
+                items.push(...next.items);
+                pageTokens.push(next.requestToken);
+                nextPageToken = next.nextPageToken;
+            }
+
+            return Ok({ items, nextPageToken, warnings, pageTokens });
         });
 }
 
