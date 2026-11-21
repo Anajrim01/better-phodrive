@@ -40,11 +40,7 @@
     }
 </script>
 
-<section
-    data-theme="dark"
-    class="min-w-0 border border-border bg-black p-4 text-white"
-    aria-labelledby={id}
->
+<section class="move-panel min-w-0 border border-border p-4 text-text" aria-labelledby={id}>
     <h2 class="m-0 text-base font-medium" {id} bind:this={heading} tabindex="-1">
         Move {count}
         {count === 1 ? 'file' : 'files'}
@@ -101,3 +97,9 @@
         </Button>
     </div>
 </section>
+
+<style>
+    .move-panel {
+        background: light-dark(var(--np-color-surface), #000);
+    }
+</style>
