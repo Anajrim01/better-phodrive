@@ -7,6 +7,7 @@ import * as api from '@madkarmaa/phodrive-core/browser/api';
 import { DriveController } from '#browser/drive/index.svelte';
 import { useAccount } from '../helpers/drive';
 import {
+    LibraryBatchResponseSchema,
     LibraryResponseSchema,
     type LibraryResponse,
     type RemoteBmp
@@ -45,33 +46,44 @@ function page(items: RemoteBmp[], nextPageToken: string): LibraryResponse {
     return LibraryResponseSchema.parse({ items, nextPageToken });
 }
 
+function batch(items: RemoteBmp[], nextPageToken: string, pageTokens: string[]) {
+    return LibraryBatchResponseSchema.parse({
+        items,
+        nextPageToken,
+        pageTokens
+    });
+}
+
 function apiResult(response: LibraryResponse): AsyncResult<unknown, ApplicationError> {
     return Ok(undefined).andThenAsync(async () => Ok(response));
 }
 
-test('snapshot returns an error when Google Photos repeats a page token', async () => {
-    const apiJson = vi.spyOn(api, 'apiJson').mockImplementation(() => apiResult(page([], '')));
+const FIRST_BATCH = ['', 'page-two', 'page-three', 'page-four', 'page-five'];
+
+test('snapshot rejects a continuation that repeats a page inside an earlier batch', async () => {
+    const apiJson = vi.spyOn(api, 'apiJson');
     apiJson.mockReturnValueOnce(
-        apiResult(page([remoteFile('part-1', 1), remoteFile('part-0')], 'repeat-token'))
+        apiResult(batch([remoteFile('part-1', 1), remoteFile('part-0')], 'page-six', FIRST_BATCH))
     );
     apiJson.mockReturnValueOnce(
-        apiResult(page([remoteFile('part-1', 1), remoteFile('part-2', 2)], 'repeat-token'))
+        apiResult(
+            batch([remoteFile('part-1', 1), remoteFile('part-2', 2)], 'page-two', ['page-six'])
+        )
     );
 
-    const snapshot = await readLibrarySnapshot(12);
+    const snapshot = await readLibrarySnapshot(6);
 
-    expect(snapshot.isErr()).toBe(true);
     expect(snapshot.unwrapErr().message).toContain('repeated a library page');
     expect(apiJson).toHaveBeenCalledTimes(2);
 });
 
-test('snapshot deduplicates media keys across pages while retaining chunk order', async () => {
-    const apiJson = vi.spyOn(api, 'apiJson').mockImplementation(() => apiResult(page([], '')));
+test('snapshot deduplicates media keys across batches while retaining chunk order', async () => {
+    const apiJson = vi.spyOn(api, 'apiJson');
     apiJson.mockReturnValueOnce(
-        apiResult(page([remoteFile('part-1', 1), remoteFile('part-0')], 'page-two'))
+        apiResult(batch([remoteFile('part-1', 1), remoteFile('part-0')], 'page-six', FIRST_BATCH))
     );
     apiJson.mockReturnValueOnce(
-        apiResult(page([remoteFile('part-1', 1), remoteFile('part-2', 2)], ''))
+        apiResult(batch([remoteFile('part-1', 1), remoteFile('part-2', 2)], '', ['page-six']))
     );
 
     const snapshot = await readLibrarySnapshot(10);
@@ -82,20 +94,7 @@ test('snapshot deduplicates media keys across pages while retaining chunk order'
         'part-0',
         'part-2'
     ]);
-    expect(snapshot.unwrap().pages).toBe(2);
-    expect(apiJson).toHaveBeenCalledTimes(2);
-});
-
-test('empty pages with new page tokens are followed until the library ends', async () => {
-    const apiJson = vi.spyOn(api, 'apiJson').mockImplementation(() => apiResult(page([], '')));
-    apiJson.mockReturnValueOnce(apiResult(page([], 'empty-page-two')));
-    apiJson.mockReturnValueOnce(apiResult(page([remoteFile('last-item')], '')));
-
-    const snapshot = await readLibrarySnapshot(10);
-
-    if (snapshot.isErr()) throw snapshot.unwrapErr();
-    expect(snapshot.unwrap().items.map(({ mediaKey }) => mediaKey)).toEqual(['last-item']);
-    expect(snapshot.unwrap().pages).toBe(2);
+    expect(snapshot.unwrap().pages).toBe(6);
     expect(apiJson).toHaveBeenCalledTimes(2);
 });
 

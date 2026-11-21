@@ -2,7 +2,9 @@ import type { ApplicationError } from '../errors';
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import {
     GOOGLE_ACCOUNT_HEADER,
+    LibraryBatchResponseSchema,
     LibraryResponseSchema,
+    MAX_LIBRARY_BATCH_PAGES,
     type LibraryResponse,
     type LibraryWarning,
     type RemoteBmp
@@ -17,6 +19,12 @@ export function readLibraryPage(
     pageToken = '',
     accountId?: string
 ): AsyncResult<LibraryResponse, ApplicationError> {
+    return requestLibrary(pageToken, accountId).andThen((value) =>
+        schemaResult(LibraryResponseSchema, value, 'Could not load files.')
+    );
+}
+
+function requestLibrary(pageToken: string, accountId?: string, pageCount?: number) {
     return apiJson(
         '/api/library',
         {
@@ -25,10 +33,10 @@ export function readLibraryPage(
                 'content-type': 'application/json',
                 ...(accountId ? { [GOOGLE_ACCOUNT_HEADER]: accountId } : {})
             },
-            body: JSON.stringify({ pageToken })
+            body: JSON.stringify({ pageToken, pageCount })
         },
         'Could not load files.'
-    ).andThen((value) => schemaResult(LibraryResponseSchema, value, 'Could not load files.'));
+    );
 }
 
 /** Build a fresh snapshot to the loaded depth without changing the visible library mid-request. */
@@ -43,13 +51,18 @@ export function readLibrarySnapshot(
         let nextPageToken = '';
         let pages = 0;
 
-        for (let index = 0; index < Math.max(1, pageCount); index++) {
-            pageTokens.add(nextPageToken);
-
-            const received = await readLibraryPage(nextPageToken, accountId);
+        const depth = Math.max(1, pageCount);
+        while (pages < depth) {
+            const batchDepth = Math.min(depth - pages, MAX_LIBRARY_BATCH_PAGES);
+            const received = await requestLibrary(nextPageToken, accountId, batchDepth).andThen(
+                (value) => schemaResult(LibraryBatchResponseSchema, value, 'Could not load files.')
+            );
 
             const merged = received.andThen((page): Result<void, ApplicationError> => {
-                if (page.nextPageToken && pageTokens.has(page.nextPageToken)) {
+                const repeatsPage = page.pageTokens.some((token) => pageTokens.has(token));
+                for (const token of page.pageTokens) pageTokens.add(token);
+
+                if (repeatsPage || (page.nextPageToken && pageTokens.has(page.nextPageToken))) {
                     return Err({
                         code: 'REPEATED_LIBRARY_PAGE',
                         message: 'Google Photos repeated a library page. Refresh to try again.'
@@ -67,7 +80,7 @@ export function readLibrarySnapshot(
                     });
                 }
                 nextPageToken = page.nextPageToken;
-                pages++;
+                pages += page.pageTokens.length;
 
                 return Ok(undefined);
             });

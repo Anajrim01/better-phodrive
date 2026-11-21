@@ -93,8 +93,18 @@ export const LibraryResponseSchema = z.object({
 
 export const ErrorResponseSchema = z.object({ error: z.string() });
 
+export const MAX_LIBRARY_BATCH_PAGES = 5;
+const LibraryBatchDepthSchema = z.int().min(1).max(MAX_LIBRARY_BATCH_PAGES);
+
+export const LibraryBatchResponseSchema = LibraryResponseSchema.extend({
+    pageTokens: z.array(z.string()).min(1).max(MAX_LIBRARY_BATCH_PAGES)
+});
+
 /** HTTP clients send no credentials; the server adds the signed-in user's account. */
-export const LibraryPageRequestSchema = z.object({ pageToken: z.string().optional() });
+export const LibraryPageRequestSchema = z.object({
+    pageToken: z.string().optional(),
+    pageCount: LibraryBatchDepthSchema.optional()
+});
 
 export const FileActionRequestSchema = z.object({
     action: z.enum(FileActionKind),

@@ -143,7 +143,11 @@ The tests in `core/tests/server/library-request-budget.test.ts`,
 
 ## Refresh
 
-`readLibrarySnapshot` reloads the pages already loaded. With a complete index, each
-page costs one auth POST, one library POST, and sometimes one lookahead library
-POST, with no probes. The refresh budget scales with the number of loaded pages, not
-with the library size.
+`readLibrarySnapshot` reloads the pages already loaded, in batches of up to five
+file pages per account. A batch uses one auth POST and reuses the lookahead
+for each following page in that batch. The last page can still look ahead
+to check whether more files are available.
+
+With a complete index, refreshing the two-page, 100-candidate fixture costs
+one auth POST and two library POSTs, down from two auth and three library POSTs.
+Both paths make zero PrepareDownload or range requests.
