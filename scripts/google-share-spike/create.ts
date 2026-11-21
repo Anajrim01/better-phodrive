@@ -3,13 +3,13 @@ import { encodeSplitPrefix } from '@madkarmaa/phodrive-core/bmp/format';
 import { UploadStatus } from '@madkarmaa/phodrive-core/models';
 import { chunkFileName, fileIdentity } from '@madkarmaa/phodrive-core/server/chunks';
 import type { ServerError } from '@madkarmaa/phodrive-core/server/errors';
-import { resolveShortUrl } from '@madkarmaa/phodrive-core/server/photos/shares/google-public';
+import { resolveShortUrl } from './protocol/google-public.ts';
 import {
     createShareAlbum,
     createShareEnvelope,
     enableShareLink,
     type OwnerRpc
-} from '@madkarmaa/phodrive-core/server/photos/shares/google-rpc';
+} from './protocol/google-rpc.ts';
 import { uploadBmpStream } from '@madkarmaa/phodrive-core/server/photos/upload';
 import type { UploadBmpSource } from '@madkarmaa/phodrive-core/server/upload/bmp';
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';

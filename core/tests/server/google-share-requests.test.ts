@@ -11,11 +11,11 @@ import {
     parseEnvelopeResponse,
     parseLinkStateResponse,
     removeAlbumRequest
-} from '@madkarmaa/phodrive-core/server/photos/shares/google-requests';
+} from '../../../scripts/google-share-spike/protocol/google-requests.ts';
 import {
     classifyMutationFailure,
     createShareAlbum
-} from '@madkarmaa/phodrive-core/server/photos/shares/google-rpc';
+} from '../../../scripts/google-share-spike/protocol/google-rpc.ts';
 import { createThrottleCoordinator } from '@madkarmaa/phodrive-core/server/photos/throttle';
 import type { ServerError } from '@madkarmaa/phodrive-core/server/errors';
 import { bytes as encode, num } from '../helpers/protobuf';

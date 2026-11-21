@@ -1,6 +1,6 @@
 import { Err, Ok, type Result } from 'results-ts';
-import { SERVER_ERRORS, type ServerError } from '../../errors';
-import { MEDIA_HOSTS } from '../download';
+import { SERVER_ERRORS, type ServerError } from '@madkarmaa/phodrive-core/server/errors';
+import { MEDIA_HOSTS } from '@madkarmaa/phodrive-core/server/photos/download';
 
 const URL_SAFE_ID = /^[A-Za-z0-9_-]+$/;
 const ALBUM_PATH = /^\/share\/([A-Za-z0-9_-]+)$/;

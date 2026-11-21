@@ -1,7 +1,7 @@
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
-import { SERVER_ERRORS, type ServerError } from '../../errors';
-import type { Fetcher } from '../../fetcher';
-import { readBody } from '../transport';
+import { SERVER_ERRORS, type ServerError } from '@madkarmaa/phodrive-core/server/errors';
+import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
+import { readBody } from '@madkarmaa/phodrive-core/server/photos/transport';
 import {
     extractListingRequest,
     pageRequest,
@@ -11,8 +11,8 @@ import {
     type ListingRequest,
     type PublicAlbum,
     type PublicItem
-} from './google-listing';
-import { publicFetch, PUBLIC_USER_AGENT, requireOk } from './google-public';
+} from './google-listing.ts';
+import { publicFetch, PUBLIC_USER_AGENT, requireOk } from './google-public.ts';
 
 const BATCH_EXECUTE_URL = 'https://photos.google.com/_/PhotosUi/data/batchexecute';
 

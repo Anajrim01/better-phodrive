@@ -1,5 +1,5 @@
 import { Err, Ok, type Result } from 'results-ts';
-import { SERVER_ERRORS, type ServerError } from '../../errors';
+import { SERVER_ERRORS, type ServerError } from '@madkarmaa/phodrive-core/server/errors';
 import {
     bytes,
     bytesField,
@@ -9,7 +9,7 @@ import {
     optional,
     parse,
     utf8
-} from '../../protobuf';
+} from '@madkarmaa/phodrive-core/server/protobuf';
 
 const RPC_BASE = 'https://photosdata-pa.googleapis.com/6439526531001121323';
 

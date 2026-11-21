@@ -1,7 +1,7 @@
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
-import type { ServerError } from '../../errors';
-import type { Fetcher } from '../../fetcher';
-import { parseAlbumUrl } from './google-listing';
+import type { ServerError } from '@madkarmaa/phodrive-core/server/errors';
+import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
+import { parseAlbumUrl } from './google-listing.ts';
 
 export const PUBLIC_USER_AGENT = 'phodrive-shared/0.1';
 // A stalled public read must not hang the caller. Not a size or product limit.

@@ -1,19 +1,19 @@
-import { parseAlbumUrl } from '@madkarmaa/phodrive-core/server/photos/shares/google-listing';
+import { parseAlbumUrl } from './protocol/google-listing.ts';
 import {
     classifyPublicProbe,
     probePublicUrl,
     resolveShortUrl,
     type PublicState
-} from '@madkarmaa/phodrive-core/server/photos/shares/google-public';
-import { readPublicListing } from '@madkarmaa/phodrive-core/server/photos/shares/google-public-listing';
+} from './protocol/google-public.ts';
+import { readPublicListing } from './protocol/google-public-listing.ts';
 import {
     deleteShareEnvelope,
     disableShareLink,
     removeShareAlbum,
     type OwnerRpc
-} from '@madkarmaa/phodrive-core/server/photos/shares/google-rpc';
+} from './protocol/google-rpc.ts';
 import { Err, Ok, type AsyncResult } from 'results-ts';
-import { linkMayBeOn, shareResidue } from './ledger.ts';
+import { linkMayBeOn, shareResidue, type Step } from './ledger.ts';
 import { readAlbumListing } from './probe.ts';
 import {
     asyncOk,
@@ -126,7 +126,7 @@ export async function verifyStopped(session: SpikeSession, stage: string): Promi
 /** Direct media URLs have to be known before revocation can hide them from the listing. */
 function captureDirectUrls(session: SpikeSession): AsyncResult<void, SpikeError> {
     const { ledger } = session;
-    if (ledger.directUrls.length || !ledger.link.canonicalUrl || ledger.link.disable !== 'none')
+    if (ledger.directUrls.length || !ledger.link.canonicalUrl || !canAttempt(ledger.link.disable))
         return asyncOk();
 
     return tolerate(
@@ -142,11 +142,15 @@ function captureDirectUrls(session: SpikeSession): AsyncResult<void, SpikeError>
     );
 }
 
+function canAttempt(step: Step): boolean {
+    return step === 'none' || step === 'rejected';
+}
+
 function disableStep(owner: OwnerSession, rpc: OwnerRpc): AsyncResult<void, SpikeError> {
     const { ledger } = owner;
     const { envelope, link } = ledger;
     const key = envelope.key;
-    if (!key || link.disable !== 'none' || !linkMayBeOn(ledger)) return asyncOk();
+    if (!key || !canAttempt(link.disable) || !linkMayBeOn(ledger)) return asyncOk();
 
     return mutationStep(owner, {
         stage: 'link-disable',
@@ -162,7 +166,7 @@ function disableStep(owner: OwnerSession, rpc: OwnerRpc): AsyncResult<void, Spik
 function deleteEnvelopeStep(owner: OwnerSession, rpc: OwnerRpc): AsyncResult<void, SpikeError> {
     const { envelope } = owner.ledger;
     const key = envelope.key;
-    if (!key || envelope.remove !== 'none') return asyncOk();
+    if (!key || !canAttempt(envelope.remove)) return asyncOk();
 
     return mutationStep(owner, {
         stage: 'envelope-delete',
@@ -178,7 +182,7 @@ function deleteEnvelopeStep(owner: OwnerSession, rpc: OwnerRpc): AsyncResult<voi
 function removeAlbumStep(owner: OwnerSession, rpc: OwnerRpc): AsyncResult<void, SpikeError> {
     const { album } = owner.ledger;
     const key = album.key;
-    if (!key || album.remove !== 'none') return asyncOk();
+    if (!key || !canAttempt(album.remove)) return asyncOk();
 
     return mutationStep(owner, {
         stage: 'album-remove',

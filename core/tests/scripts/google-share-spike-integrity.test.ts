@@ -136,3 +136,27 @@ test('unrecognised teardown receipts remain uncertain and cannot be retried', as
     expect(google.routes).not.toContain('envelope-delete');
     expect(google.routes).not.toContain('album-remove');
 });
+
+test('a new revoke can retry teardown steps that Google explicitly rejected', async () => {
+    let refused = false;
+    const google = new FakeGoogle({
+        override: (route) =>
+            refused && ['link', 'envelope-delete', 'album-remove'].includes(route)
+                ? new Response(null, { status: 403 })
+                : undefined
+    });
+
+    expect(await run(google, 'create')).toBe(0);
+    expect(await run(google, 'probe')).toBe(0);
+    refused = true;
+    expect(await run(google, 'revoke')).toBe(1);
+    expect(ledger().link.disable).toBe('rejected');
+    expect(ledger().envelope.remove).toBe('rejected');
+    expect(ledger().album.remove).toBe('rejected');
+
+    refused = false;
+    expect(await run(google, 'revoke')).toBe(0);
+    expect(ledger().link.disable).toBe('ok');
+    expect(ledger().envelope.remove).toBe('ok');
+    expect(ledger().album.remove).toBe('ok');
+});

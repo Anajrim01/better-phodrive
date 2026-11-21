@@ -1,9 +1,9 @@
 import type { AsyncResult } from 'results-ts';
-import type { ServerError } from '../../errors';
-import type { Fetcher } from '../../fetcher';
-import { bodyBytes } from '../../protobuf';
-import type { ThrottleScope } from '../throttle';
-import { guardedSend, readBody } from '../transport';
+import type { ServerError } from '@madkarmaa/phodrive-core/server/errors';
+import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
+import { bodyBytes } from '@madkarmaa/phodrive-core/server/protobuf';
+import type { ThrottleScope } from '@madkarmaa/phodrive-core/server/photos/throttle';
+import { guardedSend, readBody } from '@madkarmaa/phodrive-core/server/photos/transport';
 import {
     createAlbumRequest,
     createEnvelopeRequest,
@@ -23,7 +23,7 @@ import {
     UPDATE_LINK_STATE_URL,
     type EnabledLink,
     type ShareEnvelope
-} from './google-requests';
+} from './google-requests.ts';
 
 export type OwnerRpc = {
     rpcHeaders: Record<string, string>;

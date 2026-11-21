@@ -2,7 +2,7 @@ import {
     mutatePhotos,
     type MutationTarget
 } from '@madkarmaa/phodrive-core/server/photos/mutations';
-import type { OwnerRpc } from '@madkarmaa/phodrive-core/server/photos/shares/google-rpc';
+import type { OwnerRpc } from './protocol/google-rpc.ts';
 import { hashLookup } from '@madkarmaa/phodrive-core/server/photos/upload/requests';
 import type { AsyncResult } from 'results-ts';
 import { mediaResidue, shareResidue, type LedgerFixture, type Step } from './ledger.ts';

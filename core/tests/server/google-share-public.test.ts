@@ -7,17 +7,17 @@ import {
     parseBatchExecute,
     parseListingPage,
     slotPaths
-} from '@madkarmaa/phodrive-core/server/photos/shares/google-listing';
+} from '../../../scripts/google-share-spike/protocol/google-listing.ts';
 import {
     classifyPublicProbe,
     resolveShortUrl
-} from '@madkarmaa/phodrive-core/server/photos/shares/google-public';
-import { readPublicListing } from '@madkarmaa/phodrive-core/server/photos/shares/google-public-listing';
+} from '../../../scripts/google-share-spike/protocol/google-public.ts';
+import { readPublicListing } from '../../../scripts/google-share-spike/protocol/google-public-listing.ts';
 import {
     isExactRange,
     readRange,
     type RangeRead
-} from '@madkarmaa/phodrive-core/server/photos/shares/google-range';
+} from '../../../scripts/google-share-spike/protocol/google-range.ts';
 
 const UID = 'AF1QipAlbum';
 const KEY = 'capabilityKey';

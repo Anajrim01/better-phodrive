@@ -1,10 +1,7 @@
 import type { ServerError } from '@madkarmaa/phodrive-core/server/errors';
 import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
 import { authenticatedHeaders } from '@madkarmaa/phodrive-core/server/photos/auth';
-import {
-    classifyMutationFailure,
-    type OwnerRpc
-} from '@madkarmaa/phodrive-core/server/photos/shares/google-rpc';
+import { classifyMutationFailure, type OwnerRpc } from './protocol/google-rpc.ts';
 import type { ThrottleScope } from '@madkarmaa/phodrive-core/server/photos/throttle';
 import { Err, Ok, type AsyncResult } from 'results-ts';
 import { saveLedger, type Ledger, type LedgerError, type Step } from './ledger.ts';

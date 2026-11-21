@@ -1,19 +1,12 @@
 import { createHash } from 'node:crypto';
-import {
-    parseAlbumUrl,
-    slotPaths,
-    type PublicItem
-} from '@madkarmaa/phodrive-core/server/photos/shares/google-listing';
-import {
-    readPublicListing,
-    type PublicListing
-} from '@madkarmaa/phodrive-core/server/photos/shares/google-public-listing';
+import { parseAlbumUrl, slotPaths, type PublicItem } from './protocol/google-listing.ts';
+import { readPublicListing, type PublicListing } from './protocol/google-public-listing.ts';
 import {
     isExactRange,
     preflightRange,
     readRange,
     type RangeRead
-} from '@madkarmaa/phodrive-core/server/photos/shares/google-range';
+} from './protocol/google-range.ts';
 import type { AsyncResult } from 'results-ts';
 import { failureStatus, inOrder, persist, type SpikeError, type SpikeSession } from './steps.ts';
 
