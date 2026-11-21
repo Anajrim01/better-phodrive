@@ -41,6 +41,27 @@ export const Sha1HexSchema = z.string().regex(/^[a-f0-9]{40}$/);
 
 export const Sha256HexSchema = z.string().regex(/^[a-f0-9]{64}$/);
 
+const DisplayFolderSchema = z.union([z.literal(''), FolderPathSchema]);
+
+const FileLocationEditSchema = z
+    .object({
+        fileId: Sha256HexSchema,
+        mediaKey: z.string().min(1),
+        name: FileNameSchema.max(255).optional(),
+        folder: DisplayFolderSchema.optional()
+    })
+    .refine(({ name, folder }) => name !== undefined || folder !== undefined);
+
+export const FileLocationsRequestSchema = z.object({
+    files: z
+        .array(FileLocationEditSchema)
+        .min(1)
+        .max(200)
+        .refine((files) => new Set(files.map((file) => file.fileId)).size === files.length)
+});
+
+export type FileLocationEdit = z.infer<typeof FileLocationEditSchema>;
+
 export const SplitHeaderSchema = z
     .object({
         fileHash: Sha256HexSchema,
@@ -60,6 +81,8 @@ const RemoteBmpObjectSchema = z.object({
     chunkIndex: z.int().nonnegative(),
     isLast: z.boolean(),
     originalName: z.string().min(1).optional(),
+    displayName: FileNameSchema.optional(),
+    displayFolder: DisplayFolderSchema.optional(),
     folder: FolderPathSchema.optional(),
     size: z.number().nonnegative(),
     at: z.int().nonnegative(),

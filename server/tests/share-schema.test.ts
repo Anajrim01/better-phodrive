@@ -28,6 +28,7 @@ test('share tables hold only the snapshot, with no provider state', () => {
         'file_id',
         'file_hash',
         'name',
+        'original_name',
         'folder',
         'relative_folder',
         'chunk_count',

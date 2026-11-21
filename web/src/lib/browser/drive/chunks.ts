@@ -1,6 +1,12 @@
-import { fileKey, type FileGroup, type UploadedChunk } from '@madkarmaa/phodrive-core/files';
+import {
+    fileKey,
+    ownerKey,
+    type FileGroup,
+    type UploadedChunk
+} from '@madkarmaa/phodrive-core/files';
 import { UploadJobStatus } from '@madkarmaa/phodrive-core/models';
 import type { UploadJob } from '#browser/files';
+import { mergeAccountChunks } from '#browser/drive/library-state';
 
 function chunkKey(chunk: UploadedChunk): string {
     return `${fileKey(chunk)}:${chunk.chunkIndex}`;
@@ -25,14 +31,30 @@ export function unchangedFile(
     );
 }
 
-/** Add confirmed chunks, replacing any earlier copy of the same chunk. */
-export function withChunks(
+/** Update both the visible library and the per-account pages with confirmed uploads. */
+export function withUploadedChunks(
+    chunksByAccount: Map<string, UploadedChunk[]>,
     chunks: readonly UploadedChunk[],
     saved: readonly UploadedChunk[]
 ): UploadedChunk[] {
-    const added = new Set(saved.map(chunkKey));
+    const confirmed = saved.map((chunk) => {
+        const owner = ownerKey(chunk);
+        const existing = chunksByAccount.get(owner) ?? [];
+        const current = existing.find(
+            (item) => item.mediaKey === chunk.mediaKey && item.fileId === chunk.fileId
+        );
+        const updated = {
+            ...chunk,
+            displayName: chunk.displayName ?? current?.displayName,
+            displayFolder: chunk.displayFolder ?? current?.displayFolder
+        };
+        chunksByAccount.set(owner, mergeAccountChunks(existing, [updated]));
 
-    return [...saved, ...chunks.filter((item) => !added.has(chunkKey(item)))];
+        return updated;
+    });
+    const added = new Set(confirmed.map(chunkKey));
+
+    return [...confirmed, ...chunks.filter((item) => !added.has(chunkKey(item)))];
 }
 
 /** Remove one stored chunk of a file once Google has deleted it. */

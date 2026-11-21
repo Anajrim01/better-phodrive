@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import type { ShareChunkSession } from '@madkarmaa/phodrive-core/models';
 import { splitBmpByteLength, splitHeaderByteLength } from '@madkarmaa/phodrive-core/bmp/format';
@@ -56,7 +56,7 @@ function loadChunk(
                     googleAccountEmail: shareFile.googleAccountEmail,
                     fileId: shareFile.fileId,
                     fileHash: shareFile.fileHash,
-                    name: shareFile.name,
+                    name: sql<string>`coalesce(${shareFile.originalName}, ${shareFile.name})`,
                     folder: shareFile.folder,
                     mediaKey: shareChunk.mediaKey,
                     sha1: shareChunk.sha1,

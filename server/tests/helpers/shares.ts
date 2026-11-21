@@ -75,10 +75,12 @@ export function snapshotFile(
     chunkCount = 1,
     chunkSize = 10
 ): SnapshotFile {
+    const name = `${fileId.slice(0, 6)}.bin`;
     const chunks = Array.from({ length: chunkCount }, (_, index) => ({
         fileHash: HASH,
         fileId,
         chunkIndex: index,
+        ...(index === 0 ? { originalName: name, ...(folder ? { folder } : {}) } : {}),
         isLast: index === chunkCount - 1,
         size: chunkSize,
         mediaKey: `${fileId}-${index}`,
@@ -92,7 +94,7 @@ export function snapshotFile(
         accountId: accountEmail,
         fileHash: HASH,
         fileId,
-        name: `${fileId.slice(0, 6)}.bin`,
+        name,
         folder,
         at: 1,
         chunkCount,

@@ -21,7 +21,7 @@ const BMP = encodeSplitBmp(PAYLOAD, {
     fileName: NAME
 }).unwrap();
 
-function group() {
+function group(location: { displayName?: string; displayFolder?: string } = {}) {
     return groupChunks([
         {
             email: 'test@example.com',
@@ -30,6 +30,7 @@ function group() {
             chunkIndex: 0,
             isLast: true,
             originalName: NAME,
+            ...location,
             size: PAYLOAD.length,
             at: 1,
             mediaKey: 'media-key',
@@ -38,12 +39,15 @@ function group() {
     ])[0];
 }
 
-test('browser mode fetches raw chunks and rebuilds the original bytes', async () => {
+test('browser mode verifies and rebuilds the original bytes after a rename and move', async () => {
     const fetch = vi
         .spyOn(globalThis, 'fetch')
         .mockResolvedValue(new Response(Uint8Array.from(BMP)));
 
-    const downloaded = await downloadFile(group(), ProcessingMode.Browser);
+    const moved = group({ displayName: 'moved.bin', displayFolder: 'Destination' });
+    expect(moved).toMatchObject({ name: 'moved.bin', folder: 'Destination' });
+
+    const downloaded = await downloadFile(moved, ProcessingMode.Browser);
     const bytes = new Uint8Array(await downloaded.unwrap().arrayBuffer());
 
     expect(Buffer.from(bytes).equals(PAYLOAD)).toBe(true);

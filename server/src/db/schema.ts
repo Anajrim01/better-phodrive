@@ -169,6 +169,27 @@ export const share = shareTables.share;
 export const shareFile = shareTables.shareFile;
 export const shareChunk = shareTables.shareChunk;
 
+// Keep display edits if the same Google account is disconnected and reconnected.
+export const fileLocation = pgTable(
+    'file_location',
+    {
+        userId: text('user_id')
+            .notNull()
+            .references(() => user.id, { onDelete: 'cascade' }),
+        googleAccountEmail: text('google_account_email').notNull(),
+        mediaKey: text('media_key').notNull(),
+        fileId: text('file_id').notNull(),
+        name: text('name'),
+        folder: text('folder')
+    },
+    (table) => [
+        primaryKey({
+            name: 'file_location_scope_pk',
+            columns: [table.userId, table.googleAccountEmail, table.mediaKey, table.fileId]
+        })
+    ]
+);
+
 /**
  * Resolved BMP metadata for one Google media item.
  * Google remains authoritative for existence and stored bytes; this table only avoids re-probing

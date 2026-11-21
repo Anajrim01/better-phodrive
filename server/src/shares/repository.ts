@@ -103,7 +103,8 @@ function fileRows(shareId: string, userId: string, sources: readonly DraftSource
             fileId: file.fileId,
             fileHash: file.fileHash,
             name: file.name,
-            folder: file.folder,
+            originalName: file.chunks[0]?.originalName,
+            folder: file.chunks[0]?.folder ?? '',
             relativeFolder,
             chunkCount: file.chunks.length,
             size

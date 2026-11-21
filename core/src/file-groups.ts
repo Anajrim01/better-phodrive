@@ -49,13 +49,14 @@ export function groupChunks(items: UploadedChunk[]): FileGroup[] {
         const entry = groups.get(key);
 
         if (!entry) {
+            const name = chunk.displayName ?? chunk.originalName;
             const file: FileGroup = {
                 email: chunk.email,
                 ...(chunk.accountId ? { accountId: chunk.accountId } : {}),
                 fileHash: chunk.fileHash,
                 fileId: chunk.fileId,
-                name: chunk.originalName ?? `File ${chunk.fileHash.slice(0, 12)}`,
-                folder: chunk.folder ?? '',
+                name: name ?? `File ${chunk.fileHash.slice(0, 12)}`,
+                folder: chunk.displayFolder ?? chunk.folder ?? '',
                 at: chunk.at,
                 chunkCount: null,
                 chunks: [chunk],
@@ -91,8 +92,9 @@ export function groupChunks(items: UploadedChunk[]): FileGroup[] {
         }
 
         if (chunk.chunkIndex === 0) {
-            if (chunk.originalName) group.name = chunk.originalName;
-            group.folder = chunk.folder ?? '';
+            const name = chunk.displayName ?? chunk.originalName;
+            if (name) group.name = name;
+            group.folder = chunk.displayFolder ?? chunk.folder ?? '';
         }
     }
 

@@ -10,7 +10,7 @@ import {
 } from '@madkarmaa/phodrive-core/files';
 import { FileSort, type LibraryWarning } from '@madkarmaa/phodrive-core/models';
 import { readLibraryPage, readLibrarySnapshot } from '@madkarmaa/phodrive-core/browser/library';
-import { withTrashState, withoutChunk, withChunks } from '#browser/drive/chunks';
+import { withTrashState, withoutChunk, withUploadedChunks } from '#browser/drive/chunks';
 import type { DriveContext } from '#browser/drive/context.svelte';
 import { FolderNavigation } from '#browser/drive/folder-navigation';
 import type { FolderOpenMode } from '#browser/drive/folder-history';
@@ -223,13 +223,7 @@ export class DriveLibrary {
     }
 
     appendChunks(saved: readonly UploadedChunk[]) {
-        for (const chunk of saved) {
-            const key = ownerKey(chunk);
-            const existing = this.chunksByAccount.get(key) ?? [];
-            this.chunksByAccount.set(key, mergeAccountChunks(existing, [chunk]));
-        }
-
-        this.chunks = withChunks(this.chunks, saved);
+        this.chunks = withUploadedChunks(this.chunksByAccount, this.chunks, saved);
     }
 
     removeChunk(file: FileGroup, removed: { mediaKey: string; sha1: string }) {
