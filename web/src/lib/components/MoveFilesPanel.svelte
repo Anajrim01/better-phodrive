@@ -49,7 +49,7 @@
         Move {count}
         {count === 1 ? 'file' : 'files'}
     </h2>
-    <p class="mt-2 mb-1 text-sm">{locations.owner?.email}</p>
+    <p class="mt-2 mb-1 text-sm">{locations.destinationLabel}</p>
     <nav aria-label="Destination folder" class="flex flex-wrap items-center gap-1">
         <Button variant="text" size="xs" disabled={locations.saving} onclick={() => openFolder('')}
             >Files</Button

@@ -63,7 +63,27 @@ export const FileLocationsRequestSchema = z.object({
         .refine((files) => new Set(files.map((file) => file.fileId)).size === files.length)
 });
 
+const GroupMoveFileSchema = z.object({
+    accountId: z.string().min(1),
+    fileId: Sha256HexSchema,
+    mediaKey: z.string().min(1)
+});
+
+export const GroupMoveRequestSchema = z.object({
+    folder: DisplayFolderSchema,
+    files: z
+        .array(GroupMoveFileSchema)
+        .min(1)
+        .max(MAX_FILE_LOCATION_EDITS)
+        .refine((files) => {
+            const keys = files.map(({ accountId, fileId }) => accountId + ':' + fileId);
+            return new Set(keys).size === files.length;
+        })
+});
+
 export type FileLocationEdit = z.infer<typeof FileLocationEditSchema>;
+export type AccountFileLocationEdit = FileLocationEdit & { accountId: string };
+export type GroupMoveRequest = z.infer<typeof GroupMoveRequestSchema>;
 
 export const SplitHeaderSchema = z
     .object({

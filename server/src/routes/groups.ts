@@ -1,9 +1,10 @@
-import { GroupNameSchema } from '@madkarmaa/phodrive-core/models';
+import { GroupMoveRequestSchema, GroupNameSchema } from '@madkarmaa/phodrive-core/models';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { errorResponse, jsonResponse, readJsonRequest } from '../api';
 import type { ServerContext } from '../context';
 import { AUTH_ERRORS } from '../errors';
+import { moveGroupFiles } from '../file-location-writes';
 import {
     addGoogleAccountGroupMember,
     createGoogleAccountGroup,
@@ -48,6 +49,17 @@ export function groupRoutes(context: ServerContext) {
                     Ok: (group) => jsonResponse({ group }),
                     Err: errorResponse
                 })
+        )
+        .patch('/:id/files/location', signedIn, (c) =>
+            readJsonRequest(
+                c.req.raw,
+                GroupMoveRequestSchema,
+                'Invalid move destination or file selection.'
+            )
+                .andThenAsync((input) =>
+                    moveGroupFiles(context.db, c.get('user').id, c.req.param('id'), input)
+                )
+                .match({ Ok: () => jsonResponse({ updated: true }), Err: errorResponse })
         )
         .delete('/:id', signedIn, async (c) => {
             const removed = await deleteGoogleAccountGroup(

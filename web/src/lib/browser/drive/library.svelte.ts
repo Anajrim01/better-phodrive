@@ -10,7 +10,7 @@ import {
 } from '@madkarmaa/phodrive-core/files';
 import {
     FileSort,
-    type FileLocationEdit,
+    type AccountFileLocationEdit,
     type LibraryWarning
 } from '@madkarmaa/phodrive-core/models';
 import { readLibraryPage, readLibrarySnapshot } from '@madkarmaa/phodrive-core/browser/library';
@@ -235,10 +235,8 @@ export class DriveLibrary {
         this.chunks = withUploadedChunks(this.chunksByAccount, this.chunks, saved);
     }
 
-    applyLocations(accountId: string, edits: FileLocationEdit[]) {
-        const existing = this.chunksByAccount.get(accountId) ?? [];
-        this.chunksByAccount.set(accountId, withFileLocations(existing, accountId, edits));
-        this.chunks = withFileLocations(this.chunks, accountId, edits);
+    applyLocations(edits: readonly AccountFileLocationEdit[]) {
+        this.chunks = withFileLocations(this.chunksByAccount, this.chunks, edits);
         this.navigation.settle(this.hasMore);
     }
 

@@ -4,7 +4,7 @@ import {
     type FileGroup,
     type UploadedChunk
 } from '@madkarmaa/phodrive-core/files';
-import { UploadJobStatus, type FileLocationEdit } from '@madkarmaa/phodrive-core/models';
+import { UploadJobStatus, type AccountFileLocationEdit } from '@madkarmaa/phodrive-core/models';
 import type { UploadJob } from '#browser/files';
 import { mergeAccountChunks } from '#browser/drive/library-state';
 
@@ -58,24 +58,31 @@ export function withUploadedChunks(
 }
 
 export function withFileLocations(
+    chunksByAccount: Map<string, UploadedChunk[]>,
     chunks: readonly UploadedChunk[],
-    accountId: string,
-    edits: readonly FileLocationEdit[]
+    edits: readonly AccountFileLocationEdit[]
 ) {
-    const byId = new Map(edits.map((edit) => [edit.fileId, edit]));
+    const updates = new Map(edits.map((edit) => [edit.accountId + ':' + edit.fileId, edit]));
 
-    return chunks.map((chunk) => {
-        if (chunk.accountId !== accountId || chunk.chunkIndex !== 0) return chunk;
+    function apply(items: readonly UploadedChunk[]) {
+        return items.map((chunk) => {
+            if (chunk.chunkIndex !== 0 || !chunk.accountId) return chunk;
+            const edit = updates.get(chunk.accountId + ':' + chunk.fileId);
+            if (!edit || edit.mediaKey !== chunk.mediaKey) return chunk;
 
-        const edit = byId.get(chunk.fileId);
-        if (!edit || edit.mediaKey !== chunk.mediaKey) return chunk;
+            return {
+                ...chunk,
+                displayName: edit.name ?? chunk.displayName,
+                displayFolder: edit.folder ?? chunk.displayFolder
+            };
+        });
+    }
 
-        return {
-            ...chunk,
-            displayName: edit.name ?? chunk.displayName,
-            displayFolder: edit.folder ?? chunk.displayFolder
-        };
-    });
+    for (const accountId of new Set(edits.map((edit) => edit.accountId))) {
+        const items = chunksByAccount.get(accountId);
+        if (items) chunksByAccount.set(accountId, apply(items));
+    }
+    return apply(chunks);
 }
 
 /** Remove one stored chunk of a file once Google has deleted it. */
