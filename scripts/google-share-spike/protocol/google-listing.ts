@@ -1,5 +1,5 @@
 import { Err, Ok, type Result } from 'results-ts';
-import { SERVER_ERRORS, type ServerError } from '@madkarmaa/phodrive-core/server/errors';
+import { SPIKE_ERRORS, type ProtocolError } from '../errors.ts';
 import { MEDIA_HOSTS } from '@madkarmaa/phodrive-core/server/photos/download';
 
 const URL_SAFE_ID = /^[A-Za-z0-9_-]+$/;
@@ -29,15 +29,15 @@ export type ListingPage = {
     nextPageToken: string | null;
 };
 
-function shapeChanged(): Result<never, ServerError> {
-    return Err(SERVER_ERRORS.GOOGLE_LISTING_SHAPE_CHANGED);
+function shapeChanged(): Result<never, ProtocolError> {
+    return Err(SPIKE_ERRORS.GOOGLE_LISTING_SHAPE_CHANGED);
 }
 
 function asArray(value: unknown): readonly unknown[] | null {
     return Array.isArray(value) ? value : null;
 }
 
-function parseJson(text: string): Result<unknown, ServerError> {
+function parseJson(text: string): Result<unknown, ProtocolError> {
     try {
         const parsed: unknown = JSON.parse(text);
 
@@ -62,19 +62,19 @@ function secureUrl(input: string, allowedHost: (host: string) => boolean): URL |
     return secure && allowedHost(url.hostname) ? url : null;
 }
 
-export function parseAlbumUrl(input: string): Result<PublicAlbum, ServerError> {
+export function parseAlbumUrl(input: string): Result<PublicAlbum, ProtocolError> {
     const url = secureUrl(input, (host) => host === 'photos.google.com');
     const uid = url && ALBUM_PATH.exec(url.pathname)?.[1];
     const keys = url?.searchParams.getAll('key') ?? [];
     if (!uid || keys.length !== 1 || !URL_SAFE_ID.test(keys[0]))
-        return Err(SERVER_ERRORS.GOOGLE_SHARE_LINK_INVALID);
+        return Err(SPIKE_ERRORS.GOOGLE_SHARE_LINK_INVALID);
 
     const key = keys[0];
 
     return Ok({ uid, key, canonicalUrl: `https://photos.google.com/share/${uid}?key=${key}` });
 }
 
-function parseDownloadUrl(input: string): Result<string, ServerError> {
+function parseDownloadUrl(input: string): Result<string, ProtocolError> {
     const url = secureUrl(input, (host) => MEDIA_HOSTS.has(host));
     if (!url || url.search || !MEDIA_PATH.test(url.pathname)) return shapeChanged();
 
@@ -100,7 +100,7 @@ function parseRequestArray(text: string): (string | null)[] | null {
 export function extractListingRequest(
     html: string,
     album: PublicAlbum
-): Result<ListingRequest, ServerError> {
+): Result<ListingRequest, ProtocolError> {
     const matches: ListingRequest[] = [];
 
     for (const [, rpcId, text] of html.matchAll(SERVICE_REQUEST)) {
@@ -116,7 +116,7 @@ export function extractListingRequest(
 
     if (matches.length !== 1) return shapeChanged();
     if (matches[0].request[REQUEST_PAGE_TOKEN_SLOT] !== null)
-        return Err(SERVER_ERRORS.GOOGLE_LISTING_PAGINATION_UNKNOWN);
+        return Err(SPIKE_ERRORS.GOOGLE_LISTING_PAGINATION_UNKNOWN);
 
     return Ok(matches[0]);
 }
@@ -128,7 +128,7 @@ export function pageRequest(
     return request.with(REQUEST_PAGE_TOKEN_SLOT, pageToken);
 }
 
-export function parseBatchExecute(text: string, rpcId: string): Result<unknown, ServerError> {
+export function parseBatchExecute(text: string, rpcId: string): Result<unknown, ProtocolError> {
     for (const line of text.split('\n')) {
         if (!line.trimStart().startsWith('[')) continue;
 
@@ -144,7 +144,7 @@ export function parseBatchExecute(text: string, rpcId: string): Result<unknown, 
     return shapeChanged();
 }
 
-function parseItem(value: unknown): Result<PublicItem, ServerError> {
+function parseItem(value: unknown): Result<PublicItem, ProtocolError> {
     const entry = asArray(value);
     const id = entry?.[0];
     const url = asArray(entry?.[1])?.[0];
@@ -161,14 +161,14 @@ function parseItem(value: unknown): Result<PublicItem, ServerError> {
     }));
 }
 
-function parseNextToken(value: unknown): Result<string | null, ServerError> {
+function parseNextToken(value: unknown): Result<string | null, ProtocolError> {
     if (value === null || value === undefined || value === '') return Ok(null);
     if (typeof value === 'string' && value) return Ok(value);
 
-    return Err(SERVER_ERRORS.GOOGLE_LISTING_PAGINATION_UNKNOWN);
+    return Err(SPIKE_ERRORS.GOOGLE_LISTING_PAGINATION_UNKNOWN);
 }
 
-export function parseListingPage(data: unknown): Result<ListingPage, ServerError> {
+export function parseListingPage(data: unknown): Result<ListingPage, ProtocolError> {
     const page = asArray(data);
     const entries = asArray(page?.[1]);
     const count = asArray(page?.[RESPONSE_METADATA_SLOT])?.[METADATA_COUNT_SLOT];

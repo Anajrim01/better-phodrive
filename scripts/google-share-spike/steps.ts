@@ -1,4 +1,4 @@
-import type { ServerError } from '@madkarmaa/phodrive-core/server/errors';
+import type { ProtocolError } from './errors.ts';
 import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
 import { authenticatedHeaders } from '@madkarmaa/phodrive-core/server/photos/auth';
 import { classifyMutationFailure, type OwnerRpc } from './protocol/google-rpc.ts';
@@ -7,7 +7,7 @@ import { Err, Ok, type AsyncResult } from 'results-ts';
 import { saveLedger, type Ledger, type LedgerError, type Step } from './ledger.ts';
 
 export type SpikeError =
-    | ServerError
+    | ProtocolError
     | LedgerError
     | { readonly code: 'CREDENTIALS_INVALID' | 'LINK_NOT_LIVE' | 'FIXTURE_PREEXISTS' };
 
@@ -39,7 +39,7 @@ type MutationStep<T> = {
     /** The state a 404 or 410 means: gone is success for a removal, a refusal for a creation. */
     gone: Extract<Step, 'ok' | 'rejected'>;
     set: (step: Step) => void;
-    call: () => AsyncResult<T, ServerError>;
+    call: () => AsyncResult<T, ProtocolError>;
     apply: (value: T) => void;
 };
 

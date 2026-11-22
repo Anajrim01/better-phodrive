@@ -1,5 +1,5 @@
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
-import { SERVER_ERRORS, type ServerError } from '@madkarmaa/phodrive-core/server/errors';
+import { SPIKE_ERRORS, type ProtocolError } from '../errors.ts';
 import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
 import { readBody } from '@madkarmaa/phodrive-core/server/photos/transport';
 import {
@@ -59,9 +59,9 @@ function readListingPage(walk: ListingWalk, token: string | null) {
         .andThen(parseListingPage);
 }
 
-function addPage(walk: ListingWalk, page: ListingPage): Result<void, ServerError> {
+function addPage(walk: ListingWalk, page: ListingPage): Result<void, ProtocolError> {
     for (const item of page.items) {
-        if (walk.ids.has(item.id)) return Err(SERVER_ERRORS.GOOGLE_LISTING_SHAPE_CHANGED);
+        if (walk.ids.has(item.id)) return Err(SPIKE_ERRORS.GOOGLE_LISTING_SHAPE_CHANGED);
 
         walk.ids.add(item.id);
         walk.items.push(item);
@@ -75,7 +75,7 @@ function addPage(walk: ListingWalk, page: ListingPage): Result<void, ServerError
 function walkPages(
     walk: ListingWalk,
     token: string | null
-): AsyncResult<PublicListing, ServerError> {
+): AsyncResult<PublicListing, ProtocolError> {
     return readListingPage(walk, token).andThenAsync(async (page) => {
         const added = addPage(walk, page);
         if (added.isErr()) return added;
@@ -84,10 +84,10 @@ function walkPages(
         if (nextPageToken === null)
             return walk.items.length === page.count
                 ? Ok({ count: page.count, items: walk.items, pages: walk.pages })
-                : Err(SERVER_ERRORS.GOOGLE_LISTING_INCOMPLETE);
+                : Err(SPIKE_ERRORS.GOOGLE_LISTING_INCOMPLETE);
 
         if (walk.tokens.has(nextPageToken) || !page.items.length)
-            return Err(SERVER_ERRORS.GOOGLE_LISTING_PAGINATION_UNKNOWN);
+            return Err(SPIKE_ERRORS.GOOGLE_LISTING_PAGINATION_UNKNOWN);
 
         walk.tokens.add(nextPageToken);
 
@@ -98,7 +98,7 @@ function walkPages(
 export function readPublicListing(
     album: PublicAlbum,
     fetcher: Fetcher
-): AsyncResult<PublicListing, ServerError> {
+): AsyncResult<PublicListing, ProtocolError> {
     const stage = 'Read album page';
 
     return publicFetch(

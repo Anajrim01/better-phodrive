@@ -1,5 +1,5 @@
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
-import type { ServerError } from '@madkarmaa/phodrive-core/server/errors';
+import type { ProtocolError } from '../errors.ts';
 import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
 import { parseAlbumUrl } from './google-listing.ts';
 
@@ -18,7 +18,7 @@ export function publicFetch(
     url: string,
     init: RequestInit,
     stage: string
-): AsyncResult<Response, ServerError> {
+): AsyncResult<Response, ProtocolError> {
     return Ok(undefined).andThenAsync(async () => {
         try {
             const response = await fetcher(url, {
@@ -38,7 +38,7 @@ export function cancelBody(response: Response): void {
     void response.body?.cancel().catch(() => undefined);
 }
 
-export function requireOk(response: Response, stage: string): Result<Response, ServerError> {
+export function requireOk(response: Response, stage: string): Result<Response, ProtocolError> {
     if (response.status === 200) return Ok(response);
 
     cancelBody(response);
@@ -77,7 +77,7 @@ export function probePublicUrl(
     url: string,
     fetcher: Fetcher,
     headers: Record<string, string> = {}
-): AsyncResult<PublicProbe, ServerError> {
+): AsyncResult<PublicProbe, ProtocolError> {
     return publicFetch(fetcher, url, { method: 'GET', headers }, 'Probe public URL').map(
         (response) => {
             const probe = readProbe(response);
@@ -98,7 +98,7 @@ export function classifyPublicProbe(probe: PublicProbe): PublicState {
 export function resolveShortUrl(
     shortUrl: string,
     fetcher: Fetcher
-): AsyncResult<ShortUrlStatus, ServerError> {
+): AsyncResult<ShortUrlStatus, ProtocolError> {
     return publicFetch(fetcher, shortUrl, { method: 'GET' }, 'Resolve share link').map(
         (response) => {
             const probe = readProbe(response);

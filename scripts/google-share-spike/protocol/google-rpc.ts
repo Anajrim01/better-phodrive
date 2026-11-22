@@ -1,5 +1,5 @@
 import type { AsyncResult } from 'results-ts';
-import type { ServerError } from '@madkarmaa/phodrive-core/server/errors';
+import type { ProtocolError } from '../errors.ts';
 import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
 import { bodyBytes } from '@madkarmaa/phodrive-core/server/protobuf';
 import type { ThrottleScope } from '@madkarmaa/phodrive-core/server/photos/throttle';
@@ -39,7 +39,7 @@ function post(
     url: string,
     request: Buffer,
     stage: string
-): AsyncResult<Buffer, ServerError> {
+): AsyncResult<Buffer, ProtocolError> {
     return guardedSend(
         scope,
         fetcher,
@@ -54,7 +54,7 @@ export function createShareAlbum(
     rpc: OwnerRpc,
     title: string,
     mediaKeys: readonly string[]
-): AsyncResult<string, ServerError> {
+): AsyncResult<string, ProtocolError> {
     return post(
         rpc,
         CREATE_ALBUM_URL,
@@ -63,7 +63,10 @@ export function createShareAlbum(
     ).andThen(parseCreatedAlbum);
 }
 
-export function removeShareAlbum(rpc: OwnerRpc, albumKey: string): AsyncResult<void, ServerError> {
+export function removeShareAlbum(
+    rpc: OwnerRpc,
+    albumKey: string
+): AsyncResult<void, ProtocolError> {
     return post(rpc, REMOVE_ALBUM_URL, removeAlbumRequest(albumKey), 'Remove album').andThen(
         parseEmptyShareReply
     );
@@ -73,7 +76,7 @@ export function createShareEnvelope(
     rpc: OwnerRpc,
     albumKey: string,
     title: string
-): AsyncResult<ShareEnvelope, ServerError> {
+): AsyncResult<ShareEnvelope, ProtocolError> {
     return post(
         rpc,
         CREATE_ENVELOPE_URL,
@@ -85,7 +88,7 @@ export function createShareEnvelope(
 export function deleteShareEnvelope(
     rpc: OwnerRpc,
     envelopeKey: string
-): AsyncResult<void, ServerError> {
+): AsyncResult<void, ProtocolError> {
     return post(
         rpc,
         DELETE_ENVELOPE_URL,
@@ -97,7 +100,7 @@ export function deleteShareEnvelope(
 export function enableShareLink(
     rpc: OwnerRpc,
     envelopeKey: string
-): AsyncResult<EnabledLink, ServerError> {
+): AsyncResult<EnabledLink, ProtocolError> {
     return post(
         rpc,
         UPDATE_LINK_STATE_URL,
@@ -109,7 +112,7 @@ export function enableShareLink(
 export function disableShareLink(
     rpc: OwnerRpc,
     envelopeKey: string
-): AsyncResult<void, ServerError> {
+): AsyncResult<void, ProtocolError> {
     return post(
         rpc,
         UPDATE_LINK_STATE_URL,
@@ -120,7 +123,7 @@ export function disableShareLink(
         .map(() => undefined);
 }
 
-export function classifyMutationFailure(error: ServerError): MutationFailure {
+export function classifyMutationFailure(error: ProtocolError): MutationFailure {
     if (error.code !== 'REQUEST_FAILED' || error.status === undefined) return 'uncertain';
     if (error.status === 404 || error.status === 410) return 'gone';
 

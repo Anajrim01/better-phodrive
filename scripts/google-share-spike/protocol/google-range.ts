@@ -1,5 +1,5 @@
 import { Ok, type AsyncResult } from 'results-ts';
-import type { ServerError } from '@madkarmaa/phodrive-core/server/errors';
+import type { ProtocolError } from '../errors.ts';
 import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
 import { readBody } from '@madkarmaa/phodrive-core/server/photos/transport';
 import {
@@ -29,7 +29,7 @@ export function readRange(
     end: number,
     origin: string,
     fetcher: Fetcher
-): AsyncResult<RangeRead, ServerError> {
+): AsyncResult<RangeRead, ProtocolError> {
     const stage = 'Read public range';
     const headers = {
         origin,
@@ -72,7 +72,7 @@ export function preflightRange(
     url: string,
     origin: string,
     fetcher: Fetcher
-): AsyncResult<RangePreflight, ServerError> {
+): AsyncResult<RangePreflight, ProtocolError> {
     return publicFetch(
         fetcher,
         url,

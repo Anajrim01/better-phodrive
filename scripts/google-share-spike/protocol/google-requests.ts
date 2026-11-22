@@ -1,5 +1,5 @@
 import { Err, Ok, type Result } from 'results-ts';
-import { SERVER_ERRORS, type ServerError } from '@madkarmaa/phodrive-core/server/errors';
+import { SPIKE_ERRORS, type ProtocolError } from '../errors.ts';
 import {
     bytes,
     bytesField,
@@ -46,15 +46,15 @@ const SHORT_URL = /^https:\/\/photos\.app\.goo\.gl\/[A-Za-z0-9_-]+$/;
 export type ShareEnvelope = { envelopeKey: string; pendingShortUrl?: string };
 export type EnabledLink = { shortUrl: string; authKey: string };
 
-function invalid(): Result<never, ServerError> {
-    return Err(SERVER_ERRORS.GOOGLE_SHARE_RESPONSE_INVALID);
+function invalid(): Result<never, ProtocolError> {
+    return Err(SPIKE_ERRORS.GOOGLE_SHARE_RESPONSE_INVALID);
 }
 
-function opaqueKey(value: Buffer): Result<string, ServerError> {
+function opaqueKey(value: Buffer): Result<string, ProtocolError> {
     return utf8(value).andThen((key) => (OPAQUE_KEY.test(key) ? Ok(key) : invalid()));
 }
 
-function shortUrl(value: Buffer): Result<string, ServerError> {
+function shortUrl(value: Buffer): Result<string, ProtocolError> {
     return utf8(value).andThen((url) => (SHORT_URL.test(url) ? Ok(url) : invalid()));
 }
 
@@ -123,16 +123,16 @@ export function deleteEnvelopeRequest(envelopeKey: string): Buffer {
     return bytesField(1, envelopeKey);
 }
 
-export function parseCreatedAlbum(body: Buffer): Result<string, ServerError> {
+export function parseCreatedAlbum(body: Buffer): Result<string, ProtocolError> {
     return nested(body, 1, 1).andThen(opaqueKey);
 }
 
 // Empty protobuf acknowledgment is a probe hypothesis, not proof the resource disappeared.
-export function parseEmptyShareReply(body: Buffer): Result<void, ServerError> {
+export function parseEmptyShareReply(body: Buffer): Result<void, ProtocolError> {
     return body.length === 0 ? Ok(undefined) : invalid();
 }
 
-export function parseEnvelopeResponse(body: Buffer): Result<ShareEnvelope, ServerError> {
+export function parseEnvelopeResponse(body: Buffer): Result<ShareEnvelope, ProtocolError> {
     return parse(body).andThen((fields) =>
         bytes(fields, 1)
             .andThen(opaqueKey)
@@ -149,7 +149,7 @@ export function parseEnvelopeResponse(body: Buffer): Result<ShareEnvelope, Serve
     );
 }
 
-export function parseLinkStateResponse(body: Buffer): Result<EnabledLink, ServerError> {
+export function parseLinkStateResponse(body: Buffer): Result<EnabledLink, ProtocolError> {
     return nested(body, 1, 1)
         .andThen(shortUrl)
         .andThen((url) =>
