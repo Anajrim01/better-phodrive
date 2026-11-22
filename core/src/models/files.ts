@@ -52,11 +52,14 @@ const FileLocationEditSchema = z
     })
     .refine(({ name, folder }) => name !== undefined || folder !== undefined);
 
+export const MAX_FILE_LOCATION_EDITS = 200;
+export const FileLocationsResponseSchema = z.object({ updated: z.literal(true) });
+
 export const FileLocationsRequestSchema = z.object({
     files: z
         .array(FileLocationEditSchema)
         .min(1)
-        .max(200)
+        .max(MAX_FILE_LOCATION_EDITS)
         .refine((files) => new Set(files.map((file) => file.fileId)).size === files.length)
 });
 

@@ -4,7 +4,7 @@ import {
     type FileGroup,
     type UploadedChunk
 } from '@madkarmaa/phodrive-core/files';
-import { UploadJobStatus } from '@madkarmaa/phodrive-core/models';
+import { UploadJobStatus, type FileLocationEdit } from '@madkarmaa/phodrive-core/models';
 import type { UploadJob } from '#browser/files';
 import { mergeAccountChunks } from '#browser/drive/library-state';
 
@@ -55,6 +55,27 @@ export function withUploadedChunks(
     const added = new Set(confirmed.map(chunkKey));
 
     return [...confirmed, ...chunks.filter((item) => !added.has(chunkKey(item)))];
+}
+
+export function withFileLocations(
+    chunks: readonly UploadedChunk[],
+    accountId: string,
+    edits: readonly FileLocationEdit[]
+) {
+    const byId = new Map(edits.map((edit) => [edit.fileId, edit]));
+
+    return chunks.map((chunk) => {
+        if (chunk.accountId !== accountId || chunk.chunkIndex !== 0) return chunk;
+
+        const edit = byId.get(chunk.fileId);
+        if (!edit || edit.mediaKey !== chunk.mediaKey) return chunk;
+
+        return {
+            ...chunk,
+            displayName: edit.name ?? chunk.displayName,
+            displayFolder: edit.folder ?? chunk.displayFolder
+        };
+    });
 }
 
 /** Remove one stored chunk of a file once Google has deleted it. */

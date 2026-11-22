@@ -5,6 +5,7 @@
     import { fileKey, type FileGroup, type FileAction } from '@madkarmaa/phodrive-core/files';
     import LocalizedDate from '#components/LocalizedDate.svelte';
     import FileActions from '#components/FileActions.svelte';
+    import EditableFileName from '#components/EditableFileName.svelte';
     import IconDescription from '~icons/material-symbols/description';
     import SortButton from '#components/SortButton.svelte';
 
@@ -91,10 +92,8 @@
                 <td>
                     <div class="file-name">
                         <IconDescription aria-hidden="true" class="size-5 shrink-0 text-primary" />
-                        <div class="min-w-0">
-                            <span class="block truncate font-medium" title={item.name}
-                                >{item.name}</span
-                            >
+                        <div class="min-w-0 flex-1">
+                            <EditableFileName file={item} />
                             {#if showFolder && item.folder}
                                 <span class="block truncate text-xs text-muted" title={item.folder}
                                     >{item.folder}</span
@@ -188,7 +187,8 @@
     }
 
     tbody tr:hover,
-    tbody tr:focus-within {
+    tbody tr:focus-within,
+    tbody tr:has(:global([data-file-selected='true'])) {
         background: var(--np-color-surface-container);
     }
 
