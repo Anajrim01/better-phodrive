@@ -1,21 +1,24 @@
-import { Err, type AsyncResult, type Result } from 'results-ts';
+import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import {
+    ChunkFormat,
     FileNameSchema,
     FileSizeSchema,
     UploadEventType,
     UploadPhase,
     UploadStatus,
     type UploadEvent,
-    type UploadFile
+    type UploadFile,
+    type UploadWarning
 } from '../../models';
 import { SERVER_ERRORS, type ServerError } from '../errors';
 import { planChunks, type UploadPlan } from '../../upload';
 import { chunkFileName, fileIdentity } from '../chunks';
 import { photosFetchWithProgress, type Fetcher } from '../fetcher';
 import { uploadBmpStream } from '../photos/index';
-import { encodeUploadBmp } from './bmp';
+import { defaultThrottle, type ThrottleCoordinator } from '../photos/throttle';
+import { encodeUploadBmp, relayUploadBmp } from './bmp';
 import type { ReceivedUpload } from './input';
-import { compressedUploadStart, readProgress, sentProgress } from './progress';
+import { chunkMetadataRecord, type ChunkMetadataStore } from '../photos/library/metadata-store';
 
 const PROGRESS_INTERVAL_MS = 100;
 
@@ -27,44 +30,40 @@ export function planUpload(file: UploadFile): Result<UploadPlan, ServerError> {
     return planChunks(file, fileIdentity(file.name, file.fileHash, undefined, file.folder ?? ''));
 }
 
-/** Encode and forward one incoming chunk without disk storage. */
+/** Encode and forward one incoming chunk without disk storage or a whole-chunk buffer. */
 export function uploadFiles(
     input: ReceivedUpload,
     emit: (event: UploadEvent) => void,
-    fetcher?: Fetcher
+    fetcher?: Fetcher,
+    metadata?: ChunkMetadataStore,
+    accountId?: string,
+    coordinator: ThrottleCoordinator = defaultThrottle
 ): AsyncResult<void, ServerError> {
-    // Browser job totals are raw plan sizes, so map every phase back onto that
-    // scale and keep the Google commit outside the progress ceiling.
-    const progressTotal = input.bmp.totalSize;
-    let lastProgress = 0;
-    let lastCompleted = 0;
-    const report = (completed: number, reused = 0, force = false) => {
-        const now = performance.now();
-        if (!force && now - lastProgress < PROGRESS_INTERVAL_MS) return;
+    return Ok(undefined).andThenAsync(async () => {
+        const source =
+            input.format === ChunkFormat.Bmp ? relayUploadBmp(input) : encodeUploadBmp(input);
+        let lastProgress = 0;
+        let lastCompleted = 0;
+        let lastReused = 0;
+        const report = (completed: number, reused = 0, force = false) => {
+            const now = performance.now();
+            if (!force && now - lastProgress < PROGRESS_INTERVAL_MS) return;
 
-        lastProgress = now;
-        lastCompleted = Math.max(lastCompleted, Math.min(progressTotal, Math.round(completed)));
-        emit({
-            type: UploadEventType.Progress,
-            id: 0,
-            progress: {
-                phase: UploadPhase.Uploading,
-                completed: lastCompleted,
-                reused,
-                total: progressTotal
-            }
-        });
-    };
-    report(0, 0, true);
-
-    const reading = input.compress
-        ? (received: number) =>
-              report(readProgress(progressTotal, received, input.header.payloadSize))
-        : undefined;
-
-    return encodeUploadBmp(input, reading).andThenAsync(async (source) => {
-        const start = source.compressed ? compressedUploadStart(progressTotal) : 0;
-        if (source.compressed) report(start, 0, true);
+            lastProgress = now;
+            lastCompleted = completed;
+            lastReused = reused;
+            emit({
+                type: UploadEventType.Progress,
+                id: 0,
+                progress: {
+                    phase: UploadPhase.Uploading,
+                    completed,
+                    reused,
+                    total: input.bmp.totalSize
+                }
+            });
+        };
+        report(0, 0, true);
 
         const uploaded = await uploadBmpStream(
             input.email,
@@ -76,20 +75,55 @@ export function uploadFiles(
                 input.chunkCount
             ),
             source,
-            fetcher ??
-                photosFetchWithProgress((sent) =>
-                    report(sentProgress(progressTotal, sent, source.length, start))
-                ),
-            input.signal
+            fetcher ?? photosFetchWithProgress((sent) => report(sent)),
+            input.signal,
+            {
+                key: accountId ?? input.email,
+                coordinator,
+                onWait: (retryAfterSeconds) => {
+                    lastProgress = performance.now();
+                    emit({
+                        type: UploadEventType.Progress,
+                        id: 0,
+                        progress: {
+                            phase: UploadPhase.Uploading,
+                            completed: lastCompleted,
+                            reused: lastReused,
+                            total: input.bmp.totalSize,
+                            retryAfterSeconds
+                        }
+                    });
+                }
+            }
         );
 
+        let warnings: UploadWarning[] = [];
+        if (uploaded.isOk() && metadata) {
+            const result = uploaded.unwrap();
+            const saved = await metadata.save([
+                chunkMetadataRecord(
+                    {
+                        fileHash: input.header.fileHash,
+                        fileId: input.header.fileId,
+                        chunkIndex: input.header.chunkIndex,
+                        isLast: input.header.flags === 1,
+                        ...(input.header.fileName ? { originalName: input.header.fileName } : {}),
+                        size: input.header.payloadSize,
+                        at: Date.now(),
+                        mediaKey: result.mediaKey,
+                        sha1: result.sha1,
+                        ...(input.header.folder ? { folder: input.header.folder } : {})
+                    },
+                    input.bmp.totalSize
+                )
+            ]);
+            if (saved.isErr()) warnings = [{ code: 'METADATA_SAVE_FAILED' }];
+        }
+
         return uploaded.map((result) => {
-            const deduplicated = result.status === UploadStatus.AlreadyExists;
-            report(
-                deduplicated ? lastCompleted : progressTotal,
-                deduplicated ? progressTotal - lastCompleted : 0,
-                true
-            );
+            const completed = warnings.length ? { ...result, warnings } : result;
+            const reused = result.status === UploadStatus.AlreadyExists ? input.bmp.totalSize : 0;
+            report(input.bmp.totalSize - reused, reused, true);
             emit({
                 type: UploadEventType.Chunk,
                 id: 0,
@@ -97,18 +131,17 @@ export function uploadFiles(
                     fileHash: input.header.fileHash,
                     fileId: input.header.fileId,
                     chunkIndex: input.header.chunkIndex,
-                    isLast: source.last,
+                    isLast: input.header.flags === 1,
                     originalName: input.header.fileName,
-                    folder: input.header.folder,
-                    size: source.originalSize,
-                    storedSize: source.storedSize,
-                    compressed: source.compressed,
+                    size: input.header.payloadSize,
                     at: Date.now(),
                     mediaKey: result.mediaKey,
-                    sha1: result.sha1
+                    sha1: result.sha1,
+                    ...(input.header.folder ? { folder: input.header.folder } : {}),
+                    ...(accountId ? { accountId } : {})
                 }
             });
-            emit({ type: UploadEventType.FileComplete, id: 0, result });
+            emit({ type: UploadEventType.FileComplete, id: 0, result: completed });
         });
     });
 }

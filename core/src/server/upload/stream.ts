@@ -1,15 +1,27 @@
+import type { AsyncResult } from 'results-ts';
 import { UploadEventType, type UploadEvent } from '../../models';
+import type { ApplicationError } from '../../errors';
+import type { ServerError } from '../errors';
+import type { ChunkMetadataStore } from '../photos/library/metadata-store';
+import type { ThrottleCoordinator } from '../photos/throttle';
 import type { ReceivedUpload } from './input';
 import { uploadFiles } from './index';
 
+/** Work reported over an upload event stream, and the cleanup that ends its request. */
+export interface UploadTask {
+    run: (emit: (event: UploadEvent) => void) => AsyncResult<void, ServerError | ApplicationError>;
+    cancel: () => AsyncResult<void, ServerError>;
+}
+
 /** Coalesce progress so a paused browser cannot grow the server's event queue. */
-export function uploadStream(input: ReceivedUpload): Response {
+export function uploadEventStream({ run, cancel }: UploadTask): Response {
     let open = true;
     let finished = false;
     let progress: UploadEvent | null = null;
     const confirmations: UploadEvent[] = [];
     const encoder = new TextEncoder();
     const flush = (controller: ReadableStreamDefaultController<Uint8Array>) => {
+        // Enqueue only while the browser is reading, so events coalesce instead of queueing.
         if (!open || (controller.desiredSize ?? 0) <= 0) return;
 
         const event = progress ?? confirmations.shift();
@@ -33,12 +45,12 @@ export function uploadStream(input: ReceivedUpload): Response {
 
                 flush(controller);
             };
-            const run = async () => {
-                const uploaded = await uploadFiles(input, emit);
+            const execute = async () => {
+                const completed = await run(emit);
 
-                const cancelled = await input.cancel();
+                const cancelled = await cancel();
 
-                uploaded
+                completed
                     .andThen(() => cancelled)
                     .match({
                         Ok: () => emit({ type: UploadEventType.Complete }),
@@ -54,7 +66,7 @@ export function uploadStream(input: ReceivedUpload): Response {
                 finished = true;
                 flush(controller);
             };
-            void run();
+            void execute();
         },
         pull: flush,
         async cancel() {
@@ -62,7 +74,7 @@ export function uploadStream(input: ReceivedUpload): Response {
             progress = null;
             confirmations.length = 0;
 
-            const cancelled = await input.cancel();
+            const cancelled = await cancel();
 
             cancelled.inspectErr((error) => console.error(error.message));
         }
@@ -74,5 +86,18 @@ export function uploadStream(input: ReceivedUpload): Response {
             'cache-control': 'no-store',
             'x-accel-buffering': 'no'
         }
+    });
+}
+
+/** Encode or relay one received chunk while reporting its upload events. */
+export function uploadStream(
+    input: ReceivedUpload,
+    metadata?: ChunkMetadataStore,
+    accountId?: string,
+    coordinator?: ThrottleCoordinator
+): Response {
+    return uploadEventStream({
+        run: (emit) => uploadFiles(input, emit, undefined, metadata, accountId, coordinator),
+        cancel: input.cancel
     });
 }

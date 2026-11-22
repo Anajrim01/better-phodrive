@@ -1,0 +1,1 @@
+export const BYTES_IDLE_TIMEOUT_MS = 30_000;

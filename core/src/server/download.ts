@@ -1,70 +1,60 @@
 import { createHash } from 'node:crypto';
 import { Err, Ok, type AsyncResult } from 'results-ts';
 import type { FileRequest, RemoteBmp } from '../models';
-import { splitHeaderIsCompressed } from '../models';
-import { SplitBmpReader } from './bmp/stream';
-import { BrotliStreamDecoder } from './compress';
-import { openChunk } from './chunk-open';
-import { SERVER_ERRORS, type ServerError, type ThrottleMode } from './errors';
+import { ChunkCursor, openChunk } from './chunk-cursor';
+import { SERVER_ERRORS, type ServerError } from './errors';
+import type { ThrottleScope } from './photos/throttle';
 
-/** Never buffer the whole file; pull each chunk only when the consumer reads. */
+/** Ordered, demand-driven reconstruction with no temporary storage. */
 export function streamDownload(
     input: FileRequest,
     chunks: RemoteBmp[],
     requestSignal?: AbortSignal,
-    mode: ThrottleMode = 'auto'
+    scope?: ThrottleScope
 ): AsyncResult<Response, ServerError> {
     return Ok(undefined).andThenAsync(async () => {
-        const abort = new AbortController();
+        const cursor = new ChunkCursor(input, chunks, scope);
         const hash = createHash('sha256');
-        let active: SplitBmpReader | null = null;
-        let decoder: BrotliStreamDecoder | null = null;
-        let index = 0;
-        let closed = false;
         let responseController: ReadableStreamDefaultController<Uint8Array> | undefined;
 
         const cleanup = async () => {
-            if (closed) return;
+            if (cursor.closed) return;
 
-            closed = true;
-            abort.abort();
             requestSignal?.removeEventListener('abort', onAbort);
-            decoder?.destroy();
-            decoder = null;
-
-            if (active) {
-                const cancelled = await active.close();
-
-                cancelled.inspectErr((error) => console.error(error.message));
-                active = null;
-            }
+            await cursor.close();
         };
         const onAbort = () => {
-            if (!closed)
+            if (!cursor.closed)
                 responseController?.error(SERVER_ERRORS.COULD_NOT_READ_THE_DOWNLOADED_FILE);
 
             void cleanup();
         };
         requestSignal?.addEventListener('abort', onAbort, { once: true });
         if (requestSignal?.aborted) await cleanup();
-        if (closed) return Err(SERVER_ERRORS.COULD_NOT_READ_THE_DOWNLOADED_FILE);
+        if (cursor.closed) return Err(SERVER_ERRORS.COULD_NOT_READ_THE_DOWNLOADED_FILE);
 
         // Validate the first header before sending a response so HTTP errors reach the browser.
-        const first = await openChunk(input, chunks[0], abort.signal, mode);
+        const first = await openChunk(input, chunks[0], cursor.signal, scope);
         if (first.isErr()) {
             await cleanup();
 
             return first;
         }
 
-        first.inspect((reader) => {
-            active = reader;
-        });
-        if (closed) {
+        if (cursor.closed) {
             const cancelled = await first.andThenAsync((reader) => reader.close());
 
             return cancelled.andThen(() => Err(SERVER_ERRORS.COULD_NOT_READ_THE_DOWNLOADED_FILE));
         }
+        first.inspect((reader) => cursor.begin(reader));
+
+        const finish = async (controller: ReadableStreamDefaultController<Uint8Array>) => {
+            const valid = hash.digest('hex') === input.fileHash;
+            await cleanup();
+
+            if (valid) controller.close();
+            else controller.error(SERVER_ERRORS.FILE_INTEGRITY_FAILED);
+        };
 
         const body = new ReadableStream<Uint8Array>(
             {
@@ -72,147 +62,24 @@ export function streamDownload(
                     responseController = controller;
                 },
                 async pull(controller) {
-                    while (!closed) {
-                        if (!active) {
-                            if (index === chunks.length) {
-                                const valid = hash.digest('hex') === input.fileHash;
-                                await cleanup();
-                                if (!valid) {
-                                    controller.error(SERVER_ERRORS.FILE_INTEGRITY_FAILED);
+                    if (cursor.closed)
+                        return controller.error(SERVER_ERRORS.COULD_NOT_READ_THE_DOWNLOADED_FILE);
 
-                                    return;
-                                }
+                    const next = await cursor.next();
+                    if (cursor.closed) return;
 
-                                controller.close();
+                    await next.match({
+                        Ok: async (payload) => {
+                            if (!payload) return finish(controller);
 
-                                return;
-                            }
-
-                            const opened = await openChunk(
-                                input,
-                                chunks[index],
-                                abort.signal,
-                                mode
-                            );
-
-                            opened.inspect((reader) => {
-                                active = reader;
-                            });
-                            if (closed) {
-                                const cancelled = await opened.andThenAsync((reader) =>
-                                    reader.close()
-                                );
-
-                                cancelled.inspectErr((error) => console.error(error.message));
-
-                                return;
-                            }
-                            if (opened.isErr()) {
-                                opened.inspectErr((error) => controller.error(error));
-                                await cleanup();
-
-                                return;
-                            }
-                        }
-                        if (!active) return;
-
-                        if (splitHeaderIsCompressed(active.header.flags)) {
-                            const originalSize = active.header.originalSize!;
-                            const streamDecoder = new BrotliStreamDecoder(originalSize);
-                            decoder = streamDecoder;
-                            let produced = 0;
-
-                            const emit = (parts: Uint8Array[]): boolean => {
-                                for (const part of parts) {
-                                    produced += part.length;
-                                    if (produced > originalSize) {
-                                        controller.error(SERVER_ERRORS.DECOMPRESSION_FAILED);
-
-                                        return false;
-                                    }
-
-                                    hash.update(part);
-                                    controller.enqueue(part);
-                                }
-
-                                return true;
-                            };
-
-                            try {
-                                while (true) {
-                                    const next = await active.readPayload();
-                                    if (closed) return;
-                                    if (next.isErr()) {
-                                        next.inspectErr((error) => controller.error(error));
-                                        await cleanup();
-
-                                        return;
-                                    }
-
-                                    const part = next.unwrap();
-                                    if (part === null) break;
-                                    if (!emit(await streamDecoder.push(part))) {
-                                        await cleanup();
-
-                                        return;
-                                    }
-                                }
-
-                                if (!emit(await streamDecoder.end())) {
-                                    await cleanup();
-
-                                    return;
-                                }
-                            } catch (error) {
-                                controller.error(error);
-                                await cleanup();
-
-                                return;
-                            }
-
-                            if (produced !== originalSize) {
-                                controller.error(SERVER_ERRORS.DECOMPRESSION_FAILED);
-                                await cleanup();
-
-                                return;
-                            }
-
-                            active = null;
-                            decoder = null;
-                            index++;
-
-                            return;
-                        }
-
-                        const next = await active.readPayload();
-                        if (closed) return;
-                        if (next.isErr()) {
-                            next.inspectErr((error) => controller.error(error));
+                            hash.update(payload);
+                            controller.enqueue(payload);
+                        },
+                        Err: async (error) => {
+                            controller.error(error);
                             await cleanup();
-
-                            return;
                         }
-
-                        const delivered = next.match({
-                            Ok: (payload) => {
-                                if (payload === null) {
-                                    active = null;
-                                    index++;
-
-                                    return false;
-                                }
-
-                                hash.update(payload);
-                                controller.enqueue(payload);
-
-                                return true;
-                            },
-                            Err: () => false
-                        });
-                        if (delivered) return;
-                    }
-
-                    controller.error(SERVER_ERRORS.COULD_NOT_READ_THE_DOWNLOADED_FILE);
+                    });
                 },
                 cancel: cleanup
             },

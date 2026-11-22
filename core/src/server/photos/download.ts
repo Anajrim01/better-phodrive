@@ -3,7 +3,8 @@ import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import { Sha1HexSchema } from '../../models';
 import { authenticatedHeaders } from './auth';
 import { photosFetch, type Fetcher } from '../fetcher';
-import { guardedSend, readBody } from './transport';
+import { guardedSend, send, readBody } from './transport';
+import type { ThrottleScope } from './throttle';
 import {
     message,
     bytesField,
@@ -26,20 +27,34 @@ export function downloadBmp(
     mediaKey: string,
     sha1: string,
     fetcher: Fetcher = photosFetch,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    scope?: ThrottleScope
 ): AsyncResult<Response, ServerError> {
     const validReference =
         mediaKey && mediaKey.length <= 1024 && Sha1HexSchema.safeParse(sha1).success
             ? Ok(undefined)
             : Err(SERVER_ERRORS.INVALID_FILE_REFERENCE);
+    const activeSignal = signal ?? scope?.signal;
+    const activeScope = scope
+        ? { ...scope, ...(activeSignal ? { signal: activeSignal } : {}) }
+        : undefined;
 
     return validReference
         .andThenAsync(() =>
-            authenticatedHeaders(email, token, (url, init) => fetcher(url, { ...init, signal }))
+            authenticatedHeaders(
+                email,
+                token,
+                (url, init) => fetcher(url, { ...init, signal: activeSignal }),
+                activeScope
+            )
         )
         .andThenAsync(({ commonHeaders, rpcHeaders }) =>
-            preparedDownloadUrl(email, mediaKey, sha1, rpcHeaders, (url, init) =>
-                fetcher(url, { ...init, signal })
+            preparedDownloadUrl(
+                mediaKey,
+                sha1,
+                rpcHeaders,
+                (url, init) => fetcher(url, { ...init, signal: activeSignal }),
+                activeScope
             ).map((url) => ({
                 url,
                 commonHeaders
@@ -48,18 +63,16 @@ export function downloadBmp(
         .andThenAsync(async ({ url, commonHeaders }) => {
             if (url === null) return Err(SERVER_ERRORS.INVALID_DOWNLOAD_CONTENT_TYPE);
 
-            return await guardedSend(
-                email,
-                fetcher,
-                url,
-                {
-                    method: 'GET',
-                    redirect: 'manual',
-                    headers: commonHeaders,
-                    signal
-                },
-                'Media fetch'
-            );
+            const init: RequestInit = {
+                method: 'GET',
+                redirect: 'manual',
+                headers: commonHeaders,
+                signal: activeSignal
+            };
+
+            return activeScope
+                ? guardedSend(activeScope, fetcher, url, init, 'Download')
+                : send(fetcher, url, init, 'Download');
         })
         .andThenAsync(async (response) => {
             if (!response.headers.get('content-type')?.startsWith('image/')) {
@@ -76,30 +89,68 @@ export function downloadBmp(
         });
 }
 
-export function preparedDownloadUrl(
+export function resolveDownloadUrl(
     email: string,
+    token: string,
+    mediaKey: string,
+    sha1: string,
+    fetcher: Fetcher = photosFetch,
+    signal?: AbortSignal,
+    scope?: ThrottleScope
+): AsyncResult<URL, ServerError> {
+    const validReference =
+        mediaKey && mediaKey.length <= 1024 && Sha1HexSchema.safeParse(sha1).success
+            ? Ok(undefined)
+            : Err(SERVER_ERRORS.INVALID_FILE_REFERENCE);
+    const activeSignal = signal ?? scope?.signal;
+    const activeScope = scope
+        ? { ...scope, ...(activeSignal ? { signal: activeSignal } : {}) }
+        : undefined;
+
+    return validReference
+        .andThenAsync(() =>
+            authenticatedHeaders(
+                email,
+                token,
+                (url, init) => fetcher(url, { ...init, signal: activeSignal }),
+                activeScope
+            )
+        )
+        .andThenAsync(({ rpcHeaders }) =>
+            preparedDownloadUrl(
+                mediaKey,
+                sha1,
+                rpcHeaders,
+                (url, init) => fetcher(url, { ...init, signal: activeSignal }),
+                activeScope
+            ).andThen((url) => (url ? Ok(url) : Err(SERVER_ERRORS.INVALID_DOWNLOAD_CONTENT_TYPE)))
+        );
+}
+
+export function preparedDownloadUrl(
     mediaKey: string,
     sha1: string,
     rpcHeaders: Record<string, string>,
-    fetcher: Fetcher
+    fetcher: Fetcher,
+    scope?: ThrottleScope
 ): AsyncResult<URL | null, ServerError> {
     const request = message(
         bytesField(1, bytesField(1, bytesField(1, mediaKey))),
         bytesField(2, DOWNLOAD_MASK)
     );
+    const init: RequestInit = {
+        method: 'POST',
+        redirect: 'manual',
+        headers: rpcHeaders,
+        body: bodyBytes(request),
+        ...(scope?.signal ? { signal: scope.signal } : {})
+    };
 
-    return guardedSend(
-        email,
-        fetcher,
-        DOWNLOAD_URL,
-        {
-            method: 'POST',
-            redirect: 'manual',
-            headers: rpcHeaders,
-            body: bodyBytes(request)
-        },
-        'Prepare download'
-    ).andThenAsync((response) =>
+    const sent = scope
+        ? guardedSend(scope, fetcher, DOWNLOAD_URL, init, 'Prepare download')
+        : send(fetcher, DOWNLOAD_URL, init, 'Prepare download');
+
+    return sent.andThenAsync((response) =>
         readBody(response, 'Prepare download').andThen((metadata) =>
             parsePhotoDownloadUrl(metadata, mediaKey, sha1)
         )
@@ -108,6 +159,14 @@ export function preparedDownloadUrl(
 
 const IMAGE_DOWNLOAD_TYPE = 1;
 const VIDEO_DOWNLOAD_TYPE = 2;
+
+export const MEDIA_HOSTS: ReadonlySet<string> = new Set([
+    'lh1.googleusercontent.com',
+    'lh2.googleusercontent.com',
+    'lh3.googleusercontent.com',
+    'lh4.googleusercontent.com',
+    'lh5.googleusercontent.com'
+]);
 
 function parseSignedDownloadUrl(text: string): Result<URL, ServerError> {
     let signed: URL;
@@ -120,7 +179,7 @@ function parseSignedDownloadUrl(text: string): Result<URL, ServerError> {
 
     if (
         signed.protocol !== 'https:' ||
-        signed.hostname !== 'lh3.googleusercontent.com' ||
+        !MEDIA_HOSTS.has(signed.hostname) ||
         signed.port ||
         signed.username ||
         signed.password ||
@@ -132,7 +191,7 @@ function parseSignedDownloadUrl(text: string): Result<URL, ServerError> {
 }
 
 /** Videos have a separate download variant and cannot contain a Phodrive BMP. */
-export function parsePhotoDownloadUrl(
+function parsePhotoDownloadUrl(
     metadata: Buffer,
     mediaKey: string,
     sha1: string

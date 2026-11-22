@@ -1,80 +1,141 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { createThrottleCoordinator } from '@madkarmaa/phodrive-core/browser/upload';
+import type { UploadJob } from '@madkarmaa/phodrive-core/browser/upload/jobs';
+import { transferFiles } from '@madkarmaa/phodrive-core/browser/upload';
+import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
+import {
+    createThrottleCoordinator,
+    type ThrottleCoordinator
+} from '@madkarmaa/phodrive-core/server/photos/throttle';
+import { localChunkTransport } from '@madkarmaa/phodrive-core/node/upload';
+import { UploadJobStatus } from '@madkarmaa/phodrive-core/models';
+import { photosUploadHarness } from '../helpers/photos-harness';
+import { TEST_ACCOUNT } from '../helpers/upload';
+
+const ACCOUNT_KEY = 'account-a';
+
+function throttlingFetcher(limit: number, coordinator: ThrottleCoordinator) {
+    const harness = photosUploadHarness();
+    let authCalls = 0;
+    const fetcher: Fetcher = (input, init) => {
+        if (String(input).includes('android.googleapis.com/auth')) {
+            authCalls++;
+            if (authCalls <= limit)
+                return Promise.resolve(
+                    new Response(null, { status: 429, headers: { 'retry-after': '60' } })
+                );
+        }
+
+        return harness.fetcher(input, init);
+    };
+
+    return { fetcher, authCalls: () => authCalls, coordinator };
+}
+
+async function upload(
+    fetcher: Fetcher,
+    coordinator: ThrottleCoordinator,
+    options: { signal?: AbortSignal } = {}
+) {
+    const jobs: UploadJob[] = [];
+    const chunks: string[] = [];
+    const uploading = transferFiles(
+        [new File(['throttle me'], 'throttle.bin')],
+        TEST_ACCOUNT.email,
+        1,
+        (job) => jobs.push(job),
+        (chunk) => chunks.push(chunk.fileId),
+        localChunkTransport(TEST_ACCOUNT, {
+            fetcher,
+            accountId: ACCOUNT_KEY,
+            coordinator,
+            signal: options.signal
+        }),
+        options.signal
+    );
+
+    return { uploading, jobs, chunks };
+}
 
 beforeEach(() => {
-    vi.useFakeTimers();
-    vi.spyOn(Math, 'random').mockReturnValue(0);
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
 });
 
 afterEach(() => {
     vi.useRealTimers();
-    vi.restoreAllMocks();
 });
 
-test('a long cooldown is kept in full instead of being capped at five minutes', () => {
-    const throttle = createThrottleCoordinator();
+test('a throttled chunk waits on the server deadline before its second request', async () => {
+    const coordinator = createThrottleCoordinator(() => 0);
+    const google = throttlingFetcher(1, coordinator);
+    const { uploading, jobs, chunks } = await upload(google.fetcher, coordinator);
 
-    expect(throttle.pause('first@example.com', 1_800)).toBe(1_800);
-    expect(throttle.remaining('first@example.com')).toBe(1_800);
+    await vi.waitFor(() => expect(google.authCalls()).toBe(1));
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(google.authCalls()).toBe(1);
 
-    vi.advanceTimersByTime(1_800_000);
-    expect(throttle.remaining('first@example.com')).toBe(0);
+    await vi.advanceTimersByTimeAsync(30_000);
+    await vi.waitFor(() => expect(google.authCalls()).toBe(2));
+    await uploading;
+
+    expect(google.authCalls()).toBe(2);
+    expect(chunks).toHaveLength(1);
+    expect(jobs.at(-1)).toMatchObject({ status: UploadJobStatus.Complete });
 });
 
-test('an extended cooldown moves the shared deadline forward', async () => {
-    const throttle = createThrottleCoordinator();
-    throttle.pause('first@example.com', 60);
-    vi.advanceTimersByTime(30_000);
+test('the fourth real throttled attempt fails the file and still records the cooldown', async () => {
+    const coordinator = createThrottleCoordinator(() => 0);
+    const google = throttlingFetcher(Number.POSITIVE_INFINITY, coordinator);
+    const { uploading, jobs } = await upload(google.fetcher, coordinator);
 
-    expect(throttle.pause('first@example.com', 120)).toBe(120);
+    await vi.waitFor(() => expect(google.authCalls()).toBe(1));
+    for (let attempt = 1; attempt < 4; attempt++) {
+        await vi.advanceTimersByTimeAsync(60_000);
+        await vi.waitFor(() => expect(google.authCalls()).toBe(attempt + 1));
+    }
+    await uploading;
 
-    let finished = false;
-    const waiting = throttle.wait('first@example.com').then(() => {
-        finished = true;
-    });
-    await vi.advanceTimersByTimeAsync(120_000);
-    await waiting;
-    expect(finished).toBe(true);
+    expect(google.authCalls()).toBe(4);
+    expect(jobs.at(-1)).toMatchObject({ status: UploadJobStatus.Error });
+    expect(jobs.at(-1)?.message).toContain('limiting requests');
+    expect(coordinator.remaining(ACCOUNT_KEY)).toBeGreaterThan(0);
 });
 
-test('waiters resume at different times after the same cooldown', async () => {
-    const throttle = createThrottleCoordinator();
-    throttle.pause('first@example.com', 60);
-    vi.mocked(Math.random).mockReturnValueOnce(0).mockReturnValueOnce(0.5);
-
-    let first = false;
-    let second = false;
-    const one = throttle.wait('first@example.com').then(() => {
-        first = true;
-    });
-    const two = throttle.wait('first@example.com').then(() => {
-        second = true;
-    });
-
-    await vi.advanceTimersByTimeAsync(60_000);
-    expect(first).toBe(true);
-    expect(second).toBe(false);
-    await vi.advanceTimersByTimeAsync(2_500);
-    await Promise.all([one, two]);
-    expect(first).toBe(true);
-    expect(second).toBe(true);
-});
-
-test('cancelling a wait stops the waiter', async () => {
-    const throttle = createThrottleCoordinator();
+test('cancelling a cooldown wait prevents the next Google request', async () => {
+    const coordinator = createThrottleCoordinator(() => 0);
+    const google = throttlingFetcher(Number.POSITIVE_INFINITY, coordinator);
     const controller = new AbortController();
-    throttle.pause('first@example.com', 60);
+    const { uploading, jobs } = await upload(google.fetcher, coordinator, {
+        signal: controller.signal
+    });
 
-    const waiting = throttle.wait('first@example.com', controller.signal);
+    await vi.waitFor(() => expect(google.authCalls()).toBe(1));
+    await vi.advanceTimersByTimeAsync(10_000);
     controller.abort();
+    await uploading;
 
-    await expect(waiting).rejects.toMatchObject({ name: 'AbortError' });
+    expect(jobs.at(-1)).toMatchObject({
+        status: UploadJobStatus.Error,
+        message: 'Upload cancelled.'
+    });
+
+    await vi.advanceTimersByTimeAsync(600_000);
+    expect(google.authCalls()).toBe(1);
 });
 
-test('another account does not inherit a cooldown', async () => {
-    const throttle = createThrottleCoordinator();
-    throttle.pause('first@example.com', 1_800);
+test('an already-cancelled upload never starts a Google request', async () => {
+    const coordinator = createThrottleCoordinator(() => 0);
+    const google = throttlingFetcher(Number.POSITIVE_INFINITY, coordinator);
+    const controller = new AbortController();
+    controller.abort();
+    const { uploading, jobs } = await upload(google.fetcher, coordinator, {
+        signal: controller.signal
+    });
 
-    await expect(throttle.wait('second@example.com')).resolves.toBeUndefined();
-    expect(throttle.remaining('second@example.com')).toBe(0);
+    await uploading;
+
+    expect(google.authCalls()).toBe(0);
+    expect(jobs.at(-1)).toMatchObject({
+        status: UploadJobStatus.Error,
+        message: 'Upload cancelled.'
+    });
 });

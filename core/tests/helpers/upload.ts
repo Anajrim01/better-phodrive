@@ -1,45 +1,44 @@
 import { createHash } from 'node:crypto';
 import {
-    UploadRequestSchema,
+    UploadChunkSchema,
     UploadEventType,
     UploadPhase,
     UploadStatus,
+    type Account,
     type UploadEvent
 } from '@madkarmaa/phodrive-core/models';
-import { encodeSplitBmp } from '@madkarmaa/phodrive-core/server/bmp';
-import { decodeSplitBmp } from './bmp';
+import { decodeSplitBmp, encodeSplitBmp } from './split-bmp';
 import { encodeSplitPrefix, MAX_CHUNK_PAYLOAD_BYTES } from '@madkarmaa/phodrive-core/bmp/format';
 import { fileIdentity } from '@madkarmaa/phodrive-core/server/chunks';
-import { bytesField, message, nested, numberField } from '@madkarmaa/phodrive-core/server/protobuf';
-import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
+
+/** The signed-in account the server adds to browser chunk metadata. */
+export const TEST_ACCOUNT: Account = { email: 'test@example.com', token: 'aas_et/test' };
 
 export function uploadForm(
     payload: Uint8Array = Buffer.from([0, 255, 13, 10, 42]),
     name = 'proof.bin',
-    options: {
-        fileSize?: number;
-        fileHash?: string;
-        chunkIndex?: number;
-        compress?: boolean;
-    } = {}
+    options: { fileSize?: number; fileHash?: string; chunkIndex?: number; folder?: string } = {}
 ) {
+    const folder = options.folder;
     const file = {
         name,
         size: options.fileSize ?? payload.length,
-        fileHash: options.fileHash ?? createHash('sha256').update(payload).digest('hex')
+        fileHash: options.fileHash ?? createHash('sha256').update(payload).digest('hex'),
+        ...(folder ? { folder } : {})
     };
     const chunkIndex = options.chunkIndex ?? 0;
     const count = Math.max(1, Math.ceil(file.size / MAX_CHUNK_PAYLOAD_BYTES));
     const header = {
         fileHash: file.fileHash,
-        fileId: fileIdentity(name, file.fileHash),
+        fileId: fileIdentity(name, file.fileHash, undefined, folder ?? ''),
         chunkIndex,
         flags: chunkIndex === count - 1 ? (1 as const) : (0 as const),
         payloadSize: Math.min(
             MAX_CHUNK_PAYLOAD_BYTES,
             file.size - chunkIndex * MAX_CHUNK_PAYLOAD_BYTES
         ),
-        fileName: chunkIndex === 0 ? name : undefined
+        fileName: chunkIndex === 0 ? name : undefined,
+        folder: chunkIndex === 0 ? folder : undefined
     };
     const prefix = encodeSplitPrefix(header).unwrap();
     // A deliberately short payload can test ingestion without allocating a sparse file's declared size.
@@ -48,12 +47,9 @@ export function uploadForm(
     for (let offset = 0; offset < prefix.paddingSize; offset += zero.length)
         hash.update(zero.subarray(0, prefix.paddingSize - offset));
     const metadata = {
-        email: 'test@example.com',
-        token: 'aas_et/test',
         file,
         chunkIndex,
-        sha1: hash.digest('hex'),
-        compress: options.compress ?? false
+        sha1: hash.digest('hex')
     };
     const form = new FormData();
     form.set('metadata', JSON.stringify(metadata));
@@ -74,10 +70,16 @@ export async function browserUploadResponse(
 ): Promise<Response> {
     if (!(init?.body instanceof FormData)) throw new Error('Expected chunk form');
     const json = init.body.get('metadata');
-    const payload = init.body.get('chunk');
-    if (typeof json !== 'string' || !(payload instanceof Blob))
-        throw new Error('Missing chunk metadata/payload');
-    const metadata = UploadRequestSchema.parse(JSON.parse(json));
+    const chunk = init.body.get('chunk');
+    if (typeof json !== 'string' || !(chunk instanceof Blob))
+        throw new Error('Missing chunk metadata/BMP');
+    const sent: unknown = JSON.parse(json);
+    if (typeof sent === 'object' && sent && ('email' in sent || 'token' in sent))
+        throw new Error('Browser chunk metadata must not carry account credentials');
+    const metadata = UploadChunkSchema.parse(sent);
+    // Browsers send the finished BMP; it must match what the server would have encoded.
+    const bmp = new Uint8Array(await chunk.arrayBuffer());
+    const payload = decodeSplitBmp(bmp).unwrap().payload;
     const count = Math.max(1, Math.ceil(metadata.file.size / MAX_CHUNK_PAYLOAD_BYTES));
     const header = {
         fileHash: metadata.file.fileHash,
@@ -89,12 +91,12 @@ export async function browserUploadResponse(
         ),
         chunkIndex: metadata.chunkIndex,
         flags: metadata.chunkIndex === count - 1 ? (1 as const) : (0 as const),
-        payloadSize: payload.size,
+        payloadSize: payload.length,
         fileName: metadata.chunkIndex === 0 ? metadata.file.name : undefined,
-        folder: metadata.file.folder
+        folder: metadata.chunkIndex === 0 ? metadata.file.folder : undefined
     };
-    const bytes = await payload.arrayBuffer();
-    const bmp = encodeSplitBmp(new Uint8Array(bytes), header).unwrap();
+    if (!Buffer.from(encodeSplitBmp(payload, header).unwrap()).equals(bmp))
+        throw new Error('Browser BMP does not match the expected encoding');
     if (createHash('sha1').update(bmp).digest('hex') !== metadata.sha1)
         throw new Error('Wrong browser BMP checksum');
     const result = {
@@ -122,8 +124,8 @@ export async function browserUploadResponse(
                 chunkIndex: header.chunkIndex,
                 isLast: Boolean(header.flags),
                 originalName: header.fileName,
-                folder: metadata.file.folder,
-                size: payload.size,
+                folder: header.folder,
+                size: payload.length,
                 at: 1,
                 mediaKey: result.mediaKey,
                 sha1: result.sha1
@@ -138,67 +140,4 @@ export async function browserUploadResponse(
             .join(''),
         { headers: { 'content-type': 'text/event-stream' } }
     );
-}
-
-export function photosUploadHarness(options: { duplicate?: boolean; failCommit?: boolean } = {}) {
-    const stored = new Map<string, Buffer>();
-    const counts = { lookups: 0, starts: 0, transfers: 0, commits: 0, largestBlock: 0 };
-    const scotty = message(numberField(1, 2), bytesField(2, Uint8Array.of(7)));
-    const fetcher: Fetcher = async (input, init) => {
-        const url = String(input);
-        if (url.includes('android.googleapis.com/auth'))
-            return new Response(`Auth=bearer\nExpiry=${Date.now() / 1000 + 3600}`);
-        if (url.includes('5084965799730810217')) {
-            counts.lookups++;
-            const data = await new Response(init?.body).arrayBuffer();
-            const sha1 = nested(Buffer.from(data), 1, 1, 1).unwrap();
-            const fields = [bytesField(1, bytesField(1, sha1))];
-            if (options.duplicate || stored.has(sha1.toString('hex')))
-                fields.push(bytesField(2, bytesField(1, 'existing-key')));
-            return new Response(Uint8Array.from(bytesField(1, bytesField(2, message(...fields)))));
-        }
-        if (init?.method === 'PUT') {
-            counts.transfers++;
-            const reader = new Response(init.body).body!.getReader();
-            const chunks: Uint8Array[] = [];
-            while (true) {
-                const next = await reader.read();
-                if (next.done) break;
-                counts.largestBlock = Math.max(counts.largestBlock, next.value.length);
-                chunks.push(next.value);
-            }
-            const bmp = Buffer.concat(chunks);
-            decodeSplitBmp(bmp).unwrap();
-            const sha1 = createHash('sha1').update(bmp).digest('hex');
-            stored.set(sha1, bmp);
-            expectLength(init, bmp.length);
-            return new Response(Uint8Array.from(scotty));
-        }
-        if (url.includes('uploadmedia/interactive')) {
-            counts.starts++;
-            return new Response(null, { headers: { 'x-guploader-uploadid': 'upload-id' } });
-        }
-        if (url.includes('16538846908252377752')) {
-            counts.commits++;
-            if (options.failCommit) return new Response(null, { status: 503 });
-            return new Response(
-                Uint8Array.from(
-                    bytesField(
-                        1,
-                        message(
-                            bytesField(1, scotty),
-                            numberField(2, 0),
-                            bytesField(3, bytesField(1, 'media-key'))
-                        )
-                    )
-                )
-            );
-        }
-        throw new Error('Unexpected provider request');
-    };
-    return { fetcher, stored, counts };
-}
-function expectLength(init: RequestInit | undefined, length: number) {
-    if (new Headers(init?.headers).get('content-length') !== String(length))
-        throw new Error('Wrong streamed BMP length');
 }

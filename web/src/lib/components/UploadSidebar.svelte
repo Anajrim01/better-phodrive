@@ -1,0 +1,260 @@
+<script lang="ts">
+    import {
+        Button,
+        ExtendedFab,
+        Fab,
+        IconButton,
+        NavigationDrawer,
+        NavigationDrawerItem
+    } from 'noph-ui';
+    import { MediaQuery } from 'svelte/reactivity';
+    import { AppView } from '@madkarmaa/phodrive-core/models';
+    import type { DriveContextState } from '#browser/drive/context.svelte';
+    import type { DriveContextSelection } from '#browser/storage';
+    import DriveContextSelect from '#components/DriveContextSelect.svelte';
+    import IconAdd from '~icons/material-symbols/add';
+    import IconFolder from '~icons/material-symbols/folder-outline';
+    import IconHome from '~icons/material-symbols/home-outline';
+    import IconDelete from '~icons/material-symbols/delete-outline';
+    import IconShare from '~icons/material-symbols/share';
+    import IconSettings from '~icons/material-symbols/settings-outline';
+    import IconClose from '~icons/material-symbols/close';
+
+    interface Props {
+        open?: boolean;
+        disabled: boolean;
+        contextDisabled: boolean;
+        view: AppView;
+        context: DriveContextState;
+        oncontextchange: (selection: DriveContextSelection) => void;
+        onnavigate: (view: AppView) => void;
+        onupload: (files: File[]) => void;
+    }
+
+    let {
+        open = $bindable(false),
+        disabled,
+        contextDisabled,
+        view,
+        context,
+        oncontextchange,
+        onnavigate,
+        onupload
+    }: Props = $props();
+
+    let picker: HTMLInputElement;
+    let folderPicker: HTMLInputElement;
+    const mobile = new MediaQuery('(width < 800px)');
+
+    $effect(() => {
+        if (!mobile.current) open = false;
+    });
+
+    function navigate(nextView: AppView) {
+        open = false;
+        onnavigate(nextView);
+    }
+</script>
+
+<aside class="upload-sidebar min-w-0 px-4 pt-2 pb-8" aria-label="Navigation">
+    <ExtendedFab
+        class="upload-button"
+        label="Upload"
+        aria-label="Upload"
+        variant="secondary-container"
+        {disabled}
+        onclick={() => picker.click()}
+    >
+        {#snippet icon()}<IconAdd aria-hidden="true" class="size-6" />{/snippet}
+    </ExtendedFab>
+
+    <input
+        bind:this={picker}
+        type="file"
+        multiple
+        class="sr-only"
+        aria-label="Upload files"
+        {disabled}
+        onchange={(event) => {
+            const files = Array.from(event.currentTarget.files ?? []);
+            event.currentTarget.value = '';
+
+            if (!files.length) return;
+
+            onupload(files);
+        }}
+    />
+
+    <input
+        bind:this={folderPicker}
+        type="file"
+        multiple
+        webkitdirectory
+        class="sr-only"
+        aria-label="Upload folder"
+        {disabled}
+        onchange={(event) => {
+            const files = Array.from(event.currentTarget.files ?? []);
+            event.currentTarget.value = '';
+
+            if (!files.length) return;
+
+            onupload(files);
+        }}
+    />
+
+    <div class="folder-upload">
+        <Button variant="text" {disabled} onclick={() => folderPicker.click()}>
+            <IconFolder aria-hidden="true" class="size-5" />
+            Upload folder
+        </Button>
+    </div>
+
+    <NavigationDrawer
+        id="main-navigation"
+        class={mobile.current ? 'mobile-navigation' : 'drive-navigation'}
+        aria-label="Main"
+        modal={mobile.current}
+        backdrop
+        bind:open
+    >
+        {#if mobile.current}
+            <div class="mb-4 flex items-center justify-between gap-4 pl-4">
+                <span class="text-xl text-text">Phodrive</span>
+                <IconButton title="Close navigation" onclick={() => (open = false)}>
+                    <IconClose aria-hidden="true" />
+                </IconButton>
+            </div>
+        {/if}
+        <DriveContextSelect
+            {context}
+            disabled={contextDisabled}
+            onchange={(selection) => {
+                oncontextchange(selection);
+                open = false;
+            }}
+        />
+        <NavigationDrawerItem
+            label="My files"
+            aria-label="My files"
+            selected={view === AppView.Files}
+            aria-current={view === AppView.Files ? 'page' : undefined}
+            onclick={() => navigate(AppView.Files)}
+        >
+            {#snippet icon()}<IconHome aria-hidden="true" class="size-5 shrink-0" />{/snippet}
+        </NavigationDrawerItem>
+        <NavigationDrawerItem
+            label="Trash"
+            aria-label="Trash"
+            selected={view === AppView.Trash}
+            aria-current={view === AppView.Trash ? 'page' : undefined}
+            onclick={() => navigate(AppView.Trash)}
+        >
+            {#snippet icon()}<IconDelete aria-hidden="true" class="size-5 shrink-0" />{/snippet}
+        </NavigationDrawerItem>
+        <NavigationDrawerItem
+            label="Shares"
+            aria-label="Shares"
+            selected={view === AppView.Shares}
+            aria-current={view === AppView.Shares ? 'page' : undefined}
+            onclick={() => navigate(AppView.Shares)}
+        >
+            {#snippet icon()}<IconShare aria-hidden="true" class="size-5 shrink-0" />{/snippet}
+        </NavigationDrawerItem>
+        <NavigationDrawerItem
+            label="Settings"
+            aria-label="Settings"
+            selected={view === AppView.Settings}
+            aria-current={view === AppView.Settings ? 'page' : undefined}
+            onclick={() => navigate(AppView.Settings)}
+        >
+            {#snippet icon()}<IconSettings aria-hidden="true" class="size-5 shrink-0" />{/snippet}
+        </NavigationDrawerItem>
+    </NavigationDrawer>
+
+    <div class="mobile-upload">
+        <Fab
+            label="Upload"
+            variant="secondary-container"
+            shape="square"
+            {disabled}
+            onclick={() => picker.click()}
+        >
+            {#snippet icon()}<IconAdd aria-hidden="true" class="size-6" />{/snippet}
+        </Fab>
+    </div>
+</aside>
+
+<style>
+    .mobile-upload {
+        display: none;
+    }
+
+    .folder-upload {
+        display: flex;
+        justify-content: center;
+        margin: -12px 0 20px;
+    }
+
+    @media (width < 800px), (hover: none), (pointer: coarse) {
+        .folder-upload {
+            display: none;
+        }
+    }
+
+    :global(.mobile-navigation) {
+        --np-navigation-drawer-width: min(320px, calc(100vw - 56px));
+        --np-navigation-drawer-padding: max(16px, env(safe-area-inset-top, 0px)) 12px 24px;
+        --np-color-secondary-container: var(--app-selected);
+        --np-color-on-secondary-container: var(--app-selected-text);
+    }
+
+    :global(:root .upload-button.np-extended-fab) {
+        height: 56px;
+        min-width: 110px;
+        margin-bottom: 22px;
+        border: 1px solid var(--app-border);
+        --np-fab-container-color: var(--app-panel);
+        --np-fab-icon-color: var(--app-text);
+        --np-fab-shape: 18px;
+        --np-fab-elevation: var(--np-elevation-1);
+    }
+
+    :global(:root .drive-navigation.np-navigation-drawer-container) {
+        width: 100%;
+        --np-navigation-drawer-width: 100%;
+        --np-navigation-drawer-height: auto;
+        --np-navigation-drawer-padding: 0;
+        --np-navigation-drawer-background: transparent;
+        --np-color-secondary-container: var(--app-selected);
+        --np-color-on-secondary-container: var(--app-selected-text);
+    }
+
+    :global(:root .drive-navigation.np-navigation-drawer-container .np-navigation-drawer) {
+        gap: 4px;
+    }
+    :global(:root .drive-navigation.np-navigation-drawer-container .np-navigation-drawer-item) {
+        height: 40px;
+        width: 100%;
+        padding: 0 18px 0 24px;
+        gap: 16px;
+    }
+
+    @media (width < 800px) {
+        .upload-sidebar {
+            display: contents;
+        }
+
+        :global(:root .upload-button.np-extended-fab) {
+            display: none;
+        }
+
+        .mobile-upload {
+            display: block;
+            position: fixed;
+            right: calc(16px + env(safe-area-inset-right, 0px));
+            bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+            z-index: 20;
+        }
+    }
+</style>

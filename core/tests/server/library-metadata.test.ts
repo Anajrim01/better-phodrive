@@ -1,15 +1,11 @@
 import { expect, test } from 'vitest';
 import {
     pageRequest,
-    parseLibraryPage,
-    stateRequest
+    parseLibraryPage
 } from '@madkarmaa/phodrive-core/server/photos/library/metadata';
-import {
-    LIBRARY_PAGE_REQUEST,
-    LIBRARY_STATE_REQUEST
-} from '@madkarmaa/phodrive-core/server/photos/library/requests';
-import { bytesField, message, nested, numberField } from '@madkarmaa/phodrive-core/server/protobuf';
-import { fixture, libraryPage } from '../helpers/library';
+import { LIBRARY_PAGE_REQUEST } from '@madkarmaa/phodrive-core/server/photos/library/requests';
+import { bytesField, message, nested } from '@madkarmaa/phodrive-core/server/protobuf';
+import { bytes, num } from '../helpers/protobuf';
 
 test('library pagination sends the resume token at field 1.4 and preserves the metadata mask', () => {
     const resume = Buffer.from('resume-next-page');
@@ -21,54 +17,11 @@ test('library pagination sends the resume token at field 1.4 and preserves the m
     expect(nested(request, 2).unwrap()).toEqual(nested(template, 2).unwrap());
 });
 
-test('library pagination sends the sync token at field 1.6', () => {
-    const resume = Buffer.from('resume-next-page');
-    const sync = Buffer.from('sync-context');
-    const request = pageRequest(resume, sync).unwrap();
-    const template = Buffer.from(LIBRARY_PAGE_REQUEST, 'base64');
-
-    expect(nested(request, 1, 4).unwrap()).toEqual(resume);
-    expect(nested(request, 1, 6).unwrap()).toEqual(sync);
-    expect(nested(request, 1, 1).unwrap()).toEqual(nested(template, 1, 1).unwrap());
-});
-
-test('the first delta state request carries 1.6 with no resume field', () => {
-    const sync = Buffer.from('sync-context');
-    const request = stateRequest(sync).unwrap();
-    const template = Buffer.from(LIBRARY_STATE_REQUEST, 'base64');
-
-    expect(nested(request, 1, 6).unwrap()).toEqual(sync);
-    expect(nested(request, 1, 4).isErr()).toBe(true);
-    expect(nested(request, 1, 1).unwrap()).toEqual(nested(template, 1, 1).unwrap());
-});
-
 test('a sync token without a resume token does not advertise another library page', () => {
     const response = bytesField(1, bytesField(6, 'next-sync-cycle'));
     const page = parseLibraryPage(response).unwrap();
 
-    expect(page.items).toEqual([]);
-    expect(page.nextPageToken).toBe('');
-    expect(page.syncToken?.toString()).toBe('next-sync-cycle');
-});
-
-test('delta pages parse deletions and the next sync token', () => {
-    const deletion = bytesField(
-        9,
-        message(
-            bytesField(
-                1,
-                message(numberField(1, 1), bytesField(2, message(bytesField(1, 'media-removed'))))
-            )
-        )
-    );
-    const response = bytesField(
-        1,
-        message(bytesField(1, ''), bytesField(6, 'next-sync'), deletion)
-    );
-    const page = parseLibraryPage(response).unwrap();
-
-    expect(page.deletedMediaKeys).toEqual(['media-removed']);
-    expect(page.syncToken?.toString()).toBe('next-sync');
+    expect(page).toEqual({ items: [], nextPageToken: '', warnings: [] });
 });
 
 test('an empty resume token ends pagination even when the sync token remains', () => {
@@ -78,15 +31,86 @@ test('an empty resume token ends pagination even when the sync token remains', (
     expect(page.nextPageToken).toBe('');
 });
 
-test('oversized and undersized visible items are skipped without failing the page', () => {
-    const file = fixture('note.txt', 'valid content');
-    const response = libraryPage([
-        { ...file, fileName: `note.txt.phodrive-${file.sha1}-0-of-1.bmp` },
-        { mediaKey: 'huge', sha1: 'a'.repeat(40), size: 300_000_000, at: 1, fileName: 'huge.mp4' },
-        { mediaKey: 'tiny', sha1: 'b'.repeat(40), size: 10, at: 1, fileName: 'tiny.bin' }
-    ]);
-    const page = parseLibraryPage(response).unwrap();
+test('a key-only hidden item is omitted without a parse warning', () => {
+    const keyOnly = bytesField(
+        2,
+        Buffer.concat([bytesField(1, 'key-only'), bytesField(2, bytes(16, num(3, 1)))])
+    );
+    const page = parseLibraryPage(bytesField(1, keyOnly)).unwrap();
 
-    expect(page.items).toHaveLength(1);
-    expect(page.items[0]?.mediaKey).toBe(file.mediaKey);
+    expect(page.items).toEqual([]);
+    expect(page.warnings).toEqual([]);
+});
+
+test('an item outside the BMP size range is filtered before requiring a fingerprint', () => {
+    const details = Buffer.concat([bytes(4, 'too-small.jpg'), num(9, 1), num(10, 4)]);
+    const item = bytesField(2, Buffer.concat([bytesField(1, 'small-key'), bytesField(2, details)]));
+    const page = parseLibraryPage(bytesField(1, item)).unwrap();
+
+    expect(page.items).toEqual([]);
+    expect(page.warnings).toEqual([]);
+});
+
+test('visible items with missing or invalid metadata are counted without dropping valid siblings', () => {
+    const valid = bytesField(
+        2,
+        Buffer.concat([
+            bytesField(1, 'valid-key'),
+            bytesField(
+                2,
+                Buffer.concat([
+                    bytes(4, 'valid.bmp'),
+                    num(9, 1),
+                    num(10, 3126),
+                    bytes(13, bytes(1, Buffer.alloc(20, 1)))
+                ])
+            )
+        ])
+    );
+    const missingFingerprint = bytesField(
+        2,
+        Buffer.concat([
+            bytesField(1, 'missing-fingerprint'),
+            bytesField(2, Buffer.concat([bytes(4, 'missing.bmp'), num(9, 1), num(10, 3126)]))
+        ])
+    );
+    const invalidFingerprint = bytesField(
+        2,
+        Buffer.concat([
+            bytesField(1, 'invalid-fingerprint'),
+            bytesField(
+                2,
+                Buffer.concat([
+                    bytes(4, 'invalid.bmp'),
+                    num(9, 1),
+                    num(10, 3126),
+                    bytes(13, bytes(1, Buffer.alloc(3, 1)))
+                ])
+            )
+        ])
+    );
+    const page = parseLibraryPage(
+        bytesField(1, Buffer.concat([valid, missingFingerprint, invalidFingerprint]))
+    ).unwrap();
+
+    expect(page.items).toEqual([expect.objectContaining({ mediaKey: 'valid-key', size: 3126 })]);
+    expect(page.warnings).toEqual([{ code: 'ENTRY_PARSE_FAILED', count: 2 }]);
+});
+
+test('a malformed entry is counted without dropping the valid page entries', () => {
+    const details = Buffer.concat([
+        bytes(4, 'valid.bmp'),
+        num(9, 1),
+        num(10, 3126),
+        bytes(13, bytes(1, Buffer.alloc(20, 1)))
+    ]);
+    const valid = bytesField(
+        2,
+        Buffer.concat([bytesField(1, 'valid-key'), bytesField(2, details)])
+    );
+    const malformed = bytesField(2, Buffer.from([0x0a, 0x05, 0x41]));
+    const page = parseLibraryPage(bytesField(1, Buffer.concat([valid, malformed]))).unwrap();
+
+    expect(page.items).toEqual([expect.objectContaining({ mediaKey: 'valid-key', size: 3126 })]);
+    expect(page.warnings).toEqual([{ code: 'ENTRY_PARSE_FAILED', count: 1 }]);
 });

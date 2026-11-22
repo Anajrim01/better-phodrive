@@ -5,16 +5,13 @@ import { sortFiles, type FileGroup } from '@madkarmaa/phodrive-core/files';
 function file(name: string, at: number): FileGroup {
     return {
         name,
+        folder: '',
         at,
         email: 'test@example.com',
         fileHash: name,
         fileId: name,
-        folder: '',
         chunkCount: null,
         chunks: [],
-        duplicates: [],
-        trashedChunks: [],
-        trashed: false,
         complete: false
     };
 }

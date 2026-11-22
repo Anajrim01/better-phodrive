@@ -25,9 +25,9 @@
             "@madkarmaa/phodrive-core": "./src/index.ts",
             "default": "./dist/index.js"
         },
-        "./albums": {
-            "@madkarmaa/phodrive-core": "./src/albums.ts",
-            "default": "./dist/albums.js"
+        "./auth": {
+            "@madkarmaa/phodrive-core": "./src/auth.ts",
+            "default": "./dist/auth.js"
         },
         "./bmp/errors": {
             "@madkarmaa/phodrive-core": "./src/bmp/errors.ts",
@@ -41,109 +41,97 @@
             "@madkarmaa/phodrive-core": "./src/browser/index.ts",
             "default": "./dist/browser/index.js"
         },
-        "./browser/accounts": {
-            "@madkarmaa/phodrive-core": "./src/browser/accounts.ts",
-            "default": "./dist/browser/accounts.js"
-        },
-        "./browser/albums": {
-            "@madkarmaa/phodrive-core": "./src/browser/albums.ts",
-            "default": "./dist/browser/albums.js"
-        },
         "./browser/api": {
             "@madkarmaa/phodrive-core": "./src/browser/api.ts",
             "default": "./dist/browser/api.js"
         },
-        "./browser/file-action-helpers": {
-            "@madkarmaa/phodrive-core": "./src/browser/file-action-helpers.ts",
-            "default": "./dist/browser/file-action-helpers.js"
+        "./browser/chunk-verifier": {
+            "@madkarmaa/phodrive-core": "./src/browser/chunk-verifier.ts",
+            "default": "./dist/browser/chunk-verifier.js"
+        },
+        "./browser/download": {
+            "@madkarmaa/phodrive-core": "./src/browser/download.ts",
+            "default": "./dist/browser/download.js"
         },
         "./browser/files": {
             "@madkarmaa/phodrive-core": "./src/browser/files.ts",
             "default": "./dist/browser/files.js"
         },
-        "./browser/files-bulk": {
-            "@madkarmaa/phodrive-core": "./src/browser/files-bulk.ts",
-            "default": "./dist/browser/files-bulk.js"
+        "./browser/hashers": {
+            "@madkarmaa/phodrive-core": "./src/browser/hashers.ts",
+            "default": "./dist/browser/hashers.js"
         },
         "./browser/library": {
             "@madkarmaa/phodrive-core": "./src/browser/library.ts",
             "default": "./dist/browser/library.js"
         },
-        "./browser/manage": {
-            "@madkarmaa/phodrive-core": "./src/browser/manage.ts",
-            "default": "./dist/browser/manage.js"
-        },
-        "./browser/shares": {
-            "@madkarmaa/phodrive-core": "./src/browser/shares.ts",
-            "default": "./dist/browser/shares.js"
-        },
         "./browser/upload": {
             "@madkarmaa/phodrive-core": "./src/browser/upload/index.ts",
             "default": "./dist/browser/upload/index.js"
+        },
+        "./browser/upload/assignment": {
+            "@madkarmaa/phodrive-core": "./src/browser/upload/assignment.ts",
+            "default": "./dist/browser/upload/assignment.js"
         },
         "./browser/upload/chunk": {
             "@madkarmaa/phodrive-core": "./src/browser/upload/chunk.ts",
             "default": "./dist/browser/upload/chunk.js"
         },
-        "./browser/upload/eta": {
-            "@madkarmaa/phodrive-core": "./src/browser/upload/eta.ts",
-            "default": "./dist/browser/upload/eta.js"
-        },
-        "./browser/upload/file": {
-            "@madkarmaa/phodrive-core": "./src/browser/upload/file.ts",
-            "default": "./dist/browser/upload/file.js"
-        },
-        "./browser/upload/group": {
-            "@madkarmaa/phodrive-core": "./src/browser/upload/group.ts",
-            "default": "./dist/browser/upload/group.js"
-        },
         "./browser/upload/hash": {
             "@madkarmaa/phodrive-core": "./src/browser/upload/hash.ts",
             "default": "./dist/browser/upload/hash.js"
+        },
+        "./browser/upload/job-state": {
+            "@madkarmaa/phodrive-core": "./src/browser/upload/job-state.ts",
+            "default": "./dist/browser/upload/job-state.js"
         },
         "./browser/upload/jobs": {
             "@madkarmaa/phodrive-core": "./src/browser/upload/jobs.ts",
             "default": "./dist/browser/upload/jobs.js"
         },
+        "./browser/upload/planned": {
+            "@madkarmaa/phodrive-core": "./src/browser/upload/planned.ts",
+            "default": "./dist/browser/upload/planned.js"
+        },
         "./browser/upload/request": {
             "@madkarmaa/phodrive-core": "./src/browser/upload/request.ts",
             "default": "./dist/browser/upload/request.js"
-        },
-        "./browser/upload/throttle": {
-            "@madkarmaa/phodrive-core": "./src/browser/upload/throttle.ts",
-            "default": "./dist/browser/upload/throttle.js"
-        },
-        "./bulk-delete": {
-            "@madkarmaa/phodrive-core": "./src/bulk-delete.ts",
-            "default": "./dist/bulk-delete.js"
         },
         "./errors": {
             "@madkarmaa/phodrive-core": "./src/errors.ts",
             "default": "./dist/errors.js"
         },
+        "./file-groups": {
+            "@madkarmaa/phodrive-core": "./src/file-groups.ts",
+            "default": "./dist/file-groups.js"
+        },
         "./files": {
             "@madkarmaa/phodrive-core": "./src/files.ts",
             "default": "./dist/files.js"
         },
-        "./groups": {
-            "@madkarmaa/phodrive-core": "./src/groups.ts",
-            "default": "./dist/groups.js"
-        },
-        "./incomplete": {
-            "@madkarmaa/phodrive-core": "./src/incomplete.ts",
-            "default": "./dist/incomplete.js"
-        },
-        "./library-sync": {
-            "@madkarmaa/phodrive-core": "./src/library-sync.ts",
-            "default": "./dist/library-sync.js"
-        },
-        "./manage": {
-            "@madkarmaa/phodrive-core": "./src/manage.ts",
-            "default": "./dist/manage.js"
-        },
         "./models": {
             "@madkarmaa/phodrive-core": "./src/models.ts",
             "default": "./dist/models.js"
+        },
+        "./models/accounts": {
+            "@madkarmaa/phodrive-core": "./src/models/accounts.ts",
+            "default": "./dist/models/accounts.js"
+        },
+        "./models/files": {
+            "@madkarmaa/phodrive-core": "./src/models/files.ts",
+            "default": "./dist/models/files.js"
+        },
+        "./models/settings": {
+            "@madkarmaa/phodrive-core": "./src/models/settings.ts",
+            "default": "./dist/models/settings.js"
+        },
+        "./models/shares": {
+            "@madkarmaa/phodrive-core": "./src/models/shares.ts",
+            "default": "./dist/models/shares.js"
+        },
+        "./models/upload": {
+            "@madkarmaa/phodrive-core": "./src/models/upload.ts",
+            "default": "./dist/models/upload.js"
         },
         "./node": {
             "@madkarmaa/phodrive-core": "./src/node/index.ts",
@@ -157,6 +145,14 @@
             "@madkarmaa/phodrive-core": "./src/node/library.ts",
             "default": "./dist/node/library.js"
         },
+        "./node/local-files": {
+            "@madkarmaa/phodrive-core": "./src/node/local-files.ts",
+            "default": "./dist/node/local-files.js"
+        },
+        "./node/save": {
+            "@madkarmaa/phodrive-core": "./src/node/save.ts",
+            "default": "./dist/node/save.js"
+        },
         "./node/upload": {
             "@madkarmaa/phodrive-core": "./src/node/upload.ts",
             "default": "./dist/node/upload.js"
@@ -164,14 +160,6 @@
         "./preferences": {
             "@madkarmaa/phodrive-core": "./src/preferences.ts",
             "default": "./dist/preferences.js"
-        },
-        "./preferences-models": {
-            "@madkarmaa/phodrive-core": "./src/preferences-models.ts",
-            "default": "./dist/preferences-models.js"
-        },
-        "./preview": {
-            "@madkarmaa/phodrive-core": "./src/preview.ts",
-            "default": "./dist/preview.js"
         },
         "./server": {
             "@madkarmaa/phodrive-core": "./src/server/index.ts",
@@ -189,21 +177,25 @@
             "@madkarmaa/phodrive-core": "./src/server/bmp/index.ts",
             "default": "./dist/server/bmp/index.js"
         },
+        "./server/bmp/fields": {
+            "@madkarmaa/phodrive-core": "./src/server/bmp/fields.ts",
+            "default": "./dist/server/bmp/fields.js"
+        },
+        "./server/bmp/prefix": {
+            "@madkarmaa/phodrive-core": "./src/server/bmp/prefix.ts",
+            "default": "./dist/server/bmp/prefix.js"
+        },
         "./server/bmp/stream": {
             "@madkarmaa/phodrive-core": "./src/server/bmp/stream.ts",
             "default": "./dist/server/bmp/stream.js"
         },
-        "./server/chunk-open": {
-            "@madkarmaa/phodrive-core": "./src/server/chunk-open.ts",
-            "default": "./dist/server/chunk-open.js"
+        "./server/chunk-cursor": {
+            "@madkarmaa/phodrive-core": "./src/server/chunk-cursor.ts",
+            "default": "./dist/server/chunk-cursor.js"
         },
         "./server/chunks": {
             "@madkarmaa/phodrive-core": "./src/server/chunks.ts",
             "default": "./dist/server/chunks.js"
-        },
-        "./server/compress": {
-            "@madkarmaa/phodrive-core": "./src/server/compress.ts",
-            "default": "./dist/server/compress.js"
         },
         "./server/download": {
             "@madkarmaa/phodrive-core": "./src/server/download.ts",
@@ -221,57 +213,13 @@
             "@madkarmaa/phodrive-core": "./src/server/files.ts",
             "default": "./dist/server/files.js"
         },
-        "./server/files-bulk": {
-            "@madkarmaa/phodrive-core": "./src/server/files-bulk.ts",
-            "default": "./dist/server/files-bulk.js"
-        },
-        "./server/files-bulk-batch": {
-            "@madkarmaa/phodrive-core": "./src/server/files-bulk-batch.ts",
-            "default": "./dist/server/files-bulk-batch.js"
-        },
-        "./server/files-bulk-fallback": {
-            "@madkarmaa/phodrive-core": "./src/server/files-bulk-fallback.ts",
-            "default": "./dist/server/files-bulk-fallback.js"
-        },
-        "./server/files-bulk-validation": {
-            "@madkarmaa/phodrive-core": "./src/server/files-bulk-validation.ts",
-            "default": "./dist/server/files-bulk-validation.js"
-        },
-        "./server/files-state-validation": {
-            "@madkarmaa/phodrive-core": "./src/server/files-state-validation.ts",
-            "default": "./dist/server/files-state-validation.js"
-        },
-        "./server/folders": {
-            "@madkarmaa/phodrive-core": "./src/server/folders.ts",
-            "default": "./dist/server/folders.js"
-        },
-        "./server/manage": {
-            "@madkarmaa/phodrive-core": "./src/server/manage.ts",
-            "default": "./dist/server/manage.js"
-        },
-        "./server/manage-auth": {
-            "@madkarmaa/phodrive-core": "./src/server/manage-auth.ts",
-            "default": "./dist/server/manage-auth.js"
-        },
         "./server/photos": {
             "@madkarmaa/phodrive-core": "./src/server/photos/index.ts",
             "default": "./dist/server/photos/index.js"
         },
-        "./server/photos/albums": {
-            "@madkarmaa/phodrive-core": "./src/server/photos/albums.ts",
-            "default": "./dist/server/photos/albums.js"
-        },
         "./server/photos/auth": {
             "@madkarmaa/phodrive-core": "./src/server/photos/auth.ts",
             "default": "./dist/server/photos/auth.js"
-        },
-        "./server/photos/auth-cache": {
-            "@madkarmaa/phodrive-core": "./src/server/photos/auth-cache.ts",
-            "default": "./dist/server/photos/auth-cache.js"
-        },
-        "./server/photos/delete-response": {
-            "@madkarmaa/phodrive-core": "./src/server/photos/delete-response.ts",
-            "default": "./dist/server/photos/delete-response.js"
         },
         "./server/photos/download": {
             "@madkarmaa/phodrive-core": "./src/server/photos/download.ts",
@@ -281,85 +229,37 @@
             "@madkarmaa/phodrive-core": "./src/server/photos/library/index.ts",
             "default": "./dist/server/photos/library/index.js"
         },
-        "./server/photos/library/apply-delta": {
-            "@madkarmaa/phodrive-core": "./src/server/photos/library/apply-delta.ts",
-            "default": "./dist/server/photos/library/apply-delta.js"
-        },
-        "./server/photos/library/delta": {
-            "@madkarmaa/phodrive-core": "./src/server/photos/library/delta.ts",
-            "default": "./dist/server/photos/library/delta.js"
-        },
-        "./server/photos/library/ensure": {
-            "@madkarmaa/phodrive-core": "./src/server/photos/library/ensure.ts",
-            "default": "./dist/server/photos/library/ensure.js"
-        },
-        "./server/photos/library/folder-hints": {
-            "@madkarmaa/phodrive-core": "./src/server/photos/library/folder-hints.ts",
-            "default": "./dist/server/photos/library/folder-hints.js"
-        },
-        "./server/photos/library/index-files": {
-            "@madkarmaa/phodrive-core": "./src/server/photos/library/index-files.ts",
-            "default": "./dist/server/photos/library/index-files.js"
-        },
-        "./server/photos/library/listing-updates": {
-            "@madkarmaa/phodrive-core": "./src/server/photos/library/listing-updates.ts",
-            "default": "./dist/server/photos/library/listing-updates.js"
-        },
-        "./server/photos/library/lock": {
-            "@madkarmaa/phodrive-core": "./src/server/photos/library/lock.ts",
-            "default": "./dist/server/photos/library/lock.js"
+        "./server/photos/library/content-groups": {
+            "@madkarmaa/phodrive-core": "./src/server/photos/library/content-groups.ts",
+            "default": "./dist/server/photos/library/content-groups.js"
         },
         "./server/photos/library/metadata": {
             "@madkarmaa/phodrive-core": "./src/server/photos/library/metadata.ts",
             "default": "./dist/server/photos/library/metadata.js"
         },
-        "./server/photos/library/metadata-page": {
-            "@madkarmaa/phodrive-core": "./src/server/photos/library/metadata-page.ts",
-            "default": "./dist/server/photos/library/metadata-page.js"
-        },
-        "./server/photos/library/overrides": {
-            "@madkarmaa/phodrive-core": "./src/server/photos/library/overrides.ts",
-            "default": "./dist/server/photos/library/overrides.js"
-        },
-        "./server/photos/library/page": {
-            "@madkarmaa/phodrive-core": "./src/server/photos/library/page.ts",
-            "default": "./dist/server/photos/library/page.js"
-        },
         "./server/photos/library/probe": {
             "@madkarmaa/phodrive-core": "./src/server/photos/library/probe.ts",
             "default": "./dist/server/photos/library/probe.js"
-        },
-        "./server/photos/library/probe-cache": {
-            "@madkarmaa/phodrive-core": "./src/server/photos/library/probe-cache.ts",
-            "default": "./dist/server/photos/library/probe-cache.js"
         },
         "./server/photos/library/requests": {
             "@madkarmaa/phodrive-core": "./src/server/photos/library/requests.ts",
             "default": "./dist/server/photos/library/requests.js"
         },
-        "./server/photos/library/state": {
-            "@madkarmaa/phodrive-core": "./src/server/photos/library/state.ts",
-            "default": "./dist/server/photos/library/state.js"
+        "./server/photos/mutation-response": {
+            "@madkarmaa/phodrive-core": "./src/server/photos/mutation-response.ts",
+            "default": "./dist/server/photos/mutation-response.js"
         },
-        "./server/photos/library/state-overrides": {
-            "@madkarmaa/phodrive-core": "./src/server/photos/library/state-overrides.ts",
-            "default": "./dist/server/photos/library/state-overrides.js"
+        "./server/photos/mutations": {
+            "@madkarmaa/phodrive-core": "./src/server/photos/mutations.ts",
+            "default": "./dist/server/photos/mutations.js"
         },
-        "./server/photos/library/state-parse": {
-            "@madkarmaa/phodrive-core": "./src/server/photos/library/state-parse.ts",
-            "default": "./dist/server/photos/library/state-parse.js"
+        "./server/photos/shares": {
+            "@madkarmaa/phodrive-core": "./src/server/photos/shares/index.ts",
+            "default": "./dist/server/photos/shares/index.js"
         },
-        "./server/photos/library/sync": {
-            "@madkarmaa/phodrive-core": "./src/server/photos/library/sync.ts",
-            "default": "./dist/server/photos/library/sync.js"
-        },
-        "./server/photos/permanent-delete": {
-            "@madkarmaa/phodrive-core": "./src/server/photos/permanent-delete.ts",
-            "default": "./dist/server/photos/permanent-delete.js"
-        },
-        "./server/photos/restore": {
-            "@madkarmaa/phodrive-core": "./src/server/photos/restore.ts",
-            "default": "./dist/server/photos/restore.js"
+        "./server/photos/shares/snapshot": {
+            "@madkarmaa/phodrive-core": "./src/server/photos/shares/snapshot.ts",
+            "default": "./dist/server/photos/shares/snapshot.js"
         },
         "./server/photos/throttle": {
             "@madkarmaa/phodrive-core": "./src/server/photos/throttle.ts",
@@ -369,41 +269,17 @@
             "@madkarmaa/phodrive-core": "./src/server/photos/transport.ts",
             "default": "./dist/server/photos/transport.js"
         },
-        "./server/photos/trash": {
-            "@madkarmaa/phodrive-core": "./src/server/photos/trash.ts",
-            "default": "./dist/server/photos/trash.js"
-        },
         "./server/photos/upload": {
             "@madkarmaa/phodrive-core": "./src/server/photos/upload/index.ts",
             "default": "./dist/server/photos/upload/index.js"
         },
-        "./server/photos/upload/lookup": {
-            "@madkarmaa/phodrive-core": "./src/server/photos/upload/lookup.ts",
-            "default": "./dist/server/photos/upload/lookup.js"
+        "./server/photos/upload/requests": {
+            "@madkarmaa/phodrive-core": "./src/server/photos/upload/requests.ts",
+            "default": "./dist/server/photos/upload/requests.js"
         },
-        "./server/photos/upload/transfer": {
-            "@madkarmaa/phodrive-core": "./src/server/photos/upload/transfer.ts",
-            "default": "./dist/server/photos/upload/transfer.js"
-        },
-        "./server/preview": {
-            "@madkarmaa/phodrive-core": "./src/server/preview.ts",
-            "default": "./dist/server/preview.js"
-        },
-        "./server/preview/image": {
-            "@madkarmaa/phodrive-core": "./src/server/preview/image.ts",
-            "default": "./dist/server/preview/image.js"
-        },
-        "./server/preview/payload": {
-            "@madkarmaa/phodrive-core": "./src/server/preview/payload.ts",
-            "default": "./dist/server/preview/payload.js"
-        },
-        "./server/preview/text": {
-            "@madkarmaa/phodrive-core": "./src/server/preview/text.ts",
-            "default": "./dist/server/preview/text.js"
-        },
-        "./server/preview/text-prefix": {
-            "@madkarmaa/phodrive-core": "./src/server/preview/text-prefix.ts",
-            "default": "./dist/server/preview/text-prefix.js"
+        "./server/photos/upload/responses": {
+            "@madkarmaa/phodrive-core": "./src/server/photos/upload/responses.ts",
+            "default": "./dist/server/photos/upload/responses.js"
         },
         "./server/protobuf": {
             "@madkarmaa/phodrive-core": "./src/server/protobuf.ts",
@@ -413,46 +289,6 @@
             "@madkarmaa/phodrive-core": "./src/server/request.ts",
             "default": "./dist/server/request.js"
         },
-        "./server/share": {
-            "@madkarmaa/phodrive-core": "./src/server/share/index.ts",
-            "default": "./dist/server/share/index.js"
-        },
-        "./server/share/create": {
-            "@madkarmaa/phodrive-core": "./src/server/share/create.ts",
-            "default": "./dist/server/share/create.js"
-        },
-        "./server/share/envelope": {
-            "@madkarmaa/phodrive-core": "./src/server/share/envelope.ts",
-            "default": "./dist/server/share/envelope.js"
-        },
-        "./server/share/link": {
-            "@madkarmaa/phodrive-core": "./src/server/share/link.ts",
-            "default": "./dist/server/share/link.js"
-        },
-        "./server/share/manifest": {
-            "@madkarmaa/phodrive-core": "./src/server/share/manifest.ts",
-            "default": "./dist/server/share/manifest.js"
-        },
-        "./server/share/public": {
-            "@madkarmaa/phodrive-core": "./src/server/share/public.ts",
-            "default": "./dist/server/share/public.js"
-        },
-        "./server/share/recovery": {
-            "@madkarmaa/phodrive-core": "./src/server/share/recovery.ts",
-            "default": "./dist/server/share/recovery.js"
-        },
-        "./server/share/requests": {
-            "@madkarmaa/phodrive-core": "./src/server/share/requests.ts",
-            "default": "./dist/server/share/requests.js"
-        },
-        "./server/share/resume": {
-            "@madkarmaa/phodrive-core": "./src/server/share/resume.ts",
-            "default": "./dist/server/share/resume.js"
-        },
-        "./server/share/revoke": {
-            "@madkarmaa/phodrive-core": "./src/server/share/revoke.ts",
-            "default": "./dist/server/share/revoke.js"
-        },
         "./server/upload": {
             "@madkarmaa/phodrive-core": "./src/server/upload/index.ts",
             "default": "./dist/server/upload/index.js"
@@ -461,45 +297,37 @@
             "@madkarmaa/phodrive-core": "./src/server/upload/bmp.ts",
             "default": "./dist/server/upload/bmp.js"
         },
+        "./server/upload/file": {
+            "@madkarmaa/phodrive-core": "./src/server/upload/file.ts",
+            "default": "./dist/server/upload/file.js"
+        },
         "./server/upload/input": {
             "@madkarmaa/phodrive-core": "./src/server/upload/input.ts",
             "default": "./dist/server/upload/input.js"
         },
-        "./server/upload/probe": {
-            "@madkarmaa/phodrive-core": "./src/server/upload/probe.ts",
-            "default": "./dist/server/upload/probe.js"
+        "./server/upload/multipart": {
+            "@madkarmaa/phodrive-core": "./src/server/upload/multipart.ts",
+            "default": "./dist/server/upload/multipart.js"
         },
-        "./server/upload/progress": {
-            "@madkarmaa/phodrive-core": "./src/server/upload/progress.ts",
-            "default": "./dist/server/upload/progress.js"
+        "./server/upload/multipart-streams": {
+            "@madkarmaa/phodrive-core": "./src/server/upload/multipart-streams.ts",
+            "default": "./dist/server/upload/multipart-streams.js"
         },
-        "./server/upload/raw": {
-            "@madkarmaa/phodrive-core": "./src/server/upload/raw.ts",
-            "default": "./dist/server/upload/raw.js"
-        },
-        "./server/upload/source": {
-            "@madkarmaa/phodrive-core": "./src/server/upload/source.ts",
-            "default": "./dist/server/upload/source.js"
+        "./server/upload/spool": {
+            "@madkarmaa/phodrive-core": "./src/server/upload/spool.ts",
+            "default": "./dist/server/upload/spool.js"
         },
         "./server/upload/stream": {
             "@madkarmaa/phodrive-core": "./src/server/upload/stream.ts",
             "default": "./dist/server/upload/stream.js"
         },
+        "./server/upload/verified-stream": {
+            "@madkarmaa/phodrive-core": "./src/server/upload/verified-stream.ts",
+            "default": "./dist/server/upload/verified-stream.js"
+        },
         "./server/workers": {
             "@madkarmaa/phodrive-core": "./src/server/workers.ts",
             "default": "./dist/server/workers.js"
-        },
-        "./share-models": {
-            "@madkarmaa/phodrive-core": "./src/share-models.ts",
-            "default": "./dist/share-models.js"
-        },
-        "./stats": {
-            "@madkarmaa/phodrive-core": "./src/stats.ts",
-            "default": "./dist/stats.js"
-        },
-        "./trash": {
-            "@madkarmaa/phodrive-core": "./src/trash.ts",
-            "default": "./dist/trash.js"
         },
         "./upload": {
             "@madkarmaa/phodrive-core": "./src/upload.ts",
@@ -540,125 +368,82 @@
         "registry": "https://npm.pkg.github.com",
         "exports": {
             ".": "./dist/index.js",
-            "./albums": "./dist/albums.js",
+            "./auth": "./dist/auth.js",
             "./bmp/errors": "./dist/bmp/errors.js",
             "./bmp/format": "./dist/bmp/format.js",
             "./browser": "./dist/browser/index.js",
-            "./browser/accounts": "./dist/browser/accounts.js",
-            "./browser/albums": "./dist/browser/albums.js",
             "./browser/api": "./dist/browser/api.js",
-            "./browser/file-action-helpers": "./dist/browser/file-action-helpers.js",
+            "./browser/chunk-verifier": "./dist/browser/chunk-verifier.js",
+            "./browser/download": "./dist/browser/download.js",
             "./browser/files": "./dist/browser/files.js",
-            "./browser/files-bulk": "./dist/browser/files-bulk.js",
+            "./browser/hashers": "./dist/browser/hashers.js",
             "./browser/library": "./dist/browser/library.js",
-            "./browser/manage": "./dist/browser/manage.js",
-            "./browser/shares": "./dist/browser/shares.js",
             "./browser/upload": "./dist/browser/upload/index.js",
+            "./browser/upload/assignment": "./dist/browser/upload/assignment.js",
             "./browser/upload/chunk": "./dist/browser/upload/chunk.js",
-            "./browser/upload/eta": "./dist/browser/upload/eta.js",
-            "./browser/upload/file": "./dist/browser/upload/file.js",
-            "./browser/upload/group": "./dist/browser/upload/group.js",
             "./browser/upload/hash": "./dist/browser/upload/hash.js",
+            "./browser/upload/job-state": "./dist/browser/upload/job-state.js",
             "./browser/upload/jobs": "./dist/browser/upload/jobs.js",
+            "./browser/upload/planned": "./dist/browser/upload/planned.js",
             "./browser/upload/request": "./dist/browser/upload/request.js",
-            "./browser/upload/throttle": "./dist/browser/upload/throttle.js",
-            "./bulk-delete": "./dist/bulk-delete.js",
             "./errors": "./dist/errors.js",
+            "./file-groups": "./dist/file-groups.js",
             "./files": "./dist/files.js",
-            "./groups": "./dist/groups.js",
-            "./incomplete": "./dist/incomplete.js",
-            "./library-sync": "./dist/library-sync.js",
-            "./manage": "./dist/manage.js",
             "./models": "./dist/models.js",
+            "./models/accounts": "./dist/models/accounts.js",
+            "./models/files": "./dist/models/files.js",
+            "./models/settings": "./dist/models/settings.js",
+            "./models/shares": "./dist/models/shares.js",
+            "./models/upload": "./dist/models/upload.js",
             "./node": "./dist/node/index.js",
             "./node/files": "./dist/node/files.js",
             "./node/library": "./dist/node/library.js",
+            "./node/local-files": "./dist/node/local-files.js",
+            "./node/save": "./dist/node/save.js",
             "./node/upload": "./dist/node/upload.js",
             "./preferences": "./dist/preferences.js",
-            "./preferences-models": "./dist/preferences-models.js",
-            "./preview": "./dist/preview.js",
             "./server": "./dist/server/index.js",
             "./server/aas": "./dist/server/aas.js",
             "./server/accounts": "./dist/server/accounts.js",
             "./server/bmp": "./dist/server/bmp/index.js",
+            "./server/bmp/fields": "./dist/server/bmp/fields.js",
+            "./server/bmp/prefix": "./dist/server/bmp/prefix.js",
             "./server/bmp/stream": "./dist/server/bmp/stream.js",
-            "./server/chunk-open": "./dist/server/chunk-open.js",
+            "./server/chunk-cursor": "./dist/server/chunk-cursor.js",
             "./server/chunks": "./dist/server/chunks.js",
-            "./server/compress": "./dist/server/compress.js",
             "./server/download": "./dist/server/download.js",
             "./server/errors": "./dist/server/errors.js",
             "./server/fetcher": "./dist/server/fetcher.js",
             "./server/files": "./dist/server/files.js",
-            "./server/files-bulk": "./dist/server/files-bulk.js",
-            "./server/files-bulk-batch": "./dist/server/files-bulk-batch.js",
-            "./server/files-bulk-fallback": "./dist/server/files-bulk-fallback.js",
-            "./server/files-bulk-validation": "./dist/server/files-bulk-validation.js",
-            "./server/files-state-validation": "./dist/server/files-state-validation.js",
-            "./server/folders": "./dist/server/folders.js",
-            "./server/manage": "./dist/server/manage.js",
-            "./server/manage-auth": "./dist/server/manage-auth.js",
             "./server/photos": "./dist/server/photos/index.js",
-            "./server/photos/albums": "./dist/server/photos/albums.js",
             "./server/photos/auth": "./dist/server/photos/auth.js",
-            "./server/photos/auth-cache": "./dist/server/photos/auth-cache.js",
-            "./server/photos/delete-response": "./dist/server/photos/delete-response.js",
             "./server/photos/download": "./dist/server/photos/download.js",
             "./server/photos/library": "./dist/server/photos/library/index.js",
-            "./server/photos/library/apply-delta": "./dist/server/photos/library/apply-delta.js",
-            "./server/photos/library/delta": "./dist/server/photos/library/delta.js",
-            "./server/photos/library/ensure": "./dist/server/photos/library/ensure.js",
-            "./server/photos/library/folder-hints": "./dist/server/photos/library/folder-hints.js",
-            "./server/photos/library/index-files": "./dist/server/photos/library/index-files.js",
-            "./server/photos/library/listing-updates": "./dist/server/photos/library/listing-updates.js",
-            "./server/photos/library/lock": "./dist/server/photos/library/lock.js",
+            "./server/photos/library/content-groups": "./dist/server/photos/library/content-groups.js",
             "./server/photos/library/metadata": "./dist/server/photos/library/metadata.js",
-            "./server/photos/library/metadata-page": "./dist/server/photos/library/metadata-page.js",
-            "./server/photos/library/overrides": "./dist/server/photos/library/overrides.js",
-            "./server/photos/library/page": "./dist/server/photos/library/page.js",
             "./server/photos/library/probe": "./dist/server/photos/library/probe.js",
-            "./server/photos/library/probe-cache": "./dist/server/photos/library/probe-cache.js",
             "./server/photos/library/requests": "./dist/server/photos/library/requests.js",
-            "./server/photos/library/state": "./dist/server/photos/library/state.js",
-            "./server/photos/library/state-overrides": "./dist/server/photos/library/state-overrides.js",
-            "./server/photos/library/state-parse": "./dist/server/photos/library/state-parse.js",
-            "./server/photos/library/sync": "./dist/server/photos/library/sync.js",
-            "./server/photos/permanent-delete": "./dist/server/photos/permanent-delete.js",
-            "./server/photos/restore": "./dist/server/photos/restore.js",
+            "./server/photos/mutation-response": "./dist/server/photos/mutation-response.js",
+            "./server/photos/mutations": "./dist/server/photos/mutations.js",
+            "./server/photos/shares": "./dist/server/photos/shares/index.js",
+            "./server/photos/shares/snapshot": "./dist/server/photos/shares/snapshot.js",
             "./server/photos/throttle": "./dist/server/photos/throttle.js",
             "./server/photos/transport": "./dist/server/photos/transport.js",
-            "./server/photos/trash": "./dist/server/photos/trash.js",
             "./server/photos/upload": "./dist/server/photos/upload/index.js",
-            "./server/photos/upload/lookup": "./dist/server/photos/upload/lookup.js",
-            "./server/photos/upload/transfer": "./dist/server/photos/upload/transfer.js",
-            "./server/preview": "./dist/server/preview.js",
-            "./server/preview/image": "./dist/server/preview/image.js",
-            "./server/preview/payload": "./dist/server/preview/payload.js",
-            "./server/preview/text": "./dist/server/preview/text.js",
-            "./server/preview/text-prefix": "./dist/server/preview/text-prefix.js",
+            "./server/photos/upload/requests": "./dist/server/photos/upload/requests.js",
+            "./server/photos/upload/responses": "./dist/server/photos/upload/responses.js",
             "./server/protobuf": "./dist/server/protobuf.js",
             "./server/request": "./dist/server/request.js",
-            "./server/share": "./dist/server/share/index.js",
-            "./server/share/create": "./dist/server/share/create.js",
-            "./server/share/envelope": "./dist/server/share/envelope.js",
-            "./server/share/link": "./dist/server/share/link.js",
-            "./server/share/manifest": "./dist/server/share/manifest.js",
-            "./server/share/public": "./dist/server/share/public.js",
-            "./server/share/recovery": "./dist/server/share/recovery.js",
-            "./server/share/requests": "./dist/server/share/requests.js",
-            "./server/share/resume": "./dist/server/share/resume.js",
-            "./server/share/revoke": "./dist/server/share/revoke.js",
             "./server/upload": "./dist/server/upload/index.js",
             "./server/upload/bmp": "./dist/server/upload/bmp.js",
+            "./server/upload/file": "./dist/server/upload/file.js",
             "./server/upload/input": "./dist/server/upload/input.js",
-            "./server/upload/probe": "./dist/server/upload/probe.js",
-            "./server/upload/progress": "./dist/server/upload/progress.js",
-            "./server/upload/raw": "./dist/server/upload/raw.js",
-            "./server/upload/source": "./dist/server/upload/source.js",
+            "./server/upload/multipart": "./dist/server/upload/multipart.js",
+            "./server/upload/multipart-streams": "./dist/server/upload/multipart-streams.js",
+            "./server/upload/spool": "./dist/server/upload/spool.js",
             "./server/upload/stream": "./dist/server/upload/stream.js",
+            "./server/upload/verified-stream": "./dist/server/upload/verified-stream.js",
             "./server/workers": "./dist/server/workers.js",
-            "./share-models": "./dist/share-models.js",
-            "./stats": "./dist/stats.js",
-            "./trash": "./dist/trash.js",
             "./upload": "./dist/upload.js",
             "./validation": "./dist/validation.js",
             "./package.json": "./package.json"

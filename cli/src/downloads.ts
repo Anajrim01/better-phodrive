@@ -1,14 +1,12 @@
 import { dirname, join, resolve } from 'node:path';
 import prettyBytes from 'pretty-bytes';
-import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
+import { Err, Ok, type AsyncResult } from 'results-ts';
 import type { FileGroup } from '@madkarmaa/phodrive-core/files';
-import { downloadRoute, type RouteMember } from '@madkarmaa/phodrive-core/groups';
 import { downloadFile } from '@madkarmaa/phodrive-core/node';
 import type { Session } from './accounts';
 import type { CliContext, CliError } from './context';
 import { createFolder, inspectFolder } from './filesystem';
 import { fileSize, status, transferProgress } from './output';
-import { retryThrottled } from './throttle';
 
 const UNSAFE_NAMES = new Set(['.', '..']);
 
@@ -29,10 +27,7 @@ function intoFolder(
         const created = await createFolder(folder);
 
         return created.map(() =>
-            files.map((file) => ({
-                file,
-                destination: join(folder, ...file.folder.split('/').filter(Boolean), file.name)
-            }))
+            files.map((file) => ({ file, destination: join(folder, file.name) }))
         );
     });
 }
@@ -61,11 +56,11 @@ export function planDownloads(
     });
 }
 
-function savePlanned(
+export function saveFiles(
     context: CliContext,
+    session: Session,
     planned: readonly PlannedDownload[],
-    force: boolean,
-    tokenForFile: (file: FileGroup) => Result<string, CliError>
+    force: boolean
 ): AsyncResult<void, CliError> {
     return Ok(undefined).andThenAsync(async () => {
         const failures: CliError[] = [];
@@ -73,35 +68,15 @@ function savePlanned(
         for (const { file, destination } of planned) {
             if (context.signal.aborted) break;
 
-            const routed = tokenForFile(file);
-            if (routed.isErr()) {
-                status(context).error(`${file.name}: ${routed.unwrapErr().message}`);
-                failures.push(routed.unwrapErr());
-
-                continue;
-            }
-
-            const parent = await createFolder(dirname(destination));
-            if (parent.isErr()) {
-                parent.inspectErr((error) => {
-                    status(context).error(`${file.name}: ${error.message}`);
-                    failures.push(error);
-                });
-
-                continue;
-            }
-
             const size = fileSize(file);
             const bar = transferProgress(context, `Downloading ${file.name}`, size);
 
-            const saved = await retryThrottled(context, () =>
-                downloadFile(file, routed.unwrap(), destination, {
-                    force,
-                    signal: context.signal,
-                    onProgress: (written) =>
-                        bar.update(written, `${prettyBytes(written)} of ${prettyBytes(size)}`)
-                })
-            );
+            const saved = await downloadFile(file, session.token, destination, {
+                force,
+                signal: context.signal,
+                onProgress: (written) =>
+                    bar.update(written, `${prettyBytes(written)} of ${prettyBytes(size)}`)
+            });
 
             saved.match({
                 Ok: () => {
@@ -126,24 +101,4 @@ function savePlanned(
             message: `${failures.length} of ${planned.length} files failed to download.`
         } as const);
     });
-}
-
-export function saveFiles(
-    context: CliContext,
-    session: Session,
-    planned: readonly PlannedDownload[],
-    force: boolean
-): AsyncResult<void, CliError> {
-    return savePlanned(context, planned, force, () => Ok(session.token));
-}
-
-export function saveGroupFiles(
-    context: CliContext,
-    planned: readonly PlannedDownload[],
-    members: readonly RouteMember[],
-    force: boolean
-): AsyncResult<void, CliError> {
-    return savePlanned(context, planned, force, (file) =>
-        downloadRoute(file, members).map((route) => route.token)
-    );
 }

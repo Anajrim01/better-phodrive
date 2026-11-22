@@ -13,8 +13,7 @@ import type { CliError } from './context';
 
 export enum SettingKey {
     Sort = 'sort',
-    Workers = 'workers',
-    Compression = 'compression'
+    Workers = 'workers'
 }
 
 export enum SettingSource {
@@ -36,8 +35,8 @@ type SettingDefinition = {
     description: string;
     allowed: () => string;
     parse: (raw: string) => Result<StoredSettings, CliError>;
-    saved: (settings: StoredSettings) => string | number | boolean | undefined;
-    fallback: (environment: Environment) => string | number | boolean;
+    saved: (settings: StoredSettings) => string | number | undefined;
+    fallback: (environment: Environment) => string | number;
 };
 
 const SORT_VALUES = Object.values(FileSort).join(', ');
@@ -66,14 +65,6 @@ function parseWorkers(raw: string): Result<number, CliError> {
         return invalidValue(SettingKey.Workers, workerValues());
 
     return Ok(parsed.data);
-}
-
-function parseCompression(raw: string): Result<boolean, CliError> {
-    const value = raw.trim().toLowerCase();
-    if (value === 'on' || value === 'true') return Ok(true);
-    if (value === 'off' || value === 'false') return Ok(false);
-
-    return invalidValue(SettingKey.Compression, 'on or off');
 }
 
 function defaultSort(environment: Environment): FileSort {
@@ -110,19 +101,12 @@ const SETTINGS: Record<SettingKey, SettingDefinition> = {
         parse: (raw) => parseWorkers(raw).map((workers) => ({ workers })),
         saved: savedWorkers,
         fallback: defaultWorkers
-    },
-    [SettingKey.Compression]: {
-        description: 'Compress uploads when it saves at least 5%',
-        allowed: () => 'on or off',
-        parse: (raw) => parseCompression(raw).map((compression) => ({ compression })),
-        saved: (settings) => settings.compression,
-        fallback: () => false
     }
 };
 
 export type SettingValue = {
     key: SettingKey;
-    value: string | number | boolean;
+    value: string | number;
     source: SettingSource;
     description: string;
     allowed: string;
@@ -169,11 +153,6 @@ export function chooseWorkers(
         return Ok(savedWorkers(config.settings) ?? defaultWorkers(environment));
 
     return parseWorkers(option);
-}
-
-/** The `--compress` flag turns it on for one run; otherwise the saved setting applies. */
-export function chooseCompression(config: CliConfig, option?: boolean): boolean {
-    return option ?? config.settings.compression ?? false;
 }
 
 export function parseSettingKey(raw: string): Result<SettingKey, CliError> {

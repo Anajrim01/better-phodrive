@@ -1,161 +1,37 @@
 import { SERVER_ERRORS, type ServerError } from '../errors';
 import { Err, Ok, type Result } from 'results-ts';
-import Varint from 'varint';
+import { SplitHeaderSchema, type SplitHeader } from '../../models';
 import {
-    SplitHeaderSchema,
-    SPLIT_FLAGS_MAX,
-    splitHeaderIsCompressed,
-    type SplitHeader
-} from '../../models';
-import {
-    encodeSplitPrefix,
-    BMP_HEADER_BYTES,
-    SPLIT_MAGIC,
-    SPLIT_MAGIC_PREFIX,
-    SPLIT_MAGIC_WITH_FOLDER,
-    SPLIT_FOLDER_VERSION,
-    FILE_HASH_BYTES
-} from '../../bmp/format';
+    hashHex,
+    isSplitBmp,
+    readSplitFolder,
+    readSplitName,
+    readVarint,
+    splitMagic
+} from './fields';
+import { BMP_HEADER_BYTES, SPLIT_MAGIC_WITH_FOLDER, FILE_HASH_BYTES } from '../../bmp/format';
 export {
     BMP_HEADER_BYTES,
+    isPossibleSplitBmpSize,
     MAX_PHOTOS_BMP_BYTES,
     MAX_CHUNK_PAYLOAD_BYTES,
     MAX_SPLIT_HEADER_BYTES,
+    MIN_SPLIT_BMP_BYTES,
     splitHeaderByteLength,
     splitBmpByteLength
 } from '../../bmp/format';
 
-const UTF8 = new TextDecoder('utf-8', { fatal: true });
-
-function hashHex(bytes: Uint8Array): string {
-    return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
-}
-
-function readVarint(
-    data: Uint8Array,
-    start: number
-): Result<{ value: number; next: number }, ServerError> {
-    try {
-        const value = Varint.decode(data, start);
-        const length = Varint.decode.bytes;
-
-        if (
-            !Number.isSafeInteger(value) ||
-            value < 0 ||
-            length === undefined ||
-            length !== Varint.encodingLength(value)
-        )
-            return Err(SERVER_ERRORS.INVALID_CHUNK_VARINT);
-
-        return Ok({ value, next: start + length });
-    } catch {
-        return Err(SERVER_ERRORS.INVALID_CHUNK_VARINT);
-    }
-}
-
-export function encodeSplitBmp(
-    payload: Uint8Array,
-    input: SplitHeader
-): Result<Uint8Array<ArrayBuffer>, ServerError> {
-    if (input.payloadSize !== payload.length) return Err(SERVER_ERRORS.INVALID_CHUNK_METADATA);
-
-    return encodeSplitPrefix(input).andThen(({ prefix, totalSize }) => {
-        let bmp: Uint8Array<ArrayBuffer>;
-
-        try {
-            bmp = new Uint8Array(totalSize);
-        } catch {
-            return Err(SERVER_ERRORS.BMP_ALLOCATION_FAILED);
-        }
-        bmp.set(prefix);
-        bmp.set(payload, prefix.length);
-
-        return Ok(bmp);
-    });
-}
-
-function readSplitName(
-    prefix: Uint8Array,
-    offset: number,
-    chunkIndex: number
-): Result<{ fileName: string | undefined; payloadOffset: number }, ServerError> {
-    if (chunkIndex !== 0) return Ok({ fileName: undefined, payloadOffset: offset });
-
-    return readVarint(prefix, offset).andThen((length) => {
-        if (length.value > prefix.length - length.next)
-            return Err(SERVER_ERRORS.INVALID_DOWNLOADED_BMP);
-
-        const payloadOffset = length.next + length.value;
-
-        try {
-            const fileName = UTF8.decode(prefix.subarray(length.next, payloadOffset));
-
-            return Ok({ fileName, payloadOffset });
-        } catch {
-            return Err(SERVER_ERRORS.INVALID_DOWNLOADED_BMP);
-        }
-    });
-}
-
-function readSplitFolder(
-    prefix: Uint8Array,
-    offset: number,
-    chunkIndex: number,
-    withFolder: boolean
-): Result<{ folder: string | undefined; payloadOffset: number }, ServerError> {
-    if (!withFolder) return Ok({ folder: undefined, payloadOffset: offset });
-    if (chunkIndex !== 0) return Err(SERVER_ERRORS.INVALID_DOWNLOADED_BMP);
-
-    return readVarint(prefix, offset).andThen((length) => {
-        if (!length.value || length.value > prefix.length - length.next)
-            return Err(SERVER_ERRORS.INVALID_DOWNLOADED_BMP);
-
-        const payloadOffset = length.next + length.value;
-
-        try {
-            const folder = UTF8.decode(prefix.subarray(length.next, payloadOffset));
-
-            return Ok({ folder, payloadOffset });
-        } catch {
-            return Err(SERVER_ERRORS.INVALID_DOWNLOADED_BMP);
-        }
-    });
-}
-
-/** Only the prefix is read; the payload must stay unread. */
+/** Read metadata from the beginning of a BMP without loading its payload. */
 export function decodeSplitHeader(
     prefix: Uint8Array,
     totalSize: number
 ): Result<{ header: SplitHeader; payloadOffset: number }, ServerError> {
     const invalid = () => Err(SERVER_ERRORS.INVALID_DOWNLOADED_BMP);
-    if (prefix.length < BMP_HEADER_BYTES + SPLIT_MAGIC.length + 2 * FILE_HASH_BYTES + 3)
-        return invalid();
+    if (!isSplitBmp(prefix, totalSize)) return invalid();
 
-    const magicOffset = BMP_HEADER_BYTES;
-    const withFolder = prefix[magicOffset + SPLIT_MAGIC_PREFIX.length] === SPLIT_FOLDER_VERSION;
-    const magic = withFolder ? SPLIT_MAGIC_WITH_FOLDER : SPLIT_MAGIC;
-    const view = new DataView(prefix.buffer, prefix.byteOffset, prefix.byteLength);
-    const width = view.getInt32(18, true);
-    const height = view.getInt32(22, true);
-    if (
-        prefix[0] !== 66 ||
-        prefix[1] !== 77 ||
-        view.getUint32(2, true) !== totalSize ||
-        view.getUint32(10, true) !== BMP_HEADER_BYTES ||
-        view.getUint32(14, true) !== 40 ||
-        view.getUint16(26, true) !== 1 ||
-        view.getUint16(28, true) !== 24 ||
-        view.getUint32(30, true) !== 0 ||
-        width < 32 ||
-        height < 32 ||
-        width % 4 !== 0 ||
-        width * 3 * height !== totalSize - BMP_HEADER_BYTES ||
-        view.getUint32(34, true) !== totalSize - BMP_HEADER_BYTES ||
-        magic.some((byte, index) => prefix[magicOffset + index] !== byte)
-    )
-        return invalid();
-
-    let offset = magicOffset + magic.length;
+    const magic = splitMagic(prefix)!;
+    const withFolder = magic === SPLIT_MAGIC_WITH_FOLDER;
+    let offset = BMP_HEADER_BYTES + magic.length;
     const fileHash = hashHex(prefix.subarray(offset, offset + FILE_HASH_BYTES));
     offset += FILE_HASH_BYTES;
 
@@ -166,34 +42,33 @@ export function decodeSplitHeader(
         if (index.next >= prefix.length) return invalid();
 
         const flags = prefix[index.next];
-        if ((flags & ~SPLIT_FLAGS_MAX) !== 0) return invalid();
 
-        return readVarint(prefix, index.next + 1).andThen((size) => {
-            const header = {
-                fileHash,
-                fileId,
-                chunkIndex: index.value,
-                flags,
-                payloadSize: size.value,
-                payloadOffset: size.next
-            };
-            if (!splitHeaderIsCompressed(flags)) return Ok(header);
-
-            return readVarint(prefix, size.next).map((original) => ({
-                ...header,
-                originalSize: original.value,
-                payloadOffset: original.next
-            }));
-        });
+        return readVarint(prefix, index.next + 1).map((size) => ({
+            fileHash,
+            fileId,
+            chunkIndex: index.value,
+            flags,
+            payloadSize: size.value,
+            payloadOffset: size.next
+        }));
     });
 
     return metadata
         .andThen((header) =>
-            readSplitName(prefix, header.payloadOffset, header.chunkIndex).andThen((name) =>
-                readSplitFolder(prefix, name.payloadOffset, header.chunkIndex, withFolder).map(
-                    (folder) => ({ ...header, ...name, ...folder })
-                )
-            )
+            readSplitName(prefix, header.payloadOffset, header.chunkIndex).map((name) => ({
+                ...header,
+                ...name
+            }))
+        )
+        .andThen((header) =>
+            withFolder
+                ? readSplitFolder(prefix, header.payloadOffset, header.chunkIndex).map(
+                      (folder) => ({
+                          ...header,
+                          ...folder
+                      })
+                  )
+                : Ok(header)
         )
         .andThen(
             ({

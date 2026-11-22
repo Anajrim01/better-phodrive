@@ -1,16 +1,22 @@
-import { FileSort, FileActionKind, FolderPathSchema, type RemoteBmp } from './models';
+import { Err, Ok, type Result } from 'results-ts';
+import { FileSort, FileActionKind, FolderPathSchema } from './models';
 import { MAX_CHUNK_PAYLOAD_BYTES } from './bmp/format';
-import { expectedChunks, missingChunks } from './incomplete';
+import type { ApplicationError } from './errors';
+import type { FileGroup } from './file-groups';
 
-export {
-    expectedChunks,
-    incompleteChunkMessage,
-    incompleteFileMessage,
-    missingChunks
-} from './incomplete';
+export { fileKey, groupChunks, ownerKey, partitionFileGroups } from './file-groups';
+export type { FileGroup, UploadedChunk } from './file-groups';
 
-export type UploadedChunk = RemoteBmp & { email: string };
+export type FolderEntry = {
+    path: string;
+    name: string;
+    files: number;
+    subfolders: number;
+};
 
+export type FolderCrumb = { name: string; path: string };
+
+/** Root stays unchanged; non-root folders append one NUL-separated segment. */
 export function identityInput(
     name: string,
     fileHash: string,
@@ -22,97 +28,88 @@ export function identityInput(
     return folder ? `${base}\u0000${folder}` : base;
 }
 
-export type FileGroup = {
-    email: string;
-    fileHash: string;
-    fileId: string;
-    name: string;
-    folder: string;
-    at: number;
-    chunkCount: number | null;
-    chunks: UploadedChunk[];
-    duplicates: UploadedChunk[];
-    trashedChunks: UploadedChunk[];
-    trashed: boolean;
-    complete: boolean;
-};
+export const INVALID_FOLDER_PATH = {
+    code: 'INVALID_FOLDER_PATH',
+    message: 'Invalid folder path.'
+} as const satisfies ApplicationError;
 
-export function fileKey(file: { email: string; fileId: string }): string {
-    return `${file.email}:${file.fileId}`;
-}
-
+/** Display and lookup helper. API and storage validation must use resolveFolder instead. */
 export function normalizedFolder(folder?: string): string {
-    if (!folder) return '';
-    if (!FolderPathSchema.safeParse(folder).success) return '';
+    const resolved = resolveFolder(folder);
 
-    return folder;
+    return resolved.isOk() ? resolved.unwrap() : '';
 }
 
-export function folderFromFile(file: File, fallback = ''): string {
+/** Validate one folder path. Root is the empty string. */
+export function resolveFolder(folder?: string): Result<string, ApplicationError> {
+    if (!folder) return Ok('');
+
+    return FolderPathSchema.safeParse(folder).success ? Ok(folder) : Err(INVALID_FOLDER_PATH);
+}
+
+/**
+ * Resolve a picker file's folder before identity generation. Empty segments from a relative path
+ * stay in place so validation rejects them instead of silently normalizing the path.
+ */
+export function resolveUploadFolder(file: File, fallback = ''): Result<string, ApplicationError> {
+    const root = resolveFolder(fallback);
+    if (root.isErr()) return root;
+
     const relative = 'webkitRelativePath' in file ? file.webkitRelativePath : '';
-    const segments = typeof relative === 'string' ? relative.split('/').slice(0, -1) : [];
-    const path = segments.filter(Boolean).join('/');
-    const root = normalizedFolder(fallback);
-    const candidate = path ? [root, path].filter(Boolean).join('/') : root;
+    if (typeof relative !== 'string' || relative === '') return root;
 
-    return normalizedFolder(candidate);
+    const segments = relative.split('/');
+    if (segments.at(-1) === '') return Err(INVALID_FOLDER_PATH);
+    if (segments.length === 1) return root;
+
+    const path = segments.slice(0, -1).join('/');
+    if (!path) return Err(INVALID_FOLDER_PATH);
+
+    const current = root.unwrap();
+
+    return resolveFolder(current ? `${current}/${path}` : path);
 }
 
+/** Parent folder of a filesystem-style path. */
 export function folderFromPath(path: string): string {
-    const segments = path.split(/[\\/]/).slice(0, -1);
-
-    return normalizedFolder(segments.join('/'));
+    return path.split(/[\\/]/).slice(0, -1).join('/');
 }
 
-export type FolderEntry = {
-    path: string;
-    name: string;
-    files: number;
-    subfolders: number;
-};
-
-export function childFolders(files: readonly FileGroup[], path: string): FolderEntry[] {
+export function childFolders(
+    files: readonly Pick<FileGroup, 'folder'>[],
+    path: string
+): FolderEntry[] {
     const prefix = path ? `${path}/` : '';
     const entries = new Map<string, FolderEntry>();
     const subfolders = new Map<string, Set<string>>();
 
     for (const file of files) {
         if (!file.folder.startsWith(prefix)) continue;
-
         const rest = file.folder.slice(prefix.length);
         if (!rest) continue;
 
-        const name = rest.split('/')[0];
-        const childPath = `${prefix}${name}`;
-        const entry = entries.get(childPath) ?? {
-            path: childPath,
-            name,
-            files: 0,
-            subfolders: 0
-        };
-        if (rest === name) {
-            entry.files++;
-        } else {
+        const name = rest.split('/')[0]!;
+        const childPath = prefix + name;
+        const entry = entries.get(childPath) ?? { path: childPath, name, files: 0, subfolders: 0 };
+
+        if (rest === name) entry.files++;
+        else {
             const subfolder = rest.slice(name.length + 1).split('/')[0];
             if (subfolder) {
-                const children = subfolders.get(childPath) ?? new Set<string>();
-                children.add(`${childPath}/${subfolder}`);
-                subfolders.set(childPath, children);
+                const paths = subfolders.get(childPath) ?? new Set<string>();
+                paths.add(`${childPath}/${subfolder}`);
+                subfolders.set(childPath, paths);
             }
         }
 
         entries.set(childPath, entry);
     }
 
-    for (const [childPath, children] of subfolders) {
-        const entry = entries.get(childPath);
-        if (entry) entry.subfolders = children.size;
-    }
+    for (const [childPath, entry] of entries)
+        entry.subfolders = subfolders.get(childPath)?.size ?? 0;
 
     return [...entries.values()].sort((first, second) => first.name.localeCompare(second.name));
 }
-
-export type FolderCrumb = { name: string; path: string };
 
 export function folderTrail(path: string): FolderCrumb[] {
     if (!path) return [];
@@ -123,85 +120,6 @@ export function folderTrail(path: string): FolderCrumb[] {
         name,
         path: segments.slice(0, index + 1).join('/')
     }));
-}
-
-type IndexedFileGroup = {
-    file: FileGroup;
-    chunkPositions?: Map<number, number>;
-};
-
-export function groupChunks(items: UploadedChunk[]): FileGroup[] {
-    const groups = new Map<string, IndexedFileGroup>();
-
-    for (const chunk of items) {
-        const key = fileKey(chunk);
-        const entry = groups.get(key);
-
-        if (!entry) {
-            const file: FileGroup = {
-                email: chunk.email,
-                fileHash: chunk.fileHash,
-                fileId: chunk.fileId,
-                name: chunk.originalName ?? `File ${chunk.fileHash.slice(0, 12)}`,
-                folder: chunk.folder ?? '',
-                at: chunk.at,
-                chunkCount: null,
-                chunks: [chunk],
-                duplicates: [],
-                trashedChunks: [],
-                trashed: false,
-                complete: false
-            };
-            groups.set(key, { file });
-
-            continue;
-        }
-
-        const group = entry.file;
-        let position: number | undefined;
-        if (entry.chunkPositions) {
-            position = entry.chunkPositions.get(chunk.chunkIndex);
-        } else if (group.chunks[0].chunkIndex === chunk.chunkIndex) {
-            position = 0;
-        }
-
-        const current = position === undefined ? undefined : group.chunks[position];
-        group.at = Math.max(group.at, chunk.at);
-        if (current) {
-            if (current.at > chunk.at) {
-                group.duplicates.push(chunk);
-                continue;
-            }
-            group.duplicates.push(current);
-        }
-
-        if (position === undefined) {
-            // Single-chunk files need no map. Positions stay valid until the final sort.
-            entry.chunkPositions ??= new Map([[group.chunks[0].chunkIndex, 0]]);
-            entry.chunkPositions.set(chunk.chunkIndex, group.chunks.length);
-            group.chunks.push(chunk);
-        } else {
-            group.chunks[position] = chunk;
-        }
-
-        if (chunk.chunkIndex === 0) {
-            if (chunk.originalName) group.name = chunk.originalName;
-            group.folder = chunk.folder ?? '';
-        }
-    }
-
-    return [...groups.values()].map(({ file: group }) => {
-        group.chunks.sort((first, second) => first.chunkIndex - second.chunkIndex);
-
-        const expected = expectedChunks(group.chunks);
-        group.chunkCount = expected;
-        group.complete =
-            expected !== null &&
-            group.chunks.every((chunk) => chunk.chunkIndex < expected) &&
-            missingChunks(group.chunks, expected) === 0;
-
-        return group;
-    });
 }
 
 /** A trailing dot has no extension; an empty type would collide with the "All" filter. */
@@ -226,18 +144,7 @@ export function sortFiles(files: readonly FileGroup[], order: FileSort): FileGro
     });
 }
 
-export type FileAction = { email: string; fileId: string; kind: FileActionKind };
-
-/** Match progress to the owner as well as the file ID; group members can share one ID. */
-export function fileActionKind(
-    action: FileAction | null,
-    item: { email: string; fileId: string }
-): FileActionKind | null {
-    if (!action) return null;
-    if (action.email.toLowerCase() !== item.email.toLowerCase()) return null;
-
-    return action.fileId === item.fileId ? action.kind : null;
-}
+export type FileAction = { fileId: string; kind: FileActionKind };
 
 const DAY_MS = 86_400_000;
 

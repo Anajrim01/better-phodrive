@@ -1,0 +1,98 @@
+import { afterAll, afterEach, beforeEach, expect, test, vi } from 'vitest';
+import { FileActionKind, type RemoteBmp } from '@madkarmaa/phodrive-core/models';
+import { DriveController } from '#browser/drive/index.svelte';
+import { useAccount } from '../helpers/drive';
+
+const { storage } = await vi.hoisted(async () => {
+    const { stubBrowser } = await import('../helpers/browser');
+
+    return stubBrowser();
+});
+
+vi.mock('esm-env', () => ({ BROWSER: true, DEV: true }));
+vi.mock('#browser/drive/refresh.svelte', () => ({ useAutomaticRefresh: vi.fn() }));
+
+afterAll(() => vi.unstubAllGlobals());
+afterEach(() => vi.restoreAllMocks());
+
+beforeEach(() => {
+    storage.clear();
+});
+
+function remoteChunk(overrides: Partial<RemoteBmp> = {}): RemoteBmp {
+    return {
+        fileHash: 'a'.repeat(64),
+        fileId: 'a'.repeat(64),
+        chunkIndex: 0,
+        isLast: false,
+        originalName: 'archive.bin',
+        size: 5,
+        at: 1,
+        mediaKey: 'shared-media-key',
+        sha1: 'b'.repeat(40),
+        ...overrides
+    };
+}
+
+test('partial delete retains exact confirmations, retries remaining chunks, and preserves unrelated files', async () => {
+    const first = remoteChunk();
+    const remaining = remoteChunk({
+        chunkIndex: 1,
+        isLast: true,
+        originalName: undefined,
+        mediaKey: 'remaining-media-key',
+        sha1: 'c'.repeat(40)
+    });
+    const unrelated = remoteChunk({
+        fileHash: 'd'.repeat(64),
+        fileId: 'd'.repeat(64),
+        isLast: true,
+        originalName: 'other-account.bin'
+    });
+    const fetchBodies: unknown[] = [];
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (_input, init) => {
+        if (typeof init?.body !== 'string') throw new Error('Expected a JSON delete request.');
+        const body: unknown = JSON.parse(init.body);
+        fetchBodies.push(body);
+
+        if (fetchBodies.length === 1)
+            return Response.json({ applied: [first], error: 'One chunk failed' });
+
+        return Response.json({ applied: [remaining] });
+    });
+
+    const drive = new DriveController('owner@example.com');
+    drive.initialize();
+    useAccount(drive, { id: 'account-owner', email: 'owner@example.com' });
+    drive.library.chunks = [
+        { ...first, email: 'owner@example.com' },
+        { ...remaining, email: 'owner@example.com' },
+        { ...unrelated, email: 'other@example.com' }
+    ];
+
+    const selected = drive.library.files.find((item) => item.fileHash === first.fileHash);
+    if (!selected) throw new Error('Expected selected file group.');
+    await drive.actOnFile(selected, FileActionKind.Delete);
+
+    const afterPartial = drive.library.chunks;
+    const retryGroup = drive.library.files.find((item) => item.fileHash === first.fileHash);
+    if (!retryGroup) throw new Error('Expected remaining selected chunks to form a retry group.');
+    await drive.actOnFile(retryGroup, FileActionKind.Delete);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchBodies).toMatchObject([
+        { chunks: [{ mediaKey: 'shared-media-key' }, { mediaKey: 'remaining-media-key' }] },
+        { chunks: [{ mediaKey: 'remaining-media-key' }] }
+    ]);
+    expect(afterPartial.map((item) => `${item.email}:${item.mediaKey}`)).toEqual([
+        'owner@example.com:shared-media-key',
+        'owner@example.com:remaining-media-key',
+        'other@example.com:shared-media-key'
+    ]);
+    expect(drive.library.files).toHaveLength(1);
+    expect(drive.library.files[0]?.fileHash).toBe(unrelated.fileHash);
+    expect(drive.library.trashFiles).toHaveLength(1);
+    expect(drive.library.trashFiles[0]?.chunks).toHaveLength(2);
+    expect(drive.library.chunks.filter((item) => item.trashed)).toHaveLength(2);
+    expect(drive.feedbackMessage).toBe('');
+});

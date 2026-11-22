@@ -1,12 +1,11 @@
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
-import type { FileGroup } from '../files';
-import { partitionFileGroups } from '../trash';
+import { groupChunks, type FileGroup } from '../files';
 import type { RemoteBmp } from '../models';
 import type { Fetcher } from '../server/fetcher';
 import { SERVER_ERRORS, type ServerError } from '../server/errors';
 import { listBmps } from '../server/photos/index';
 
-/** Read every library page and return the main list without fully trashed files. */
+/** Read every library page and group the chunks into files. */
 export function readLibrary(
     email: string,
     token: string,
@@ -34,8 +33,10 @@ export function readLibrary(
             if (merged.isErr()) return merged;
         } while (nextPageToken);
 
-        const chunks = [...items.values()].map((item) => ({ ...item, email }));
+        const chunks = [...items.values()]
+            .filter((item) => !item.trashed)
+            .map((item) => ({ ...item, email }));
 
-        return Ok(partitionFileGroups(chunks).files);
+        return Ok(groupChunks(chunks));
     });
 }

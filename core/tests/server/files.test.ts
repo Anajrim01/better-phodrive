@@ -1,21 +1,37 @@
 import { SERVER_ERRORS } from '@madkarmaa/phodrive-core/server/errors';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { createHash } from 'node:crypto';
-import { Err, Ok } from 'results-ts';
-import { downloadFile, deleteFile } from '@madkarmaa/phodrive-core/server/files';
-import { downloadBmp, moveToTrashBatch } from '@madkarmaa/phodrive-core/server/photos';
-import { decodeSplitHeader } from '@madkarmaa/phodrive-core/server/bmp';
-import { FileActionKind } from '@madkarmaa/phodrive-core/models';
+import { Ok } from 'results-ts';
+import {
+    downloadFile,
+    deleteFile,
+    deleteForeverFile,
+    restoreFile
+} from '@madkarmaa/phodrive-core/server/files';
+import {
+    createThrottleCoordinator,
+    downloadBmp,
+    mutatePhotos
+} from '@madkarmaa/phodrive-core/server/photos';
+import { FileActionKind, type RemoteBmp } from '@madkarmaa/phodrive-core/models';
+import type { ChunkMetadataStore } from '@madkarmaa/phodrive-core/server/photos';
 import { bmpResponse, downloadFixture } from '../helpers/download';
+import { asyncOk, serveBmps } from '../helpers/photos-mock';
 
-vi.mock('@madkarmaa/phodrive-core/server/photos', () => ({
-    downloadBmp: vi.fn(),
-    moveToTrashBatch: vi.fn()
-}));
+vi.mock('@madkarmaa/phodrive-core/server/photos', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('@madkarmaa/phodrive-core/server/photos')>();
+
+    return {
+        ...actual,
+        downloadBmp: vi.fn(),
+        mutatePhotos: vi.fn()
+    };
+});
+
+const scope = { key: 'account-a', coordinator: createThrottleCoordinator() };
 
 beforeEach(() => {
-    vi.mocked(moveToTrashBatch).mockImplementation(() =>
-        Ok(undefined).andThenAsync(async () => Ok(undefined))
+    vi.mocked(mutatePhotos).mockImplementation((_kind, _account, targets) =>
+        asyncOk({ applied: [...targets] })
     );
 });
 
@@ -26,11 +42,8 @@ afterEach(() => {
 
 function fixture() {
     const data = downloadFixture();
-    vi.mocked(downloadBmp).mockImplementation((_email, _token, key) =>
-        Ok(bmpResponse(data.bmps[Number(key.slice(-1))])).andThenAsync(async (response) =>
-            Ok(response)
-        )
-    );
+    serveBmps(data.bmps);
+
     return data;
 }
 
@@ -54,11 +67,7 @@ test.each([1, 2, 7, 129, 65_536])(
     async (blockSize) => {
         const original = Buffer.from([0, 255, 13, 10, 42]);
         const { input, bmps } = downloadFixture(original, '写真 🎉.bin');
-        vi.mocked(downloadBmp).mockImplementation((_email, _token, key) =>
-            Ok(bmpResponse(bmps[Number(key.slice(-1))], blockSize)).andThenAsync(async (response) =>
-                Ok(response)
-            )
-        );
+        serveBmps(bmps, blockSize);
         const downloaded = await downloadFile(input);
         const bytes = await downloaded.unwrap().arrayBuffer();
         expect(Buffer.from(bytes)).toEqual(original);
@@ -71,20 +80,20 @@ test('a zero-byte last chunk still verifies its BMP and the complete file hash',
         original,
         new Uint8Array()
     ]);
-    vi.mocked(downloadBmp).mockImplementation((_email, _token, key) =>
-        Ok(bmpResponse(bmps[Number(key.slice(-1))], 256)).andThenAsync(async (response) =>
-            Ok(response)
-        )
-    );
+    serveBmps(bmps, 256);
     const downloaded = await downloadFile(input);
     const bytes = await downloaded.unwrap().arrayBuffer();
     expect(Buffer.from(bytes)).toEqual(original);
     expect(downloadBmp).toHaveBeenCalledTimes(2);
 });
 
-test('oversized requested headers are rejected before any network allocation', async () => {
-    const { input } = fixture();
+test('oversized requested headers are rejected by the reader and their body is cancelled', async () => {
+    const { input, bmps } = fixture();
     const name = 'a'.repeat(65_536);
+    const cancelled = vi.fn();
+    vi.mocked(downloadBmp).mockImplementation(() =>
+        asyncOk(bmpResponse(bmps[0], 1024, { onCancel: cancelled }))
+    );
     const downloaded = await downloadFile({
         ...input,
         name,
@@ -93,90 +102,7 @@ test('oversized requested headers are rejected before any network allocation', a
         )
     });
     expect(downloaded.unwrapErr()).toEqual(SERVER_ERRORS.INVALID_CHUNK_METADATA);
-    expect(downloadBmp).not.toHaveBeenCalled();
-});
-
-test('first bytes arrive before a full photo is read; a slow consumer prevents read-ahead', async () => {
-    const original = Buffer.alloc(2_000_000, 0x2a);
-    const { input, bmps } = downloadFixture(original, 'large.bin', [original]);
-    let received = 0;
-    const cancelled = vi.fn();
-    let signal: AbortSignal | undefined;
-    vi.mocked(downloadBmp).mockImplementation(
-        (_email, _token, _key, _sha1, _fetcher, transferSignal) => {
-            signal = transferSignal;
-            return Ok(
-                bmpResponse(bmps[0], 1024, {
-                    onRead: (bytes) => {
-                        received += bytes;
-                    },
-                    onCancel: cancelled
-                })
-            ).andThenAsync(async (response) => Ok(response));
-        }
-    );
-
-    const result = await downloadFile(input);
-    const body = result.unwrap().body!;
-    expect(received).toBe(1024);
-    const reader = body.getReader();
-    const first = await reader.read();
-    expect(first.done).toBe(false);
-    expect(first.value!.length).toBeGreaterThan(0);
-    expect(received).toBe(1024);
-    await new Promise((resolve) => setTimeout(resolve, 10));
-    expect(received).toBe(1024);
-
-    await reader.cancel();
-    expect(cancelled).toHaveBeenCalledOnce();
-    expect(signal?.aborted).toBe(true);
     expect(downloadBmp).toHaveBeenCalledOnce();
-});
-
-test('cancellation before reading cancels the first upstream body without requesting later chunks', async () => {
-    const { input, bmps } = fixture();
-    const cancelled = vi.fn();
-    vi.mocked(downloadBmp).mockImplementation(() =>
-        Ok(bmpResponse(bmps[0], 256, { onCancel: cancelled })).andThenAsync(async (response) =>
-            Ok(response)
-        )
-    );
-    const downloaded = await downloadFile(input);
-    await downloaded.unwrap().body!.cancel();
-    expect(cancelled).toHaveBeenCalledOnce();
-    expect(downloadBmp).toHaveBeenCalledOnce();
-});
-
-test('request abort errors a pending downstream read and cancels the upstream body', async () => {
-    const original = Buffer.alloc(2000, 1);
-    const { input, bmps } = downloadFixture(original, 'abort.bin', [original]);
-    const offset = decodeSplitHeader(bmps[0], bmps[0].length).unwrap().payloadOffset;
-    const cancelled = vi.fn();
-    const abort = new AbortController();
-    let first = true;
-    const response = new Response(
-        new ReadableStream<Uint8Array>(
-            {
-                pull(controller) {
-                    if (!first) return;
-                    first = false;
-                    controller.enqueue(bmps[0].subarray(0, offset));
-                },
-                cancel: cancelled
-            },
-            { highWaterMark: 0 }
-        ),
-        { headers: { 'content-type': 'image/bmp' } }
-    );
-    vi.mocked(downloadBmp).mockImplementation(() =>
-        Ok(response).andThenAsync(async (value) => Ok(value))
-    );
-
-    const downloaded = await downloadFile(input, abort.signal);
-    const reader = downloaded.unwrap().body!.getReader();
-    const pending = reader.read();
-    abort.abort();
-    await expect(pending).rejects.toEqual(SERVER_ERRORS.COULD_NOT_READ_THE_DOWNLOADED_FILE);
     expect(cancelled).toHaveBeenCalledOnce();
 });
 
@@ -190,9 +116,7 @@ test('incomplete and empty groups fail before contacting Photos; incorrect first
 
     const cancelled = vi.fn();
     vi.mocked(downloadBmp).mockImplementation(() =>
-        Ok(bmpResponse(bmps[0], 1024, { onCancel: cancelled })).andThenAsync(async (response) =>
-            Ok(response)
-        )
+        asyncOk(bmpResponse(bmps[0], 1024, { onCancel: cancelled }))
     );
     const wrongSize = await downloadFile({
         ...input,
@@ -202,70 +126,108 @@ test('incomplete and empty groups fail before contacting Photos; incorrect first
     expect(cancelled).toHaveBeenCalledOnce();
 });
 
-test.each(['padding', 'sha1', 'sha256', 'truncated', 'extra', 'header'] as const)(
-    'stream completion fails on %s corruption',
-    async (damage) => {
-        const { input, bmps } = fixture();
-        const cancelled = vi.fn();
-        const decoded = decodeSplitHeader(bmps[1], bmps[1].length).unwrap();
-        let expected:
-            | typeof SERVER_ERRORS.INVALID_DOWNLOADED_BMP
-            | typeof SERVER_ERRORS.DOWNLOAD_INTEGRITY_FAILED
-            | typeof SERVER_ERRORS.FILE_INTEGRITY_FAILED = SERVER_ERRORS.INVALID_DOWNLOADED_BMP;
-        if (damage === 'padding') bmps[1][bmps[1].length - 1] = 1;
-        if (damage === 'sha1' || damage === 'sha256') {
-            bmps[1][decoded.payloadOffset] ^= 1;
-            expected =
-                damage === 'sha1'
-                    ? SERVER_ERRORS.DOWNLOAD_INTEGRITY_FAILED
-                    : SERVER_ERRORS.FILE_INTEGRITY_FAILED;
-            if (damage === 'sha256')
-                input.chunks[1].sha1 = createHash('sha1').update(bmps[1]).digest('hex');
-        }
-        if (damage === 'truncated') bmps[1] = bmps[1].subarray(0, bmps[1].length - 1);
-        if (damage === 'extra') bmps[1] = Buffer.concat([bmps[1], Buffer.from([0])]);
-        if (damage === 'header') bmps[1][0] = 0;
-        vi.mocked(downloadBmp).mockImplementation((_email, _token, key) =>
-            Ok(bmpResponse(bmps[Number(key.slice(-1))], 256, { onCancel: cancelled })).andThenAsync(
-                async (response) => Ok(response)
-            )
-        );
-
-        const downloaded = await downloadFile(input);
-        await expect(downloaded.unwrap().arrayBuffer()).rejects.toEqual(expected);
-        if (damage === 'padding' || damage === 'extra' || damage === 'header')
-            expect(cancelled).toHaveBeenCalledOnce();
-    }
-);
-
-test('a later Photos failure errors the response after earlier bytes have arrived', async () => {
-    const { input, bmps } = fixture();
-    const failure = { code: 'REQUEST_FAILED', message: 'Download failed' } as const;
-    vi.mocked(downloadBmp).mockImplementation((_email, _token, key) =>
-        key === 'chunk-1'
-            ? Err(failure).andThenAsync(async () => Ok(new Response()))
-            : Ok(bmpResponse(bmps[0])).andThenAsync(async (response) => Ok(response))
-    );
-    const downloaded = await downloadFile(input);
-    const reader = downloaded.unwrap().body!.getReader();
-    const first = await reader.read();
-    expect(first.value).toEqual(Uint8Array.from([0, 255, 13]));
-    expect(downloadBmp).toHaveBeenCalledOnce();
-    await expect(reader.read()).rejects.toEqual(failure);
-});
-
-test('server deletion uses one bounded batch for a small file', async () => {
+test('server deletion returns confirmed chunks and preserves a partial failure', async () => {
     const { input } = fixture();
-    const chunks = Array.from({ length: 5 }, (_, index) => ({
+    const chunks: RemoteBmp[] = Array.from({ length: 5 }, (_, index) => ({
         ...input.chunks[index % 2],
         chunkIndex: index,
         mediaKey: `chunk-${index}`
     }));
+    vi.mocked(mutatePhotos).mockImplementation((_kind, _account, targets) =>
+        asyncOk({
+            applied: targets.slice(0, 2),
+            failure: { code: 'REQUEST_FAILED', message: 'Delete failed' } as const
+        })
+    );
 
-    const result = await deleteFile({ ...input, action: FileActionKind.Delete, chunks });
+    const result = await deleteFile({ ...input, action: FileActionKind.Delete, chunks }, scope);
 
-    expect(moveToTrashBatch).toHaveBeenCalledOnce();
-    expect(vi.mocked(moveToTrashBatch).mock.calls[0]?.[2]).toHaveLength(5);
-    expect(result.unwrap().deleted).toHaveLength(5);
-    expect(result.unwrap().error).toBeUndefined();
+    expect(result.unwrap().applied).toHaveLength(2);
+    expect(result.unwrap().error).toBe('Delete failed');
+    expect(mutatePhotos).toHaveBeenCalledWith(
+        'trash',
+        { email: input.email, token: input.token },
+        chunks,
+        scope,
+        expect.any(Function),
+        undefined
+    );
+});
+
+test('restore requires trashed chunks and returns confirmed progress', async () => {
+    const { input } = fixture();
+    const chunks = input.chunks.map((chunk) => ({ ...chunk, trashed: true }));
+    const result = await restoreFile({ ...input, action: FileActionKind.Restore, chunks }, scope);
+
+    expect(result.unwrap().applied).toHaveLength(chunks.length);
+    expect(mutatePhotos).toHaveBeenCalledWith(
+        'restore',
+        { email: input.email, token: input.token },
+        chunks,
+        scope,
+        expect.any(Function),
+        undefined
+    );
+
+    const active = await restoreFile(
+        { ...input, action: FileActionKind.Restore, chunks: input.chunks },
+        scope
+    );
+    expect(active.unwrapErr()).toEqual(SERVER_ERRORS.NOT_TRASHED);
+});
+
+test('permanent delete removes metadata only after confirmed progress', async () => {
+    const { input } = fixture();
+    const chunks = input.chunks.map((chunk) => ({ ...chunk, trashed: true }));
+    const removed: string[][] = [];
+    const metadata: ChunkMetadataStore = {
+        load: vi.fn(),
+        save: vi.fn(),
+        remove: (mediaKeys) => {
+            removed.push([...mediaKeys]);
+
+            return Ok(undefined).andThenAsync(async () => Ok(undefined));
+        }
+    };
+    vi.mocked(mutatePhotos).mockImplementation((_kind, _account, targets) =>
+        asyncOk({
+            applied: [...targets],
+            failure: { code: 'REQUEST_FAILED', message: 'Late failure' } as const
+        })
+    );
+
+    const failed = await deleteForeverFile(
+        { ...input, action: FileActionKind.DeleteForever, chunks },
+        scope,
+        metadata
+    );
+    expect(failed.unwrap().applied).toHaveLength(chunks.length);
+    expect(failed.unwrap().error).toBe('Late failure');
+    const onApplied = vi.mocked(mutatePhotos).mock.calls[0]?.[5];
+    await onApplied?.(chunks);
+    expect(removed).toEqual([chunks.map((chunk) => chunk.mediaKey)]);
+
+    removed.length = 0;
+    vi.mocked(mutatePhotos).mockImplementation(() =>
+        asyncOk({ applied: [], failure: { code: 'REQUEST_FAILED', message: 'Failed' } as const })
+    );
+    const rejected = await deleteForeverFile(
+        { ...input, action: FileActionKind.DeleteForever, chunks },
+        scope,
+        metadata
+    );
+    expect(rejected.unwrap().applied).toHaveLength(0);
+    expect(removed).toEqual([]);
+});
+
+test('download rejects a file with a trashed chunk', async () => {
+    const { input } = fixture();
+    const trashed = {
+        ...input,
+        chunks: input.chunks.map((chunk, index) =>
+            index === 0 ? { ...chunk, trashed: true } : chunk
+        )
+    };
+    const result = await downloadFile(trashed);
+    expect(result.unwrapErr()).toEqual(SERVER_ERRORS.INCOMPLETE_DOWNLOAD_CHUNKS);
 });

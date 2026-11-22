@@ -1,5 +1,5 @@
 <p align="center">
-    <img src="./app/src/lib/assets/favicon.svg" alt="Phodrive logo" width="100" height="auto" />
+    <img src="./web/src/lib/assets/favicon.svg" alt="Phodrive logo" width="100" height="auto" />
     <h1 align="center">Phodrive</h1>
     <p align="center"><i>Files worth a thousand pixels.</i></p>
 </p>
@@ -22,16 +22,25 @@ Use Google Photos as a cloud storage provider by spoofing a Pixel XL device to g
 
 ## Development
 
-Use Node.js 24.21 or newer, or Bun.
+Use Node.js 24.21 or newer, or Bun, and Docker for PostgreSQL.
 
 ```sh
 bun install
+cp .env.example .env    # then set BETTER_AUTH_SECRET and PHODRIVE_PROCESSING
+docker compose up -d db
 bun --bun run dev
 ```
 
-Open `http://127.0.0.1:5173`. With Node.js, use `npm install` and `npm run dev` instead.
+Open `http://127.0.0.1:5173`. With Node.js, use `npm install` and `npm run dev` instead. `dev` runs the API server on port 3000 and the web app on 5173, which forwards `/api` to it. The server applies database migrations when it starts. After changing `server/src/db/schema.ts`, run `bun run --cwd server db:generate` to add a migration.
 
-The repository uses [Bun workspaces](https://bun.sh/docs/pm/workspaces), also supported by npm. `app/` contains the SvelteKit web app. `core/` is the standalone `@madkarmaa/phodrive-core` library for the file format, Google Photos protocol, and transfers. `cli/` is the `phodrive` command line. Root commands build core before running the app. Run the command line from source with `bun run cli <command>`, for example `bun run cli file list`.
+The repository uses [Bun workspaces](https://bun.sh/docs/pm/workspaces), also supported by npm:
+
+- `core/` is the standalone `@madkarmaa/phodrive-core` library for the file format, Google Photos protocol, and transfers. See [core usage](./core/README.md) for using it elsewhere.
+- `server/` is `@madkarmaa/phodrive-api`, the Hono server for accounts and Google Photos requests. It also serves the built web app.
+- `web/` is the SvelteKit web app, built as static files.
+- `cli/` is the `phodrive` command line. Run it from source with `bun run cli <command>`, for example `bun run cli file list`.
+
+Root commands build core before running the others.
 
 Keep environment files at the repository root, for example `.env`.
 
@@ -48,13 +57,11 @@ bun run build
 ## Deployment
 
 > [!WARNING]
-> Do not expose this server to other machines.
->
-> The API has no user authentication. Anyone who can reach it can send Google Photos requests through your server and use your machine's network and resources.
+> If other machines can reach the server, serve it over HTTPS and set `PHODRIVE_DISABLE_SIGNUP=true` once your users have signed up.
 
 ### From source
 
-Install dependencies with `bun install`.
+Install dependencies with `bun install`, then set up `.env` and PostgreSQL as in [Development](#development). The start commands read `.env` from the repository root.
 
 To build and run with Node.js:
 
@@ -70,28 +77,40 @@ bun --bun run build
 bun run start:bun
 ```
 
-Open `http://127.0.0.1:3000` for the production build.
+Open `http://127.0.0.1:3000` for the production build. Set `HOST` and `PORT` to listen elsewhere.
 
-### Access from a phone
-
-Use the production build when you open the app from a phone or through a tunnel. The development server sends every module as a separate request, and a phone loads hundreds of them before the app starts.
-
-```sh
-bun run build
-bun run start
-```
-
-Point the tunnel at port 3000, for example `ngrok http 3000`, then open the tunnel URL. The server reads the upload origin from the request host, so uploads work through the tunnel.
-
-To use the development server through a tunnel, add the tunnel host to `server.allowedHosts` in `app/vite.config.ts`.
+The server is also published as `@madkarmaa/phodrive-api`, with the web app included. With the registry set up as in [Command line](#command-line) and the settings below in the environment, run it with `npx @madkarmaa/phodrive-api`.
 
 ### Docker
 
+[`compose.yaml`](./compose.yaml) runs the app with PostgreSQL. Set `BETTER_AUTH_SECRET` and `PHODRIVE_PROCESSING` in `.env` next to it, plus the sharing settings if you want public links, then:
+
 ```sh
-docker run --pull always --rm --init --name phodrive -p 127.0.0.1:3000:3000 ghcr.io/madkarmaa/phodrive:latest
+docker compose pull
+docker compose up -d
 ```
 
-Open `http://localhost:3000` or `http://127.0.0.1:3000`. The server derives the upload origin from the request host and port, including a different published port. To override it, pass `-e ORIGIN=http://localhost:3000` with the exact origin used in your browser.
+Open `http://localhost:3000` or `http://127.0.0.1:3000`. The server derives its origin from the request host and port, including a different published port. Behind a reverse proxy, set `BETTER_AUTH_URL` to the exact origin used in your browser, for example `https://photos.example.com`.
+
+### Server settings
+
+| Environment variable      | Required | Description                                                                                                                                                                     |
+| ------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `HOST`, `PORT`            | No       | Address to listen on; defaults to `127.0.0.1` and `3000` (`0.0.0.0` in Docker)                                                                                                  |
+| `DATABASE_URL`            | Yes      | PostgreSQL connection URL                                                                                                                                                       |
+| `BETTER_AUTH_SECRET`      | Yes      | At least 32 characters. Signs sessions and encrypts stored Google tokens; changing it signs everyone out and makes them replace their token                                     |
+| `SHARE_CAPABILITY_KEY`    | No       | Padded base64 of an exactly 32-byte AES key (`openssl rand -base64 32`), shared with the Cloudflare Pages Function that serves public share bytes; sharing stays off without it |
+| `PUBLIC_EDGE_URL`         | No       | Origin of that Pages Function, with no path, query or credentials: https, or http on loopback; sharing stays off without it                                                     |
+| `BETTER_AUTH_URL`         | No       | Public origin of the app; derived from each request when unset                                                                                                                  |
+| `PHODRIVE_PROCESSING`     | Yes      | `browser` or `server`, chosen for your hardware; see [File processing](#file-processing)                                                                                        |
+| `PHODRIVE_DISABLE_SIGNUP` | No       | `true` stops new signups; defaults to `false`                                                                                                                                   |
+
+### File processing
+
+`PHODRIVE_PROCESSING` decides where files are hashed, split into chunks, and encoded as images, and where downloads are verified and rebuilt. It has no default; the server does not start until it is set.
+
+- `browser`: each browser does the work, and the server only relays finished chunks to and from Google Photos. Use this on small servers, such as a Raspberry Pi or a low-tier VPS.
+- `server`: the browser sends whole files and the server does the work. The server stores each upload in its temporary folder until Google Photos has every chunk, so it needs free disk space for the files being uploaded. Use this on powerful servers, or when browsers run on slow devices.
 
 ### Deployment defaults
 
@@ -112,85 +131,25 @@ bunx cross-env PHODRIVE_DEFAULT_REFRESH_INTERVAL_SECONDS=120 PHODRIVE_DEFAULT_CO
 
 For Docker, pass the same variables with `-e`, for example `-e PHODRIVE_DEFAULT_CONCURRENT_WORKERS=4`.
 
-The server keeps its probe cache and library index in `~/.phodrive`. Set `PHODRIVE_PROBE_CACHE` and `PHODRIVE_LIBRARY_STATE` to use other files.
+## Create an account
 
-### Compression and memory
+Each Phodrive account can connect one or more Google accounts.
 
-Compression is off by default. Turn it on per browser in **Settings > Compress uploads**, or for one CLI upload with `--compress`. To make it the CLI default, run `phodrive setting set compression on`. The upload request carries the choice, so the server does not hold global state and two runs can differ.
-
-Changing the setting and uploading the same file again stores a second copy of each chunk that compresses, because its stored bytes and SHA-1 differ. Chunks that stay raw are deduplicated. Moving a file to trash moves every stored chunk for that file on that account, including both copies.
-
-When it is on, the server samples the first 85 KiB of each chunk. A chunk is buffered when the start probe suggests savings, and stored compressed with brotli quality 1 only when the full result saves at least 5% of the original bytes; otherwise it is stored raw. Chunks under 4 KiB stay raw. Text, JSON, logs and source shrink by roughly 74% to 79%. Raw video can shrink by about 88%. JPEG saves about 4% and ZIP about 1%, so both stay raw and the setting is not worth enabling for a library of those.
-
-Compression holds a chunk in memory while it compresses, so large uploads use more memory. The server buffers at most two chunks per process for compression at once.
-
-## Connect a Google account
-
-1. Open the app at the address shown above for your setup.
+1. Open the app at the address shown above for your setup and choose **Create account**.
 2. Sign in at [Google Embedded Setup](https://accounts.google.com/EmbeddedSetup).
 3. In developer tools, open Application, then Cookies, then `https://accounts.google.com`. Copy the cookie value starting with `oauth2_4/`.
-4. Enter your Google account email and paste the token into Phodrive.
+4. Enter your Google account email, a password, and the token.
 
 ![How to get the token](./docs/screenshots/token.png)
 
+Afterwards, sign in with the email and password. In Settings you can connect more Google accounts and organize them into named groups. Use the library selector in the drive sidebar to switch between one account and a group. A group library merges the files of its connected accounts, and group uploads assign each whole file to one member account. If Google stops accepting a token, replace it for that account in Settings.
+
 > [!NOTE]
-> Your browser stores the credentials. The server uses them for each request and does not save them.
-
-## Folders and storage totals
-
-Drop a folder onto the page, or use **Upload folder**, to keep its relative path. Paths are stored in the uploaded chunk header, so the same folder tree appears from any browser that loads the library. Each folder is also mirrored to a Google Photos album with the same name (truncated after 255 characters), which keeps those files grouped in the Photos app too. Album keys are remembered in this browser, per account. If an album create times out after Google accepted it, a retry can create a second album with the same name because the key was never saved.
-
-Folder upload needs a window wider than 800px with a hover-capable, fine pointer. At 800px or narrower, or without one, the folder button is hidden and dragging files or folders is unavailable; upload single files instead.
-
-The navigation sidebar totals My files: the original size of the loaded chunks, not the compressed bytes stored on Google, plus file, folder, and incomplete counts and a breakdown by the top file types. Trashed files are left out, and a partly trashed file counts only its remaining chunks. Load more adds the next page when the list is paginated; uploads show an estimate once a transfer rate is known.
-
-## File and folder actions
-
-Right-click a file or folder, press the context-menu key, or choose **More** to open its actions. File rows keep their quick **Download** and **Delete** buttons on wide lists and show only **More** when the list is narrow. Cards keep those buttons when the card is wide enough. Trash shows **Restore** and **Delete forever** on wide screens and only **More** on narrow ones; its menu carries the same actions. The menu adds **Preview**, **Rename**, **Move**, **Details**, and the folder actions **Move folder**, **Move contents to My files**, and **Delete folder and files**.
-
-![The file actions menu](./docs/screenshots/context-menu.png)
-
-Renames and moves are Phodrive listing metadata only. They are saved by the server and survive reloads, another browser using the same server, and a full index rebuild, but they do not change Google Photos item names, albums, or the names and folders stored in chunk headers. Downloads still return the original file. Renaming a folder changes its path prefix, including files in subfolders. A rename or move is rejected instead of merged when the destination already has that file name or folder, or when a folder would move into itself.
-
-**Delete folder and files** moves every file under the folder to Google Photos trash, including files that were not loaded on the page. The confirmation shows how many loaded files will move, and every file under the folder is included. Files can be restored from Trash. A partly trashed file keeps the chunks that are still active. With a group selected, each change goes to the account that owns the file or folder, and failures from one member are reported without changing the others.
-
-## Selecting several files
-
-Each file row and card has a checkbox that appears when you hover or focus it, and stays visible on touch screens. Click a row or card to select it. Ctrl-click or Cmd-click toggles one row, Shift-click extends the range from the last file you toggled, Space toggles the focused row, Ctrl+A or Cmd+A selects every visible file, and Escape clears the selection. Clicking empty space clears it too.
-
-Selecting files opens a bar with the count and the actions for the current view. My files offers Download, Move, Delete, and Details. Trash offers Restore, Delete forever, and Details. Clear removes the selection. Bulk rename is not offered because several files cannot share one name. The bar stays above the mobile upload button, and the page adds space so it does not cover the last row.
-
-![Two selected files with the bulk action bar](./docs/screenshots/selection-desktop.png)
-
-The same actions open from the context menu when several files are selected.
-
-![The bulk file actions menu](./docs/screenshots/selection-menu.png)
-
-Download saves one file at a time, as a single download does. Browsers may ask you to allow multiple downloads. Delete asks once and moves every selected file to Google Photos trash, where you can restore them. Move asks for one destination, and with a group selected it offers only folders that every owner has. Phodrive changes each file on the account that owns it. Files that succeed leave the selection, failed files stay selected, and the message names each failing owner and file.
-
-Drag a file or card onto a folder tile or a breadcrumb to move it. Hold Alt and drag over the list or grid to draw a selection box instead. Ctrl-drag or Cmd-drag adds to the current selection, and Escape cancels the drag.
-
-## Previewing files
-
-Double-click a file or card to preview it. Images open when the file is one chunk, in a supported format, and within the size limit. Text files show their start, and the preview says when it stops early. Other files explain why they cannot be previewed. Download and Details stay available in the preview.
-
-![An image preview](./docs/screenshots/preview.png)
-
-## Trash and incomplete files
-
-**Delete** moves a file to Google Photos trash instead of removing it. When every chunk is in the trash, the file moves to **Trash** in the navigation sidebar, where **Restore** returns it to My files and **Delete forever** removes it for good. Phodrive never restores a file on its own.
-
-A file with some chunks in the trash stays in My files. If a chunk has no other copy, the file is marked incomplete and cannot be downloaded. Restore returns the chunks that are still in the trash. If chunks were permanently deleted, the file stays incomplete and **Delete remaining chunks** moves the rest to the trash.
-
-With a group selected, Trash merges every member that answers and labels the owner.
-
-## Account groups
-
-**Settings > Groups** creates named groups of at least two connected accounts. Select a group as the upload target to spread whole files across its members; the file list and Trash then merge every member with an owner label. A paused member takes no new files while the others continue.
+> The page encrypts the token with a key only the server holds, so no request carries it. The server exchanges it, stores it encrypted in the database, and makes every Google Photos request itself; the browser never receives it.
 
 ## Command line
 
-The `phodrive` command handles accounts, settings, groups, uploads, downloads, and moving files to trash without running the server. Each [release](https://github.com/madkarmaa/phodrive/releases/latest) includes executables that don't need Node.js. On Linux or macOS, download yours and make it executable:
+The `phodrive` command does everything the web app does without running the server. Each [release](https://github.com/madkarmaa/phodrive/releases/latest) includes executables that don't need Node.js. On Linux or macOS, download yours and make it executable:
 
 ```sh
 curl -fLo phodrive https://github.com/madkarmaa/phodrive/releases/latest/download/phodrive-linux-x64
@@ -211,29 +170,15 @@ Then install it with `npm install --global @madkarmaa/phodrive-cli`, or run it o
 ```sh
 phodrive account add you@gmail.com   # asks for the oauth2_4/ token from the steps above
 phodrive file list                   # add a search term, --type pdf, --days 30, or --sort name-asc
-phodrive file list --folders          # folder paths, file and subfolder counts
-phodrive file list --folder photos/2024  # files in one folder
 phodrive file upload ./photos        # files and whole folders
-phodrive file upload ./photos --compress  # compress this run
 phodrive file download report.pdf    # by name or by the ID that file list shows
-phodrive file delete report.pdf      # moves it to Google Photos trash
-phodrive group create Family --account you@gmail.com --account other@gmail.com
-phodrive file upload ./photos --group Family  # spread whole files across the group
-phodrive file list --group Family            # merged listing with an owner column
+phodrive file delete report.pdf
 phodrive setting set workers 4
-phodrive setting set compression on  # default for later uploads
 ```
 
-A group spreads whole files across its accounts by size. Each file and all of its
-chunks stay on one owner, and downloads, trash moves, restores, and permanent
-deletes go back to that owner. A paused account stops taking new files while the
-others continue.
+`phodrive help` lists every command. `phodrive help file upload`, `phodrive file upload --help`, and `phodrive file upload -h` all show the options of one command.
 
-Uploading a folder keeps its relative paths, and each folder becomes a same-named Google Photos album, the same as the web app. `phodrive help` lists every command. `phodrive help file upload`, `phodrive file upload --help`, and `phodrive file upload -h` all show the options of one command.
-
-`phodrive file list` marks files with missing chunks as incomplete. `phodrive file delete` moves files to Google Photos trash; the CLI cannot list trash, restore files, or delete forever.
-
-`phodrive` saves accounts, settings, groups, and folder album keys in `config.json` in your user configuration folder. On macOS and Linux, only your user can read that file. Set `PHODRIVE_CONFIG` to use another file.
+`phodrive` saves accounts and settings in `config.json` in your user configuration folder. On macOS and Linux, only your user can read that file. Set `PHODRIVE_CONFIG` to use another file.
 
 ## Attribution
 

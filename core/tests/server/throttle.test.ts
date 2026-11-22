@@ -1,370 +1,210 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import {
-    THROTTLE_FAILURE_LIMIT,
-    THROTTLE_MAX_SECONDS,
-    clearThrottleState,
-    parseRetryAfter,
-    recordServerFailure,
-    recordServerSuccess,
-    recordSuccess,
-    recordThrottle,
-    throttleWaitSeconds
-} from '../../src/server/photos/throttle';
-import { guardedSend, send } from '../../src/server/photos/transport';
-import { isThrottleError, throttleError } from '../../src/server/errors';
 import type { Fetcher } from '@madkarmaa/phodrive-core/server/fetcher';
-
-const EMAIL = 'test@example.com';
-const OTHER_EMAIL = 'other@example.com';
-const START = Date.UTC(2026, 0, 1, 12, 0, 0);
-const NO_JITTER = () => 0.5;
-
-let now = START;
+import { guardedSend } from '@madkarmaa/phodrive-core/server/photos/transport';
+import {
+    createThrottleCoordinator,
+    parseRetryAfter,
+    THROTTLE_MAX_SECONDS,
+    waitForThrottle
+} from '@madkarmaa/phodrive-core/server/photos/throttle';
 
 beforeEach(() => {
-    clearThrottleState();
-    now = START;
-    vi.spyOn(Date, 'now').mockImplementation(() => now);
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
 });
 
 afterEach(() => {
-    vi.restoreAllMocks();
-    clearThrottleState();
+    vi.useRealTimers();
 });
 
-function nextThrottle(): number {
-    const wait = recordThrottle(EMAIL, undefined, NO_JITTER);
-    now += wait * 1_000;
+test('an 1800-second cooldown is kept in full and capped above it', () => {
+    const throttle = createThrottleCoordinator(() => 0);
 
-    return wait;
-}
-
-test('Retry-After parses delta seconds, HTTP dates, and rejects junk', () => {
-    expect(parseRetryAfter('120', START)).toBe(120);
-    expect(parseRetryAfter('1.5', START)).toBe(2);
-    expect(parseRetryAfter(new Date(START + 90_000).toUTCString(), START)).toBe(90);
-    expect(parseRetryAfter('soon', START)).toBeUndefined();
-    expect(parseRetryAfter('', START)).toBeUndefined();
-    expect(parseRetryAfter(null, START)).toBeUndefined();
-    expect(parseRetryAfter('-5', START)).toBe(1);
-    expect(parseRetryAfter('0', START)).toBe(1);
+    expect(throttle.pause('account-a', 1_800)).toBe(1_800);
+    expect(throttle.remaining('account-a')).toBe(1_800);
+    expect(throttle.pause('account-a', 9_000)).toBe(1_800);
+    expect(throttle.remaining('account-a')).toBe(1_800);
 });
 
-test('a 429 pauses only the throttled account and counts down with time', () => {
-    const seconds = recordThrottle(EMAIL, undefined, NO_JITTER);
+test('Retry-After accepts seconds, decimals, and HTTP dates', () => {
+    const now = Date.UTC(2026, 0, 1, 0, 0, 0);
 
-    expect(seconds).toBe(60);
-    expect(throttleWaitSeconds(EMAIL, now)).toBe(60);
-    expect(throttleWaitSeconds(OTHER_EMAIL, now)).toBeNull();
-
-    now += 15_000;
-
-    expect(throttleWaitSeconds(EMAIL, now)).toBe(45);
-    expect(throttleWaitSeconds(OTHER_EMAIL, now)).toBeNull();
+    expect(parseRetryAfter('120', now)).toBe(120);
+    expect(parseRetryAfter('120.2', now)).toBe(121);
+    expect(parseRetryAfter(new Date(now + 120_000).toUTCString(), now)).toBe(120);
+    expect(parseRetryAfter(null, now)).toBeUndefined();
+    expect(parseRetryAfter('', now)).toBeUndefined();
+    expect(parseRetryAfter('later', now)).toBeUndefined();
 });
 
-test('a Retry-After header wins and the backoff grows across separate pauses', () => {
-    expect(recordThrottle(EMAIL, 42, () => 0)).toBe(42);
-    expect(throttleWaitSeconds(EMAIL, now)).toBe(42);
+test('a known cooldown wakes at the extended deadline after a re-check', async () => {
+    const throttle = createThrottleCoordinator(() => 0);
+    throttle.pause('account-a', 60);
 
-    recordSuccess(EMAIL);
-
-    const waits = [
-        nextThrottle(),
-        nextThrottle(),
-        nextThrottle(),
-        nextThrottle(),
-        nextThrottle(),
-        nextThrottle(),
-        nextThrottle()
-    ];
-
-    expect(waits).toEqual([60, 120, 240, 480, 960, 1800, 1800]);
-
-    recordSuccess(EMAIL);
-    expect(recordThrottle(EMAIL, 10_000)).toBe(THROTTLE_MAX_SECONDS);
-    recordSuccess(EMAIL);
-    expect(recordThrottle(EMAIL, 0)).toBe(1);
-});
-
-test('concurrent 429s keep one pause instead of multiplying it', () => {
-    const waits = [recordThrottle(EMAIL, undefined, NO_JITTER)];
-
-    for (const _ of [1, 2, 3]) waits.push(recordThrottle(EMAIL, undefined, NO_JITTER));
-
-    expect(waits).toEqual([60, 60, 60, 60]);
-    expect(throttleWaitSeconds(EMAIL, now)).toBe(60);
-});
-
-test('a late short Retry-After cannot shorten a longer pause', () => {
-    expect(recordThrottle(EMAIL, 1_800)).toBe(1_800);
-
-    now += 60_000;
-
-    expect(recordThrottle(EMAIL, 5)).toBe(1_740);
-    expect(throttleWaitSeconds(EMAIL, now)).toBe(1_740);
-});
-
-test('a success from a request that started before the pause does not clear it', () => {
-    const startedAt = now - 1;
-    recordThrottle(EMAIL, 60);
-
-    recordSuccess(EMAIL, startedAt);
-
-    expect(throttleWaitSeconds(EMAIL, now)).toBe(60);
-
-    recordSuccess(EMAIL, now);
-
-    expect(throttleWaitSeconds(EMAIL, now)).toBeNull();
-});
-
-test('success clears the pause and the failure count', () => {
-    recordThrottle(EMAIL, 300);
-    expect(throttleWaitSeconds(EMAIL, now)).toBe(300);
-
-    recordSuccess(EMAIL);
-
-    expect(throttleWaitSeconds(EMAIL, now)).toBeNull();
-    expect(recordThrottle(EMAIL, undefined, NO_JITTER)).toBe(60);
-});
-
-test('a 5xx burst starts at the base wait and counts separately from throttles', () => {
-    for (let failure = 1; failure < THROTTLE_FAILURE_LIMIT; failure++)
-        expect(recordServerFailure(EMAIL, NO_JITTER)).toBeNull();
-
-    expect(throttleWaitSeconds(EMAIL, now)).toBeNull();
-
-    const wait = recordServerFailure(EMAIL, NO_JITTER);
-    if (wait === null) throw new Error('Expected a pause.');
-
-    expect(wait).toBe(60);
-    expect(throttleWaitSeconds(EMAIL, now)).toBe(wait);
-
-    now += wait * 1_000;
-    recordServerSuccess(EMAIL);
-
-    for (let failure = 1; failure < THROTTLE_FAILURE_LIMIT; failure++)
-        expect(recordServerFailure(EMAIL, NO_JITTER)).toBeNull();
-
-    expect(recordServerFailure(EMAIL, NO_JITTER)).toBe(60);
-});
-
-test('a non-5xx response breaks the 5xx streak', () => {
-    recordServerFailure(EMAIL, NO_JITTER);
-    recordServerFailure(EMAIL, NO_JITTER);
-    recordServerSuccess(EMAIL);
-    recordServerFailure(EMAIL, NO_JITTER);
-    recordServerFailure(EMAIL, NO_JITTER);
-
-    expect(throttleWaitSeconds(EMAIL, now)).toBeNull();
-    expect(recordServerFailure(EMAIL, NO_JITTER)).toBe(60);
-});
-
-test('guardedSend blocks Google calls while paused and reports the wait', async () => {
-    recordThrottle(EMAIL, 30);
-
-    let calls = 0;
-    const fetcher: Fetcher = async () => {
-        calls++;
-
-        return new Response('ok');
-    };
-
-    const result = await guardedSend(EMAIL, fetcher, 'https://example.com/data', {}, 'Test');
-    const error = result.unwrapErr();
-
-    expect(calls).toBe(0);
-    expect(isThrottleError(error)).toBe(true);
-    expect(error).toMatchObject({ code: 'THROTTLED', retryAfterSeconds: 30 });
-});
-
-test('a 429 response pauses the account and returns the header wait', async () => {
-    let calls = 0;
-    const fetcher: Fetcher = async () => {
-        calls++;
-
-        return new Response(null, { status: 429, headers: { 'retry-after': '15' } });
-    };
-
-    const result = await guardedSend(EMAIL, fetcher, 'https://example.com/data', {}, 'Test');
-    const error = result.unwrapErr();
-
-    expect(calls).toBe(1);
-    expect(error).toMatchObject({ code: 'THROTTLED', retryAfterSeconds: 15 });
-    expect(throttleWaitSeconds(EMAIL, now)).toBe(15);
-});
-
-test('a throttled stage is logged once per pause with only its host', async () => {
-    const warn = vi.mocked(console.warn);
-    const fetcher: Fetcher = async () => {
-        await Promise.resolve();
-
-        return new Response(null, { status: 429 });
-    };
-
-    await Promise.all([
-        guardedSend(
-            EMAIL,
-            fetcher,
-            'https://photosdata-pa.googleapis.com/photo?token=secret',
-            {},
-            'Library list'
-        ),
-        guardedSend(
-            EMAIL,
-            fetcher,
-            'https://photosdata-pa.googleapis.com/other?key=secret',
-            {},
-            'Library list'
-        )
-    ]);
-
-    expect(warn).toHaveBeenCalledTimes(1);
-    expect(warn).toHaveBeenCalledWith(
-        'Google Photos rate limited Library list on photosdata-pa.googleapis.com'
-    );
-    expect(String(warn.mock.calls[0][0])).not.toContain('secret');
-
-    recordSuccess(EMAIL);
-    await guardedSend(
-        EMAIL,
-        fetcher,
-        'https://lh3.googleusercontent.com/p/photo?token=secret',
-        {},
-        'Media fetch'
-    );
-
-    expect(warn).toHaveBeenCalledTimes(2);
-    expect(warn).toHaveBeenLastCalledWith(
-        'Google Photos rate limited Media fetch on lh3.googleusercontent.com'
-    );
-});
-
-test.each(['Authentication', 'Library list', 'Prepare download', 'Media fetch', 'Move to trash'])(
-    'the %s stage is named with its host',
-    async (stage) => {
-        const warn = vi.mocked(console.warn);
-        const fetcher: Fetcher = async () => new Response(null, { status: 429 });
-
-        await guardedSend(
-            EMAIL,
-            fetcher,
-            'https://photosdata-pa.googleapis.com/resource?token=secret',
-            {},
-            stage
-        );
-
-        expect(warn).toHaveBeenCalledWith(
-            `Google Photos rate limited ${stage} on photosdata-pa.googleapis.com`
-        );
-        expect(String(warn.mock.calls[0][0])).not.toContain('secret');
-    }
-);
-
-test('a successful response is returned unchanged and resets the breaker', async () => {
-    recordServerFailure(EMAIL, NO_JITTER);
-    recordServerFailure(EMAIL, NO_JITTER);
-
-    const response = new Response('ok');
-    const init: RequestInit = { method: 'POST', headers: { 'x-test': '1' }, body: 'payload' };
-    const calls: Array<{ url: string; init: RequestInit | undefined }> = [];
-    const fetcher: Fetcher = (input, receivedInit) => {
-        calls.push({ url: String(input), init: receivedInit });
-
-        return Promise.resolve(response);
-    };
-
-    const result = await guardedSend(EMAIL, fetcher, 'https://example.com/data', init, 'Test');
-
-    expect(result.unwrap()).toBe(response);
-    expect(calls).toEqual([{ url: 'https://example.com/data', init }]);
-    expect(throttleWaitSeconds(EMAIL, now)).toBeNull();
-    expect(recordServerFailure(EMAIL, NO_JITTER)).toBeNull();
-});
-
-test('a single 5xx keeps the original error shape without pausing', async () => {
-    const fetcher: Fetcher = async () => new Response(null, { status: 503 });
-
-    const result = await guardedSend(EMAIL, fetcher, 'https://example.com/data', {}, 'Test');
-    const error = result.unwrapErr();
-
-    expect(error).toMatchObject({
-        code: 'REQUEST_FAILED',
-        message: 'Test failed (HTTP 503)',
-        status: 503
+    let resumed = false;
+    const waiting = throttle.wait('account-a').then(() => {
+        resumed = true;
     });
-    expect(throttleWaitSeconds(EMAIL, now)).toBeNull();
+
+    await vi.advanceTimersByTimeAsync(30_000);
+    throttle.pause('account-a', 120);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(resumed).toBe(false);
+    await vi.advanceTimersByTimeAsync(60_000);
+    await waiting;
+    expect(resumed).toBe(true);
 });
 
-test('the third consecutive 5xx through guardedSend pauses the account', async () => {
-    vi.spyOn(Math, 'random').mockReturnValue(0.5);
+test('waiters for the same account resume with independent jitter', async () => {
+    const values = [0, 0.5];
+    const throttle = createThrottleCoordinator(() => values.shift() ?? 0);
+    throttle.pause('account-a', 60);
 
-    let calls = 0;
-    const fetcher: Fetcher = async () => {
-        calls++;
+    let first = false;
+    let second = false;
+    const one = throttle.wait('account-a').then(() => {
+        first = true;
+    });
+    const two = throttle.wait('account-a').then(() => {
+        second = true;
+    });
 
-        return new Response(null, { status: 503 });
-    };
-
-    const first = await guardedSend(EMAIL, fetcher, 'https://example.com/data', {}, 'Test');
-    const second = await guardedSend(EMAIL, fetcher, 'https://example.com/data', {}, 'Test');
-    const third = await guardedSend(EMAIL, fetcher, 'https://example.com/data', {}, 'Test');
-
-    expect(first.unwrapErr().code).toBe('REQUEST_FAILED');
-    expect(second.unwrapErr().code).toBe('REQUEST_FAILED');
-    expect(third.unwrapErr()).toMatchObject({ code: 'THROTTLED', retryAfterSeconds: 60 });
-    expect(calls).toBe(3);
-
-    const blocked = await guardedSend(EMAIL, fetcher, 'https://example.com/data', {}, 'Test');
-
-    expect(blocked.unwrapErr().code).toBe('THROTTLED');
-    expect(calls).toBe(3);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(first).toBe(true);
+    expect(second).toBe(false);
+    await vi.advanceTimersByTimeAsync(2_500);
+    await Promise.all([one, two]);
+    expect(second).toBe(true);
 });
 
-test('send reports a 429 status and Retry-After without changing the message', async () => {
-    const fetcher: Fetcher = async () =>
-        new Response(null, { status: 429, headers: { 'retry-after': '12' } });
+test('another account does not inherit a cooldown', async () => {
+    const throttle = createThrottleCoordinator(() => 0);
+    throttle.pause('account-a', 1_800);
 
-    const result = await send(fetcher, 'https://example.com/data', {}, 'Prepare download');
-    const error = result.unwrapErr();
+    await expect(throttle.wait('account-b')).resolves.toBeUndefined();
+    expect(throttle.remaining('account-b')).toBe(0);
+});
 
-    expect(error).toMatchObject({
-        code: 'REQUEST_FAILED',
-        message: 'Prepare download failed (HTTP 429)',
-        status: 429,
-        retryAfterSeconds: 12
+test('cancelling a cooldown or jitter wait stops the waiter', async () => {
+    const throttle = createThrottleCoordinator(() => 0.5);
+    throttle.pause('account-a', 60);
+    const controller = new AbortController();
+    const waiting = throttle.wait('account-a', controller.signal);
+
+    await vi.advanceTimersByTimeAsync(62_000);
+    controller.abort();
+
+    await expect(waiting).rejects.toMatchObject({ name: 'AbortError' });
+});
+
+test('cancelling one account wait leaves another account cooldown intact', async () => {
+    const throttle = createThrottleCoordinator(() => 0);
+    throttle.pause('account-a', 60);
+    throttle.pause('account-b', 60);
+    const controller = new AbortController();
+    const waiting = throttle.wait('account-a', controller.signal);
+    controller.abort();
+    await expect(waiting).rejects.toMatchObject({ name: 'AbortError' });
+
+    expect(throttle.remaining('account-b')).toBe(60);
+    const other = throttle.wait('account-b');
+    await vi.advanceTimersByTimeAsync(60_000);
+    await other;
+});
+
+test('waitForThrottle returns a typed cancellation instead of a boolean', async () => {
+    const coordinator = createThrottleCoordinator(() => 0);
+    coordinator.pause('account-a', 60);
+    const controller = new AbortController();
+    const waiting = waitForThrottle({ key: 'account-a', coordinator }, controller.signal);
+    controller.abort();
+
+    expect((await waiting).unwrapErr()).toEqual({
+        code: 'UPLOAD_CANCELLED',
+        message: 'Upload cancelled.'
     });
 });
 
-test('jitter stays within twenty percent of the base backoff', () => {
-    clearThrottleState();
-    const low = recordThrottle(EMAIL, undefined, () => 0);
-    clearThrottleState();
-    const high = recordThrottle(EMAIL, undefined, () => 1);
+test('three consecutive server failures start bounded exponential backoff', async () => {
+    const throttle = createThrottleCoordinator(() => 0.5);
 
-    expect(low).toBe(48);
-    expect(high).toBe(72);
+    expect(throttle.serverFailure('account-a')).toBeNull();
+    expect(throttle.serverFailure('account-a')).toBeNull();
+    expect(throttle.serverFailure('account-a')).toBe(60);
+    expect(throttle.remaining('account-a')).toBe(60);
+
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(throttle.serverFailure('account-a')).toBe(120);
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(throttle.serverFailure('account-a')).toBe(240);
+    expect(THROTTLE_MAX_SECONDS).toBe(1_800);
 });
 
-test('a 5xx during an active pause returns the remaining wait without counting', () => {
-    recordThrottle(EMAIL, 60);
-    now += 10_000;
+test('a successful request clears failures, but not a pause recorded after it started', () => {
+    const throttle = createThrottleCoordinator(() => 0);
+    throttle.serverFailure('account-a');
+    throttle.serverFailure('account-a');
+    throttle.serverSuccess('account-a');
+    expect(throttle.serverFailure('account-a')).toBeNull();
+    expect(throttle.serverFailure('account-a')).toBeNull();
 
-    expect(recordServerFailure(EMAIL, NO_JITTER)).toBe(50);
+    const startedAt = Date.now() - 1;
+    throttle.pause('account-a', 60);
+    throttle.success('account-a', startedAt);
+    expect(throttle.remaining('account-a')).toBe(60);
 
-    now += 50_000;
-
-    expect(recordServerFailure(EMAIL, NO_JITTER)).toBeNull();
-    expect(recordServerFailure(EMAIL, NO_JITTER)).toBeNull();
-    expect(recordServerFailure(EMAIL, NO_JITTER)).toBe(60);
+    throttle.success('account-a', Date.now() + 1);
+    expect(throttle.remaining('account-a')).toBe(0);
 });
 
-test('throttle errors distinguish automatic retry from manual action', () => {
-    expect(throttleError(120).message).toBe(
-        'Google Photos is limiting requests, retrying in about 2 min'
-    );
-    expect(throttleError(120, 'manual').message).toBe(
-        'Google Photos is limiting requests, try again in about 2 min'
-    );
+test('a success that started in the same millisecond as a pause cannot clear it', () => {
+    const throttle = createThrottleCoordinator(() => 0);
+    const startedAt = Date.now();
+    throttle.pause('account-a', 60);
+
+    throttle.success('account-a', startedAt);
+    expect(throttle.remaining('account-a')).toBe(60);
+
+    throttle.success('account-a', Date.now() + 1);
+    expect(throttle.remaining('account-a')).toBe(0);
+});
+
+test('a concurrent success cannot clear a pause recorded by a same-account 429', async () => {
+    const coordinator = createThrottleCoordinator(() => 0);
+    let calls = 0;
+    let releaseThrottled!: () => void;
+    let releaseSuccess!: () => void;
+    const throttled = new Promise<Response>((resolve) => {
+        releaseThrottled = () =>
+            resolve(new Response(null, { status: 429, headers: { 'retry-after': '120' } }));
+    });
+    const success = new Promise<Response>((resolve) => {
+        releaseSuccess = () => resolve(new Response(null, { status: 200 }));
+    });
+    const fetcher: Fetcher = async () => {
+        calls++;
+
+        return calls === 1 ? throttled : success;
+    };
+    const scope = { key: 'account-a', coordinator };
+
+    const first = guardedSend(scope, fetcher, 'https://photos.test/library', {}, 'Library list');
+    const second = guardedSend(scope, fetcher, 'https://photos.test/library', {}, 'Library list');
+    await vi.waitFor(() => expect(calls).toBe(2));
+
+    releaseThrottled();
+    expect((await first).unwrapErr()).toMatchObject({
+        code: 'THROTTLED',
+        retryAfterSeconds: 120
+    });
+    expect(coordinator.remaining('account-a')).toBe(120);
+
+    releaseSuccess();
+    expect((await second).isOk()).toBe(true);
+    expect(coordinator.remaining('account-a')).toBe(120);
+});
+
+test('a missing Retry-After falls back to the bounded backoff', () => {
+    const throttle = createThrottleCoordinator(() => 0.5);
+
+    expect(throttle.pause('account-a')).toBe(60);
 });

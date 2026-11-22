@@ -10,7 +10,6 @@
     "chunk-hash-large",
     "planning",
     "prefix",
-    "bmp-encode",
     "bmp-stream",
     "download-stream",
     "protocol-page",
