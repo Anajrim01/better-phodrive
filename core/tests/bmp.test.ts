@@ -2,14 +2,15 @@ import { test, expect } from 'vitest';
 import { createHash } from 'node:crypto';
 import {
     decodeSplitHeader,
-    encodeSplitBmp,
+    isPossibleSplitBmpSize,
     MAX_CHUNK_PAYLOAD_BYTES,
     MAX_PHOTOS_BMP_BYTES,
+    MIN_SPLIT_BMP_BYTES,
     splitBmpByteLength
 } from '@madkarmaa/phodrive-core/server/bmp';
-import { decodeSplitBmp } from './helpers/bmp';
+import { decodeSplitBmp, encodeSplitBmp } from './helpers/split-bmp';
 import { chunkFileName } from '@madkarmaa/phodrive-core/server/chunks';
-import { groupChunks, incompleteFileMessage, missingChunks } from '@madkarmaa/phodrive-core/files';
+import { groupChunks } from '@madkarmaa/phodrive-core/files';
 import {
     SplitHeaderSchema,
     type SplitHeader,
@@ -59,24 +60,46 @@ test('split BMPs store the Zod-validated metadata and reconstruct the original b
     expect(createHash('sha256').update(reconstructed).digest('hex')).toBe(FILE_HASH);
 });
 
-test('version 2 first chunks carry the folder and later chunks still decode', () => {
-    const firstHeader: SplitHeader = { ...header(0, 500, false), folder: 'photos/2024' };
-    const first = encodeSplitBmp(ORIGINAL.subarray(0, 500), firstHeader).unwrap();
-    expect(new TextDecoder().decode(first.subarray(54, 62))).toBe('BMSPLIT\x02');
-    expect(first.length).toBe(splitBmpByteLength(firstHeader).unwrap());
+test('only sizes that fit the split layout can be split BMPs', () => {
+    expect(MIN_SPLIT_BMP_BYTES).toBe(3126);
 
-    const decodedFirst = decodeSplitBmp(first).unwrap();
-    expect(decodedFirst.header).toEqual(firstHeader);
-    expect(decodedFirst.header.folder).toBe('photos/2024');
-    expect(Buffer.from(decodedFirst.payload)).toEqual(Buffer.from(ORIGINAL.subarray(0, 500)));
+    for (const payloadSize of [0, 1, 100, 2000, 65_536, MAX_CHUNK_PAYLOAD_BYTES]) {
+        const total = splitBmpByteLength(header(0, payloadSize, true)).unwrap();
+        expect(isPossibleSplitBmpSize(total)).toBe(true);
+    }
 
-    const laterHeader = header(1, ORIGINAL.length - 500, true);
-    expect(laterHeader.folder).toBeUndefined();
-    const later = encodeSplitBmp(ORIGINAL.subarray(500), laterHeader).unwrap();
-    const decodedLater = decodeSplitBmp(later).unwrap();
-    expect(decodedLater.header).toEqual(laterHeader);
-    expect(decodedLater.header.folder).toBeUndefined();
-    expect(Buffer.from(decodedLater.payload)).toEqual(Buffer.from(ORIGINAL.subarray(500)));
+    expect(isPossibleSplitBmpSize(3126)).toBe(true);
+    expect(isPossibleSplitBmpSize(3138)).toBe(true);
+    expect(isPossibleSplitBmpSize(3125)).toBe(false);
+    expect(isPossibleSplitBmpSize(3127)).toBe(false);
+    expect(isPossibleSplitBmpSize(MAX_PHOTOS_BMP_BYTES + 10)).toBe(true);
+    expect(isPossibleSplitBmpSize(MAX_PHOTOS_BMP_BYTES + 1)).toBe(false);
+});
+
+test('the listing size check accepts a size the header decoder accepts above the upload cap', () => {
+    const total = 240_000_054;
+    const prefix = Buffer.alloc(200);
+    const view = new DataView(prefix.buffer);
+    prefix.set([66, 77]);
+    prefix.set(new TextEncoder().encode('BMSPLIT\x01'), 54);
+    prefix.fill(0xab, 62, 94);
+    prefix.fill(0xcd, 94, 126);
+    view.setUint32(2, total, true);
+    view.setUint32(10, 54, true);
+    view.setUint32(14, 40, true);
+    view.setInt32(18, 32, true);
+    view.setInt32(22, 2_500_000, true);
+    view.setUint16(26, 1, true);
+    view.setUint16(28, 24, true);
+    view.setUint32(34, total - 54, true);
+    prefix[126] = 0;
+    prefix[127] = 1;
+    prefix[128] = 1;
+    prefix[129] = 1;
+    prefix[130] = 97;
+
+    expect(decodeSplitHeader(prefix, total).isOk()).toBe(true);
+    expect(isPossibleSplitBmpSize(total)).toBe(true);
 });
 
 test('chunk indexes use canonical varints, including indexes above 127', () => {
@@ -98,25 +121,42 @@ test('split metadata requires file identity and rejects unsupported format versi
     expect(fileId).toBe(FILE_HASH);
     expect(SplitHeaderSchema.safeParse(missingIdentity).success).toBe(false);
 
-    for (const version of [0, 2, 255]) {
+    for (const version of [0, 3, 255]) {
         const bmp = encodeSplitBmp(Uint8Array.of(9), metadata).unwrap();
         bmp[61] = version;
         expect(decodeSplitBmp(bmp).isErr()).toBe(true);
     }
+});
 
-    // Version 2 expects a folder after the first chunk's file name; a patched v1 header has none.
-    const patched = encodeSplitBmp(Uint8Array.of(0), metadata).unwrap();
-    patched[61] = 2;
-    expect(decodeSplitBmp(patched).isErr()).toBe(true);
+test('root headers stay v1 while folder headers use v2 on chunk zero only', () => {
+    const folder = 'Projects/2026';
+    const rootBmp = encodeSplitBmp(Uint8Array.of(1), header(0, 1, true)).unwrap();
+    const folderHeader = { ...header(0, 1, false), folder };
+    const folderBmp = encodeSplitBmp(Uint8Array.of(1), folderHeader).unwrap();
+    const later = encodeSplitBmp(Uint8Array.of(1), {
+        ...header(1, 1, true),
+        folder: undefined
+    }).unwrap();
 
-    const folderHeader = { ...metadata, folder: 'photos/2024' };
-    expect(SplitHeaderSchema.safeParse(folderHeader).success).toBe(true);
-    expect(SplitHeaderSchema.safeParse({ ...folderHeader, chunkIndex: 1, flags: 1 }).success).toBe(
+    expect(new TextDecoder().decode(rootBmp.subarray(54, 62))).toBe('BMSPLIT\x01');
+    expect(new TextDecoder().decode(folderBmp.subarray(54, 62))).toBe('BMSPLIT\x02');
+    expect(new TextDecoder().decode(later.subarray(54, 62))).toBe('BMSPLIT\x01');
+    expect(decodeSplitBmp(folderBmp).unwrap().header.folder).toBe(folder);
+    expect(decodeSplitBmp(later).unwrap().header.folder).toBeUndefined();
+    expect(splitBmpByteLength(folderHeader).unwrap()).toBe(folderBmp.length);
+});
+
+test('folder headers reject malformed or misplaced folder metadata', () => {
+    for (const folder of ['/root', 'a//b', 'a/../b', 'a\\b']) {
+        expect(SplitHeaderSchema.safeParse({ ...header(0, 1, true), folder }).success).toBe(false);
+    }
+    expect(SplitHeaderSchema.safeParse({ ...header(1, 1, true), folder: 'Projects' }).success).toBe(
         false
     );
 
-    for (const folder of ['/photos', 'photos/../2024', 'photos\\2024', 'photos//2024'])
-        expect(SplitHeaderSchema.safeParse({ ...folderHeader, folder }).success).toBe(false);
+    const bmp = encodeSplitBmp(Uint8Array.of(1), header(0, 1, true)).unwrap();
+    bmp[61] = 2;
+    expect(decodeSplitBmp(bmp).isErr()).toBe(true);
 });
 
 test('projected chunks fit the photo limit and reject damaged padding', () => {
@@ -127,17 +167,6 @@ test('projected chunks fit the photo limit and reject damaged padding', () => {
     const bmp = encodeSplitBmp(Uint8Array.of(1, 2, 3), header(0, 3, true)).unwrap();
     bmp[bmp.length - 1] = 1;
     expect(decodeSplitBmp(bmp).isErr()).toBe(true);
-});
-
-test('the 256 floor only grows small canvases', () => {
-    for (const [payload, total] of [
-        [1, 196662],
-        [196607, 199734],
-        [198800, 199734],
-        [500000, 500634],
-        [1000000, 1000554]
-    ] as const)
-        expect(splitBmpByteLength(header(1, payload, true)).unwrap()).toBe(total);
 });
 
 test('remote chunks group into one card', () => {
@@ -181,12 +210,12 @@ test('prefix encoding preserves original protocol bytes for Unicode and multibyt
         fileName: 'photos-📷.bin'
     }).unwrap();
     expect(Buffer.from(first.prefix).toString('hex')).toBe(
-        '424d36000300000000003600000028000000000100000001000001001800000000000000030000000000000000000000000000000000424d53504c495401' +
+        '424d360c000000000000360000002800000020000000200000000100180000000000000c000000000000000000000000000000000000424d53504c495401' +
             'ab'.repeat(32) +
             'cd'.repeat(32) +
             '000180080f70686f746f732df09f93b72e62696e'
     );
-    expect([first.totalSize, first.paddingSize]).toEqual([196662, 195492]);
+    expect([first.totalSize, first.paddingSize]).toEqual([3126, 1956]);
     const later = encodeSplitPrefix({
         ...common,
         chunkIndex: 128,
@@ -200,52 +229,6 @@ test('prefix encoding preserves original protocol bytes for Unicode and multibyt
             '800100c0edfd5c'
     );
     expect([later.totalSize, later.paddingSize]).toEqual([195011766, 11633]);
-});
-
-test('a missing middle chunk keeps the group visible and marks it incomplete', () => {
-    const base = {
-        email: 'test@example.com',
-        fileHash: FILE_HASH,
-        fileId: FILE_HASH,
-        sha1: 'a'.repeat(40),
-        size: 100,
-        at: 1
-    };
-    const chunks = [
-        {
-            ...base,
-            mediaKey: 'first',
-            chunkIndex: 0,
-            chunkCount: 3,
-            isLast: false,
-            originalName: 'archive.zip'
-        },
-        { ...base, mediaKey: 'last', chunkIndex: 2, chunkCount: 3, isLast: true, at: 2 }
-    ];
-    const [group] = groupChunks(chunks);
-
-    expect(group).toMatchObject({ name: 'archive.zip', chunkCount: 3, complete: false });
-    expect(missingChunks(group.chunks, 3)).toBe(1);
-    expect(incompleteFileMessage(group)).toBe(
-        '1 of 3 chunks is missing. This file cannot be downloaded.'
-    );
-});
-
-test('legacy chunks without a declared count are complete when the last chunk is present', () => {
-    const base = {
-        email: 'test@example.com',
-        fileHash: FILE_HASH,
-        fileId: FILE_HASH,
-        sha1: 'a'.repeat(40),
-        size: 100,
-        at: 1
-    };
-    const [group] = groupChunks([
-        { ...base, mediaKey: 'first', chunkIndex: 0, isLast: false, originalName: 'legacy.bin' },
-        { ...base, mediaKey: 'last', chunkIndex: 1, isLast: true }
-    ]);
-
-    expect(group).toMatchObject({ chunkCount: 2, complete: true });
 });
 
 test('grouping retains newest duplicate, tie replacement, group time and first-chunk naming', () => {

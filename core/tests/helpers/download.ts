@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { FileActionKind, type FileRequest, type RemoteBmp } from '@madkarmaa/phodrive-core/models';
-import { encodeSplitBmp } from '@madkarmaa/phodrive-core/server/bmp';
+import { encodeSplitBmp } from './split-bmp';
 
 export function bmpResponse(
     bmp: Uint8Array,
@@ -32,8 +32,7 @@ export function bmpResponse(
 export function downloadFixture(
     original: Uint8Array = Buffer.from([0, 255, 13, 10, 42]),
     name = 'proof.bin',
-    parts: Uint8Array[] = [original.subarray(0, 3), original.subarray(3)],
-    folder?: string
+    parts: Uint8Array[] = [original.subarray(0, 3), original.subarray(3)]
 ): { input: FileRequest; bmps: Uint8Array[]; original: Uint8Array } {
     const fileHash = createHash('sha256').update(original).digest('hex');
     const bmps = parts.map((payload, chunkIndex) =>
@@ -43,8 +42,7 @@ export function downloadFixture(
             chunkIndex,
             flags: chunkIndex === parts.length - 1 ? 1 : 0,
             payloadSize: payload.length,
-            fileName: chunkIndex === 0 ? name : undefined,
-            folder: chunkIndex === 0 ? folder : undefined
+            fileName: chunkIndex === 0 ? name : undefined
         }).unwrap()
     );
     const chunks: RemoteBmp[] = bmps.map((bmp, chunkIndex) => ({
@@ -53,7 +51,6 @@ export function downloadFixture(
         chunkIndex,
         isLast: chunkIndex === parts.length - 1,
         originalName: chunkIndex === 0 ? name : undefined,
-        folder: chunkIndex === 0 ? folder : undefined,
         size: parts[chunkIndex].length,
         at: 1,
         mediaKey: `chunk-${chunkIndex}`,
@@ -70,8 +67,7 @@ export function downloadFixture(
             name,
             fileHash,
             fileId: fileHash,
-            chunks,
-            workers: 2
+            chunks
         }
     };
 }

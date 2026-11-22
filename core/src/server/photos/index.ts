@@ -1,15 +1,25 @@
 export { validateAasAccount } from './auth';
+export { listBmps } from './library/index';
+export * from './shares/index';
+export { uploadBmpStream } from './upload/index';
+export { downloadBmp, MEDIA_HOSTS, resolveDownloadUrl } from './download';
 export {
-    clearLibraryState,
-    configureLibraryState,
-    flushLibraryState,
-    listBmps,
-    syncLibrary,
-    type LibrarySyncResult
-} from './library/index';
-export { uploadBmp, uploadBmpStream, findBmpBySha1 } from './upload/index';
-export { downloadBmp } from './download';
-export { moveToTrash, moveToTrashBatch } from './trash';
-export { restoreFromTrash } from './restore';
-export { deletePermanently } from './permanent-delete';
-export { assignFolderAlbum } from './albums';
+    mutatePhotos,
+    MUTATION_BATCH_SIZE,
+    type MutationKind,
+    type MutationOutcome,
+    type MutationTarget
+} from './mutations';
+export { validateMutationResponse } from './mutation-response';
+export {
+    createThrottleCoordinator,
+    defaultThrottle,
+    parseRetryAfter,
+    THROTTLE_MAX_SECONDS,
+    THROTTLE_RESUME_JITTER_MS,
+    throttleError,
+    type ThrottleCoordinator,
+    type ThrottleScope
+} from './throttle';
+
+export type { ChunkMetadataRecord, ChunkMetadataStore } from './library/index';

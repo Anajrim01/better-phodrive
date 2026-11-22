@@ -1,40 +1,27 @@
-import {
-    SERVER_ERRORS,
-    isThrottleError,
-    throttleError,
-    type ServerError,
-    type ThrottleMode
-} from './errors';
+import { SERVER_ERRORS, type ServerError } from './errors';
 import { FileActionKind, FileNameSchema, type FileRequest, type RemoteBmp } from '../models';
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
-import { expectedChunks, incompleteChunkMessage, missingChunks } from '../files';
-import { deletePermanently, moveToTrashBatch, restoreFromTrash } from './photos/index';
-import { markChunksRestored, markChunksTrashed, removeChunks } from './photos/library/state';
+import {
+    mutatePhotos,
+    type ChunkMetadataStore,
+    type MutationKind,
+    type ThrottleScope
+} from './photos/index';
+import type { Fetcher } from './fetcher';
+import { photosFetch } from './fetcher';
 import { streamDownload } from './download';
-import { validateTrashedFileState } from './files-state-validation';
-import { BULK_TRASH_BATCH_SIZE } from './files-bulk';
 
-export {
-    BULK_TRASH_BATCH_SIZE,
-    deleteFiles,
-    trashValidatedFiles,
-    validateBulkDelete,
-    type BulkDeleteFileResult,
-    type BulkDeleteInvalidFile,
-    type BulkDeleteValidation,
-    type ValidatedBulkFile
-} from './files-bulk';
+export type FileMutationResult = {
+    applied: RemoteBmp[];
+    error?: string;
+    retryAfterSeconds?: number;
+};
 
-function incompleteDownloadError(chunks: readonly RemoteBmp[]): ServerError {
-    const expected = expectedChunks(chunks);
-    const missing = expected === null ? 0 : missingChunks(chunks, expected);
-    if (expected === null || missing === 0) return SERVER_ERRORS.INCOMPLETE_DOWNLOAD_CHUNKS;
-
-    return {
-        ...SERVER_ERRORS.INCOMPLETE_DOWNLOAD_CHUNKS,
-        message: incompleteChunkMessage(expected, missing)
-    };
-}
+const MUTATION_KINDS: Partial<Record<FileActionKind, MutationKind>> = {
+    [FileActionKind.Delete]: 'trash',
+    [FileActionKind.Restore]: 'restore',
+    [FileActionKind.DeleteForever]: 'delete'
+};
 
 function validateChunks(input: FileRequest): Result<RemoteBmp[], ServerError> {
     const chunks = input.chunks.toSorted((a, b) => a.chunkIndex - b.chunkIndex);
@@ -44,28 +31,27 @@ function validateChunks(input: FileRequest): Result<RemoteBmp[], ServerError> {
     )
         return Err(SERVER_ERRORS.INVALID_FILE_METADATA);
 
+    if (input.action === FileActionKind.Delete) return Ok(chunks);
+
     if (input.action !== FileActionKind.Download) {
-        if (chunks.length === 0) return Err(SERVER_ERRORS.INVALID_FILE_METADATA);
+        if (!chunks.length || chunks.some((chunk) => !chunk.trashed))
+            return Err(SERVER_ERRORS.NOT_TRASHED);
 
         return Ok(chunks);
     }
+
     if (
         chunks.length === 0 ||
         chunks.some(
             (chunk, index) =>
+                chunk.trashed === true ||
                 chunk.chunkIndex !== index ||
                 chunk.isLast !== (index === chunks.length - 1) ||
-                (index === 0 && chunk.originalName !== input.name)
+                (index === 0 && chunk.originalName !== input.name) ||
+                (index !== 0 && chunk.folder !== undefined)
         )
     )
-        return Err(incompleteDownloadError(chunks));
-
-    return Ok(chunks);
-}
-
-function requireTrashed(chunks: RemoteBmp[]): Result<RemoteBmp[], ServerError> {
-    if (chunks.some((chunk) => chunk.trashedAt === undefined))
-        return Err(SERVER_ERRORS.NOT_TRASHED);
+        return Err(SERVER_ERRORS.INCOMPLETE_DOWNLOAD_CHUNKS);
 
     return Ok(chunks);
 }
@@ -74,179 +60,92 @@ function requireTrashed(chunks: RemoteBmp[]): Result<RemoteBmp[], ServerError> {
 export function downloadFile(
     input: FileRequest,
     signal?: AbortSignal,
-    mode: ThrottleMode = 'auto'
+    scope?: ThrottleScope
 ): AsyncResult<Response, ServerError> {
     return validateChunks(input).andThenAsync((chunks) =>
-        streamDownload(input, chunks, signal, mode)
+        streamDownload(input, chunks, signal, scope)
     );
 }
 
-/** Attempt every known chunk and return all confirmed trash moves even after partial failure. */
-export function deleteFile(
+function mutationKind(action: FileActionKind): Result<MutationKind, ServerError> {
+    const kind = MUTATION_KINDS[action];
+
+    return kind ? Ok(kind) : Err(SERVER_ERRORS.INVALID_FILE_METADATA);
+}
+
+function mutateFile(
     input: FileRequest,
-    mode: ThrottleMode = 'auto'
-): AsyncResult<{ deleted: RemoteBmp[]; error?: string; retryAfterSeconds?: number }, ServerError> {
-    return validateChunks(input).andThenAsync(async (chunks) => {
-        const deleted: RemoteBmp[] = [];
-        const failures: ServerError[] = [];
+    scope: ThrottleScope,
+    metadata?: ChunkMetadataStore,
+    fetcher: Fetcher = photosFetch
+): AsyncResult<FileMutationResult, ServerError> {
+    return mutationKind(input.action).andThenAsync(async (kind) => {
+        const valid = validateChunks(input);
+        if (valid.isErr()) return valid;
 
-        for (let offset = 0; offset < chunks.length; offset += BULK_TRASH_BATCH_SIZE) {
-            const batch = chunks.slice(offset, offset + BULK_TRASH_BATCH_SIZE);
-            const removed = await moveToTrashBatch(
-                input.email,
-                input.token,
-                batch.map((chunk) => chunk.sha1),
-                undefined,
-                batch.map((chunk) => chunk.mediaKey)
-            );
+        const result = await mutatePhotos(
+            kind,
+            { email: input.email, token: input.token },
+            valid.unwrap(),
+            scope,
+            fetcher,
+            kind === 'delete' && metadata
+                ? (applied) => metadata.remove(applied.map((chunk) => chunk.mediaKey))
+                : undefined
+        );
 
-            removed.match({
-                Ok: () => {
-                    deleted.push(...batch);
-                },
-                Err: (error) => {
-                    failures.push(error);
-                }
+        if (result.isErr()) {
+            const failure = result.unwrapErr();
+
+            return Ok({
+                applied: [],
+                error: failure.message,
+                ...('retryAfterSeconds' in failure
+                    ? { retryAfterSeconds: failure.retryAfterSeconds }
+                    : {})
             });
-            if (failures.some(isThrottleError)) break;
         }
 
-        const now = Date.now();
-        if (deleted.length > 0) markChunksTrashed(input.email, deleted, now);
-        const trashed = deleted.map((chunk) => ({ ...chunk, trashedAt: now }));
-
-        const failure = failures.find(isThrottleError) ?? failures[0];
-        const failureMessage = failure
-            ? isThrottleError(failure)
-                ? throttleError(failure.retryAfterSeconds, mode).message
-                : failure.message
-            : undefined;
+        const { applied, failure } = result.unwrap();
 
         return Ok({
-            deleted: trashed,
-            ...(failureMessage ? { error: failureMessage } : {}),
-            ...(failure && isThrottleError(failure)
-                ? { retryAfterSeconds: failure.retryAfterSeconds }
+            applied,
+            ...(failure
+                ? {
+                      error: failure.message,
+                      ...('retryAfterSeconds' in failure
+                          ? { retryAfterSeconds: failure.retryAfterSeconds }
+                          : {})
+                  }
                 : {})
         });
     });
 }
 
-function untrashed(chunk: RemoteBmp): RemoteBmp {
-    const copy = { ...chunk };
-    delete copy.trashedAt;
-
-    return copy;
+/** Move confirmed chunks to Google Photos trash and return only confirmed progress. */
+export function deleteFile(
+    input: FileRequest,
+    scope: ThrottleScope,
+    fetcher: Fetcher = photosFetch
+): AsyncResult<FileMutationResult, ServerError> {
+    return mutateFile(input, scope, undefined, fetcher);
 }
 
-/** Restore the selected chunks from Google Photos trash and clear their local mark. */
+/** Restore confirmed trashed chunks without changing their stored identity. */
 export function restoreFile(
     input: FileRequest,
-    mode: ThrottleMode = 'auto'
-): AsyncResult<{ restored: RemoteBmp[]; error?: string; retryAfterSeconds?: number }, ServerError> {
-    return validateChunks(input)
-        .andThen((chunks) => requireTrashed(chunks))
-        .andThenAsync((chunks) => validateTrashedFileState(input, chunks).map(() => chunks))
-        .andThenAsync(async (chunks) => {
-            const restored: RemoteBmp[] = [];
-            const failures: ServerError[] = [];
-
-            for (let offset = 0; offset < chunks.length; offset += BULK_TRASH_BATCH_SIZE) {
-                const batch = chunks.slice(offset, offset + BULK_TRASH_BATCH_SIZE);
-                const sha1s = [...new Set(batch.map((chunk) => chunk.sha1))];
-                const applied = await restoreFromTrash(
-                    input.email,
-                    input.token,
-                    sha1s,
-                    undefined,
-                    batch.map((chunk) => chunk.mediaKey)
-                );
-
-                applied.match({
-                    Ok: () => {
-                        restored.push(...batch);
-                    },
-                    Err: (error) => {
-                        failures.push(error);
-                    }
-                });
-                if (failures.some(isThrottleError)) break;
-            }
-
-            if (restored.length > 0) markChunksRestored(input.email, restored);
-            const failure = failures.find(isThrottleError) ?? failures[0];
-            if (failure && restored.length === 0)
-                return Err(
-                    isThrottleError(failure)
-                        ? throttleError(failure.retryAfterSeconds, mode)
-                        : failure
-                );
-
-            return Ok({
-                restored: restored.map(untrashed),
-                ...(failure && !isThrottleError(failure) ? { error: failure.message } : {}),
-                ...(failure && isThrottleError(failure)
-                    ? {
-                          error: throttleError(failure.retryAfterSeconds, mode).message,
-                          retryAfterSeconds: failure.retryAfterSeconds
-                      }
-                    : {})
-            });
-        });
+    scope: ThrottleScope,
+    fetcher: Fetcher = photosFetch
+): AsyncResult<FileMutationResult, ServerError> {
+    return mutateFile(input, scope, undefined, fetcher);
 }
 
-/** Permanently delete the selected chunks and drop them from the local index. */
+/** Permanently delete confirmed trashed chunks, then remove their metadata rows. */
 export function deleteForeverFile(
     input: FileRequest,
-    mode: ThrottleMode = 'auto'
-): AsyncResult<{ deleted: RemoteBmp[]; error?: string; retryAfterSeconds?: number }, ServerError> {
-    return validateChunks(input)
-        .andThen((chunks) => requireTrashed(chunks))
-        .andThenAsync((chunks) => validateTrashedFileState(input, chunks).map(() => chunks))
-        .andThenAsync(async (chunks) => {
-            const deleted: RemoteBmp[] = [];
-            const failures: ServerError[] = [];
-
-            for (let offset = 0; offset < chunks.length; offset += BULK_TRASH_BATCH_SIZE) {
-                const batch = chunks.slice(offset, offset + BULK_TRASH_BATCH_SIZE);
-                const sha1s = [...new Set(batch.map((chunk) => chunk.sha1))];
-                const applied = await deletePermanently(
-                    input.email,
-                    input.token,
-                    sha1s,
-                    undefined,
-                    batch.map((chunk) => chunk.mediaKey)
-                );
-
-                applied.match({
-                    Ok: () => {
-                        deleted.push(...batch);
-                    },
-                    Err: (error) => {
-                        failures.push(error);
-                    }
-                });
-                if (failures.some(isThrottleError)) break;
-            }
-
-            if (deleted.length > 0) removeChunks(input.email, deleted);
-            const failure = failures.find(isThrottleError) ?? failures[0];
-            if (failure && deleted.length === 0)
-                return Err(
-                    isThrottleError(failure)
-                        ? throttleError(failure.retryAfterSeconds, mode)
-                        : failure
-                );
-
-            return Ok({
-                deleted,
-                ...(failure && !isThrottleError(failure) ? { error: failure.message } : {}),
-                ...(failure && isThrottleError(failure)
-                    ? {
-                          error: throttleError(failure.retryAfterSeconds, mode).message,
-                          retryAfterSeconds: failure.retryAfterSeconds
-                      }
-                    : {})
-            });
-        });
+    scope: ThrottleScope,
+    metadata?: ChunkMetadataStore,
+    fetcher: Fetcher = photosFetch
+): AsyncResult<FileMutationResult, ServerError> {
+    return mutateFile(input, scope, metadata, fetcher);
 }

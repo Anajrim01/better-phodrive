@@ -2,20 +2,18 @@ import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { Err, Ok } from 'results-ts';
+import { Ok } from 'results-ts';
 import { groupChunks } from '@madkarmaa/phodrive-core/files';
-import {
-    SERVER_ERRORS,
-    throttleError,
-    type ServerError
-} from '@madkarmaa/phodrive-core/server/errors';
-import { downloadBmp, moveToTrashBatch } from '@madkarmaa/phodrive-core/server/photos';
+import { SERVER_ERRORS } from '@madkarmaa/phodrive-core/server/errors';
+import { downloadBmp, mutatePhotos } from '@madkarmaa/phodrive-core/server/photos';
 import { deleteFile, downloadFile } from '@madkarmaa/phodrive-core/node';
 import { bmpResponse, downloadFixture } from '../helpers/download';
+import { asyncOk } from '../helpers/photos-mock';
 
 vi.mock('@madkarmaa/phodrive-core/server/photos', () => ({
     downloadBmp: vi.fn(),
-    moveToTrashBatch: vi.fn()
+    mutatePhotos: vi.fn(),
+    defaultThrottle: {}
 }));
 
 let folder = '';
@@ -92,51 +90,17 @@ test('incomplete files are not downloaded', async () => {
 
     const saved = await downloadFile(partial, 'aas_et/test', join(folder, item.name));
 
-    expect(saved.unwrapErr()).toMatchObject({
-        code: 'INCOMPLETE_DOWNLOAD_CHUNKS',
-        message: '1 of 2 chunks is missing. This file cannot be downloaded.'
-    });
+    expect(saved.unwrapErr()).toMatchObject({ code: 'INCOMPLETE_DOWNLOAD_CHUNKS' });
 });
 
 test('delete moves every chunk to the trash', async () => {
     const { item } = fixture();
-    vi.mocked(moveToTrashBatch).mockImplementation(() =>
-        Ok(undefined).andThenAsync(async () => Ok(undefined))
+    vi.mocked(mutatePhotos).mockImplementation((_kind, _account, targets) =>
+        asyncOk({ applied: [...targets] })
     );
 
-    const deleted = await deleteFile(item, 'aas_et/test', 2);
+    const deleted = await deleteFile(item, 'aas_et/test');
 
-    expect(deleted.unwrap().deleted).toHaveLength(item.chunks.length);
-    expect(vi.mocked(moveToTrashBatch).mock.calls[0]?.[2]).toHaveLength(item.chunks.length);
+    expect(deleted.unwrap().applied).toHaveLength(item.chunks.length);
     expect(deleted.unwrap().error).toBeUndefined();
-});
-
-test('a pause while opening a later chunk keeps the throttle error', async () => {
-    const data = downloadFixture();
-    const [item] = groupChunks(
-        data.input.chunks.map((chunk) => ({ ...chunk, email: data.input.email }))
-    );
-    let calls = 0;
-
-    vi.mocked(downloadBmp).mockImplementation((_email, _token, key) => {
-        calls++;
-        if (calls === 2) {
-            return Ok(undefined).andThenAsync<Response, ServerError>(async () =>
-                Err(throttleError(120))
-            );
-        }
-
-        const bmp = Uint8Array.from(data.bmps[Number(key.slice(-1))]);
-
-        return Ok(bmpResponse(bmp)).andThenAsync(async (response) => Ok(response));
-    });
-
-    const saved = await downloadFile(item, 'aas_et/test', join(folder, item.name));
-
-    expect(saved.unwrapErr()).toMatchObject({
-        code: 'THROTTLED',
-        retryAfterSeconds: 120,
-        message: 'Google Photos is limiting requests, retrying in about 2 min'
-    });
-    expect(await readdir(folder)).toEqual([]);
 });

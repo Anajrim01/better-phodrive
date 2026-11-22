@@ -14,7 +14,7 @@ Small hash cases batch 200 operations. Many-file hashing and small chunk hashing
 
 `group-many-files` runs ten passes over 10,000 one-chunk files plus 2,500 duplicates to check indexing overhead. Its original-source baseline is recorded separately.
 
-Byte workloads include 0 B, 1 B, 1 KiB, 64 KiB, 8 MiB, 64 MiB, a full 195,000,000-byte chunk, and a 391,048,576-byte file. Upload boundaries test 194,999,999, 195,000,000, 195,000,001, and 390,000,001 bytes; the large upload is 391,048,576 bytes. The mixed dataset contains 64 files of 64 KiB, four of 8 MiB, and one of 196,048,576 bytes. Each run uses the same dataset with 1, 4, 8, or 32 workers. Many-file upload uses 300 files of 64 KiB.
+Byte workloads include 0 B, 1 B, 1 KiB, 64 KiB, 8 MiB, 64 MiB, a full 195,000,000-byte chunk, and a 391,048,576-byte file. Uploads test sizes of 194,999,999, 195,000,000, 195,000,001, and 390,000,001 bytes. The mixed dataset contains 64 files of 64 KiB, four of 8 MiB, and one of 196,048,576 bytes. Each run uses the same dataset with 1, 4, 8, or 32 workers. Many-file upload uses 300 files of 64 KiB.
 
 Each cold hash or upload sample creates new File objects. Only the retry case reuses its File. The suite does not bypass or prepopulate production caches.
 
@@ -32,11 +32,11 @@ Memory metrics cover the whole process, including fixtures, framework startup, w
 
 Throughput counts original input bytes. Protocol parsing counts encoded page bytes instead. Metadata-only and failure cases have no byte throughput.
 
-See [baseline.md](./baseline.md) for the original measurements, [iterations.md](./iterations.md) for accepted and rejected changes, [results.md](./results.md) for the final AC measurements and ten-run verification, and [compression.md](./compression.md) for the compression path.
+See [baseline.md](./baseline.md) for the original measurements, [iterations.md](./iterations.md) for accepted and rejected changes, and [results.md](./results.md) for the final AC measurements and ten-run verification.
 
 ## Supplemental browser hashing
 
-Copy `src/lib/browser/upload/hash.ts` from production commit `86cba81` into `app/.svelte-kit/performance/browser-original-hash.ts`. Create that ignored directory after project setup, and keep the copied source unmodified.
+Copy `src/lib/browser/upload/hash.ts` from production commit `86cba81` into `web/.svelte-kit/performance/browser-original-hash.ts`. Create that ignored directory after project setup, and keep the copied source unmodified.
 
 Start `bun run dev`, open its URL in an existing Chrome window, and evaluate [browser-hashing.js](./browser-hashing.js) in the browser console or Chrome MCP. The script imports the original and current hashing modules through the dev server. It runs two warmups and five samples for 200 files of 64 KiB and 500 files of 1 KiB. Each operation uses a fresh File. Results contain every sample and validation flag.
 

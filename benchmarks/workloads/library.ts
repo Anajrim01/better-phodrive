@@ -1,73 +1,78 @@
 import assert from 'node:assert/strict';
-import { FileSort } from '@madkarmaa/phodrive-core/models';
 import { groupChunks, sortFiles, type UploadedChunk } from '@madkarmaa/phodrive-core/files';
+import { FileSort } from '@madkarmaa/phodrive-core/models';
 import { parseLibraryPage } from '@madkarmaa/phodrive-core/server/photos/library/metadata';
 import { bytesField, message, numberField } from '@madkarmaa/phodrive-core/server/protobuf';
 import type { Workload } from '../fixtures';
 
-export function libraryWorkload(name: string): Workload | undefined {
-    if (name === 'protocol-page') {
-        const entries = Array.from({ length: 1000 }, (_, i) =>
-            bytesField(
-                2,
-                message(
-                    bytesField(1, `media-${i}`),
-                    bytesField(
-                        2,
-                        message(
-                            numberField(9, i + 1),
-                            numberField(10, 10000),
-                            bytesField(13, bytesField(1, new Uint8Array(20).fill(i % 255)))
-                        )
-                    )
-                )
-            )
-        );
-        const page = bytesField(1, message(...entries));
+const PAGE_ITEMS = 1000;
+const PARSE_PASSES = 10;
+const LIST_PASSES = 10;
+const MANY_FILES = 10_000;
+const CHUNKED_FILES = 8;
+const CHUNKS_PER_FILE = 512;
 
-        return {
-            bytes: page.length * 10,
-            run: () => {
-                for (let i = 0; i < 10; i++)
-                    assert.equal(parseLibraryPage(page).unwrap().items.length, 1000);
-            }
-        };
-    }
+function libraryEntry(index: number) {
+    const hash = bytesField(13, bytesField(1, new Uint8Array(20).fill(index % 255)));
+    const metadata = message(numberField(9, index + 1), numberField(10, 10002), hash);
 
-    if (name !== 'group-chunks' && name !== 'group-many-files' && name !== 'sort-files')
-        return undefined;
+    return bytesField(2, message(bytesField(1, `media-${index}`), bytesField(2, metadata)));
+}
 
-    const manyFiles = name !== 'group-chunks';
-    const entries: UploadedChunk[] = Array.from({ length: manyFiles ? 10_000 : 4096 }, (_, i) => ({
+export function protocolPageWorkload(): Workload {
+    const entries = Array.from({ length: PAGE_ITEMS }, (_, index) => libraryEntry(index));
+    const page = bytesField(1, message(...entries));
+
+    return {
+        bytes: page.length * PARSE_PASSES,
+        run: () => {
+            for (let i = 0; i < PARSE_PASSES; i++)
+                assert.equal(parseLibraryPage(page).unwrap().items.length, PAGE_ITEMS);
+        }
+    };
+}
+
+/** Many one-chunk files, or a few files with many chunks each. */
+function libraryChunks(manyFiles: boolean): UploadedChunk[] {
+    const count = manyFiles ? MANY_FILES : CHUNKED_FILES * CHUNKS_PER_FILE;
+
+    return Array.from({ length: count }, (_, i) => ({
         email: 'bench@example.com',
         fileHash: 'ab'.repeat(32),
-        fileId: manyFiles ? String(i) : String(i % 8),
-        chunkIndex: manyFiles ? 0 : Math.floor(i / 8),
-        isLast: manyFiles || i >= 4088,
+        fileId: manyFiles ? String(i) : String(i % CHUNKED_FILES),
+        chunkIndex: manyFiles ? 0 : Math.floor(i / CHUNKED_FILES),
+        isLast: manyFiles || i >= count - CHUNKED_FILES,
         originalName: `file-${i}`,
         size: 1,
         at: (i * 997) % 10007,
         mediaKey: String(i),
         sha1: 'ab'.repeat(20)
     }));
-    const groups = groupChunks(entries);
+}
+
+/** Every fourth chunk is listed twice, as overlapping library pages report it. */
+export function groupWorkload(manyFiles: boolean): Workload {
+    const entries = libraryChunks(manyFiles);
+    const listed = [...entries, ...entries.filter((_, index) => index % 4 === 0)];
+    const expected = manyFiles ? MANY_FILES : CHUNKED_FILES;
 
     return {
         bytes: 0,
         run: () => {
-            for (let i = 0; i < 10; i++) {
-                if (name.startsWith('group-'))
-                    assert.equal(
-                        groupChunks([...entries, ...entries.filter((_, index) => index % 4 === 0)])
-                            .length,
-                        manyFiles ? 10_000 : 8
-                    );
-                else
-                    assert.equal(
-                        sortFiles(groups, FileSort.ModifiedDescending).length,
-                        entries.length
-                    );
-            }
+            for (let i = 0; i < LIST_PASSES; i++)
+                assert.equal(groupChunks(listed).length, expected);
+        }
+    };
+}
+
+export function sortWorkload(): Workload {
+    const groups = groupChunks(libraryChunks(true));
+
+    return {
+        bytes: 0,
+        run: () => {
+            for (let i = 0; i < LIST_PASSES; i++)
+                assert.equal(sortFiles(groups, FileSort.ModifiedDescending).length, MANY_FILES);
         }
     };
 }

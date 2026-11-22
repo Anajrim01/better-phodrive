@@ -3,7 +3,7 @@
     "private": true,
     "version": "1.4.1",
     "license": "MIT",
-    "description": "Files worth a thousand pixels",
+    "description": "Files worth a thousand pixels.",
     "author": "madkarmaa",
     "repository": {
         "type": "git",
@@ -22,13 +22,13 @@
     },
     "workspaces": [
         "core",
-        "app",
+        "web",
+        "server",
         "cli"
     ],
     "scripts": {
         "dev": "node scripts/workspaces.mjs dev",
         "build": "node scripts/workspaces.mjs build",
-        "preview": "node scripts/workspaces.mjs preview",
         "start": "node scripts/workspaces.mjs start",
         "start:bun": "node scripts/workspaces.mjs start:bun",
         "cli": "node scripts/workspaces.mjs cli",

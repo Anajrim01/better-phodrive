@@ -1,31 +1,117 @@
-import { SERVER_ERRORS, throttleError, type ServerError } from '../../errors';
+import pLimit from 'p-limit';
 import { Err, Ok, type AsyncResult } from 'results-ts';
-import type { RemoteBmp } from '../../../models';
-import type { Fetcher } from '../../fetcher';
-import {
-    logThrottleStage,
-    parseRetryAfter,
-    recordServerFailure,
-    recordServerSuccess,
-    recordSuccess,
-    recordThrottle,
-    throttleWaitSeconds
-} from '../throttle';
+import type { LibraryWarning, RemoteBmp } from '../../../models';
 import { decodeSplitHeader, MAX_SPLIT_HEADER_BYTES } from '../../bmp/index';
-import { BMP_HEADER_BYTES, MAX_CHUNK_PAYLOAD_BYTES, SPLIT_MAGIC_PREFIX } from '../../../bmp/format';
-import { fileIdentity } from '../../chunks';
-import { splitHeaderIsCompressed, splitHeaderIsLast } from '../../../models';
+import { SERVER_ERRORS, type ServerError } from '../../errors';
+import type { Fetcher } from '../../fetcher';
+import type { PhotosHeaders } from '../auth';
 import { preparedDownloadUrl } from '../download';
-import {
-    readContentProbe,
-    readProbe,
-    writeContentProbe,
-    writeProbe,
-    type ProbeContent
-} from './probe-cache';
+import type { ThrottleScope } from '../throttle';
+import { guardedSend } from '../transport';
+import { contentIndex, contentKey, contentRecord, groupByContent } from './content-groups';
 import type { LibraryCandidate } from './metadata';
+import {
+    chunkMetadataRecord,
+    metadataItem,
+    metadataMatches,
+    type ChunkMetadataRecord,
+    type ChunkMetadataStore
+} from './metadata-store';
 
 const HEADER_PROBE_BYTES = MAX_SPLIT_HEADER_BYTES;
+const LIBRARY_PROBE_CONCURRENCY = 4;
+
+/** Keep the photos on a library page whose first bytes hold a Phodrive split header. */
+export function scanLibraryPage(
+    page: { items: LibraryCandidate[]; nextPageToken: string; warnings?: LibraryWarning[] },
+    headers: PhotosHeaders,
+    fetcher: Fetcher,
+    metadata?: ChunkMetadataStore,
+    scope?: ThrottleScope
+): AsyncResult<
+    { items: RemoteBmp[]; nextPageToken: string; warnings: LibraryWarning[] },
+    ServerError
+> {
+    return Ok(undefined).andThenAsync(async () => {
+        const warnings = [...(page.warnings ?? [])];
+        const stored = metadata
+            ? await metadata.load(page.items).match({
+                  Ok: (rows) => rows,
+                  Err: () => {
+                      warnings.push({ code: 'METADATA_LOAD_FAILED' });
+
+                      return new Map<string, ChunkMetadataRecord>();
+                  }
+              })
+            : new Map<string, ChunkMetadataRecord>();
+        const items = new Map<string, RemoteBmp>();
+        const missing: LibraryCandidate[] = [];
+        const records: ChunkMetadataRecord[] = [];
+        const content = contentIndex(stored.values());
+
+        for (const candidate of page.items) {
+            const record = stored.get(candidate.mediaKey);
+            if (record && metadataMatches(record, candidate)) {
+                items.set(candidate.mediaKey, metadataItem(record, candidate));
+                continue;
+            }
+
+            const shared = content.get(contentKey(candidate.sha1, candidate.size));
+            if (shared) {
+                const copied = contentRecord(shared, candidate);
+                items.set(candidate.mediaKey, metadataItem(copied, candidate));
+                records.push(copied);
+                continue;
+            }
+
+            if (!candidate.trashed) missing.push(candidate);
+        }
+
+        const groups = groupByContent(missing);
+        const limit = pLimit(LIBRARY_PROBE_CONCURRENCY);
+        const scanned = await limit.map(groups, (group) =>
+            probeLibraryItem(
+                group[0],
+                headers.commonHeaders,
+                headers.rpcHeaders,
+                fetcher,
+                scope
+            ).map((item) => ({ group, item }))
+        );
+
+        for (const result of scanned) {
+            if (result.isErr()) return result;
+
+            result.inspect(({ group, item }) => {
+                if (item === null) return;
+
+                for (const candidate of group) {
+                    const record = contentRecord(
+                        chunkMetadataRecord(item, candidate.size),
+                        candidate
+                    );
+                    items.set(candidate.mediaKey, metadataItem(record, candidate));
+                    records.push(record);
+                }
+            });
+        }
+
+        if (metadata && records.length) {
+            const saved = await metadata.save(records);
+            if (saved.isErr()) warnings.push({ code: 'METADATA_SAVE_FAILED' });
+        }
+
+        return Ok({
+            items: page.items.flatMap((candidate) => {
+                const item = items.get(candidate.mediaKey);
+
+                return item ? [item] : [];
+            }),
+            nextPageToken: page.nextPageToken,
+            warnings
+        });
+    });
+}
 
 function readPrefix(response: Response): AsyncResult<Buffer, ServerError> {
     return Ok(undefined).andThenAsync<Buffer, ServerError>(async () => {
@@ -59,228 +145,76 @@ function readPrefix(response: Response): AsyncResult<Buffer, ServerError> {
 }
 
 function fetchPrefix(
-    email: string,
     url: URL,
     commonHeaders: Record<string, string>,
-    fetcher: Fetcher
+    fetcher: Fetcher,
+    scope?: ThrottleScope
 ): AsyncResult<Buffer, ServerError> {
-    return Ok(undefined).andThenAsync(async () => {
-        const startedAt = Date.now();
-        const wait = throttleWaitSeconds(email);
-        if (wait !== null) return Err(throttleError(wait));
+    const init: RequestInit = {
+        method: 'GET',
+        redirect: 'manual',
+        headers: {
+            ...commonHeaders,
+            range: `bytes=0-${HEADER_PROBE_BYTES - 1}`
+        },
+        ...(scope?.signal ? { signal: scope.signal } : {})
+    };
 
+    if (scope)
+        return guardedSend(scope, fetcher, url, init, 'Inspect photo header', {
+            acceptedStatuses: [200, 206]
+        })
+            .mapErr((error) =>
+                error.code === 'THROTTLED' || error.code === 'UPLOAD_CANCELLED'
+                    ? error
+                    : SERVER_ERRORS.COULD_NOT_INSPECT_PHOTO_HEADER
+            )
+            .andThenAsync((response) => readPrefix(response));
+
+    return Ok(undefined).andThenAsync(async () => {
         let response: Response;
 
         try {
-            response = await fetcher(url, {
-                method: 'GET',
-                redirect: 'manual',
-                headers: {
-                    ...commonHeaders,
-                    range: `bytes=0-${HEADER_PROBE_BYTES - 1}`
-                }
-            });
+            response = await fetcher(url, init);
         } catch {
             return Err(SERVER_ERRORS.COULD_NOT_INSPECT_PHOTO_HEADER);
         }
 
-        const paused =
-            response.status === 429
-                ? recordThrottle(email, parseRetryAfter(response.headers.get('retry-after')))
-                : response.status >= 500
-                  ? recordServerFailure(email)
-                  : null;
-        if (response.status === 429) logThrottleStage(email, 'Media fetch', url.hostname);
-        if (paused !== null) {
-            try {
-                await response.body?.cancel();
-            } catch {
-                // The pause still applies when the body cannot be cancelled.
-            }
-
-            return Err(throttleError(paused));
-        }
-
-        if (response.status !== 200 && response.status !== 206) {
-            recordServerSuccess(email);
-
+        if (response.status !== 200 && response.status !== 206)
             return Err(SERVER_ERRORS.COULD_NOT_INSPECT_PHOTO_HEADER);
-        }
-
-        recordSuccess(email, startedAt);
 
         return readPrefix(response);
     });
 }
 
-function definitelyNotPhodrive(prefix: Uint8Array): boolean {
-    if (prefix.length < 2) return false;
-    if (prefix[0] !== 66 || prefix[1] !== 77) return true;
-    if (prefix.length < BMP_HEADER_BYTES + SPLIT_MAGIC_PREFIX.length) return false;
-
-    return !SPLIT_MAGIC_PREFIX.every((byte, index) => prefix[BMP_HEADER_BYTES + index] === byte);
-}
-
-const CHUNK_NAME_PATTERN = /^(.*)\.phodrive-([0-9a-f]{64})-(\d+)-of-(\d+)\.bmp$/;
-
-type ChunkName = {
-    originalName?: string;
-    fileHash: string;
-    chunkIndex: number;
-    chunkCount: number;
-};
-
-/** Parse the chunk marker from a Google Photos file name. */
-export function parseChunkName(fileName?: string): ChunkName | undefined {
-    if (!fileName) return undefined;
-
-    const match = CHUNK_NAME_PATTERN.exec(fileName);
-    if (!match) return undefined;
-
-    const chunkIndex = Number(match[3]);
-    const chunkCount = Number(match[4]);
-    if (
-        !Number.isSafeInteger(chunkIndex) ||
-        !Number.isSafeInteger(chunkCount) ||
-        chunkCount < 1 ||
-        chunkIndex < 0 ||
-        chunkIndex >= chunkCount
-    )
-        return undefined;
-
-    return {
-        originalName: match[1] || undefined,
-        fileHash: match[2],
-        chunkIndex,
-        chunkCount
-    };
-}
-
-/** Parse -i-of-N.bmp from a chunk name; a missing or invalid count is unknown. */
-export function expectedChunkCount(fileName?: string): number | undefined {
-    return parseChunkName(fileName)?.chunkCount;
-}
-
-/** A named item without the marker is an ordinary photo, not a Phodrive chunk. */
-export function namedAsNonPhodrive(candidate: { fileName?: string }): boolean {
-    return candidate.fileName !== undefined && !candidate.fileName.includes('.phodrive-');
-}
-
-/** Rebuild a trashed chunk from its listing name, using the probe cache for probed fields. */
-export function trashedChunkItem(
-    email: string,
-    candidate: LibraryCandidate,
-    folderHint?: string
-): RemoteBmp | null {
-    const cached = readProbe(email, candidate);
-    if (cached) {
-        const expected = expectedChunkCount(candidate.fileName);
-        const item = expected === undefined ? cached : { ...cached, chunkCount: expected };
-
-        return { ...item, trashedAt: item.trashedAt ?? Date.now() };
-    }
-
-    const parsed = parseChunkName(candidate.fileName);
-    if (!parsed) return null;
-
-    const originalName = parsed.originalName ?? '';
-    const folder = folderHint ?? '';
-    const fileId = fileIdentity(originalName, parsed.fileHash, MAX_CHUNK_PAYLOAD_BYTES, folder);
-
-    return {
-        fileHash: parsed.fileHash,
-        fileId,
-        chunkIndex: parsed.chunkIndex,
-        chunkCount: parsed.chunkCount,
-        isLast: parsed.chunkIndex === parsed.chunkCount - 1,
-        ...(parsed.originalName ? { originalName: parsed.originalName } : {}),
-        ...(folder ? { folder } : {}),
-        size: candidate.size,
-        at: candidate.at,
-        mediaKey: candidate.mediaKey,
-        sha1: candidate.sha1,
-        trashedAt: Date.now()
-    };
-}
-
-function contentItem(content: ProbeContent, candidate: LibraryCandidate): RemoteBmp {
-    const expected = expectedChunkCount(candidate.fileName);
-
-    return {
-        ...content,
-        ...(expected === undefined ? {} : { chunkCount: expected }),
-        mediaKey: candidate.mediaKey,
-        at: candidate.at,
-        sha1: candidate.sha1
-    };
-}
-
-export function probeLibraryItem(
-    email: string,
+function probeLibraryItem(
     candidate: LibraryCandidate,
     commonHeaders: Record<string, string>,
     rpcHeaders: Record<string, string>,
-    fetcher: Fetcher
+    fetcher: Fetcher,
+    scope?: ThrottleScope
 ): AsyncResult<RemoteBmp | null, ServerError> {
-    if (namedAsNonPhodrive(candidate))
-        return Ok(undefined).andThenAsync<RemoteBmp | null, ServerError>(async () => Ok(null));
-    if (candidate.trashed)
-        return Ok(undefined).andThenAsync<RemoteBmp | null, ServerError>(async () =>
-            Ok(trashedChunkItem(email, candidate))
-        );
-
-    const expected = expectedChunkCount(candidate.fileName);
-    const cached = readProbe(email, candidate);
-    if (cached !== undefined)
-        return Ok(undefined).andThenAsync<RemoteBmp | null, ServerError>(async () =>
-            Ok(
-                cached === null || expected === undefined
-                    ? cached
-                    : { ...cached, chunkCount: expected }
-            )
-        );
-
-    const content = readContentProbe(email, candidate);
-    if (content !== undefined)
-        return Ok(undefined).andThenAsync<RemoteBmp | null, ServerError>(async () =>
-            Ok(contentItem(content, candidate))
-        );
-
-    return preparedDownloadUrl(email, candidate.mediaKey, candidate.sha1, rpcHeaders, fetcher)
+    return preparedDownloadUrl(candidate.mediaKey, candidate.sha1, rpcHeaders, fetcher, scope)
         .andThenAsync(async (url) => {
             if (url === null) return Ok(null);
 
-            return await fetchPrefix(email, url, commonHeaders, fetcher);
+            return await fetchPrefix(url, commonHeaders, fetcher, scope);
         })
         .map((prefix) => {
             if (prefix === null) return null;
 
-            const item = decodeSplitHeader(prefix, candidate.size).match({
+            return decodeSplitHeader(prefix, candidate.size).match({
                 Ok: ({ header }) => ({
+                    ...candidate,
                     fileHash: header.fileHash,
                     fileId: header.fileId,
                     chunkIndex: header.chunkIndex,
-                    ...(expected === undefined ? {} : { chunkCount: expected }),
-                    isLast: splitHeaderIsLast(header.flags),
+                    isLast: header.flags === 1,
                     originalName: header.fileName,
                     folder: header.folder,
-                    size: header.originalSize ?? header.payloadSize,
-                    storedSize: header.payloadSize,
-                    compressed: splitHeaderIsCompressed(header.flags),
-                    at: candidate.at,
-                    mediaKey: candidate.mediaKey,
-                    sha1: candidate.sha1
+                    size: header.payloadSize
                 }),
                 Err: () => null
             });
-            if (item !== null) {
-                writeProbe(email, candidate, item);
-                writeContentProbe(email, candidate, item);
-
-                return item;
-            }
-            if (definitelyNotPhodrive(prefix)) writeProbe(email, candidate, null);
-
-            return null;
         });
 }

@@ -1,37 +1,31 @@
 import type { ApplicationError } from '../errors';
 import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
-import { LibraryResponseSchema, type LibraryResponse, type RemoteBmp } from '../models';
-import { LibrarySyncResponseSchema, type LibrarySyncResponse } from '../library-sync';
-import type { UploadedChunk } from '../files';
 import {
-    mergeGroupLibrary,
-    type GroupAccountState,
-    type GroupPage,
-    type GroupPageError
-} from '../groups';
+    GOOGLE_ACCOUNT_HEADER,
+    LibraryResponseSchema,
+    type LibraryResponse,
+    type LibraryWarning,
+    type RemoteBmp
+} from '../models';
 import { schemaResult } from '../validation';
 import { apiJson } from './api';
 
 export type LibrarySnapshot = LibraryResponse & { pages: number };
 
-export type GroupLibrarySnapshot = {
-    chunks: UploadedChunk[];
-    accounts: GroupAccountState[];
-    partial: boolean;
-    revisions: Record<string, number>;
-};
-
+/** Read one library page for one Google account, or for the server's default account. */
 export function readLibraryPage(
-    email: string,
-    token: string,
-    pageToken = ''
+    pageToken = '',
+    accountId?: string
 ): AsyncResult<LibraryResponse, ApplicationError> {
     return apiJson(
         '/api/library',
         {
             method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ email, token, pageToken })
+            headers: {
+                'content-type': 'application/json',
+                ...(accountId ? { [GOOGLE_ACCOUNT_HEADER]: accountId } : {})
+            },
+            body: JSON.stringify({ pageToken })
         },
         'Could not load files.'
     ).andThen((value) => schemaResult(LibraryResponseSchema, value, 'Could not load files.'));
@@ -39,21 +33,20 @@ export function readLibraryPage(
 
 /** Build a fresh snapshot to the loaded depth without changing the visible library mid-request. */
 export function readLibrarySnapshot(
-    email: string,
-    token: string,
-    pageCount: number
+    pageCount: number,
+    accountId?: string
 ): AsyncResult<LibrarySnapshot, ApplicationError> {
     return Ok(undefined).andThenAsync(async () => {
         const items = new Map<string, RemoteBmp>();
+        const warnings = new Map<LibraryWarning['code'], LibraryWarning>();
         const pageTokens = new Set<string>();
         let nextPageToken = '';
         let pages = 0;
-        let revision = 0;
 
         for (let index = 0; index < Math.max(1, pageCount); index++) {
             pageTokens.add(nextPageToken);
 
-            const received = await readLibraryPage(email, token, nextPageToken);
+            const received = await readLibraryPage(nextPageToken, accountId);
 
             const merged = received.andThen((page): Result<void, ApplicationError> => {
                 if (page.nextPageToken && pageTokens.has(page.nextPageToken)) {
@@ -64,8 +57,16 @@ export function readLibrarySnapshot(
                 }
 
                 for (const item of page.items) items.set(item.mediaKey, item);
+                for (const warning of page.warnings ?? []) {
+                    const current = warnings.get(warning.code);
+                    warnings.set(warning.code, {
+                        code: warning.code,
+                        ...(current?.count || warning.count
+                            ? { count: (current?.count ?? 0) + (warning.count ?? 0) }
+                            : {})
+                    });
+                }
                 nextPageToken = page.nextPageToken;
-                if (pages === 0) revision = page.revision;
                 pages++;
 
                 return Ok(undefined);
@@ -78,213 +79,8 @@ export function readLibrarySnapshot(
         return Ok({
             items: [...items.values()],
             nextPageToken,
-            pages,
-            revision
+            warnings: [...warnings.values()],
+            pages
         });
-    });
-}
-
-export function readLibrarySync(
-    email: string,
-    token: string,
-    force = false,
-    revision = 0
-): AsyncResult<LibrarySyncResponse, ApplicationError> {
-    return apiJson(
-        '/api/library/sync',
-        {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ email, token, force, revision })
-        },
-        'Could not sync files.'
-    ).andThen((value) => schemaResult(LibrarySyncResponseSchema, value, 'Could not sync files.'));
-}
-
-export function applyLibraryDelta(
-    current: readonly UploadedChunk[],
-    email: string,
-    update: { items: readonly RemoteBmp[]; deleted: readonly string[] }
-): UploadedChunk[] {
-    const items = new Map<string, UploadedChunk>();
-    for (const item of current) {
-        if (item.email.toLowerCase() === email.toLowerCase()) items.set(item.mediaKey, item);
-    }
-
-    for (const item of update.items) items.set(item.mediaKey, { ...item, email });
-    for (const mediaKey of update.deleted) items.delete(mediaKey);
-
-    return [...items.values()];
-}
-
-function readPageResult(
-    received: Result<LibraryResponse, ApplicationError>
-): { page: LibraryResponse } | { error: GroupPageError } {
-    return received.match<{ page: LibraryResponse } | { error: GroupPageError }>({
-        Ok: (page) => ({ page }),
-        Err: (error) => ({ error })
-    });
-}
-
-async function readMemberPages(email: string, token: string): Promise<GroupPage> {
-    const items = new Map<string, RemoteBmp>();
-    const pageTokens = new Set<string>();
-    let pageToken = '';
-    let revision = 0;
-    let first = true;
-
-    do {
-        pageTokens.add(pageToken);
-
-        const received = await readLibraryPage(email, token, pageToken);
-        const read = readPageResult(received);
-        if ('error' in read) return { email, error: read.error };
-
-        const page = read.page;
-        if (page.nextPageToken && pageTokens.has(page.nextPageToken))
-            return {
-                email,
-                error: {
-                    code: 'REPEATED_LIBRARY_PAGE',
-                    message: 'Google Photos repeated a library page. Refresh to try again.'
-                }
-            };
-
-        for (const item of page.items) items.set(item.mediaKey, item);
-        if (first) {
-            revision = page.revision;
-            first = false;
-        }
-        pageToken = page.nextPageToken;
-    } while (pageToken);
-
-    return { email, items: [...items.values()], revision };
-}
-
-async function readMemberSync(
-    email: string,
-    token: string,
-    loaded: readonly UploadedChunk[],
-    revision: number
-): Promise<GroupPage> {
-    const received = await readLibrarySync(email, token, false, revision);
-
-    return received.match<GroupPage>({
-        Ok: (update) => ({
-            email,
-            items: update.full ? update.items : applyLibraryDelta(loaded, email, update),
-            revision: update.revision
-        }),
-        Err: (error) => ({ email, error })
-    });
-}
-
-function missingMemberPage(email: string): GroupPage {
-    return {
-        email,
-        error: { code: 'ACCOUNT_NOT_FOUND', message: `${email} is not connected.` }
-    };
-}
-
-function pausedMemberPage(email: string, retryAfterSeconds: number): GroupPage {
-    return {
-        email,
-        error: {
-            code: 'THROTTLED',
-            message: 'Google Photos is limiting requests',
-            retryAfterSeconds
-        }
-    };
-}
-
-async function collectGroupPages(
-    members: readonly { email: string; token: string; pausedUntil?: number }[],
-    missing: readonly string[],
-    readMember: (member: { email: string; token: string }) => Promise<GroupPage>
-): Promise<GroupPage[]> {
-    const pages = missing.map(missingMemberPage);
-    const now = Date.now();
-
-    for (const member of members) {
-        if (member.pausedUntil && member.pausedUntil > now) {
-            pages.push(
-                pausedMemberPage(
-                    member.email,
-                    Math.max(1, Math.ceil((member.pausedUntil - now) / 1_000))
-                )
-            );
-
-            continue;
-        }
-
-        pages.push(await readMember(member));
-    }
-
-    return pages;
-}
-
-function groupSnapshot(pages: readonly GroupPage[]): GroupLibrarySnapshot {
-    const merged = mergeGroupLibrary(pages);
-    const revisions: Record<string, number> = {};
-    for (const page of pages) {
-        if (page.revision !== undefined) revisions[page.email.toLowerCase()] = page.revision;
-    }
-
-    return {
-        chunks: merged.items,
-        accounts: merged.accounts,
-        partial: merged.partial,
-        revisions
-    };
-}
-
-/** Query every member, merge their items, and report a paused member instead of failing. */
-export function readGroupLibrary(
-    members: readonly { email: string; token: string; pausedUntil?: number }[],
-    missing: readonly string[] = []
-): AsyncResult<GroupLibrarySnapshot, ApplicationError> {
-    return Ok(undefined).andThenAsync(async () => {
-        const pages = await collectGroupPages(members, missing, (member) =>
-            readMemberPages(member.email, member.token)
-        );
-
-        return Ok(groupSnapshot(pages));
-    });
-}
-
-/** Sync loaded members and force a full rebuild for members that were not loaded. */
-export function readGroupLibraryUpdates(
-    members: readonly { email: string; token: string; pausedUntil?: number }[],
-    missing: readonly string[] = [],
-    loaded: readonly UploadedChunk[] = [],
-    previousAccounts: readonly GroupAccountState[] = [],
-    revisions: ReadonlyMap<string, number> = new Map()
-): AsyncResult<GroupLibrarySnapshot, ApplicationError> {
-    return Ok(undefined).andThenAsync(async () => {
-        const complete = new Set(
-            previousAccounts
-                .filter((account) => account.status === 'ok')
-                .map((account) => account.email.toLowerCase())
-        );
-        const updates = await collectGroupPages(members, missing, (member) => {
-            const email = member.email.toLowerCase();
-            const revision = complete.has(email) ? (revisions.get(email) ?? 0) : 0;
-
-            return readMemberSync(member.email, member.token, loaded, revision);
-        });
-        const kept: GroupPage[] = members
-            .filter((member) =>
-                updates.some(
-                    (page) => page.email.toLowerCase() === member.email.toLowerCase() && page.error
-                )
-            )
-            .map((member) => ({
-                email: member.email,
-                items: loaded.filter(
-                    (item) => item.email.toLowerCase() === member.email.toLowerCase()
-                )
-            }));
-
-        return Ok(groupSnapshot([...updates, ...kept]));
     });
 }

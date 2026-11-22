@@ -1,225 +1,171 @@
+import { createHash } from 'node:crypto';
 import { expect, test } from 'vitest';
-import { planUpload } from '@madkarmaa/phodrive-core/server/upload';
-import { fileIdentity } from '@madkarmaa/phodrive-core/server/chunks';
 import {
     childFolders,
-    folderFromFile,
     folderFromPath,
     folderTrail,
     groupChunks,
-    normalizedFolder,
-    type FileGroup,
+    identityInput,
+    resolveUploadFolder,
     type UploadedChunk
 } from '@madkarmaa/phodrive-core/files';
+import { uploadIdentity } from '@madkarmaa/phodrive-core/browser/upload/hash';
+import { fileIdentity } from '@madkarmaa/phodrive-core/server/chunks';
+import { FolderPathSchema, RemoteBmpSchema, type RemoteBmp } from '@madkarmaa/phodrive-core/models';
 
-const EMAIL = 'test@example.com';
-const FILE_HASH = 'ab'.repeat(32);
-const FILE_ID = 'cd'.repeat(32);
+const HASH = 'ab'.repeat(32);
 
-function group(name: string, folder: string): FileGroup {
-    return {
-        email: EMAIL,
-        fileHash: FILE_HASH,
-        fileId: FILE_ID,
-        name,
-        folder,
-        at: 0,
-        chunkCount: null,
-        chunks: [],
-        duplicates: [],
-        trashedChunks: [],
-        trashed: false,
-        complete: false
-    };
-}
+test('root identity is byte-for-byte unchanged before folders', () => {
+    const input = identityInput('same.txt', HASH);
+    const identity = createHash('sha256').update(input).digest('hex');
 
-test('child folders list immediate children with their direct file counts', () => {
-    const files = [
-        group('root.jpg', ''),
-        group('alpha.txt', 'a'),
-        group('beta.txt', 'a/b'),
-        group('gamma.txt', 'a/b'),
-        group('delta.txt', 'a/b/c'),
-        group('deeper.txt', 'a/b/c/d'),
-        group('boundary.txt', 'a/bc'),
-        group('nested.txt', 'a/bc/deep'),
-        group('zeta.txt', 'a/z')
-    ];
-
-    expect(childFolders(files, '')).toEqual([{ path: 'a', name: 'a', files: 1, subfolders: 3 }]);
-    expect(childFolders(files, 'a')).toEqual([
-        { path: 'a/b', name: 'b', files: 2, subfolders: 1 },
-        { path: 'a/bc', name: 'bc', files: 1, subfolders: 1 },
-        { path: 'a/z', name: 'z', files: 1, subfolders: 0 }
-    ]);
-    expect(childFolders(files, 'a/b')).toEqual([
-        { path: 'a/b/c', name: 'c', files: 1, subfolders: 1 }
-    ]);
-    expect(childFolders(files, 'a/b/c')).toEqual([
-        { path: 'a/b/c/d', name: 'd', files: 1, subfolders: 0 }
-    ]);
-    expect(childFolders(files, 'a/bc')).toEqual([
-        { path: 'a/bc/deep', name: 'deep', files: 1, subfolders: 0 }
-    ]);
-    expect(childFolders(files, 'missing')).toEqual([]);
+    expect(input).toBe(`${HASH}\u0000same.txt\u0000195000000`);
+    expect(identity).toBe('9d0f53e7243474d5e6301b823520da3e745e54566ac475e76883ad508264b539');
+    expect(fileIdentity('same.txt', HASH)).toBe(identity);
 });
 
-test('folder trails walk from the library root to the current path', () => {
-    expect(folderTrail('')).toEqual([]);
-    expect(folderTrail('a')).toEqual([{ name: 'a', path: 'a' }]);
-    expect(folderTrail('a/b/c')).toEqual([
-        { name: 'a', path: 'a' },
-        { name: 'b', path: 'a/b' },
-        { name: 'c', path: 'a/b/c' }
-    ]);
+test('folder identity differs from root and from another folder', async () => {
+    const root = fileIdentity('same.txt', HASH);
+    const documents = fileIdentity('same.txt', HASH, undefined, 'Documents');
+    const archive = fileIdentity('same.txt', HASH, undefined, 'Archive');
+
+    expect(documents).not.toBe(root);
+    expect(archive).not.toBe(root);
+    expect(documents).not.toBe(archive);
+    expect((await uploadIdentity('same.txt', HASH, 'Documents')).unwrap()).toBe(documents);
 });
 
-test('folder names come from the file relative path and the fallback', () => {
-    // Node's File has no webkitRelativePath, so the browser-only property is defined per instance.
-    function relativeFile(relativePath: string): File {
-        const file = new File(['payload'], 'a.jpg');
-        Object.defineProperty(file, 'webkitRelativePath', { value: relativePath });
+test('folder paths validate separators, segments, and limits', () => {
+    for (const path of ['Projects', 'Projects/2026', 'Photos/Trips/London']) {
+        expect(FolderPathSchema.safeParse(path).success).toBe(true);
+    }
+    for (const path of ['', '/root', 'a//b', 'a/./b', 'a/../b', 'a\\b', 'a\rb', 'a\nb', 'a\0b']) {
+        expect(FolderPathSchema.safeParse(path).success).toBe(false);
+    }
+    expect(FolderPathSchema.safeParse('a'.repeat(255)).success).toBe(true);
+    expect(FolderPathSchema.safeParse('a'.repeat(256)).success).toBe(false);
+    expect(FolderPathSchema.safeParse(`${'a'.repeat(255)}/${'b'.repeat(255)}`).success).toBe(true);
+    expect(FolderPathSchema.safeParse('a'.repeat(513)).success).toBe(false);
+    expect(RemoteBmpSchema.safeParse({ ...chunk(), chunkIndex: 1 }).success).toBe(true);
+    expect(RemoteBmpSchema.safeParse({ ...chunk('Projects'), chunkIndex: 1 }).success).toBe(false);
+});
+
+test('directory picker paths combine with the current folder', () => {
+    const directory = (path: string) => {
+        const file = new File(['x'], 'x.bin');
+        Object.defineProperty(file, 'webkitRelativePath', { value: path });
 
         return file;
-    }
-
-    expect(folderFromFile(relativeFile('trip/2024/a.jpg'))).toBe('trip/2024');
-    expect(folderFromFile(relativeFile('trip/a.jpg'), 'library')).toBe('library/trip');
-    expect(folderFromFile(new File(['payload'], 'a.jpg'))).toBe('');
-    expect(folderFromFile(new File(['payload'], 'a.jpg'), 'library')).toBe('library');
-    expect(folderFromFile(relativeFile('a.jpg'), 'library')).toBe('library');
-    expect(folderFromFile(relativeFile('trip/../a.jpg'))).toBe('');
-    expect(folderFromFile(relativeFile('../a.jpg'))).toBe('');
-    expect(folderFromFile(relativeFile('trip\\2024/a.jpg'))).toBe('');
-});
-
-test('grouping takes the folder from the first chunk and keeps the newest duplicate', () => {
-    const base: Omit<UploadedChunk, 'chunkIndex' | 'isLast'> = {
-        email: EMAIL,
-        fileHash: FILE_HASH,
-        fileId: FILE_ID,
-        size: 100,
-        at: 10,
-        mediaKey: 'base',
-        sha1: 'ab'.repeat(20)
     };
 
-    const lateFirst = [
-        { ...base, chunkIndex: 1, isLast: true },
-        { ...base, chunkIndex: 0, isLast: false, originalName: 'video.mp4', folder: 'photos/2024' }
-    ];
-    const lateBefore = structuredClone(lateFirst);
-    const lateGroups = groupChunks(lateFirst);
-    expect(lateGroups).toHaveLength(1);
-    expect(lateGroups[0].folder).toBe('photos/2024');
-    expect(lateGroups[0].chunks.map((chunk) => chunk.chunkIndex)).toEqual([0, 1]);
-    expect(lateFirst).toEqual(lateBefore);
+    expect(resolveUploadFolder(directory('Source/a.ts'), 'Work').unwrap()).toBe('Work/Source');
+    expect(resolveUploadFolder(directory('Source/lib/a.ts')).unwrap()).toBe('Source/lib');
+    expect(resolveUploadFolder(directory('Photos/Trips/a.jpg')).unwrap()).toBe('Photos/Trips');
+    expect(resolveUploadFolder(new File(['x'], 'a.txt'), 'Projects/2026').unwrap()).toBe(
+        'Projects/2026'
+    );
+});
 
-    const duplicateFirst = [
-        {
-            ...base,
-            chunkIndex: 0,
-            isLast: true,
-            originalName: 'newer.jpg',
-            folder: 'photos/2024',
-            at: 20,
-            mediaKey: 'newer'
-        },
-        {
-            ...base,
-            chunkIndex: 0,
-            isLast: true,
-            originalName: 'older.jpg',
-            folder: 'photos/2000',
-            at: 10,
-            mediaKey: 'older'
+test('malformed relative paths stay malformed and fail instead of becoming root', () => {
+    const directory = (path: string) => {
+        const file = new File(['x'], 'x.bin');
+        Object.defineProperty(file, 'webkitRelativePath', { value: path });
+
+        return file;
+    };
+    const paths = [
+        '/a.ts',
+        'Source//a.ts',
+        'Source//nested/a.ts',
+        'Source/./a.ts',
+        'Source/../a.ts',
+        'a/../b.txt'
+    ];
+
+    for (const root of ['', 'Work']) {
+        for (const path of paths) {
+            const resolved = resolveUploadFolder(directory(path), root);
+            expect(resolved.isErr()).toBe(true);
+            expect(resolved.unwrapErr()).toEqual({
+                code: 'INVALID_FOLDER_PATH',
+                message: 'Invalid folder path.'
+            });
         }
-    ];
-    const duplicateBefore = structuredClone(duplicateFirst);
-    const duplicateGroups = groupChunks(duplicateFirst);
-    expect(duplicateGroups[0].folder).toBe('photos/2024');
-    expect(duplicateGroups[0].name).toBe('newer.jpg');
-    expect(duplicateGroups[0].at).toBe(20);
-    expect(duplicateGroups[0].chunks.map((chunk) => chunk.mediaKey)).toEqual(['newer']);
-    expect(duplicateFirst).toEqual(duplicateBefore);
-
-    const [rootGroup] = groupChunks([{ ...base, chunkIndex: 0, isLast: true }]);
-    expect(rootGroup.folder).toBe('');
+    }
 });
 
-test('folder paths normalize dropped values to an empty root folder', () => {
-    expect(normalizedFolder('trip/2024')).toBe('trip/2024');
-    expect(normalizedFolder(undefined)).toBe('');
-    expect(normalizedFolder('')).toBe('');
-    expect(normalizedFolder('/trip')).toBe('');
-    expect(normalizedFolder('trip/../2024')).toBe('');
-    expect(normalizedFolder('trip\\2024')).toBe('');
-    expect(normalizedFolder('trip//2024')).toBe('');
-    expect(normalizedFolder('.')).toBe('');
-    expect(normalizedFolder('a'.repeat(256))).toBe('');
-});
-
-test('folderFromPath takes the parent of a relative path', () => {
-    expect(folderFromPath('photos/2024/a.jpg')).toBe('photos/2024');
-    expect(folderFromPath('photos\\2024\\a.jpg')).toBe('photos/2024');
+test('folderFromPath keeps the parent path', () => {
+    expect(folderFromPath('Photos/Trips/a.jpg')).toBe('Photos/Trips');
+    expect(folderFromPath('Photos\\Trips\\a.jpg')).toBe('Photos/Trips');
     expect(folderFromPath('a.jpg')).toBe('');
 });
 
-test('identical files in different folders keep separate identities', () => {
-    const file = { name: 'same.txt', size: 3, fileHash: 'ab'.repeat(32) };
-    const first = planUpload({ ...file, folder: 'photos/a' }).unwrap().headers[0];
-    const second = planUpload({ ...file, folder: 'photos/b' }).unwrap().headers[0];
-    const root = planUpload(file).unwrap().headers[0];
+test('folder hierarchy exposes only immediate children and their counts', () => {
+    const files = [
+        { folder: 'Projects' },
+        { folder: 'Projects/2026' },
+        { folder: 'Projects/2026/src' },
+        { folder: 'Photos' }
+    ];
 
-    expect(first?.fileId).not.toBe(second?.fileId);
-    expect(root?.fileId).toBe(fileIdentity(file.name, file.fileHash));
-
-    const chunk = (
-        header: NonNullable<typeof first>,
-        folder: string,
-        mediaKey: string
-    ): UploadedChunk => ({
-        email: EMAIL,
-        folder,
-        fileHash: header.fileHash,
-        fileId: header.fileId,
-        chunkIndex: 0,
-        isLast: true,
-        originalName: 'same.txt',
-        size: 3,
-        at: 1,
-        mediaKey,
-        sha1: 'cd'.repeat(20)
-    });
-
-    const groups = groupChunks([
-        chunk(first, 'photos/a', 'key-a'),
-        chunk(second, 'photos/b', 'key-b')
+    expect(childFolders(files, '')).toEqual([
+        { path: 'Photos', name: 'Photos', files: 1, subfolders: 0 },
+        { path: 'Projects', name: 'Projects', files: 1, subfolders: 1 }
     ]);
-
-    expect(groups).toHaveLength(2);
-    expect(groups.map((group) => group.folder).sort()).toEqual(['photos/a', 'photos/b']);
+    expect(childFolders(files, 'Projects')).toEqual([
+        { path: 'Projects/2026', name: '2026', files: 1, subfolders: 1 }
+    ]);
+    expect(childFolders(files, 'Projects/2026')).toEqual([
+        { path: 'Projects/2026/src', name: 'src', files: 1, subfolders: 0 }
+    ]);
+    expect(folderTrail('Projects/2026/src')).toEqual([
+        { name: 'Projects', path: 'Projects' },
+        { name: '2026', path: 'Projects/2026' },
+        { name: 'src', path: 'Projects/2026/src' }
+    ]);
 });
 
-test('folder entries count direct files and immediate subfolders separately', () => {
-    const filesOnly = [group('one.txt', 'photos'), group('two.txt', 'photos')];
-    const subfoldersOnly = [group('one.txt', 'photos/2024'), group('two.txt', 'photos/2025')];
-    const both = [group('one.txt', 'photos'), group('two.txt', 'photos/2024')];
-    const deep = [group('one.txt', 'photos/2024/a/b/c')];
+function chunk(folder?: string, index = 0, name = 'a.txt'): UploadedChunk {
+    return {
+        fileHash: 'a'.repeat(64),
+        fileId: 'b'.repeat(64),
+        chunkIndex: index,
+        isLast: true,
+        originalName: index === 0 ? name : undefined,
+        ...(folder ? { folder } : {}),
+        size: 1,
+        at: 1,
+        mediaKey: 'media-key',
+        sha1: 'c'.repeat(40),
+        email: 'test@example.com',
+        accountId: 'account-one'
+    } satisfies RemoteBmp & { email: string };
+}
 
-    expect(childFolders(filesOnly, '')).toEqual([
-        { path: 'photos', name: 'photos', files: 2, subfolders: 0 }
+test('grouping takes the folder from chunk zero and defaults root to an empty string', () => {
+    expect(groupChunks([chunk()])[0]?.folder).toBe('');
+    expect(groupChunks([chunk('Projects/2026')])[0]?.folder).toBe('Projects/2026');
+
+    const grouped = groupChunks([chunk('Archive', 0), chunk(undefined, 1)]);
+    expect(grouped[0]?.folder).toBe('Archive');
+});
+
+test('the same virtual folder merges files from two accounts while owners stay separate', () => {
+    const grouped = groupChunks([
+        chunk('Projects', 0, 'a.txt'),
+        {
+            ...chunk('Projects', 0, 'b.txt'),
+            accountId: 'account-two',
+            email: 'second@example.com',
+            fileHash: 'd'.repeat(64),
+            fileId: 'e'.repeat(64),
+            mediaKey: 'media-two'
+        }
     ]);
-    expect(childFolders(subfoldersOnly, '')).toEqual([
-        { path: 'photos', name: 'photos', files: 0, subfolders: 2 }
+
+    expect(grouped).toHaveLength(2);
+    expect(childFolders(grouped, '')).toEqual([
+        { path: 'Projects', name: 'Projects', files: 2, subfolders: 0 }
     ]);
-    expect(childFolders(both, '')).toEqual([
-        { path: 'photos', name: 'photos', files: 1, subfolders: 1 }
-    ]);
-    expect(childFolders(deep, '')).toEqual([
-        { path: 'photos', name: 'photos', files: 0, subfolders: 1 }
-    ]);
-    expect(childFolders(deep, 'photos')).toEqual([
-        { path: 'photos/2024', name: '2024', files: 0, subfolders: 1 }
-    ]);
+    expect(grouped.map((file) => file.accountId)).toEqual(['account-one', 'account-two']);
 });

@@ -1,20 +1,12 @@
-import { openAsBlob } from 'node:fs';
-import { realpath, stat } from 'node:fs/promises';
-import { basename, dirname, relative, resolve } from 'node:path';
-import { fdir } from 'fdir';
 import { Err, Ok, type AsyncResult } from 'results-ts';
 import type { ApplicationError } from '../errors';
-import { folderFromPath, type UploadedChunk } from '../files';
-import { UploadEventType, type UploadEvent } from '../models';
+import type { UploadedChunk } from '../files';
+import { UploadEventType, type Account, type UploadEvent } from '../models';
 import { transferFiles } from '../browser/upload/index';
-import {
-    transferGroupFiles,
-    type GroupUploadMember,
-    type GroupUploadResult
-} from '../browser/upload/group';
 import type { ChunkTransport } from '../browser/upload/request';
 import type { UploadJob } from '../browser/upload/jobs';
 import type { Fetcher } from '../server/fetcher';
+import type { ThrottleCoordinator } from '../server/photos/throttle';
 import { receiveChunk } from '../server/upload/input';
 import { uploadFiles as forwardChunk } from '../server/upload/index';
 import { validateWorkers } from '../server/workers';
@@ -22,18 +14,17 @@ import { validateWorkers } from '../server/workers';
 export type TransferOptions = {
     signal?: AbortSignal;
     fetcher?: Fetcher;
-    folders?: ReadonlyMap<File, string>;
-    compress?: boolean;
+    accountId?: string;
+    coordinator?: ThrottleCoordinator;
+    folder?: string;
 };
-export type LocalFile = { path: string; folder: string; file: File };
-
-function readFailure(path: string): ApplicationError {
-    return { code: 'FILE_READ_FAILED', message: `Could not read ${path}.` };
-}
 
 /** Forward chunks to Google Photos in this process, reporting the same events as the HTTP API. */
-export function localChunkTransport({ signal, fetcher }: TransferOptions = {}): ChunkTransport {
-    return (metadata, payload, onEvent) =>
+export function localChunkTransport(
+    account: Account,
+    { signal, fetcher, accountId, coordinator }: TransferOptions = {}
+): ChunkTransport {
+    return ({ metadata, payload }, onEvent) =>
         Ok(undefined).andThenAsync(async () => {
             const abort = new AbortController();
             const onAbort = () => abort.abort();
@@ -53,11 +44,18 @@ export function localChunkTransport({ signal, fetcher }: TransferOptions = {}): 
 
             try {
                 const uploaded = await receiveChunk(
-                    metadata,
+                    { ...account, ...metadata },
                     payload.stream(),
                     abort.signal
                 ).andThenAsync(async (input) => {
-                    const forwarded = await forwardChunk(input, emit, fetcher);
+                    const forwarded = await forwardChunk(
+                        input,
+                        emit,
+                        fetcher,
+                        undefined,
+                        accountId,
+                        coordinator
+                    );
 
                     const cancelled = await input.cancel();
 
@@ -69,7 +67,14 @@ export function localChunkTransport({ signal, fetcher }: TransferOptions = {}): 
 
                 return uploaded.match({
                     Ok: () => onEvent({ type: UploadEventType.Complete }),
-                    Err: (error) => onEvent({ type: UploadEventType.Error, error: error.message })
+                    Err: (error) =>
+                        onEvent({
+                            type: UploadEventType.Error,
+                            error: error.message,
+                            ...(error.code === 'THROTTLED'
+                                ? { retryAfterSeconds: error.retryAfterSeconds }
+                                : {})
+                        })
                 });
             } finally {
                 signal?.removeEventListener('abort', onAbort);
@@ -77,167 +82,29 @@ export function localChunkTransport({ signal, fetcher }: TransferOptions = {}): 
         });
 }
 
-/** Symbolic links are followed the same way on every runtime; repeated targets are removed later. */
-function listFolder(path: string): AsyncResult<string[], ApplicationError> {
-    return Ok(undefined).andThenAsync(async () => {
-        try {
-            const files = await new fdir()
-                .withFullPaths()
-                .withSymlinks({ resolvePaths: false })
-                .withErrors()
-                .crawl(path)
-                .withPromise();
-
-            return Ok(files.sort());
-        } catch {
-            return Err(readFailure(path));
-        }
-    });
-}
-
-function openFile(path: string, folder: string): AsyncResult<LocalFile, ApplicationError> {
-    return Ok(undefined).andThenAsync(async () => {
-        try {
-            const blob = await openAsBlob(path);
-
-            // Disk-backed blobs are read lazily, so large files are never loaded into memory.
-            return Ok({ path, folder, file: new File([blob], basename(path)) });
-        } catch {
-            return Err(readFailure(path));
-        }
-    });
-}
-
-function expandPath(
-    path: string
-): AsyncResult<{ path: string; folder: string }[], ApplicationError> {
-    return Ok(undefined).andThenAsync<{ path: string; folder: string }[], ApplicationError>(
-        async () => {
-            let isFolder: boolean;
-
-            try {
-                const stats = await stat(path);
-                if (!stats.isFile() && !stats.isDirectory())
-                    return Err({
-                        code: 'FILE_READ_FAILED',
-                        message: `${path} is not a file or folder.`
-                    } as const);
-
-                isFolder = stats.isDirectory();
-            } catch {
-                return Err(readFailure(path));
-            }
-
-            if (!isFolder) return Ok([{ path, folder: '' }]);
-
-            const listed = listFolder(path).map((found) => {
-                const base = dirname(resolve(path));
-
-                return found.map((file) => ({
-                    path: file,
-                    folder: folderFromPath(relative(base, file))
-                }));
-            });
-
-            return await listed;
-        }
-    );
-}
-
-function canonicalPath(path: string): AsyncResult<string, ApplicationError> {
-    return Ok(undefined).andThenAsync(async () => {
-        try {
-            const resolved = await realpath(path);
-
-            return Ok(resolved);
-        } catch {
-            return Err(readFailure(path));
-        }
-    });
-}
-
-/** Open each file once, even when it is selected again directly or through a link. */
-function openFiles(
-    entries: readonly { path: string; folder: string }[],
-    files: LocalFile[],
-    opened: Set<string>
-): AsyncResult<LocalFile[], ApplicationError> {
-    return Ok(undefined).andThenAsync(async () => {
-        for (const { path, folder } of entries) {
-            const added = await canonicalPath(path).andThenAsync(async (real) => {
-                if (opened.has(real)) return Ok(undefined);
-
-                opened.add(real);
-
-                return await openFile(path, folder).map((local) => {
-                    files.push(local);
-                });
-            });
-            if (added.isErr()) return added;
-        }
-
-        return Ok(files);
-    });
-}
-
-export function openLocalFiles(
-    paths: readonly string[]
-): AsyncResult<LocalFile[], ApplicationError> {
-    return Ok(undefined).andThenAsync(async () => {
-        const files: LocalFile[] = [];
-        const opened = new Set<string>();
-
-        for (const path of paths) {
-            const expanded = await expandPath(path).andThenAsync((found) =>
-                openFiles(found, files, opened)
-            );
-            if (expanded.isErr()) return expanded;
-        }
-
-        return Ok(files);
-    });
-}
-
+/**
+ * Upload local files with the web app's hashing, chunking, deduplication, and worker pool,
+ * using up to one worker per available processor.
+ */
 export function uploadFiles(
     files: readonly File[],
     email: string,
     token: string,
     workers: number,
     onJob: (job: UploadJob) => void,
-    onChunk: (chunk: UploadedChunk) => void,
+    onChunk: (chunk: UploadedChunk, jobId: number) => void,
     options: TransferOptions = {}
 ): AsyncResult<void, ApplicationError> {
     return validateWorkers(workers).andThenAsync((concurrency) =>
         transferFiles(
             files,
             email,
-            token,
             concurrency,
             onJob,
             onChunk,
-            localChunkTransport(options),
-            { folders: options.folders, compress: options.compress }
-        )
-    );
-}
-
-export function uploadGroupFiles(
-    files: readonly File[],
-    members: readonly GroupUploadMember[],
-    workers: number,
-    onJob: (job: UploadJob) => void,
-    onChunk: (chunk: UploadedChunk) => void,
-    options: TransferOptions = {}
-): AsyncResult<GroupUploadResult, ApplicationError> {
-    return validateWorkers(workers).andThenAsync((concurrency) =>
-        transferGroupFiles(
-            files,
-            members,
-            concurrency,
-            onJob,
-            onChunk,
-            localChunkTransport(options),
-            { folders: options.folders, compress: options.compress }
+            localChunkTransport({ email, token }, options),
+            options.signal,
+            options.folder === undefined ? undefined : files.map(() => options.folder!)
         )
     );
 }

@@ -9,12 +9,8 @@ import {
     FileSortSchema,
     SelectedAccountSchema,
     StoredAccountsSchema,
-    StoredAlbumsSchema,
-    WorkerCountSchema,
-    type Group,
-    type StoredAlbums
+    WorkerCountSchema
 } from '@madkarmaa/phodrive-core/models';
-import { StoredGroupsSchema } from '@madkarmaa/phodrive-core/groups';
 import type { CliError } from './context';
 import { isMissingPath } from './filesystem';
 
@@ -27,16 +23,13 @@ const CONFIG_FOLDER_MODE = 0o700;
 const StoredSettingsSchema = z.object({
     sort: FileSortSchema.optional().catch(undefined),
     // Counts above this machine's processors are kept and limited when used.
-    workers: WorkerCountSchema.optional().catch(undefined),
-    compression: z.boolean().optional().catch(undefined)
+    workers: WorkerCountSchema.optional().catch(undefined)
 });
 
 const StoredConfigSchema = z.object({
     accounts: StoredAccountsSchema.catch({}),
     selected: SelectedAccountSchema.catch(''),
-    settings: StoredSettingsSchema.catch({}),
-    albums: StoredAlbumsSchema.catch({}),
-    groups: StoredGroupsSchema.catch([])
+    settings: StoredSettingsSchema.catch({})
 });
 
 export type StoredSettings = z.infer<typeof StoredSettingsSchema>;
@@ -44,17 +37,9 @@ export type CliConfig = {
     accounts: Record<string, string>;
     selected: string;
     settings: StoredSettings;
-    albums: StoredAlbums;
-    groups: Group[];
 };
 
-const EMPTY_CONFIG: CliConfig = {
-    accounts: {},
-    selected: '',
-    settings: {},
-    albums: {},
-    groups: []
-};
+const EMPTY_CONFIG: CliConfig = { accounts: {}, selected: '', settings: {} };
 
 export function defaultConfigPath(environment: Record<string, string | undefined>): string {
     const override = environment[CONFIG_PATH_VARIABLE]?.trim();
@@ -63,6 +48,7 @@ export function defaultConfigPath(environment: Record<string, string | undefined
     return join(envPaths('phodrive', { suffix: '' }).config, CONFIG_FILE_NAME);
 }
 
+/** Unknown or invalid entries are dropped, as the web app does with browser storage. */
 function parseConfig(value: unknown): CliConfig {
     const parsed = StoredConfigSchema.catch(EMPTY_CONFIG).parse(value);
     const accounts: Record<string, string> = {};
@@ -74,13 +60,7 @@ function parseConfig(value: unknown): CliConfig {
         accounts[account.data.email] = account.data.token;
     }
 
-    return {
-        accounts,
-        selected: parsed.selected,
-        settings: parsed.settings,
-        albums: parsed.albums,
-        groups: parsed.groups
-    };
+    return { accounts, selected: parsed.selected, settings: parsed.settings };
 }
 
 function parseJson(text: string, path: string): Result<unknown, CliError> {
@@ -130,6 +110,7 @@ export function writeConfig(path: string, config: CliConfig): AsyncResult<void, 
     });
 }
 
+/** Read, change, and save the configuration in one step. */
 export function updateConfig(
     path: string,
     change: (config: CliConfig) => Result<CliConfig, CliError>

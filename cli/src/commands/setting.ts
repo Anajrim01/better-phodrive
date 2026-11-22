@@ -1,9 +1,8 @@
 import type { Command } from '@commander-js/extra-typings';
 import { Ok, type AsyncResult } from 'results-ts';
 import { readConfig, updateConfig } from '../config';
-import type { CliContext, CliError } from '../context';
+import type { CliContext, CliError, Runner } from '../context';
 import { printJson, printTable, status } from '../output';
-import type { Runner } from '../program';
 import {
     parseSettingKey,
     resetSetting,
@@ -30,7 +29,7 @@ function showSettings(context: CliContext, json = false): AsyncResult<void, CliE
             ['Setting', 'Value', 'Source', 'Description', 'Allowed'],
             values.map(({ key, value, source, description, allowed }) => [
                 key,
-                typeof value === 'boolean' ? (value ? 'on' : 'off') : String(value),
+                String(value),
                 source,
                 description,
                 allowed
@@ -48,14 +47,8 @@ function setSetting(
         updateConfig(context.configPath, (config) => saveSetting(config, key, value)).map(
             (config) => {
                 const saved = settingValue(config, context.environment, key);
-                const value =
-                    typeof saved.value === 'boolean'
-                        ? saved.value
-                            ? 'on'
-                            : 'off'
-                        : String(saved.value);
 
-                status(context).success(`Set ${key} to ${value}`);
+                status(context).success(`Set ${key} to ${saved.value}`);
             }
         )
     );
@@ -66,14 +59,8 @@ function clearSetting(context: CliContext, rawKey: string): AsyncResult<void, Cl
         updateConfig(context.configPath, (config) => Ok(resetSetting(config, key))).map(
             (config) => {
                 const restored = settingValue(config, context.environment, key);
-                const value =
-                    typeof restored.value === 'boolean'
-                        ? restored.value
-                            ? 'on'
-                            : 'off'
-                        : String(restored.value);
 
-                status(context).success(`Reset ${key} to the default, ${value}`);
+                status(context).success(`Reset ${key} to the default, ${restored.value}`);
             }
         )
     );
@@ -91,13 +78,13 @@ export function registerSettingCommands(program: Command, context: CliContext, r
     setting
         .command('set')
         .description('Save a setting')
-        .argument('<key>', 'sort, workers, or compression')
+        .argument('<key>', 'sort or workers')
         .argument('<value>', 'new value')
         .action((key, value) => run(() => setSetting(context, key, value)));
 
     setting
         .command('reset')
         .description('Restore a setting to its default')
-        .argument('<key>', 'sort, workers, or compression')
+        .argument('<key>', 'sort or workers')
         .action((key) => run(() => clearSetting(context, key)));
 }

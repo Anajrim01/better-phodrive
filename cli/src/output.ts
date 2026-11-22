@@ -5,24 +5,15 @@ import pc from 'picocolors';
 import { fileType, type FileGroup } from '@madkarmaa/phodrive-core/files';
 import type { CliContext, CliError } from './context';
 
+/** Files are identified by this many leading characters of their ID in tables and arguments. */
 export const SHORT_ID_LENGTH = 12;
-export const FILE_TABLE_HEAD = ['ID', 'Name', 'Folder', 'Type', 'Size', 'Modified', ''];
-export const GROUP_FILE_TABLE_HEAD = [
-    'ID',
-    'Name',
-    'Owner',
-    'Folder',
-    'Type',
-    'Size',
-    'Modified',
-    ''
-];
-export const FOLDER_TABLE_HEAD = ['Folder', 'Files', 'Subfolders'];
+export const FILE_TABLE_HEAD = ['ID', 'Name', 'Type', 'Size', 'Modified', ''];
 const PROGRESS_STEPS = 1000;
 const DATE_FORMAT = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 // Google rejects expired or revoked tokens while authenticating each request.
 const REJECTED_TOKEN_PATTERN = /^Authentication failed \(HTTP 40[13]\)/;
 
+// Space-separated columns stay readable and easy to filter with standard text tools.
 const BORDERLESS = {
     top: '',
     'top-mid': '',
@@ -67,6 +58,7 @@ export function printTable(context: CliContext, head: string[], rows: string[][]
 
 /** Status lines go to stderr so piped command output stays clean. */
 export function status(context: CliContext) {
+    // Single-line statuses without the guide bar clack draws between prompts.
     const output = { output: context.stderr, spacing: 0 };
 
     return {
@@ -86,6 +78,7 @@ export function reportError(context: CliContext, error: CliError): void {
     status(context).error(`${error.message}${hint}`);
 }
 
+/** A spinner at the terminal; scripts rely on output and exit codes instead. */
 export function activity(context: CliContext, message: string) {
     if (!context.interactive) return { stop: () => {}, fail: () => {} };
 
@@ -98,6 +91,7 @@ export function activity(context: CliContext, message: string) {
     };
 }
 
+/** A byte progress bar at the terminal; scripts receive no intermediate output. */
 export function transferProgress(context: CliContext, message: string, total: number) {
     if (!context.interactive) return { update: () => {}, stop: () => {}, fail: () => {} };
 
@@ -133,12 +127,10 @@ export function fileSize(file: FileGroup): number {
     return file.chunks.reduce((sum, chunk) => sum + chunk.size, 0);
 }
 
-export function fileRow(file: FileGroup, owner?: string): string[] {
+export function fileRow(file: FileGroup): string[] {
     return [
         shortId(file),
         file.name,
-        ...(owner === undefined ? [] : [owner]),
-        file.folder,
         fileType(file.name),
         prettyBytes(fileSize(file)),
         DATE_FORMAT.format(file.at),
@@ -147,12 +139,10 @@ export function fileRow(file: FileGroup, owner?: string): string[] {
 }
 
 /** Machine-readable files never include account credentials. */
-export function fileJson(file: FileGroup, owner?: string) {
+export function fileJson(file: FileGroup) {
     return {
         id: file.fileId,
         name: file.name,
-        ...(owner === undefined ? {} : { owner }),
-        folder: file.folder,
         type: fileType(file.name),
         size: fileSize(file),
         modified: new Date(file.at).toISOString(),

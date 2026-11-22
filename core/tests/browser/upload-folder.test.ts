@@ -1,39 +1,71 @@
-import { expect, test } from 'vitest';
+import { createHash } from 'node:crypto';
 import { Err, Ok } from 'results-ts';
-import { uploadChunk } from '@madkarmaa/phodrive-core/browser/upload/chunk';
-import {
-    INVALID_UPLOAD_PROGRESS,
-    type ChunkTransport
-} from '@madkarmaa/phodrive-core/browser/upload/request';
-import type { ChunkUploadRequest, SplitHeader } from '@madkarmaa/phodrive-core/models';
+import { expect, test } from 'vitest';
+import type { ApplicationError } from '@madkarmaa/phodrive-core/errors';
+import { transferFiles } from '@madkarmaa/phodrive-core/browser/upload';
+import { prepareFile } from '@madkarmaa/phodrive-core/browser/upload/planned';
+import type { ChunkTransport } from '@madkarmaa/phodrive-core/browser/upload/request';
+import { fileIdentity } from '@madkarmaa/phodrive-core/server/chunks';
 
-test('a later chunk keeps the file folder in its upload metadata', async () => {
-    const file = new File([new Uint8Array(10)], 'setup.exe');
-    const header: SplitHeader = {
-        fileHash: 'a'.repeat(64),
-        fileId: 'b'.repeat(64),
-        chunkIndex: 1,
-        flags: 1,
-        payloadSize: 1
+const FAILED = { code: 'UPLOAD_FAILED', message: 'stop' } as const satisfies ApplicationError;
+
+test('a resolved folder enters the first chunk header and the file identity', async () => {
+    const file = new File(['folder upload'], 'a.ts');
+    const plan = (await prepareFile(file, 0, () => Ok(undefined), 'Work/Source')).unwrap();
+
+    expect(plan.headers[0]).toMatchObject({ folder: 'Work/Source', fileName: 'a.ts' });
+    expect(plan.headers[0]?.fileId).toBe(
+        fileIdentity(
+            'a.ts',
+            createHash('sha256').update('folder upload').digest('hex'),
+            undefined,
+            'Work/Source'
+        )
+    );
+});
+
+test('a resolved directory folder reaches every chunk upload request', async () => {
+    const file = new File(['folder upload'], 'a.ts');
+    Object.defineProperty(file, 'webkitRelativePath', { value: 'Source/a.ts' });
+    const folders: string[] = [];
+    const transport: ChunkTransport = ({ metadata }) => {
+        folders.push(metadata.file.folder ?? '');
+
+        return Err(FAILED).andThenAsync(async () => Ok(undefined));
     };
-    let captured: ChunkUploadRequest | undefined;
-    const transport: ChunkTransport = (metadata) => {
-        captured = metadata;
 
-        return Err(INVALID_UPLOAD_PROGRESS).andThenAsync(async () => Ok(undefined));
-    };
-
-    const uploaded = await uploadChunk(
-        file,
-        header,
-        { email: 'demo@example.com', token: 'token' },
-        transport,
+    await transferFiles(
+        [file],
+        'test@example.com',
+        1,
         () => {},
-        () => Ok(undefined),
-        true,
-        'Downloads'
+        () => {},
+        transport,
+        undefined,
+        ['Work/Source']
     );
 
-    expect(uploaded.isErr()).toBe(true);
-    expect(captured?.file.folder).toBe('Downloads');
+    expect(folders).toEqual(['Work/Source']);
+});
+
+test('a regular file without a relative path uses the current folder', async () => {
+    const folders: string[] = [];
+    const transport: ChunkTransport = ({ metadata }) => {
+        folders.push(metadata.file.folder ?? '');
+
+        return Err(FAILED).andThenAsync(async () => Ok(undefined));
+    };
+
+    await transferFiles(
+        [new File(['root'], 'a.txt')],
+        'test@example.com',
+        1,
+        () => {},
+        () => {},
+        transport,
+        undefined,
+        ['Projects/2026']
+    );
+
+    expect(folders).toEqual(['Projects/2026']);
 });

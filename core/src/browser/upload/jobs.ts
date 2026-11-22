@@ -1,118 +1,21 @@
-import type { ApplicationError } from '../../errors';
-import {
-    UploadEventType,
-    UploadJobStatus,
-    UploadPhase,
-    UploadStatus,
-    type UploadEvent,
-    type UploadProgress,
-    type UploadResponse
-} from '../../models';
-import type { UploadedChunk } from '../../files';
 import { Err, Ok, type Result } from 'results-ts';
-import { INVALID_UPLOAD_PROGRESS } from './request';
-import { estimatedRate, remainingSeconds, trimRateSamples, type RateSample } from './eta';
+import type { ApplicationError } from '../../errors';
+import type { UploadedChunk } from '../../files';
+import { UploadEventType, UploadJobStatus, type UploadEvent } from '../../models';
+import {
+    checkChunk,
+    completeJob,
+    finished,
+    invalidProgress,
+    queueJob,
+    updateProgress,
+    type UploadJob,
+    type UploadSource
+} from './job-state';
 
-export interface UploadJob {
-    id: number;
-    name: string;
-    status: UploadJobStatus;
-    progress: UploadProgress;
-    message: string;
-    result: UploadResponse | null;
-    bytesPerSecond: number;
-    etaSeconds: number | null;
-    etaUpdatedAt?: number;
-    retryAt: number | null;
-    account?: string;
-}
+export { createUploadJobs, type UploadJob, type UploadSource } from './job-state';
 
-export interface UploadSource {
-    file: File;
-    jobId: number;
-}
-
-export type UploadEventHandler = {
-    (event: UploadEvent): Result<void, ApplicationError>;
-    completeExisting(id: number, result: UploadResponse): Result<void, ApplicationError>;
-};
-
-export function createUploadJobs(files: readonly File[]): UploadJob[] {
-    return files.map((file, id) => ({
-        id,
-        name: file.name,
-        status: UploadJobStatus.Queued,
-        progress: { phase: UploadPhase.Receiving, completed: 0, total: file.size },
-        message: '',
-        result: null,
-        bytesPerSecond: 0,
-        etaSeconds: null,
-        etaUpdatedAt: 0,
-        retryAt: null
-    }));
-}
-
-function invalidProgress(): Result<never, ApplicationError> {
-    return Err(INVALID_UPLOAD_PROGRESS);
-}
-
-function processedBytes(progress: UploadProgress): number {
-    return progress.phase === UploadPhase.Uploading
-        ? progress.completed + progress.reused
-        : progress.completed;
-}
-
-function updateProgress(
-    job: UploadJob,
-    file: File,
-    progress: UploadProgress
-): Result<UploadJob, ApplicationError> {
-    const previous = job.progress;
-    if (progress.phase === UploadPhase.Receiving) return invalidProgress();
-    if (
-        progress.phase === UploadPhase.Preparing &&
-        (progress.total !== file.size || previous.phase === UploadPhase.Uploading)
-    )
-        return invalidProgress();
-    const processed = processedBytes(progress);
-    const previousProcessed = processedBytes(previous);
-    if (
-        progress.phase === UploadPhase.Uploading &&
-        previous.phase === UploadPhase.Uploading &&
-        (progress.total !== previous.total || processed < previousProcessed)
-    )
-        return invalidProgress();
-
-    const retryAt =
-        progress.phase === UploadPhase.Uploading && progress.retryAfterSeconds !== undefined
-            ? Date.now() + progress.retryAfterSeconds * 1_000
-            : null;
-
-    return Ok({ ...job, status: UploadJobStatus.Active, progress, retryAt });
-}
-
-function completeJob(
-    job: UploadJob,
-    file: File,
-    confirmed: Map<number, UploadedChunk>,
-    result: UploadResponse
-): Result<UploadJob, ApplicationError> {
-    const progress = job.progress;
-    const chunks = [...confirmed.values()].sort((a, b) => a.chunkIndex - b.chunkIndex);
-    if (
-        progress.phase !== UploadPhase.Uploading ||
-        progress.completed + progress.reused !== progress.total ||
-        chunks.length === 0 ||
-        chunks.reduce((sum, chunk) => sum + chunk.size, 0) !== file.size ||
-        chunks.some(
-            (chunk, index) =>
-                chunk.chunkIndex !== index || chunk.isLast !== (index === chunks.length - 1)
-        )
-    )
-        return invalidProgress();
-
-    return Ok({ ...job, status: UploadJobStatus.Complete, result, retryAt: null });
-}
+type FileEvent = Exclude<UploadEvent, { type: UploadEventType.Error | UploadEventType.Complete }>;
 
 /** Server IDs index submitted files; local job IDs also include rejected selections. */
 export function createUploadEventHandler(
@@ -120,121 +23,65 @@ export function createUploadEventHandler(
     jobs: UploadJob[],
     email: string,
     onJob: (job: UploadJob) => void,
-    onChunk: (chunk: UploadedChunk) => void,
-    now: () => number = () => performance.now()
-): UploadEventHandler {
+    onChunk: (chunk: UploadedChunk, jobId: number) => void
+): (event: UploadEvent) => Result<void, ApplicationError> {
     const confirmed = jobs.map(() => new Map<number, UploadedChunk>());
-    const samples = jobs.map((): RateSample[] => []);
-
-    function estimate(job: UploadJob): UploadJob {
-        const jobSamples = samples[job.id];
-
-        if (
-            job.status !== UploadJobStatus.Active ||
-            job.progress.phase !== UploadPhase.Uploading ||
-            job.retryAt !== null
-        ) {
-            jobSamples.length = 0;
-
-            return { ...job, bytesPerSecond: 0, etaSeconds: null, etaUpdatedAt: 0 };
-        }
-
-        const { completed, reused, total } = job.progress;
-        jobSamples.push({ at: now(), bytes: completed });
-        trimRateSamples(jobSamples);
-
-        const rate = estimatedRate(jobSamples);
-        if (rate === null)
-            return { ...job, bytesPerSecond: 0, etaSeconds: null, etaUpdatedAt: Date.now() };
-
-        return {
-            ...job,
-            bytesPerSecond: rate,
-            etaSeconds: remainingSeconds(total - completed - reused, rate),
-            etaUpdatedAt: Date.now()
-        };
-    }
 
     function publish(job: UploadJob): void {
-        const estimated = estimate(job);
-        jobs[job.id] = estimated;
-        onJob(estimated);
+        jobs[job.id] = job;
+        onJob(job);
     }
 
-    const handler = (event: UploadEvent): Result<void, ApplicationError> => {
-        if (event.type === UploadEventType.Error)
-            return Err({ code: 'UPLOAD_FAILED', message: event.error } as const);
-        if (event.type === UploadEventType.Complete) {
-            const unfinished = jobs.some(
-                (job) =>
-                    job.status !== UploadJobStatus.Complete && job.status !== UploadJobStatus.Error
-            );
-
-            return unfinished ? invalidProgress() : Ok(undefined);
-        }
-
+    function handleFileEvent(event: FileEvent): Result<void, ApplicationError> {
         const source = sources[event.id];
         if (!source) return invalidProgress();
 
         const { file, jobId } = source;
         const job = jobs[jobId];
-        if (job.status === UploadJobStatus.Complete || job.status === UploadJobStatus.Error)
-            return invalidProgress();
+        if (finished(job)) return invalidProgress();
 
         switch (event.type) {
             case UploadEventType.Queued:
-                if (job.progress.phase !== UploadPhase.Receiving) return invalidProgress();
-                publish({
-                    ...job,
-                    status: UploadJobStatus.Queued,
-                    progress: { phase: UploadPhase.Preparing, completed: 0, total: file.size }
-                });
-                return Ok(undefined);
+                return queueJob(job, file).map(publish);
 
             case UploadEventType.Progress:
                 return updateProgress(job, file, event.progress).map(publish);
 
             case UploadEventType.Chunk: {
                 const chunk = { ...event.chunk, email };
-                const saved = confirmed[jobId];
-                const first = saved.values().next().value;
-                if (
-                    job.progress.phase !== UploadPhase.Uploading ||
-                    saved.has(chunk.chunkIndex) ||
-                    (first &&
-                        (first.fileHash !== chunk.fileHash || first.fileId !== chunk.fileId)) ||
-                    (chunk.chunkIndex === 0 && chunk.originalName !== file.name)
-                )
-                    return invalidProgress();
 
-                saved.set(chunk.chunkIndex, chunk);
-                onChunk(chunk);
-
-                return Ok(undefined);
+                return checkChunk(job, file, confirmed[jobId], chunk).map(() => {
+                    confirmed[jobId].set(chunk.chunkIndex, chunk);
+                    onChunk(chunk, jobId);
+                });
             }
 
             case UploadEventType.FileComplete:
                 return completeJob(job, file, confirmed[jobId], event.result).map(publish);
 
             case UploadEventType.FileError:
-                publish({ ...job, status: UploadJobStatus.Error, message: event.error });
+                publish({
+                    ...job,
+                    status: UploadJobStatus.Error,
+                    message: event.error,
+                    retryAt: null
+                });
                 return Ok(undefined);
         }
+    }
+
+    return (event) => {
+        if (event.type === UploadEventType.Error)
+            return event.retryAfterSeconds === undefined
+                ? Err({ code: 'UPLOAD_FAILED', message: event.error } as const)
+                : Err({
+                      code: 'THROTTLED',
+                      message: event.error,
+                      retryAfterSeconds: event.retryAfterSeconds
+                  } as const);
+        if (event.type === UploadEventType.Complete)
+            return jobs.every(finished) ? Ok(undefined) : invalidProgress();
+
+        return handleFileEvent(event);
     };
-
-    return Object.assign(handler, {
-        completeExisting(id: number, result: UploadResponse): Result<void, ApplicationError> {
-            const source = sources[id];
-            if (!source) return invalidProgress();
-
-            const job = jobs[source.jobId];
-            if (job.status === UploadJobStatus.Complete || job.status === UploadJobStatus.Error)
-                return invalidProgress();
-            if (result.status !== UploadStatus.AlreadyExists) return invalidProgress();
-
-            publish({ ...job, status: UploadJobStatus.Complete, result, retryAt: null });
-
-            return Ok(undefined);
-        }
-    });
 }

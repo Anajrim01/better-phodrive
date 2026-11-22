@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { beforeEach, expect, test, vi } from 'vitest';
 import { createSHA1, createSHA256 } from 'hash-wasm';
-import { encodeSplitBmp } from '@madkarmaa/phodrive-core/server/bmp';
+import { encodeSplitBmp } from '../helpers/split-bmp';
 
 vi.mock('hash-wasm', async (importOriginal) => {
     const original = await importOriginal<typeof import('hash-wasm')>();

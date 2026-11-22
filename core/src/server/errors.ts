@@ -1,4 +1,3 @@
-import { throttleMessage } from '../browser/upload/eta';
 import { BMP_ERRORS } from '../bmp/errors';
 
 /** Recoverable server failures contain only application-owned messages. */
@@ -9,9 +8,13 @@ export const SERVER_ERRORS = {
         message: 'Could not receive the selected file.'
     },
     FILE_TOO_LARGE: { code: 'FILE_TOO_LARGE', message: 'File is too large.' },
+    UPLOAD_SPOOL_FAILED: {
+        code: 'UPLOAD_SPOOL_FAILED',
+        message: 'The server could not store the upload temporarily. Check its free disk space.'
+    },
     UPLOAD_INPUT_REQUIRED: {
         code: 'UPLOAD_INPUT_REQUIRED',
-        message: 'Choose files and enter your account credentials.'
+        message: 'Choose files to upload.'
     },
     UPLOAD_INTEGRITY_FAILED: {
         code: 'UPLOAD_INTEGRITY_FAILED',
@@ -32,73 +35,23 @@ export const SERVER_ERRORS = {
         message: 'The received file is incomplete.'
     },
     INVALID_PAGE_TOKEN: { code: 'INVALID_PAGE_TOKEN', message: 'Invalid page token' },
+    METADATA_UNAVAILABLE: {
+        code: 'METADATA_UNAVAILABLE',
+        message: 'Library metadata is unavailable.'
+    },
+    METADATA_SAVE_FAILED: {
+        code: 'METADATA_SAVE_FAILED',
+        message: 'Library metadata could not be saved.'
+    },
+    METADATA_REMOVE_FAILED: {
+        code: 'METADATA_REMOVE_FAILED',
+        message: 'The file was deleted, but its library metadata could not be removed.'
+    },
     REPEATED_LIBRARY_PAGE: {
         code: 'REPEATED_LIBRARY_PAGE',
         message: 'Google Photos repeated a library page. Refresh to try again.'
     },
-    LIBRARY_SYNC_REJECTED: {
-        code: 'LIBRARY_SYNC_REJECTED',
-        message: 'Library sync state was rejected'
-    },
     MISSING_MEDIA_KEY: { code: 'MISSING_MEDIA_KEY', message: 'Missing media key' },
-    INVALID_FOLDER_PATH: { code: 'INVALID_FOLDER_PATH', message: 'Invalid folder path' },
-    INVALID_ALBUM_KEY: { code: 'INVALID_ALBUM_KEY', message: 'Invalid album key' },
-    INVALID_ALBUM_MEDIA_KEYS: {
-        code: 'INVALID_ALBUM_MEDIA_KEYS',
-        message: 'Invalid album media keys'
-    },
-    ALBUM_CREATE_RESPONSE_FAILED: {
-        code: 'ALBUM_CREATE_RESPONSE_FAILED',
-        message: 'Create album response failed'
-    },
-    SHARE_ALBUM_REMOVE_FAILED: {
-        code: 'SHARE_ALBUM_REMOVE_FAILED',
-        message: 'Could not remove the share album'
-    },
-    INVALID_SHARE_NAME: {
-        code: 'INVALID_SHARE_NAME',
-        message: 'Invalid share name'
-    },
-    SHARE_ENVELOPE_RESPONSE_FAILED: {
-        code: 'SHARE_ENVELOPE_RESPONSE_FAILED',
-        message: 'Create share response failed'
-    },
-    SHARE_LINK_RESPONSE_FAILED: {
-        code: 'SHARE_LINK_RESPONSE_FAILED',
-        message: 'Share link response failed'
-    },
-    SHARE_LINK_NOT_LIVE: {
-        code: 'SHARE_LINK_NOT_LIVE',
-        message: 'The share link is not serving yet. Check again before retrying.'
-    },
-    SHARE_LINK_UNCERTAIN: {
-        code: 'SHARE_LINK_UNCERTAIN',
-        message: 'The share link state is uncertain. Refresh the library before retrying.'
-    },
-    SHARE_REVOKE_UNVERIFIED: {
-        code: 'SHARE_REVOKE_UNVERIFIED',
-        message: 'Could not confirm the old share link stopped serving. Retry revoke.'
-    },
-    SHARE_LINK_STILL_LIVE: {
-        code: 'SHARE_LINK_STILL_LIVE',
-        message: 'The old share link is still serving. Retry revoke before sharing again.'
-    },
-    SHARE_LINK_RESOLVE_FAILED: {
-        code: 'SHARE_LINK_RESOLVE_FAILED',
-        message: 'Could not resolve the public share link'
-    },
-    SHARE_PUBLIC_PAGE_FAILED: {
-        code: 'SHARE_PUBLIC_PAGE_FAILED',
-        message: 'Could not read the public share page'
-    },
-    SHARE_MANIFEST_INVALID: {
-        code: 'SHARE_MANIFEST_INVALID',
-        message: 'Could not build the share manifest'
-    },
-    SHARE_URL_TOO_LONG: {
-        code: 'SHARE_URL_TOO_LONG',
-        message: 'This selection is too large for one share link'
-    },
     HASH_LOOKUP_MISMATCH: { code: 'HASH_LOOKUP_MISMATCH', message: 'Hash lookup mismatch' },
     COMMIT_TOKEN_MISMATCH: { code: 'COMMIT_TOKEN_MISMATCH', message: 'Commit token mismatch' },
     COMMIT_REJECTED: { code: 'COMMIT_REJECTED', message: 'Commit rejected' },
@@ -120,7 +73,7 @@ export const SERVER_ERRORS = {
         code: 'COMMIT_OUTCOME_UNCERTAIN',
         message: 'Commit outcome uncertain. Check Google Photos before retrying.'
     },
-    INVALID_SHA_1: { code: 'INVALID_SHA_1', message: 'Invalid SHA-1' },
+    UPLOAD_CANCELLED: { code: 'UPLOAD_CANCELLED', message: 'Upload cancelled.' },
     INVALID_FILE_REFERENCE: { code: 'INVALID_FILE_REFERENCE', message: 'Invalid file reference' },
     INVALID_DOWNLOAD_CONTENT_TYPE: {
         code: 'INVALID_DOWNLOAD_CONTENT_TYPE',
@@ -145,18 +98,6 @@ export const SERVER_ERRORS = {
         message: 'Download fingerprint mismatch'
     },
     INVALID_CHUNK_VARINT: { code: 'INVALID_CHUNK_VARINT', message: 'Invalid chunk varint' },
-    BMP_ALLOCATION_FAILED: {
-        code: 'BMP_ALLOCATION_FAILED',
-        message: 'Not enough memory to create BMP'
-    },
-    COMPRESSION_FAILED: {
-        code: 'COMPRESSION_FAILED',
-        message: 'Could not compress the uploaded chunk'
-    },
-    DECOMPRESSION_FAILED: {
-        code: 'DECOMPRESSION_FAILED',
-        message: 'Could not decompress the downloaded chunk'
-    },
     INVALID_DOWNLOADED_BMP: {
         code: 'INVALID_DOWNLOADED_BMP',
         message: 'Downloaded BMP is invalid or damaged'
@@ -191,49 +132,25 @@ export const SERVER_ERRORS = {
         message: 'Invalid UTF-8 in response'
     },
     INVALID_FILE_METADATA: { code: 'INVALID_FILE_METADATA', message: 'Invalid file metadata.' },
-    LIBRARY_STATE_REQUIRED: {
-        code: 'LIBRARY_STATE_REQUIRED',
-        message: 'Load your files before changing them.'
+    NOT_TRASHED: {
+        code: 'NOT_TRASHED',
+        message: 'Only files in Trash can be restored or deleted forever.'
     },
-    FILE_NOT_FOUND: {
-        code: 'FILE_NOT_FOUND',
-        message: 'This file is no longer in the library. Refresh and try again.'
+    INVALID_MUTATION_RESPONSE: {
+        code: 'INVALID_MUTATION_RESPONSE',
+        message: 'Google Photos returned an unexpected result.'
     },
-    FOLDER_NOT_FOUND: {
-        code: 'FOLDER_NOT_FOUND',
-        message: 'This folder no longer exists. Refresh and try again.'
+    DUPLICATE_IN_TRASH: {
+        code: 'DUPLICATE_IN_TRASH',
+        message: 'A copy of this file is already in Trash. Restore or delete that copy, then retry.'
     },
-    FILE_NAME_EXISTS: {
-        code: 'FILE_NAME_EXISTS',
-        message: 'A file with that name already exists in this folder.'
-    },
-    FOLDER_EXISTS: {
-        code: 'FOLDER_EXISTS',
-        message: 'A folder with that name already exists here.'
-    },
-    INVALID_FOLDER_DESTINATION: {
-        code: 'INVALID_FOLDER_DESTINATION',
-        message: 'Choose a different destination folder.'
+    MUTATION_PARTIAL: {
+        code: 'MUTATION_PARTIAL',
+        message: 'Google Photos confirmed only some files.'
     },
     INCOMPLETE_DOWNLOAD_CHUNKS: {
         code: 'INCOMPLETE_DOWNLOAD_CHUNKS',
         message: 'Load the remaining chunks before downloading.'
-    },
-    NOT_TRASHED: {
-        code: 'NOT_TRASHED',
-        message: 'Only trashed chunks can be restored or deleted forever.'
-    },
-    NOT_ACTIVE: {
-        code: 'NOT_ACTIVE',
-        message: 'Only active chunks can be moved to trash.'
-    },
-    INVALID_DELETE_RESPONSE: {
-        code: 'INVALID_DELETE_RESPONSE',
-        message: 'Invalid delete response.'
-    },
-    DUPLICATE_IN_TRASH: {
-        code: 'DUPLICATE_IN_TRASH',
-        message: 'A copy of this file is already in Trash. Empty it or restore it, then retry.'
     },
     DOWNLOAD_CHUNK_MISMATCH: {
         code: 'DOWNLOAD_CHUNK_MISMATCH',
@@ -250,31 +167,53 @@ export const SERVER_ERRORS = {
     COULD_NOT_READ_THE_DOWNLOADED_FILE: {
         code: 'COULD_NOT_READ_THE_DOWNLOADED_FILE',
         message: 'Could not read the downloaded file.'
+    },
+    SHARE_NOT_FOUND: {
+        code: 'SHARE_NOT_FOUND',
+        message: 'Share not found.',
+        status: 404
+    },
+    SHARE_FILE_NOT_FOUND: {
+        code: 'SHARE_FILE_NOT_FOUND',
+        message: 'File not found in this share.',
+        status: 404
+    },
+    SHARE_INVALID: {
+        code: 'SHARE_INVALID',
+        message: 'This share cannot be created from the selected items.',
+        status: 400
+    },
+    SHARE_SNAPSHOT_INCOMPLETE: {
+        code: 'SHARE_SNAPSHOT_INCOMPLETE',
+        message: 'A file in this share is incomplete or partly in Trash.',
+        status: 409
+    },
+    SHARE_ACCOUNT_DISCONNECTED: {
+        code: 'SHARE_ACCOUNT_DISCONNECTED',
+        message: "This share's Google account is disconnected. Reconnect it to restore downloads.",
+        status: 409
+    },
+    SHARE_MEDIA_UNAVAILABLE: {
+        code: 'SHARE_MEDIA_UNAVAILABLE',
+        message: 'Google Photos could not provide this shared file.',
+        status: 502
+    },
+    SHARE_DISABLED: {
+        code: 'SHARE_DISABLED',
+        message: 'Public sharing is not configured on this server.',
+        status: 503
+    },
+    SHARE_LIMIT_EXCEEDED: {
+        code: 'SHARE_LIMIT_EXCEEDED',
+        message: 'A share supports up to 500 files, 2048 chunks and a 256 KiB manifest.',
+        status: 413
+    },
+    SHARE_BUSY: {
+        code: 'SHARE_BUSY',
+        message: 'Too many public download requests. Try again shortly.',
+        status: 429
     }
 } as const;
-
-export type ThrottleMode = 'auto' | 'manual';
-
-export function throttleError(seconds: number, mode: ThrottleMode = 'auto'): ServerError {
-    const wait = Math.max(1, Math.round(seconds));
-
-    return {
-        code: 'THROTTLED',
-        message: throttleMessage(wait, mode === 'manual' ? 'try again' : 'retrying'),
-        retryAfterSeconds: wait
-    };
-}
-
-export function isThrottleError(
-    error: ServerError
-): error is Extract<ServerError, { code: 'THROTTLED' }> {
-    return error.code === 'THROTTLED';
-}
-
-export type ShareRecovery = {
-    readonly envelopeKey?: string;
-    readonly albumKey: string;
-};
 
 export type ServerError =
     | (typeof SERVER_ERRORS)[keyof typeof SERVER_ERRORS]
@@ -285,18 +224,4 @@ export type ServerError =
           readonly status?: number;
           readonly retryAfterSeconds?: number;
       }
-    | { readonly code: 'INCOMPLETE_DOWNLOAD_CHUNKS'; readonly message: string }
-    | { readonly code: 'FILE_NAME_EXISTS'; readonly message: string }
-    | { readonly code: 'FOLDER_EXISTS'; readonly message: string }
-    | { readonly code: 'INVALID_FOLDER_DESTINATION'; readonly message: string }
-    | { readonly code: 'THROTTLED'; readonly message: string; readonly retryAfterSeconds: number }
-    | {
-          readonly code: 'SHARE_LINK_UNCERTAIN';
-          readonly message: string;
-          readonly recovery: ShareRecovery;
-      }
-    | {
-          readonly code: 'SHARE_REVOKE_UNVERIFIED';
-          readonly message: string;
-          readonly recovery: ShareRecovery;
-      };
+    | { readonly code: 'THROTTLED'; readonly message: string; readonly retryAfterSeconds: number };

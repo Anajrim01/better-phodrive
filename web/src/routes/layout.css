@@ -1,0 +1,84 @@
+@import 'tailwindcss';
+
+:root {
+    color-scheme: light dark;
+    font-family: 'Google Sans Flex', system-ui, sans-serif;
+
+    --app-panel: var(--np-color-surface-container-low);
+    --app-text: var(--np-color-on-surface);
+    --app-muted: var(--np-color-on-surface-variant);
+    --app-subtle: var(--np-color-on-surface-variant);
+    --app-search: var(--np-color-surface-container);
+    --app-menu: var(--np-color-surface-container);
+    --app-card: var(--np-color-surface-container);
+    --app-preview: var(--np-color-surface-container-low);
+    --app-hover: var(--np-color-surface-container-high);
+    --app-selected: var(--np-color-primary-container);
+    --app-selected-text: var(--np-color-on-primary-container);
+    --app-border: var(--np-color-outline-variant);
+    --app-primary: var(--np-color-primary);
+    --app-avatar: var(--np-color-primary);
+    --app-avatar-text: var(--np-color-on-primary);
+    --app-success: light-dark(#146c2e, #a6e3a1);
+    --app-feedback: var(--np-color-secondary-container);
+}
+
+:root[theme='light'] {
+    color-scheme: light;
+}
+
+:root[theme='dark'] {
+    color-scheme: dark;
+}
+
+:root[theme='auto'] {
+    color-scheme: light dark;
+}
+
+body {
+    background: var(--np-color-surface);
+    color: var(--np-color-on-surface);
+}
+
+/* Tailwind utilities use the same theme tokens as Material 3 components. */
+@theme inline {
+    --color-surface: var(--np-color-surface);
+    --color-panel: var(--app-panel);
+    --color-text: var(--app-text);
+    --color-subtle: var(--app-subtle);
+    --color-muted: var(--app-muted);
+    --color-search: var(--app-search);
+    --color-menu: var(--app-menu);
+    --color-card: var(--app-card);
+    --color-preview: var(--app-preview);
+    --color-hover: var(--app-hover);
+    --color-selected: var(--app-selected);
+    --color-selected-text: var(--app-selected-text);
+    --color-border: var(--app-border);
+    --color-primary: var(--app-primary);
+    --color-avatar: var(--app-avatar);
+    --color-avatar-text: var(--app-avatar-text);
+    --color-success: var(--app-success);
+    --color-feedback: var(--app-feedback);
+    --color-error: var(--np-color-error);
+    --color-outline: var(--np-color-outline);
+}
+
+@layer components {
+    .workspace-heading {
+        @apply flex min-h-13 items-start justify-between gap-5 max-[520px]:min-h-14.5;
+    }
+
+    .workspace-heading h1 {
+        @apply m-0 text-2xl font-normal tracking-tight max-[520px]:text-[25px];
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        transition-duration: 0s !important;
+        animation-duration: 0s !important;
+    }
+}
