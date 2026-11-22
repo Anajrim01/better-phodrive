@@ -151,7 +151,8 @@ export class DriveLibrary {
             }));
             const existing = reset ? [] : (this.chunksByAccount.get(account.id) ?? []);
             this.chunksByAccount.set(account.id, mergeAccountChunks(existing, found));
-            cursor.loadedPages = reset ? 1 : cursor.loadedPages + 1;
+            const providerPages = data.providerPages ?? 1;
+            cursor.loadedPages = reset ? providerPages : cursor.loadedPages + providerPages;
             cursor.pageToken = data.nextPageToken;
             successes++;
 
@@ -207,6 +208,11 @@ export class DriveLibrary {
 
             const snapshot = refreshed.unwrap();
             warnings.push(...(snapshot.warnings ?? []));
+            // A cold refresh may stop before the part of this page already on screen.
+            if (snapshot.partial && snapshot.nextPageToken !== cursor.pageToken) {
+                successes++;
+                continue;
+            }
             this.chunksByAccount.set(
                 account.id,
                 snapshot.items.map((item) => ({ ...item, email: account.email }))

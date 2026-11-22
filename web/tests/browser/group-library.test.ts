@@ -200,14 +200,14 @@ test('an empty group loads nothing and does not fall back to an account', async 
     expect(library.loadFailed).toBe(false);
 });
 
-test('refresh respects each member loaded depth', async () => {
+test('refresh respects member depth and preserves files from a partial snapshot', async () => {
     const group: GoogleAccountGroup = { id: 'group', name: 'Group', members: [A, B, C] };
     const pages = new Map<string, LibraryResponse>([
         ['account-a|', page([item(A.id, 'a1')], 'a2')],
         ['account-a|a2', page([item(A.id, 'a2')])],
         ['account-b|', page([item(B.id, 'b1')])],
         ['account-c|', page([item(C.id, 'c1')], 'c2')],
-        ['account-c|c2', page([item(C.id, 'c2')], 'c3')]
+        ['account-c|c2', { ...page([item(C.id, 'c2')], 'c3'), providerPages: 0 }]
     ]);
     vi.mocked(libraryApi.readLibraryPage).mockImplementation((token = '', accountId = '') => {
         const response = pages.get(`${accountId}|${token}`);
@@ -219,6 +219,7 @@ test('refresh respects each member loaded depth', async () => {
         asyncOk({
             items: [item(accountId, `${accountId}-fresh`)],
             nextPageToken: `${accountId}-next`,
+            partial: accountId === B.id,
             pages: depth
         })
     );
@@ -232,12 +233,12 @@ test('refresh respects each member loaded depth', async () => {
     expect(vi.mocked(libraryApi.readLibrarySnapshot).mock.calls).toEqual([
         [2, A.id],
         [1, B.id],
-        [2, C.id]
+        [1, C.id]
     ]);
     expect(library.chunks.map((chunk) => chunk.mediaKey).sort()).toEqual([
         'account-a-fresh',
-        'account-b-fresh',
-        'account-c-fresh'
+        'account-c-fresh',
+        'b1'
     ]);
 });
 

@@ -3,7 +3,7 @@
  * identity, the listing SHA-1 and stored BMP size. The metadata index and download
  * integrity checks rely on the same SHA-1 contract.
  */
-import type { ChunkMetadataRecord } from './metadata-store';
+import { metadataItem, metadataMatches, type ChunkMetadataRecord } from './metadata-store';
 import type { LibraryCandidate } from './metadata';
 
 export function contentKey(sha1: string, storedBmpSize: number): string {
@@ -37,15 +37,39 @@ export function contentRecord(
     };
 }
 
-export function groupByContent(candidates: readonly LibraryCandidate[]): LibraryCandidate[][] {
+export function planLibraryScan(
+    candidates: readonly LibraryCandidate[],
+    stored: ReadonlyMap<string, ChunkMetadataRecord>,
+    maxProbes: number
+) {
+    const content = contentIndex(stored.values());
+    const items = new Map<string, ReturnType<typeof metadataItem>>();
+    const records: ChunkMetadataRecord[] = [];
     const groups = new Map<string, LibraryCandidate[]>();
+    let scanned = 0;
 
     for (const candidate of candidates) {
         const key = contentKey(candidate.sha1, candidate.size);
-        const group = groups.get(key);
-        if (group) group.push(candidate);
-        else groups.set(key, [candidate]);
+        const storedRecord = stored.get(candidate.mediaKey);
+        const shared = content.get(key);
+
+        if (storedRecord && metadataMatches(storedRecord, candidate)) {
+            items.set(candidate.mediaKey, metadataItem(storedRecord, candidate));
+        } else if (shared) {
+            const copied = contentRecord(shared, candidate);
+            items.set(candidate.mediaKey, metadataItem(copied, candidate));
+            records.push(copied);
+        } else if (!candidate.trashed) {
+            const group = groups.get(key);
+            if (group) group.push(candidate);
+            else {
+                if (groups.size === maxProbes) break;
+                groups.set(key, [candidate]);
+            }
+        }
+
+        scanned++;
     }
 
-    return [...groups.values()];
+    return { items, records, groups: [...groups.values()], scanned };
 }

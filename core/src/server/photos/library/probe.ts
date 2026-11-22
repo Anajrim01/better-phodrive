@@ -1,5 +1,5 @@
 import pLimit from 'p-limit';
-import { Err, Ok, type AsyncResult } from 'results-ts';
+import { Err, Ok, type AsyncResult, type Result } from 'results-ts';
 import type { LibraryWarning, RemoteBmp } from '../../../models';
 import { decodeSplitHeader, MAX_SPLIT_HEADER_BYTES } from '../../bmp/index';
 import { SERVER_ERRORS, type ServerError } from '../../errors';
@@ -8,12 +8,11 @@ import type { PhotosHeaders } from '../auth';
 import { preparedDownloadUrl } from '../download';
 import type { ThrottleScope } from '../throttle';
 import { guardedSend } from '../transport';
-import { contentIndex, contentKey, contentRecord, groupByContent } from './content-groups';
+import { contentRecord, planLibraryScan } from './content-groups';
 import type { LibraryCandidate } from './metadata';
 import {
     chunkMetadataRecord,
     metadataItem,
-    metadataMatches,
     type ChunkMetadataRecord,
     type ChunkMetadataStore
 } from './metadata-store';
@@ -21,19 +20,47 @@ import {
 const HEADER_PROBE_BYTES = MAX_SPLIT_HEADER_BYTES;
 const LIBRARY_PROBE_CONCURRENCY = 4;
 
+type ProbedGroup = { group: LibraryCandidate[]; item: RemoteBmp | null };
+
+async function probeUntilFound(
+    groups: LibraryCandidate[][],
+    probe: (group: LibraryCandidate[]) => AsyncResult<ProbedGroup, ServerError>
+): Promise<Result<ProbedGroup, ServerError>[]> {
+    // A continuation only needs proof that one Phodrive item exists.
+    for (let offset = 0; offset < groups.length; offset += LIBRARY_PROBE_CONCURRENCY) {
+        const batch = groups.slice(offset, offset + LIBRARY_PROBE_CONCURRENCY);
+        const scanned = await Promise.all(batch.map(probe));
+        if (
+            scanned.some((result) =>
+                result.match({ Ok: ({ item }) => item !== null, Err: () => true })
+            )
+        )
+            return scanned;
+    }
+
+    return [];
+}
+
 /** Keep the photos on a library page whose first bytes hold a Phodrive split header. */
 export function scanLibraryPage(
     page: { items: LibraryCandidate[]; nextPageToken: string; warnings?: LibraryWarning[] },
     headers: PhotosHeaders,
     fetcher: Fetcher,
     metadata?: ChunkMetadataStore,
-    scope?: ThrottleScope
+    scope?: ThrottleScope,
+    { lookahead = false, maxProbes = Infinity, offset = 0 } = {}
 ): AsyncResult<
-    { items: RemoteBmp[]; nextPageToken: string; warnings: LibraryWarning[] },
+    {
+        items: RemoteBmp[];
+        nextPageToken: string;
+        warnings: LibraryWarning[];
+        candidatesScanned: number;
+        probeGroups: number;
+    },
     ServerError
 > {
     return Ok(undefined).andThenAsync(async () => {
-        const warnings = [...(page.warnings ?? [])];
+        const warnings = offset ? [] : [...(page.warnings ?? [])];
         const stored = metadata
             ? await metadata.load(page.items).match({
                   Ok: (rows) => rows,
@@ -44,40 +71,28 @@ export function scanLibraryPage(
                   }
               })
             : new Map<string, ChunkMetadataRecord>();
-        const items = new Map<string, RemoteBmp>();
-        const missing: LibraryCandidate[] = [];
-        const records: ChunkMetadataRecord[] = [];
-        const content = contentIndex(stored.values());
+        const candidates = page.items.slice(offset);
+        const {
+            items,
+            records,
+            groups,
+            scanned: candidatesScanned
+        } = planLibraryScan(candidates, stored, maxProbes);
 
-        for (const candidate of page.items) {
-            const record = stored.get(candidate.mediaKey);
-            if (record && metadataMatches(record, candidate)) {
-                items.set(candidate.mediaKey, metadataItem(record, candidate));
-                continue;
-            }
-
-            const shared = content.get(contentKey(candidate.sha1, candidate.size));
-            if (shared) {
-                const copied = contentRecord(shared, candidate);
-                items.set(candidate.mediaKey, metadataItem(copied, candidate));
-                records.push(copied);
-                continue;
-            }
-
-            if (!candidate.trashed) missing.push(candidate);
-        }
-
-        const groups = groupByContent(missing);
-        const limit = pLimit(LIBRARY_PROBE_CONCURRENCY);
-        const scanned = await limit.map(groups, (group) =>
+        const probe = (group: LibraryCandidate[]) =>
             probeLibraryItem(
                 group[0],
                 headers.commonHeaders,
                 headers.rpcHeaders,
                 fetcher,
                 scope
-            ).map((item) => ({ group, item }))
-        );
+            ).map((item) => ({ group, item }));
+
+        const scanned = lookahead
+            ? items.size
+                ? []
+                : await probeUntilFound(groups, probe)
+            : await pLimit(LIBRARY_PROBE_CONCURRENCY).map(groups, probe);
 
         for (const result of scanned) {
             if (result.isErr()) return result;
@@ -102,13 +117,15 @@ export function scanLibraryPage(
         }
 
         return Ok({
-            items: page.items.flatMap((candidate) => {
+            items: candidates.slice(0, candidatesScanned).flatMap((candidate) => {
                 const item = items.get(candidate.mediaKey);
 
                 return item ? [item] : [];
             }),
             nextPageToken: page.nextPageToken,
-            warnings
+            warnings,
+            candidatesScanned,
+            probeGroups: groups.length
         });
     });
 }

@@ -51,6 +51,10 @@ export const SERVER_ERRORS = {
         code: 'REPEATED_LIBRARY_PAGE',
         message: 'Google Photos repeated a library page. Refresh to try again.'
     },
+    LIBRARY_PAGE_CHANGED: {
+        code: 'LIBRARY_PAGE_CHANGED',
+        message: 'Google Photos changed during scanning. Refresh to continue.'
+    },
     MISSING_MEDIA_KEY: { code: 'MISSING_MEDIA_KEY', message: 'Missing media key' },
     HASH_LOOKUP_MISMATCH: { code: 'HASH_LOOKUP_MISMATCH', message: 'Hash lookup mismatch' },
     COMMIT_TOKEN_MISMATCH: { code: 'COMMIT_TOKEN_MISMATCH', message: 'Commit token mismatch' },

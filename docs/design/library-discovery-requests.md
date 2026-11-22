@@ -115,9 +115,10 @@ fetches the next page as a lookahead.
 | Three identical cold copies                |    1 |       1 |       1 |     1 |            0 / 3 |                  3 + 3 |
 | One indexed and one identical cold copy    |    1 |       1 |       0 |     0 |            1 / 1 |                  1 + 1 |
 
-The 100-candidate cold scan probes 60 items on the first page and 40 during its
-lookahead. The second call hits those 40 saved rows and makes no probes. The repeat
-scan loads the same pages and makes no probes.
+The 100-candidate cold scan probes the 60 items it returns and four more to confirm
+the continuation. Loading the second page probes the other 36. A warm scan makes
+no probes. Lookahead skips probes altogether when the metadata index already
+confirms a file on the next page.
 
 The tests in `core/tests/server/library-request-budget.test.ts`,
 `core/tests/server/library-ordinary-budget.test.ts`, and
@@ -143,10 +144,17 @@ The tests in `core/tests/server/library-request-budget.test.ts`,
 
 ## Refresh
 
-`readLibrarySnapshot` reloads the pages already loaded, in batches of up to five
-file pages per account. A batch uses one auth POST and reuses the lookahead
-for each following page in that batch. The last page can still look ahead
-to check whether more files are available.
+`/api/library` scans up to five provider pages and at most 16 cold candidates
+per response. The first request can start at most 34 Google requests: one
+auth POST, one listing POST, and up to 16 PrepareDownload and range GET pairs.
+If probe and listing budget remains, a metadata-only lookahead can identify an
+empty terminal sync page. A partially scanned listing can return a continuation
+without any files. Resuming validates the order of the media keys, allowing a
+trash or restore that leaves the order unchanged.
+
+`readLibrarySnapshot` uses the number of provider pages the user started per
+account. Resuming within the same listing does not increase the depth. Each
+batch uses a single auth POST. Cached candidates use no probe budget.
 
 With a complete index, refreshing the two-page, 100-candidate fixture costs
 one auth POST and two library POSTs, down from two auth and three library POSTs.

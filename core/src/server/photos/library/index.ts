@@ -3,16 +3,10 @@ import { Err, Ok, type AsyncResult } from 'results-ts';
 import type { LibraryWarning, RemoteBmp } from '../../../models';
 import { authenticatedHeaders, type PhotosHeaders } from '../auth';
 import { photosFetch, type Fetcher } from '../../fetcher';
-import { guardedSend, readBody } from '../transport';
-import { bodyBytes } from '../../protobuf';
-import { pageRequest, parseLibraryPage } from './metadata';
+import { MAX_PROVIDER_PAGE_TOKEN_LENGTH, readListingPage } from './listing';
 import { scanLibraryPage } from './probe';
 import type { ChunkMetadataStore } from './metadata-store';
-import { LIBRARY_STATE_REQUEST } from './requests';
 import { defaultThrottle, type ThrottleScope } from '../throttle';
-
-const LIBRARY_URL = 'https://photosdata-pa.googleapis.com/6439526531001121323/18047484249733410717';
-const MAX_PAGE_TOKEN_LENGTH = 8192;
 
 /** A page of files with a continuation only when another file page exists. */
 export function listBmps(
@@ -22,32 +16,16 @@ export function listBmps(
     fetcher: Fetcher = photosFetch,
     metadata?: ChunkMetadataStore,
     scope?: ThrottleScope
-) {
-    return listBmpPages(email, token, pageToken, fetcher, metadata, scope).map(
-        ({ items, nextPageToken, warnings }) => ({ items, nextPageToken, warnings })
-    );
-}
-
-/** Read up to the requested number of file pages with one authentication request. */
-export function listBmpPages(
-    email: string,
-    token: string,
-    pageToken = '',
-    fetcher: Fetcher = photosFetch,
-    metadata?: ChunkMetadataStore,
-    scope?: ThrottleScope,
-    pageCount = 1
 ): AsyncResult<
     {
         items: RemoteBmp[];
         nextPageToken: string;
         warnings: LibraryWarning[];
-        pageTokens: string[];
     },
     ServerError
 > {
     const validated =
-        pageToken.length > MAX_PAGE_TOKEN_LENGTH ||
+        pageToken.length > MAX_PROVIDER_PAGE_TOKEN_LENGTH ||
         (pageToken && !/^[A-Za-z0-9_-]+$/.test(pageToken))
             ? Err(SERVER_ERRORS.INVALID_PAGE_TOKEN)
             : Ok(pageToken);
@@ -55,91 +33,33 @@ export function listBmpPages(
 
     return validated
         .andThenAsync(() => authenticatedHeaders(email, token, fetcher, throttle))
-        .andThenAsync(async (headers) => {
+        .andThenAsync((headers) => {
             const visited = new Set<string>();
-            const first = await findFilePage(
+            return findFilePage(
                 pageToken,
                 headers,
                 fetcher,
                 visited,
                 metadata,
                 throttle
-            );
-            if (first.isErr()) return first;
+            ).andThenAsync(async ({ items, warnings, nextPageToken }) => {
+                if (!nextPageToken) return Ok({ items, warnings, nextPageToken });
 
-            const initial = first.unwrap();
-            const items = [...initial.items];
-            const warnings = [...initial.warnings];
-            let nextPageToken = initial.nextPageToken;
-            const pageTokens = [initial.requestToken];
-
-            while (nextPageToken) {
-                const following = await findFilePage(
+                return await findFilePage(
                     nextPageToken,
                     headers,
                     fetcher,
                     visited,
                     metadata,
-                    throttle
-                );
-                if (following.isErr()) return following;
-
-                const next = following.unwrap();
-                warnings.push(...next.warnings);
-
-                // A resume token can lead to an empty tail. Expose Load more only if
-                // the lookahead found file items, and reuse that page within the batch.
-                if (!next.items.length) {
-                    nextPageToken = '';
-                    break;
-                }
-                if (pageTokens.length >= pageCount) {
-                    nextPageToken = next.requestToken;
-                    break;
-                }
-
-                items.push(...next.items);
-                pageTokens.push(next.requestToken);
-                nextPageToken = next.nextPageToken;
-            }
-
-            return Ok({ items, nextPageToken, warnings, pageTokens });
+                    throttle,
+                    true
+                ).map((next) => ({
+                    items,
+                    warnings: [...warnings, ...next.warnings],
+                    nextPageToken: next.items.length ? next.requestToken : ''
+                }));
+            });
         });
-}
-
-/** Fetch one library page and keep only its Phodrive files. */
-function readLibraryPage(
-    requestToken: string,
-    headers: PhotosHeaders,
-    fetcher: Fetcher,
-    metadata: ChunkMetadataStore | undefined,
-    scope: ThrottleScope
-): AsyncResult<
-    { items: RemoteBmp[]; nextPageToken: string; warnings: LibraryWarning[] },
-    ServerError
-> {
-    const request = requestToken
-        ? pageRequest(Buffer.from(requestToken, 'base64url'))
-        : Ok(Buffer.from(LIBRARY_STATE_REQUEST, 'base64'));
-
-    return request.andThenAsync((body) =>
-        guardedSend(
-            scope,
-            fetcher,
-            LIBRARY_URL,
-            {
-                method: 'POST',
-                redirect: 'manual',
-                headers: headers.rpcHeaders,
-                body: bodyBytes(body),
-                ...(scope.signal ? { signal: scope.signal } : {})
-            },
-            'Library list'
-        )
-            .andThenAsync((response) => readBody(response, 'Library list'))
-            .andThen(parseLibraryPage)
-            .andThenAsync((page) => scanLibraryPage(page, headers, fetcher, metadata, scope))
-    );
 }
 
 function findFilePage(
@@ -148,7 +68,8 @@ function findFilePage(
     fetcher: Fetcher,
     visited: Set<string>,
     metadata: ChunkMetadataStore | undefined,
-    scope: ThrottleScope
+    scope: ThrottleScope,
+    lookahead = false
 ): AsyncResult<
     {
         items: RemoteBmp[];
@@ -168,17 +89,14 @@ function findFilePage(
 
             visited.add(requestToken);
 
-            const received = await readLibraryPage(
-                requestToken,
-                headers,
-                fetcher,
-                metadata,
-                scope
-            ).map((page) => {
-                nextPageToken = page.nextPageToken;
-
-                return { ...page, requestToken };
-            });
+            const received = await readListingPage(requestToken, headers, fetcher, scope)
+                .andThenAsync((page) =>
+                    scanLibraryPage(page, headers, fetcher, metadata, scope, { lookahead })
+                )
+                .map((page) => {
+                    nextPageToken = page.nextPageToken;
+                    return { ...page, requestToken };
+                });
             if (received.isErr()) return received;
 
             const page = received.unwrap();

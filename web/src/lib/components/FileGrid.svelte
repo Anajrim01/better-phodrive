@@ -61,7 +61,7 @@
     />
 
     {#if !files.length && !folders.length}
-        <FileGridStatus {loading} {loadFailed} filteredOut={filtered && hasFiles} />
+        <FileGridStatus {loading} {loadFailed} {hasMore} filteredOut={filtered && hasFiles} />
     {:else if layout === FileLayout.List}
         <FileList
             {files}

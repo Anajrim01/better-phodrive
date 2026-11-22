@@ -1,5 +1,6 @@
 export { validateAasAccount } from './auth';
-export { listBmpPages, listBmps } from './library/index';
+export { listBmps } from './library/index';
+export { listDrivePages } from './library/drive-pages';
 export * from './shares/index';
 export { uploadBmpStream } from './upload/index';
 export { downloadBmp, MEDIA_HOSTS, resolveDownloadUrl } from './download';
