@@ -61,7 +61,8 @@ export class DriveController {
 
         this.locations = new DriveFileLocations(
             this.library,
-            () => this.working || this.context.loading
+            () => this.working || this.context.loading,
+            () => this.context.current
         );
         this.account = new DriveAccount(this.library, () => !this.working, feedback);
         this.uploads = new DriveUploads(

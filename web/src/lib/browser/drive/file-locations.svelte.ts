@@ -4,11 +4,13 @@ import {
     FileLocationsRequestSchema,
     FileLocationsResponseSchema,
     GOOGLE_ACCOUNT_HEADER,
+    GroupMoveRequestSchema,
     MAX_FILE_LOCATION_EDITS,
-    type FileLocationEdit
+    type AccountFileLocationEdit
 } from '@madkarmaa/phodrive-core/models';
 import { apiJson } from '@madkarmaa/phodrive-core/browser/api';
 import { schemaResult } from '@madkarmaa/phodrive-core/validation';
+import type { DriveContext } from '#browser/drive/context.svelte';
 import type { DriveLibrary } from '#browser/drive/library.svelte';
 
 export const FILE_LOCATION_CONTROLS = Symbol('fileLocationControls');
@@ -26,7 +28,12 @@ export class DriveFileLocations {
     readonly selected = $derived.by(() =>
         this.library.files.filter((file) => this.keys.has(selectionKey(file)))
     );
-    readonly owner = $derived(this.selected[0]);
+    private readonly owner = $derived(this.selected[0]);
+    private readonly group = $derived.by(() => {
+        const context = this.context();
+        return context?.kind === 'group' ? context.group : null;
+    });
+    readonly destinationLabel = $derived(this.group?.name ?? this.owner?.email);
     saving = $state(false);
     renaming = $state<string | null>(null);
     moving = $state(false);
@@ -36,13 +43,16 @@ export class DriveFileLocations {
     readonly folders = $derived.by(() => {
         const owner = this.owner?.accountId;
         if (!owner) return [];
-        const files = this.library.files.filter((file) => file.accountId === owner);
+        const files = this.group
+            ? this.library.files
+            : this.library.files.filter((file) => file.accountId === owner);
         return childFolders(files, this.destination);
     });
 
     constructor(
         private readonly library: DriveLibrary,
-        private readonly blocked: () => boolean
+        private readonly blocked: () => boolean,
+        private readonly context: () => DriveContext | null
     ) {}
 
     get disabled() {
@@ -62,7 +72,7 @@ export class DriveFileLocations {
         if (this.isSelected(file)) return true;
         return (
             this.selected.length < MAX_FILE_LOCATION_EDITS &&
-            (!this.owner || ownerKey(file) === ownerKey(this.owner))
+            (this.group !== null || !this.owner || ownerKey(file) === ownerKey(this.owner))
         );
     }
 
@@ -113,8 +123,8 @@ export class DriveFileLocations {
             this.closeRename();
             return;
         }
-        const edited = await this.save(file.accountId, [
-            { fileId: file.fileId, mediaKey: chunk.mediaKey, name }
+        const edited = await this.save([
+            { accountId: file.accountId, fileId: file.fileId, mediaKey: chunk.mediaKey, name }
         ]);
         if (edited) this.closeRename();
     }
@@ -133,28 +143,30 @@ export class DriveFileLocations {
     }
 
     async move() {
-        const accountId = this.owner?.accountId;
-        if (!this.moving || !accountId) return;
-        const edits: FileLocationEdit[] = [];
+        if (!this.moving) return;
+        const edits: AccountFileLocationEdit[] = [];
         for (const item of this.selected) {
             const chunk = firstChunk(item);
-            if (chunk && item.folder !== this.destination) {
-                edits.push({
-                    fileId: item.fileId,
-                    mediaKey: chunk.mediaKey,
-                    folder: this.destination
-                });
-            }
+            if (!item.accountId || !chunk || item.folder === this.destination) continue;
+
+            edits.push({
+                accountId: item.accountId,
+                fileId: item.fileId,
+                mediaKey: chunk.mediaKey,
+                folder: this.destination
+            });
         }
-        if (!edits.length) return;
-        const edited = await this.save(accountId, edits);
+        const edited = await this.save(edits, this.group?.id);
         if (edited) this.clearSelection();
     }
 
-    private async save(accountId: string, files: FileLocationEdit[]) {
-        if (this.disabled) return false;
+    private async save(files: AccountFileLocationEdit[], groupId?: string) {
+        const accountId = files[0]?.accountId;
+        if (this.disabled || !accountId) return false;
 
-        const request = FileLocationsRequestSchema.safeParse({ files });
+        const request = groupId
+            ? GroupMoveRequestSchema.safeParse({ folder: this.destination, files })
+            : FileLocationsRequestSchema.safeParse({ files });
         if (!request.success) {
             this.error = 'Enter a valid file name or folder.';
             return false;
@@ -164,13 +176,16 @@ export class DriveFileLocations {
         this.error = '';
         try {
             const fallback = 'Could not save the file location.';
+            const path = groupId
+                ? '/api/account/groups/' + encodeURIComponent(groupId) + '/files/location'
+                : '/api/files/location';
             const saved = await apiJson(
-                '/api/files/location',
+                path,
                 {
                     method: 'PATCH',
                     headers: {
                         'content-type': 'application/json',
-                        [GOOGLE_ACCOUNT_HEADER]: accountId
+                        ...(groupId ? {} : { [GOOGLE_ACCOUNT_HEADER]: accountId })
                     },
                     body: JSON.stringify(request.data)
                 },
@@ -178,7 +193,7 @@ export class DriveFileLocations {
             ).andThen((data) => schemaResult(FileLocationsResponseSchema, data, fallback));
             return saved.match({
                 Ok: () => {
-                    this.library.applyLocations(accountId, files);
+                    this.library.applyLocations(files);
                     return true;
                 },
                 Err: (error) => {

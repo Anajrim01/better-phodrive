@@ -2,7 +2,7 @@ import { FileLocationsRequestSchema } from '@madkarmaa/phodrive-core/models';
 import { Hono } from 'hono';
 import { errorResponse, jsonResponse, readJsonRequest } from '../api';
 import type { ServerContext } from '../context';
-import { saveFileLocations } from '../file-locations';
+import { saveFileLocations } from '../file-location-writes';
 import { requireGoogleAccount, requireUser, type ApiEnv } from '../middleware';
 
 export function fileLocationRoutes(context: ServerContext) {

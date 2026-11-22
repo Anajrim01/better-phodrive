@@ -1,6 +1,7 @@
 import { afterEach, expect, test, vi } from 'vitest';
 import { FileSort, GOOGLE_ACCOUNT_HEADER } from '@madkarmaa/phodrive-core/models';
 import type { UploadedChunk } from '@madkarmaa/phodrive-core/files';
+import type { DriveContext } from '#browser/drive/context.svelte';
 import { DriveFileLocations } from '#browser/drive/file-locations.svelte';
 import { DriveLibrary } from '#browser/drive/library.svelte';
 
@@ -23,15 +24,22 @@ function chunk(accountId: string, key: string, folder?: string): UploadedChunk {
     };
 }
 
-function locationsFor(chunks: UploadedChunk[]) {
+function locationsFor(chunks: UploadedChunk[], context: DriveContext | null = null) {
     const library = new DriveLibrary(
-        () => null,
+        () => context,
         () => false,
         () => FileSort.NameAscending,
         vi.fn()
     );
     library.appendChunks(chunks);
-    return { library, locations: new DriveFileLocations(library, () => false) };
+    return {
+        library,
+        locations: new DriveFileLocations(
+            library,
+            () => false,
+            () => context
+        )
+    };
 }
 
 test('inline rename keeps the original metadata and applies only after a successful save', async () => {
@@ -124,4 +132,54 @@ test('a replacement cannot inherit an open rename or a missing selection', async
     vi.stubGlobal('fetch', fetch);
     await locations.rename(replaced, 'incorrect.bin');
     expect(fetch).not.toHaveBeenCalled();
+});
+
+test('a group moves files from different owners to one group folder in one request', async () => {
+    const first = chunk('first', 'a', 'Work');
+    const second = { ...chunk('second', 'a', 'Elsewhere'), mediaKey: first.mediaKey };
+    const third = chunk('third', 'b', 'Archive/2026');
+    const members = [first, second, third].map(({ accountId, email }) => ({
+        id: accountId!,
+        email
+    }));
+    const context = { kind: 'group', group: { id: 'group', name: 'Studio', members } } as const;
+    const { library, locations } = locationsFor([first, second, third], context);
+    const fetch = vi
+        .fn<(_path: string, _init: RequestInit) => Promise<Response>>()
+        .mockResolvedValueOnce(Response.json({ error: 'Try again' }, { status: 503 }))
+        .mockResolvedValueOnce(Response.json({ updated: true }));
+    vi.stubGlobal('fetch', fetch);
+
+    locations.select(library.files[0], true);
+    locations.select(library.files[1], true);
+    locations.startMove();
+    expect(locations.destinationLabel).toBe('Studio');
+    expect(locations.folders.map((folder) => folder.name)).toContain('Archive');
+    locations.destination = 'Archive/2026';
+
+    await locations.move();
+    expect(locations.moving).toBe(true);
+    expect(locations.selected).toHaveLength(2);
+    expect(library.files.slice(0, 2).map((file) => file.folder)).toEqual(['Work', 'Elsewhere']);
+
+    await locations.move();
+    expect(locations.moving).toBe(false);
+    expect(locations.selected).toHaveLength(0);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    const [path, init] = fetch.mock.calls[1];
+    expect(path).toBe('/api/account/groups/group/files/location');
+    expect(new Headers(init.headers).has(GOOGLE_ACCOUNT_HEADER)).toBe(false);
+    expect(JSON.parse(String(init.body))).toEqual({
+        folder: 'Archive/2026',
+        files: [first, second].map(({ accountId, fileId, mediaKey }) => ({
+            accountId,
+            fileId,
+            mediaKey
+        }))
+    });
+    expect(library.files.map(({ accountId, folder }) => [accountId, folder])).toEqual([
+        ['first', 'Archive/2026'],
+        ['second', 'Archive/2026'],
+        ['third', 'Archive/2026']
+    ]);
 });
