@@ -1,5 +1,5 @@
 import type { RemoteBmp } from '@madkarmaa/phodrive-core/models';
-import { listBmpPages, listBmps } from '@madkarmaa/phodrive-core/server/photos';
+import { listDrivePages, listBmps } from '@madkarmaa/phodrive-core/server/photos';
 import {
     createThrottleCoordinator,
     type ThrottleCoordinator,
@@ -196,7 +196,7 @@ test('a warm two-page refresh reuses authentication and the lookahead with no pr
     await readAll(store, budgetFetcher(pages, items, coldCounts), scope());
 
     const warmCounts = emptyCounts();
-    const warm = await listBmpPages(
+    const warm = await listDrivePages(
         EMAIL,
         TOKEN,
         '',

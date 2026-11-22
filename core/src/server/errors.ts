@@ -35,10 +35,6 @@ export const SERVER_ERRORS = {
         message: 'The received file is incomplete.'
     },
     INVALID_PAGE_TOKEN: { code: 'INVALID_PAGE_TOKEN', message: 'Invalid page token' },
-    LIBRARY_PAGE_CHANGED: {
-        code: 'LIBRARY_PAGE_CHANGED',
-        message: 'Google Photos changed during scanning. Refresh to continue.'
-    },
     METADATA_UNAVAILABLE: {
         code: 'METADATA_UNAVAILABLE',
         message: 'Library metadata is unavailable.'
@@ -54,6 +50,10 @@ export const SERVER_ERRORS = {
     REPEATED_LIBRARY_PAGE: {
         code: 'REPEATED_LIBRARY_PAGE',
         message: 'Google Photos repeated a library page. Refresh to try again.'
+    },
+    LIBRARY_PAGE_CHANGED: {
+        code: 'LIBRARY_PAGE_CHANGED',
+        message: 'Google Photos changed during scanning. Refresh to continue.'
     },
     MISSING_MEDIA_KEY: { code: 'MISSING_MEDIA_KEY', message: 'Missing media key' },
     HASH_LOOKUP_MISMATCH: { code: 'HASH_LOOKUP_MISMATCH', message: 'Hash lookup mismatch' },

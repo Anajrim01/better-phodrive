@@ -144,16 +144,17 @@ The tests in `core/tests/server/library-request-budget.test.ts`,
 
 ## Refresh
 
-`/api/library` returns after at most the requested number of provider pages
-(up to five) and 16 cold probes. The first request can start at most 34 Google
-requests: one auth POST, one listing POST, and up to 16 PrepareDownload and
-range GET pairs. A response can include a continuation even if no files were
-found yet. When the continuation points into the middle of a provider page,
-the server checks that the candidate list is unchanged before resuming.
+`/api/library` scans up to five provider pages and at most 16 cold candidates
+per response. The first request can start at most 34 Google requests: one
+auth POST, one listing POST, and up to 16 PrepareDownload and range GET pairs.
+If probe and listing budget remains, a metadata-only lookahead can identify an
+empty terminal sync page. A partially scanned listing can return a continuation
+without any files. Resuming validates the order of the media keys, allowing a
+trash or restore that leaves the order unchanged.
 
-`readLibrarySnapshot` reloads the pages already loaded, in batches of up to five
-pages per account. Each batch uses a single auth POST. Cached candidates use no
-probe budget.
+`readLibrarySnapshot` uses the number of provider pages the user started per
+account. Resuming within the same listing does not increase the depth. Each
+batch uses a single auth POST. Cached candidates use no probe budget.
 
 With a complete index, refreshing the two-page, 100-candidate fixture costs
 one auth POST and two library POSTs, down from two auth and three library POSTs.

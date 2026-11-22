@@ -49,6 +49,7 @@ export function readLibrarySnapshot(
         const warnings = new Map<LibraryWarning['code'], LibraryWarning>();
         const pageTokens = new Set<string>();
         let nextPageToken = '';
+        let partial = false;
         let pages = 0;
 
         const depth = Math.max(1, pageCount);
@@ -80,7 +81,8 @@ export function readLibrarySnapshot(
                     });
                 }
                 nextPageToken = page.nextPageToken;
-                pages += page.pageTokens.length;
+                partial = page.partial ?? false;
+                pages += page.providerPages ?? page.pageTokens.length;
 
                 return Ok(undefined);
             });
@@ -93,6 +95,7 @@ export function readLibrarySnapshot(
             items: [...items.values()],
             nextPageToken,
             warnings: [...warnings.values()],
+            ...(partial ? { partial } : {}),
             pages
         });
     });

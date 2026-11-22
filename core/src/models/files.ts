@@ -88,6 +88,8 @@ export const LibraryWarningSchema = z.object({
 export const LibraryResponseSchema = z.object({
     items: z.array(RemoteBmpSchema),
     nextPageToken: z.string(),
+    providerPages: z.int().nonnegative().optional(),
+    partial: z.boolean().optional(),
     warnings: z.array(LibraryWarningSchema).optional()
 });
 

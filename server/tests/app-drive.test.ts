@@ -75,7 +75,7 @@ test('drive routes refuse signed-out requests before contacting Google', async (
 
 test('the library uses the stored account and ignores credentials sent by the client', async () => {
     vi.mocked(listDrivePages).mockReturnValue(
-        resolved({ items: [], nextPageToken: '', pageTokens: [''], warnings: [] })
+        resolved({ items: [], nextPageToken: '', pageTokens: [''], providerPages: 1, warnings: [] })
     );
 
     const response = await postJson('/api/library', {
@@ -105,6 +105,7 @@ test('library warnings are relayed without failing the page', async () => {
             items: [],
             nextPageToken: '',
             pageTokens: [''],
+            providerPages: 1,
             warnings: [{ code: 'METADATA_SAVE_FAILED' }]
         })
     );
@@ -120,7 +121,7 @@ test('library warnings are relayed without failing the page', async () => {
 
 test('a drive request selects a Google account by its stable id', async () => {
     vi.mocked(listDrivePages).mockReturnValue(
-        resolved({ items: [], nextPageToken: '', pageTokens: [''], warnings: [] })
+        resolved({ items: [], nextPageToken: '', pageTokens: [''], providerPages: 1, warnings: [] })
     );
 
     const response = await call('/api/library', {
@@ -170,6 +171,7 @@ test('library items carry the stable account id', async () => {
             ],
             nextPageToken: '',
             pageTokens: [''],
+            providerPages: 1,
             warnings: []
         })
     );

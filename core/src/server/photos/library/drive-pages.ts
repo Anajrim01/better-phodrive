@@ -17,7 +17,11 @@ import { scanLibraryPage } from './probe';
 const MAX_COLD_PROBES = 16;
 
 type Cursor = { token: string; resume?: { digest: string; offset: number } };
-type DrivePages = LibraryResponse & { pageTokens: string[]; warnings: LibraryWarning[] };
+type DrivePages = LibraryResponse & {
+    pageTokens: string[];
+    providerPages: number;
+    warnings: LibraryWarning[];
+};
 type ScannedPage = LibraryResponse & { warnings: LibraryWarning[]; probeGroups: number };
 
 function decodeCursor(value: string): Result<Cursor, ServerError> {
@@ -33,7 +37,9 @@ function decodeCursor(value: string): Result<Cursor, ServerError> {
 }
 
 function listingDigest(items: readonly LibraryCandidate[]): string {
-    return createHash('sha256').update(JSON.stringify(items)).digest('base64url');
+    return createHash('sha256')
+        .update(JSON.stringify(items.map(({ mediaKey }) => mediaKey)))
+        .digest('base64url');
 }
 
 function scanDrivePage(
@@ -90,6 +96,7 @@ export function listDrivePages(
                 items: [],
                 warnings: [],
                 pageTokens: [],
+                providerPages: 0,
                 nextPageToken: ''
             };
             let requestToken = pageToken;
@@ -106,6 +113,7 @@ export function listDrivePages(
                     remainingProbes
                 ).andThen(({ items, warnings, nextPageToken, probeGroups }) => {
                     snapshot.pageTokens.push(requestToken);
+                    if (!current.resume) snapshot.providerPages++;
                     if (nextPageToken && snapshot.pageTokens.includes(nextPageToken))
                         return Err(SERVER_ERRORS.REPEATED_LIBRARY_PAGE);
 
@@ -122,6 +130,26 @@ export function listDrivePages(
                 current = { token: requestToken };
             }
 
+            // An empty terminal sync page does not need a Load more action.
+            if (
+                snapshot.nextPageToken &&
+                !snapshot.nextPageToken.includes('.') &&
+                remainingProbes > 0 &&
+                snapshot.pageTokens.length < MAX_LIBRARY_BATCH_PAGES
+            ) {
+                const tail = await readListingPage(
+                    snapshot.nextPageToken,
+                    headers,
+                    fetcher,
+                    throttle
+                );
+                tail.inspect(({ items, warnings, nextPageToken }) => {
+                    if (!items.length && !warnings.length && !nextPageToken)
+                        snapshot.nextPageToken = '';
+                });
+            }
+
+            snapshot.partial = snapshot.nextPageToken.includes('.');
             return Ok(snapshot);
         })
     );

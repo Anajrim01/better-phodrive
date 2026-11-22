@@ -22,13 +22,16 @@ test('a photo-heavy listing returns within the probe budget and resumes at the n
 
     const first = (await listDrivePages(EMAIL, TOKEN, '', fetcher, store, scope)).unwrap();
     expect(first.items).toEqual([]);
+    expect(first.providerPages).toBe(1);
     expect(first.nextPageToken).toBeTruthy();
     expect(counts).toEqual({ auth: 1, library: 1, prepare: 16, media: 16 });
 
+    pages.set('', listingPage([{ ...items[0], trashed: true }, ...items.slice(1)]));
     const next = (
         await listDrivePages(EMAIL, TOKEN, first.nextPageToken, fetcher, store, scope)
     ).unwrap();
     expect(next.items.map((item) => item.mediaKey)).toEqual([file.mediaKey]);
+    expect(next.providerPages).toBe(0);
     expect(next.nextPageToken).toBe('');
     expect(counts).toEqual({ auth: 2, library: 2, prepare: 21, media: 21 });
 
@@ -38,7 +41,7 @@ test('a photo-heavy listing returns within the probe budget and resumes at the n
     expect(counts.prepare).toBe(21);
 });
 
-test('a batch returns a continuation after the requested number of empty listings', async () => {
+test('a batch suppresses the continuation for an empty terminal listing', async () => {
     const pages = new Map([
         ['', listingPage([], 'second')],
         ['second', listingPage([], 'third')],
@@ -59,8 +62,9 @@ test('a batch returns a continuation after the requested number of empty listing
 
     expect(result.items).toEqual([]);
     expect(result.pageTokens).toHaveLength(2);
-    expect(result.nextPageToken).toBe(Buffer.from('third').toString('base64url'));
-    expect(counts).toEqual({ auth: 1, library: 2, prepare: 0, media: 0 });
+    expect(result.providerPages).toBe(2);
+    expect(result.nextPageToken).toBe('');
+    expect(counts).toEqual({ auth: 1, library: 3, prepare: 0, media: 0 });
 });
 
 test('resuming a listing can identify a trashed copy using an earlier indexed file', async () => {
