@@ -6,6 +6,7 @@
     import { fileType } from '@madkarmaa/phodrive-core/files';
     import FileActions from '#components/FileActions.svelte';
     import EditableFileName from '#components/EditableFileName.svelte';
+    import FileSelect from '#components/FileSelect.svelte';
     import IconDescription from '~icons/material-symbols/description';
     import IconDescriptionOutline from '~icons/material-symbols/description-outline';
 
@@ -27,6 +28,7 @@
     <div class="flex min-h-12 min-w-0 items-center gap-3 px-3 py-2">
         <IconDescription aria-hidden="true" class="size-5 shrink-0 text-primary" />
         <EditableFileName file={item} heading />
+        <FileSelect file={item} />
     </div>
 
     <div

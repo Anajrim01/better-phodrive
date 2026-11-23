@@ -25,6 +25,7 @@ function chunk(accountId: string, key: string, folder?: string): UploadedChunk {
 }
 
 function locationsFor(chunks: UploadedChunk[], context: DriveContext | null = null) {
+    const feedback = vi.fn();
     const library = new DriveLibrary(
         () => context,
         () => false,
@@ -34,10 +35,12 @@ function locationsFor(chunks: UploadedChunk[], context: DriveContext | null = nu
     library.appendChunks(chunks);
     return {
         library,
+        feedback,
         locations: new DriveFileLocations(
             library,
             () => false,
-            () => context
+            () => context,
+            feedback
         )
     };
 }
@@ -67,8 +70,8 @@ test('inline rename keeps the original metadata and applies only after a success
     });
 });
 
-test('the move picker uses the selected account and moves the selection in one request', async () => {
-    const { library, locations } = locationsFor([
+test('move mode moves the selection into the open folder in one request', async () => {
+    const { library, locations, feedback } = locationsFor([
         chunk('first', 'a', 'Work'),
         chunk('first', 'b', 'Work'),
         chunk('first', 'c', 'Archive/2026'),
@@ -85,10 +88,8 @@ test('the move picker uses the selected account and moves the selection in one r
     locations.select(other, true);
     expect(locations.selected).toEqual([first, second]);
     locations.startMove();
-    expect(locations.folders.map((folder) => folder.name)).toEqual(['Archive', 'Work']);
-    locations.destination = 'Archive';
-    expect(locations.folders.map((folder) => folder.name)).toEqual(['2026']);
-    locations.destination = 'Archive/2026';
+    expect(locations.movesHere).toBe(true);
+    library.openFolder('Archive/2026');
 
     await locations.move();
     expect(fetch).toHaveBeenCalledTimes(1);
@@ -110,6 +111,23 @@ test('the move picker uses the selected account and moves the selection in one r
     ]);
     expect(locations.selected).toEqual([]);
     expect(locations.moving).toBe(false);
+    expect(feedback).toHaveBeenCalledWith('Moved 2 files to 2026.');
+});
+
+test('a new folder is created by moving files into it, then opened', async () => {
+    const { library, locations } = locationsFor([chunk('first', 'a', 'Work')]);
+    const fetch = vi.fn(async (_path: string, _init: RequestInit) =>
+        Response.json({ updated: true })
+    );
+    vi.stubGlobal('fetch', fetch);
+    library.openFolder('Work');
+    locations.select(library.files[0], true);
+    locations.startMove();
+    expect(locations.movesHere).toBe(false);
+
+    await locations.move('  Drafts ');
+    expect(JSON.parse(String(fetch.mock.calls[0][1].body)).files[0].folder).toBe('Work/Drafts');
+    expect(library.folder).toBe('Work/Drafts');
 });
 
 test('a replacement cannot inherit an open rename or a missing selection', async () => {
@@ -153,9 +171,7 @@ test('a group moves files from different owners to one group folder in one reque
     locations.select(library.files[0], true);
     locations.select(library.files[1], true);
     locations.startMove();
-    expect(locations.destinationLabel).toBe('Studio');
-    expect(locations.folders.map((folder) => folder.name)).toContain('Archive');
-    locations.destination = 'Archive/2026';
+    library.openFolder('Archive/2026');
 
     await locations.move();
     expect(locations.moving).toBe(true);

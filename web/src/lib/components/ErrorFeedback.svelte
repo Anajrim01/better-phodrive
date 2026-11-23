@@ -15,7 +15,7 @@
             if (!open) message = '';
         }
     }
-    iconAriaLabel="Dismiss error"
+    iconAriaLabel="Dismiss"
 >
     {#snippet icon()}<IconClose aria-hidden="true" />{/snippet}
 </Snackbar>
