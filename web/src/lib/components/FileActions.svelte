@@ -5,7 +5,11 @@
 </script>
 
 <script lang="ts">
-    import type { Component } from 'svelte';
+    import { getContext, type Component } from 'svelte';
+    import {
+        FILE_LOCATION_CONTROLS,
+        type DriveFileLocations
+    } from '#browser/drive/file-locations.svelte';
     import { Button, IconButton, Menu, MenuItem } from 'noph-ui';
     import { FileActionKind } from '@madkarmaa/phodrive-core/models';
     import type { FileGroup } from '@madkarmaa/phodrive-core/files';
@@ -15,6 +19,7 @@
     import IconRestore from '~icons/material-symbols/restore-from-trash';
     import IconDeleteForever from '~icons/material-symbols/delete-forever';
     import IconMore from '~icons/material-symbols/more-vert';
+    import IconEdit from '~icons/material-symbols/edit-outline';
 
     interface Props {
         item: FileGroup;
@@ -58,6 +63,11 @@
     let menuOpen = $state(false);
     const uid = $props.id();
     const anchorName = `--file-actions-${uid}`;
+    // Only the files view provides rename; Trash and shares lists have no location controls.
+    const readLocations = getContext<(() => DriveFileLocations) | undefined>(
+        FILE_LOCATION_CONTROLS
+    );
+    const locations = $derived(readLocations?.());
 
     const actions = $derived.by(() => {
         const available: Action[] = [];
@@ -96,6 +106,14 @@
                 kind: FileActionKind.Download,
                 loadingLabel: `Downloading ${item.name}`,
                 run: () => ondownload(item)
+            });
+        if (locations?.canEdit(item))
+            available.push({
+                label: 'Rename',
+                title: `Rename ${item.name}`,
+                icon: IconEdit,
+                disabled: disabled || locations.disabled || locations.moving,
+                run: () => locations.startRename(item)
             });
         if (onshare)
             available.push({

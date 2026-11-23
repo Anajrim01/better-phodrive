@@ -1,8 +1,8 @@
 <script lang="ts">
     import { Button } from 'noph-ui';
-    import { setContext, tick } from 'svelte';
+    import { setContext } from 'svelte';
     import { FILE_LOCATION_CONTROLS } from '#browser/drive/file-locations.svelte';
-    import MoveFilesPanel from '#components/MoveFilesPanel.svelte';
+    import MoveDock from '#components/MoveDock.svelte';
     import { FileActionKind } from '@madkarmaa/phodrive-core/models';
     import { fade } from 'svelte/transition';
     import { prefersReducedMotion } from 'svelte/motion';
@@ -30,12 +30,6 @@
     setContext(FILE_LOCATION_CONTROLS, () => locations);
     let moveButton = $state<HTMLElement>();
     let filesHeading = $state<HTMLHeadingElement>();
-
-    async function closeMove() {
-        locations.closeMove();
-        await tick();
-        (moveButton ?? filesHeading)?.focus();
-    }
     const disabled = $derived(working || library.loading);
     const foldersDisabled = $derived(library.loading && library.files.length === 0);
     const filtered = $derived(!!(library.searchTerm || library.typeFilter || library.modifiedDays));
@@ -77,109 +71,100 @@
         <LayoutToggle bind:layout={settings.fileLayout} />
     </div>
 
-    <FileFilters
-        types={library.availableTypes}
-        bind:type={library.typeFilter}
-        bind:days={library.modifiedDays}
-        bind:sort={settings.fileSort}
-    />
-    <div
-        class={locations.moving
-            ? 'grid flex-1 items-start gap-4 min-[1230px]:grid-cols-[minmax(0,1fr)_18rem]'
-            : 'flex-1'}
-    >
-        <div class="min-w-0">
-            {#if locations.selected.length}
-                <div
-                    class="selection-bar flex min-h-9 flex-wrap items-center gap-1 border-y border-border px-2"
-                >
-                    <span class="mr-auto text-sm tabular-nums" role="status"
-                        >{locations.selected.length} selected</span
-                    >
-                    {#if !locations.moving}
-                        <Button
-                            variant="text"
-                            shape="square"
-                            size="xs"
-                            disabled={locations.disabled}
-                            bind:element={moveButton}
-                            onclick={() => locations.startMove()}
-                        >
-                            Move selected
-                        </Button>
-                    {/if}
-                    <Button
-                        variant="text"
-                        shape="square"
-                        size="xs"
-                        disabled={locations.disabled}
-                        onclick={() => {
-                            locations.clearSelection();
-                            filesHeading?.focus();
-                        }}
-                    >
-                        Clear selection
-                    </Button>
-                </div>
-            {/if}
-            <FileDrop
-                disabled={disabled ||
-                    uploadDisabled ||
-                    drive.confirmOpen ||
-                    drive.accountMenuOpen ||
-                    locations.moving}
-                {destination}
-                {onupload}
+    {#if locations.selected.length && !locations.moving}
+        <div
+            class="selection-bar flex min-h-13.5 flex-wrap items-start gap-2 pt-1 pb-3"
+            aria-label="Selected files"
+        >
+            <span class="mr-auto self-center text-sm tabular-nums" role="status"
+                >{locations.selected.length} selected</span
             >
-                <FileGrid
-                    files={library.visibleFiles}
-                    folders={library.folders}
-                    layout={settings.fileLayout}
-                    bind:sort={settings.fileSort}
-                    loading={library.loading}
-                    loadFailed={library.loadFailed}
-                    {filtered}
-                    hasFiles={!!library.files.length}
-                    hasMore={library.hasMore}
-                    {disabled}
-                    {foldersDisabled}
-                    action={drive.fileAction}
-                    onopenfolder={(path) => library.openFolder(path)}
-                    ondownload={(item) => {
-                        void drive.actOnFile(item, FileActionKind.Download);
-                    }}
-                    onshare={share ? (item) => share.requestFile(item) : undefined}
-                    onsharefolder={share ? (path) => share.requestFolder(path) : undefined}
-                    ondelete={(item) => drive.requestDelete(item)}
-                    onrestoretrashed={(item) => {
-                        if (item.trashedChunks?.length)
-                            void drive.actOnFile(
-                                { ...item, chunks: item.trashedChunks },
-                                FileActionKind.Restore
-                            );
-                    }}
-                    onmore={() => {
-                        void library.load(false);
-                    }}
-                />
-            </FileDrop>
+            <Button
+                variant="text"
+                size="s"
+                disabled={locations.disabled}
+                bind:element={moveButton}
+                onclick={() => locations.startMove()}
+            >
+                Move…
+            </Button>
+            <Button
+                variant="text"
+                size="s"
+                disabled={locations.disabled}
+                onclick={() => {
+                    locations.clearSelection();
+                    filesHeading?.focus();
+                }}
+            >
+                Clear
+            </Button>
         </div>
-        {#if locations.moving}
-            <div class="order-first min-w-0 min-[1230px]:order-none">
-                <MoveFilesPanel
-                    {locations}
-                    hasMore={library.hasMore}
-                    loading={library.loading}
-                    onmore={() => void library.load(false)}
-                    onclose={closeMove}
-                />
-            </div>
-        {/if}
+    {:else}
+        <FileFilters
+            types={library.availableTypes}
+            bind:type={library.typeFilter}
+            bind:days={library.modifiedDays}
+            bind:sort={settings.fileSort}
+        />
+    {/if}
+    <div class="min-w-0 flex-1" class:moving={locations.moving}>
+        <FileDrop
+            disabled={disabled ||
+                uploadDisabled ||
+                drive.confirmOpen ||
+                drive.accountMenuOpen ||
+                locations.moving}
+            {destination}
+            {onupload}
+        >
+            <FileGrid
+                files={library.visibleFiles}
+                folders={library.folders}
+                layout={settings.fileLayout}
+                bind:sort={settings.fileSort}
+                loading={library.loading}
+                loadFailed={library.loadFailed}
+                {filtered}
+                hasFiles={!!library.files.length}
+                hasMore={library.hasMore}
+                {disabled}
+                {foldersDisabled}
+                action={drive.fileAction}
+                onopenfolder={(path) => library.openFolder(path)}
+                ondownload={(item) => {
+                    void drive.actOnFile(item, FileActionKind.Download);
+                }}
+                onshare={share ? (item) => share.requestFile(item) : undefined}
+                onsharefolder={share && !locations.moving
+                    ? (path) => share.requestFolder(path)
+                    : undefined}
+                ondelete={(item) => drive.requestDelete(item)}
+                onrestoretrashed={(item) => {
+                    if (item.trashedChunks?.length)
+                        void drive.actOnFile(
+                            { ...item, chunks: item.trashedChunks },
+                            FileActionKind.Restore
+                        );
+                }}
+                onmore={() => {
+                    void library.load(false);
+                }}
+            />
+        </FileDrop>
     </div>
+    {#if locations.moving}
+        <MoveDock
+            {locations}
+            onclose={(moved) => (moved ? filesHeading : (moveButton ?? filesHeading))?.focus()}
+        />
+    {/if}
 </div>
 
 <style>
-    .selection-bar {
-        --np-button-shape: 3px;
+    /* In move mode the folders pick the destination; dim the files so the folders stand out. */
+    .moving :global(.file-list),
+    .moving :global(.file-card) {
+        opacity: 0.45;
     }
 </style>

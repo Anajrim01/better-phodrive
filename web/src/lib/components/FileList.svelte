@@ -6,6 +6,9 @@
     import LocalizedDate from '#components/LocalizedDate.svelte';
     import FileActions from '#components/FileActions.svelte';
     import EditableFileName from '#components/EditableFileName.svelte';
+    import FileSelect from '#components/FileSelect.svelte';
+    import { getContext } from 'svelte';
+    import { FILE_LOCATION_CONTROLS } from '#browser/drive/file-locations.svelte';
     import IconDescription from '~icons/material-symbols/description';
     import SortButton from '#components/SortButton.svelte';
 
@@ -42,6 +45,7 @@
         onrestore,
         ondeleteforever
     }: Props = $props();
+    const selectable = !!getContext(FILE_LOCATION_CONTROLS);
     const nameSort = $derived(sort === FileSort.NameAscending || sort === FileSort.NameDescending);
     const ascending = $derived(
         sort === FileSort.NameAscending || sort === FileSort.ModifiedAscending
@@ -66,6 +70,9 @@
 <table class="file-list" aria-labelledby={headingId}>
     <thead>
         <tr>
+            {#if selectable}
+                <th scope="col" class="select-column"><FileSelect {files} /></th>
+            {/if}
             <th scope="col" aria-sort={ariaSort(nameSort)}>
                 <SortButton
                     label="Name"
@@ -89,7 +96,10 @@
     <tbody>
         {#each files as item (fileKey(item))}
             <tr>
-                <td>
+                {#if selectable}
+                    <td class="select-column"><FileSelect file={item} /></td>
+                {/if}
+                <td class="name-cell">
                     <div class="file-name">
                         <IconDescription aria-hidden="true" class="size-5 shrink-0 text-primary" />
                         <div class="min-w-0 flex-1">
@@ -182,13 +192,13 @@
         font-weight: 500;
     }
 
-    td:not(:first-child) {
+    td:not(.name-cell) {
         color: var(--np-color-on-surface-variant);
     }
 
     tbody tr:hover,
     tbody tr:focus-within,
-    tbody tr:has(:global([data-file-selected='true'])) {
+    tbody tr:has(:global(.select-column input:checked)) {
         background: var(--np-color-surface-container);
     }
 
@@ -199,6 +209,10 @@
         min-width: 0;
     }
 
+    .select-column {
+        width: 48px;
+        padding-inline: 0;
+    }
     .date-column {
         width: 180px;
     }
@@ -207,7 +221,7 @@
         white-space: nowrap;
     }
     .actions-column {
-        width: 108px;
+        width: 140px;
         padding-inline: 4px;
     }
     .mobile-date {
